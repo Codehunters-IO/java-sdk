@@ -1,0 +1,23 @@
+CREATE TABLE audit_event (
+    id               UUID DEFAULT RANDOM_UUID() PRIMARY KEY,
+    event_type       VARCHAR(100),
+    entity_id        VARCHAR(255),
+    action           VARCHAR(50),
+    user_id          VARCHAR(255),
+    role             VARCHAR(50),
+    resource         VARCHAR(255),
+    resource_id      VARCHAR(255),
+    http_method      VARCHAR(10),
+    http_status      INT,
+    ip_address       VARCHAR(50),
+    user_agent       VARCHAR(1000),
+    request_body     CLOB,
+    response_summary CLOB,
+    success          BOOLEAN,
+    error_message    CLOB,
+    duration_ms      INT,
+    metadata         CLOB,
+    source_service   VARCHAR(100),
+    correlation_id   UUID,
+    event_created_at TIMESTAMP WITH TIME ZONE
+);
