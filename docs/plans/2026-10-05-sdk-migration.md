@@ -156,9 +156,58 @@ sobre cada defensa; `./gradlew clean build` en verde.
 defensa en profundidad, no la única barrera); cada servicio debe configurar `codehunters.security.audiences`
 con su client id y revisar que el realm le otorga los roles que antes llegaban solo por header.
 
-## Fase 3 — `sdk-event-messaging-*` 6.0.0
+## Fase 3 — `sdk-event-messaging-*` 6.0.0 ✅ (rama `feature/sdk-event-messaging-v6`, sobre `feature/sdk-tracing-v1`)
 
-Rama: `feature/sdk-event-messaging-v6`.
+Detalle en `messaging/*/CHANGELOG.md`, `messaging/*/README.md` y `messaging/MIGRATION-6.0.md`.
+Cada unidad es un par test (RED) → implementación (GREEN):
+
+| Commits | Qué |
+|---|---|
+| `7f18b2d` → `90c234a` | Tarea 3.0: `codehuntersPublishing { replaces(...) }` declara la capability del artefacto viejo |
+| `a4e5848` | `LegacyPropertyAliases` pasa al módulo interno `platform/sdk-support` |
+| `6e9a19b` | Split en `-core`, `-jdbc`, `-rabbit`, `-kafka` con `git mv`, sin cambios de comportamiento |
+| `5bded85` → `e49e96f` | Prefijo `codehunters.outbox.*`; `OutboxLegacyProperties` mantiene `outbox.*` hasta la 7.0 |
+| `6580f3e` → `febfe3c` | Validación de propiedades al arrancar y chequeo del presupuesto del claim |
+| `b625c7f` → `43fed65` | Reclamo agotado → `FAILED`; el lote corta a `claimTtl/2` y libera el resto a `PENDING` |
+| `155f9c8` → `48e7320` | Timer `outbox.publish` vía `MessagePublisherDecorator` |
+| `297790a` → `7ae4c0d` | `traceId` por defecto desde `TraceContextPort` (`TraceIdSource`) |
+| `3f6d5b3` → `a52a886` | `outboxJsonMapper` con `defaultCandidate = false` |
+| `6726153` → `af44512` | El reclamo de una fila IN_FLIGHT vencida suma un intento (3 dialectos) |
+| `c8606a8`, `79c31c8`, `96c0865` | ArchUnit en `-core`; javadoc; formato |
+| `b225bf0` → `dd4c35e` | `OUTBOX_ID_HEADER` pasa a `MessagePublisherPort` |
+| `289d8cb` → `6c6068e` | `publisher.rabbit.confirm-timeout` (5 s) y presupuesto del claim también para RabbitMQ |
+| `5350b66` → `e49b70b` | `@ConditionalOnOutboxTransport`: el artefacto presente elige el transporte |
+| `af4e695` → `d8e4170` | RabbitMQ con confirms, `mandatory` y `outboxRabbitTemplate` dedicado |
+| `74b4755` → `cab4328` | Kafka con productor idempotente dedicado (`outboxKafkaTemplate`) |
+| (esta rama) | README, CHANGELOG y guía de migración por módulo; CI corre `./gradlew -p build-logic test` |
+
+**Cambios respecto al plan:**
+
+- Módulo interno nuevo `platform/sdk-support` (no publicado) para compartir `LegacyPropertyAliases`
+  con security sin depender de ese módulo.
+- `publisher.kafka.send-timeout` baja de 10 s a 5 s, para que la configuración por defecto
+  (50 × 5 s < 300 s) pase el chequeo del presupuesto. RabbitMQ suma `confirm-timeout` y el mismo
+  chequeo.
+- Punto de extensión público `MessagePublisherDecorator` (el timer es un decorator más).
+- La selección del transporte vive en `@ConditionalOnOutboxTransport`; cada autoconfiguración de
+  transporte valida su propio presupuesto con `requireClaimBudget`.
+- El scheduler de dispatch va en su propia autoconfiguración (`OutboxDispatchSchedulerAutoConfiguration`),
+  porque necesita correr después de `-core` y el resto de `-jdbc`, antes.
+- Kafka: además del template, `outboxKafkaProducerFactory` derivado del `ProducerFactory` de la app;
+  se exige un `ProducerFactory`, no un `KafkaTemplate`.
+- Tarea 6 recortada: solo el timer `outbox.publish` (tags `outcome`, `exception`); no hay
+  `outbox_published_total` ni `outbox_publish_failures_total{final}`.
+- Tarea 7 recortada: sin respaldo por la clave MDC cuando `sdk-tracing` no está; el outbox guarda el
+  `traceId` en el header del sobre, no el `traceparent` completo.
+- Tarea 2: `OutboxFailedGauge` no está cacheado; consulta la tabla en cada scrape.
+- No se usó `java-test-fixtures` en `-core`: los tests de `-rabbit` y `-kafka` dependen de los otros
+  módulos en `testImplementation`.
+- `-jdbc` activa `@EnableScheduling` y `@EnableSchedulerLock` siempre que `codehunters.outbox.enabled`
+  sea `true`, sin propiedad propia (queda documentado en su README).
+
+Verificación: 253 métodos `@Test` en los cuatro módulos; `./gradlew build` en verde.
+
+### Plan original
 
 **Estructura** (los paquetes `io.codehunters.messaging.*` se mantienen):
 
@@ -210,7 +259,7 @@ dos y la propiedad no está definida, el arranque falla con un mensaje explícit
 `sdk-event-messaging-rabbit` (o `-kafka`). Prefijo `outbox.*` → `codehunters.outbox.*`. DDL `seq` en
 SQL Server.
 
-## Fase 4 — `sdk-tracing` 1.0.0 ✅ (rama `feature/sdk-tracing-v1`, sobre `feature/build-logic`)
+## Fase 4 — `sdk-tracing` 1.0.0 ✅ (rama `feature/sdk-tracing-v1`, sobre `feature/sdk-user-security-v3`)
 
 Detalle en `sdk-tracing/CHANGELOG.md` y `README.md`.
 
@@ -353,6 +402,10 @@ Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
          └─> Fase 10 (totp + geo)
                                    todas ──> Fase 11 (BOM)
 ```
+
+Las ramas hechas forman una pila lineal, cada una sobre la anterior:
+`feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
+`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6`. Se integran en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
