@@ -50,7 +50,8 @@ class KafkaMessagePublisherAdapterIT {
   void should_deliver_exactly_one_keyed_record_with_id_header_when_message_published() {
     String topic = "outbox-it-" + UUID.randomUUID();
     UUID id = UUID.randomUUID();
-    var adapter = new KafkaMessagePublisherAdapter(new KafkaTemplate<>(producerFactory), SEND_TIMEOUT);
+    var adapter =
+        new KafkaMessagePublisherAdapter(new KafkaTemplate<>(producerFactory), SEND_TIMEOUT);
 
     adapter.publish(message(topic, id));
 
@@ -94,10 +95,15 @@ class KafkaMessagePublisherAdapterIT {
 
   private static Map<String, Object> consumerProps() {
     return Map.of(
-        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, KAFKA.getBootstrapServers(),
-        ConsumerConfig.GROUP_ID_CONFIG, "outbox-it-" + UUID.randomUUID(),
-        ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest",
-        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class,
-        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+        KAFKA.getBootstrapServers(),
+        ConsumerConfig.GROUP_ID_CONFIG,
+        "outbox-it-" + UUID.randomUUID(),
+        ConsumerConfig.AUTO_OFFSET_RESET_CONFIG,
+        "earliest",
+        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+        StringDeserializer.class,
+        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+        StringDeserializer.class);
   }
 }

@@ -133,11 +133,6 @@ class KafkaMessagePublisherAdapterTest {
   }
 
   private static OutboxMessage<String> message() {
-    return OutboxMessage.<String>builder()
-        .id(ID)
-        .topic(TOPIC)
-        .key(KEY)
-        .message(PAYLOAD)
-        .build();
+    return OutboxMessage.<String>builder().id(ID).topic(TOPIC).key(KEY).message(PAYLOAD).build();
   }
 }
