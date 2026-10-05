@@ -25,7 +25,10 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-user-security` | `io.codehunters.security` | 3.0.0 — [README](security/sdk-user-security/README.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 — [README](security/sdk-user-security-authz/README.md) |
 | `sdk-file-share` | `io.codehunters.fileshare` | pending |
-| `sdk-event-messaging` | `io.codehunters.messaging` | pending |
+| `sdk-event-messaging-core` | `io.codehunters.messaging` | 6.0.0 (in progress) |
+| `sdk-event-messaging-jdbc` | `io.codehunters.messaging` | 6.0.0 (in progress) |
+| `sdk-event-messaging-rabbit` | `io.codehunters.messaging` | 6.0.0 (in progress) |
+| `sdk-event-messaging-kafka` | `io.codehunters.messaging` | 6.0.0 (in progress) |
 | `sdk-support` | `io.codehunters.support` | internal |
 | `sdk-bom` | — (BOM, `java-platform`) | pending |
 

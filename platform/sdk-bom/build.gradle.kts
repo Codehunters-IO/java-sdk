@@ -9,7 +9,10 @@ description = "Bill of materials aligning the versions of every io.codehunters S
 dependencies {
     constraints {
         api(project(":sdk-audit-log"))
-        api(project(":sdk-event-messaging"))
+        api(project(":sdk-event-messaging-core"))
+        api(project(":sdk-event-messaging-jdbc"))
+        api(project(":sdk-event-messaging-kafka"))
+        api(project(":sdk-event-messaging-rabbit"))
         api(project(":sdk-file-share"))
         api(project(":sdk-geo-validation"))
         api(project(":sdk-i18n"))

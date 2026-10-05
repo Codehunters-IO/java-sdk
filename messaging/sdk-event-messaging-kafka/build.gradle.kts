@@ -1,0 +1,27 @@
+plugins {
+    id("codehunters.java-library")
+}
+
+version = "6.0.0"
+description = "Kafka publisher for the transactional outbox."
+
+dependencies {
+    api(project(":sdk-event-messaging-core"))
+    implementation("org.slf4j:slf4j-api")
+    implementation("org.springframework.boot:spring-boot-autoconfigure")
+    compileOnly("org.springframework.kafka:spring-kafka")
+    compileOnly("org.springframework:spring-context")
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
+
+    testImplementation(project(":sdk-event-messaging-jdbc"))
+    testImplementation("org.springframework:spring-test")
+    testImplementation("org.springframework:spring-jdbc")
+    testImplementation("org.springframework:spring-tx")
+    testImplementation("org.springframework.kafka:spring-kafka")
+    testImplementation("tools.jackson.core:jackson-databind")
+    testImplementation("org.mockito:mockito-core")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-kafka")
+    testRuntimeOnly("com.h2database:h2")
+}
