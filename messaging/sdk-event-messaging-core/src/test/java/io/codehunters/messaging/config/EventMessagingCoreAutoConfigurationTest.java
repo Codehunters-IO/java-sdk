@@ -57,7 +57,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_create_nothing_when_outbox_disabled() {
     contextRunner
-        .withPropertyValues("outbox.enabled=false")
+        .withPropertyValues("codehunters.outbox.enabled=false")
         .run(
             context -> {
               assertThat(context).doesNotHaveBean(EventMessageFactory.class);
@@ -108,14 +108,37 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
+  void should_bind_purge_scheduler_defaults_when_nothing_configured() {
+    contextRunner.run(
+        context -> {
+          EventMessagingProperties.Purge purge =
+              context.getBean(EventMessagingProperties.class).purge();
+          assertThat(purge.fixedDelay()).isEqualTo("3600000");
+          assertThat(purge.initialDelay()).isEqualTo("60000");
+          assertThat(purge.lockAtMost()).isEqualTo("PT10M");
+          assertThat(purge.lockAtLeast()).isEqualTo("PT30S");
+        });
+  }
+
+  @Test
+  void should_ignore_legacy_prefix_when_bound_directly() {
+    contextRunner
+        .withPropertyValues("outbox.batch-size=7")
+        .run(
+            context ->
+                assertThat(context.getBean(EventMessagingProperties.class).batchSize())
+                    .isEqualTo(50));
+  }
+
+  @Test
   void should_bind_overridden_properties_when_configured() {
     contextRunner
         .withPropertyValues(
-            "outbox.publisher.type=kafka",
-            "outbox.publisher.kafka.send-timeout=3s",
-            "outbox.purge.retention=3d",
-            "outbox.purge.batch-size=100",
-            "outbox.claim.dialect=postgresql")
+            "codehunters.outbox.publisher.type=kafka",
+            "codehunters.outbox.publisher.kafka.send-timeout=3s",
+            "codehunters.outbox.purge.retention=3d",
+            "codehunters.outbox.purge.batch-size=100",
+            "codehunters.outbox.claim.dialect=postgresql")
         .run(
             context -> {
               EventMessagingProperties props = context.getBean(EventMessagingProperties.class);

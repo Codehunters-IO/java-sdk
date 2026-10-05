@@ -120,14 +120,14 @@ class EventMessagingJdbcAutoConfigurationTest {
   @Test
   void should_fail_startup_naming_property_when_claim_dialect_unknown() {
     contextRunner
-        .withPropertyValues("outbox.claim.dialect=oracle")
+        .withPropertyValues("codehunters.outbox.claim.dialect=oracle")
         .withBean(DataSource.class, this::createDataSource)
         .run(
             context -> {
               assertThat(context).hasFailed();
               assertThat(context.getStartupFailure())
                   .rootCause()
-                  .hasMessageContaining("outbox.claim.dialect");
+                  .hasMessageContaining("codehunters.outbox.claim.dialect");
             });
   }
 

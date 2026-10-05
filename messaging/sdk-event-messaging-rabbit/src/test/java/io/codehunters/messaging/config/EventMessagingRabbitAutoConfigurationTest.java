@@ -81,7 +81,7 @@ class EventMessagingRabbitAutoConfigurationTest {
   @Test
   void should_not_create_rabbit_publisher_when_publisher_type_is_kafka() {
     contextRunner
-        .withPropertyValues("outbox.publisher.type=kafka")
+        .withPropertyValues("codehunters.outbox.publisher.type=kafka")
         .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
         .run(context -> assertThat(context).doesNotHaveBean(MessagePublisherPort.class));
   }

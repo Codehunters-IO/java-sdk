@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 class OutboxDialectResolverTest {
 
   private static final String AUTO = "auto";
-  private static final String PROPERTY = "outbox.claim.dialect";
+  private static final String PROPERTY = "codehunters.outbox.claim.dialect";
 
   private static DataSource dataSourceFor(String productName) throws SQLException {
     DataSource dataSource = mock(DataSource.class);

@@ -33,7 +33,7 @@ class EventMessagingKafkaAutoConfigurationTest {
   void should_select_kafka_publisher_when_publisher_type_is_kafka() {
     contextRunner
         .withClassLoader(new FilteredClassLoader("org.springframework.amqp"))
-        .withPropertyValues("outbox.publisher.type=kafka")
+        .withPropertyValues("codehunters.outbox.publisher.type=kafka")
         .withBean(DataSource.class, this::createDataSource)
         .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class))
         .run(
