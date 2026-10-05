@@ -100,6 +100,8 @@ used for outbox records, so a JSON value serializer can no longer double-encode 
 The outbox producer also bounds every wait by `publisher.kafka.send-timeout`: `max.block.ms`,
 `delivery.timeout.ms` and `request.timeout.ms` equal it and `linger.ms` is `0`, whatever
 `spring.kafka.producer.*` says. The application's own producer keeps its settings.
+`max.in.flight.requests.per.connection` above 5 is capped at 5 and `retries=0` is reset for the
+outbox producer, and an invalid producer setting now fails startup instead of the first dispatch.
 
 ## DDL
 

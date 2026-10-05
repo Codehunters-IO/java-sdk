@@ -24,3 +24,7 @@ First release; the Kafka publisher of `sdk-event-messaging` 5.1.5. Migration gui
   metadata or buffer space before the acknowledgement wait began. The outbox producer now sets
   `max.block.ms`, `delivery.timeout.ms` and `request.timeout.ms` to `send-timeout` and `linger.ms`
   to `0`, and the acknowledgement wait gets only what is left of `send-timeout`.
+- An application producer setting idempotence rejects (`max.in.flight.requests.per.connection` > 5,
+  `retries=0`) made every outbox send fail; the outbox producer caps the first at 5 and resets the
+  second. The derived configuration is parsed at startup, so other invalid values fail startup
+  instead of the first dispatch.

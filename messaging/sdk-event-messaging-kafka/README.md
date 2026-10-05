@@ -20,6 +20,7 @@ is the outbox transport (this artifact alone, or `codehunters.outbox.publisher.t
 |---|---|
 | Producer | Its own `outboxKafkaProducerFactory` and `outboxKafkaTemplate`, derived from the application's `ProducerFactory` configuration (bootstrap servers, security, tuning). Neither is a default candidate |
 | Forced settings | `StringSerializer` for key and value, `acks=all`, `enable.idempotence=true`; any `transactional.id` is dropped |
+| Idempotence guards | `max.in.flight.requests.per.connection` above 5 is capped at 5 and `retries=0` is reset to Kafka's default, since idempotence rejects both. The derived configuration is parsed at startup, so any other invalid producer setting fails startup naming it, not the first dispatch |
 | Timeouts | `max.block.ms`, `delivery.timeout.ms` and `request.timeout.ms` = `send-timeout`, `linger.ms=0` (see below) |
 | Destination | Topic = outbox `topic`; the outbox `routingKey` is ignored |
 | Key | Outbox `key` (the event aggregate), so one aggregate's events share a partition and keep order |

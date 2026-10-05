@@ -51,8 +51,9 @@ public class EventMessagingKafkaAutoConfiguration {
    * configuration with String key and value serializers, {@code acks=all} and {@code
    * enable.idempotence=true}, without a transactional id, and with every producer wait ({@code
    * max.block.ms}, {@code delivery.timeout.ms}, {@code request.timeout.ms}) bounded by {@code
-   * codehunters.outbox.publisher.kafka.send-timeout}. It is not a default candidate, so it never
-   * replaces the application's factory.
+   * codehunters.outbox.publisher.kafka.send-timeout}. Settings idempotence rejects are corrected
+   * and the result is parsed as the producer will, so an invalid value fails startup instead of
+   * every dispatch. It is not a default candidate, so it never replaces the application's factory.
    *
    * @param applicationProducerFactory the application's producer factory
    * @param properties the messaging configuration, whose Kafka send timeout bounds the producer
@@ -63,9 +64,10 @@ public class EventMessagingKafkaAutoConfiguration {
   public DefaultKafkaProducerFactory<String, String> outboxKafkaProducerFactory(
       ProducerFactory<?, ?> applicationProducerFactory, EventMessagingProperties properties) {
     return new DefaultKafkaProducerFactory<>(
-        OutboxProducerConfigs.from(
-            applicationProducerFactory.getConfigurationProperties(),
-            properties.publisher().kafka().sendTimeout()));
+        OutboxProducerConfigs.validated(
+            OutboxProducerConfigs.from(
+                applicationProducerFactory.getConfigurationProperties(),
+                properties.publisher().kafka().sendTimeout())));
   }
 
   /**

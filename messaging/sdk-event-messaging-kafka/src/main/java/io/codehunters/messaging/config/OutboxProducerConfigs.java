@@ -16,8 +16,15 @@ import org.apache.kafka.common.serialization.StringSerializer;
  * {@code linger.ms} is {@code 0}, since the dispatcher sends one record at a time and waits for its
  * acknowledgement, so lingering only adds latency. Kafka requires {@code delivery.timeout.ms >=
  * linger.ms + request.timeout.ms}, which these values meet for any send timeout.
+ *
+ * <p>Idempotence rejects {@code max.in.flight.requests.per.connection} above 5 and {@code
+ * retries=0}; an application value above 5 is capped at 5 and {@code retries=0} is reset to {@link
+ * Integer#MAX_VALUE} (Kafka's default, bounded by {@code delivery.timeout.ms}), so a setting meant
+ * for the application's producer cannot make every outbox send fail.
  */
 final class OutboxProducerConfigs {
+
+  private static final int IDEMPOTENT_MAX_IN_FLIGHT = 5;
 
   private OutboxProducerConfigs() {}
 
@@ -29,7 +36,34 @@ final class OutboxProducerConfigs {
     config.put(ProducerConfig.ACKS_CONFIG, "all");
     config.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, true);
     boundBySendTimeout(config, Math.toIntExact(sendTimeout.toMillis()));
+    keepIdempotenceValid(config);
     return Map.copyOf(config);
+  }
+
+  /**
+   * Parses the configuration as the producer will, so an invalid value fails startup rather than
+   * the first dispatch.
+   *
+   * @throws org.apache.kafka.common.config.ConfigException naming the invalid setting
+   */
+  static Map<String, Object> validated(Map<String, Object> config) {
+    new ProducerConfig(config);
+    return config;
+  }
+
+  private static void keepIdempotenceValid(Map<String, Object> config) {
+    config.computeIfPresent(
+        ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION,
+        (key, value) -> Math.min(intValue(value), IDEMPOTENT_MAX_IN_FLIGHT));
+    config.computeIfPresent(
+        ProducerConfig.RETRIES_CONFIG,
+        (key, value) -> intValue(value) > 0 ? intValue(value) : Integer.MAX_VALUE);
+  }
+
+  private static int intValue(Object value) {
+    return value instanceof Number number
+        ? number.intValue()
+        : Integer.parseInt(value.toString().trim());
   }
 
   private static void boundBySendTimeout(Map<String, Object> config, int sendTimeoutMs) {
