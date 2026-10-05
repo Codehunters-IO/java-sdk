@@ -62,10 +62,14 @@ class LegacyPropertyAliasesTest {
 
   @Test
   void should_map_environment_variables_when_written_in_upper_case() {
+    // Boot maps OLD_PREFIX_URL to old.prefix.url only for the source named "systemEnvironment".
     environment
         .getPropertySources()
-        .addFirst(
-            new SystemEnvironmentPropertySource("env", Map.of("OLD_PREFIX_URL", "https://kc")));
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of("OLD_PREFIX_URL", "https://kc")));
 
     aliases.apply(environment, recordingLog());
 

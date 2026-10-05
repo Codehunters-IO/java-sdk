@@ -7,10 +7,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.EnvironmentPostProcessor;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.logging.DeferredLogFactory;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.io.support.SpringFactoriesLoader;
+import org.springframework.core.io.support.SpringFactoriesLoader.ArgumentResolver;
 
 class KeycloakSecurityLegacyPropertiesTest {
 
@@ -37,7 +41,8 @@ class KeycloakSecurityLegacyPropertiesTest {
         .postProcessEnvironment(environment, new SpringApplication());
 
     KeycloakSecurityProperties properties =
-        Binder.get(environment).bindOrCreate("codehunters.security", KeycloakSecurityProperties.class);
+        Binder.get(environment)
+            .bindOrCreate("codehunters.security", KeycloakSecurityProperties.class);
     assertThat(properties.issuer()).isEqualTo("https://kc.example.com/realms/acme");
     assertThat(properties.introspection().clientId()).isEqualTo("svc");
     assertThat(properties.introspection().clientSecret()).isEqualTo("secret");
@@ -45,5 +50,18 @@ class KeycloakSecurityLegacyPropertiesTest {
     assertThat(properties.introspection().failOpen()).isTrue();
     assertThat(properties.publicPaths()).isEqualTo(List.of("/public/**"));
     assertThat(properties.cors().allowedOrigins()).isEqualTo(List.of("https://app.example.com"));
+  }
+
+  @Test
+  void should_be_discovered_by_spring_boot() {
+    DeferredLogFactory logFactory = Supplier::get;
+
+    var postProcessors =
+        SpringFactoriesLoader.forDefaultResourceLocation()
+            .load(
+                EnvironmentPostProcessor.class,
+                ArgumentResolver.of(DeferredLogFactory.class, logFactory));
+
+    assertThat(postProcessors).hasAtLeastOneElementOfType(KeycloakSecurityLegacyProperties.class);
   }
 }
