@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security;
+package io.codehunters.security;
 
 import java.util.ArrayList;
 import java.util.List;

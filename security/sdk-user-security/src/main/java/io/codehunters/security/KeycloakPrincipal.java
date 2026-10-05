@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security;
+package io.codehunters.security;
 
 /**
  * Immutable identity of the current user as established by the gateway and consumed downstream

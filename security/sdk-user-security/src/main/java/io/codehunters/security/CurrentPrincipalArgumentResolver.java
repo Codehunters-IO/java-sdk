@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security;
+package io.codehunters.security;
 
 import org.springframework.core.MethodParameter;
 import org.springframework.web.bind.support.WebDataBinderFactory;

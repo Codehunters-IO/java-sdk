@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security.authz;
+package io.codehunters.security.authz;
 
 import java.util.ArrayList;
 import java.util.List;

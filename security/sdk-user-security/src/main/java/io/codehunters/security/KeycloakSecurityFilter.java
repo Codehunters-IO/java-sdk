@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security;
+package io.codehunters.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

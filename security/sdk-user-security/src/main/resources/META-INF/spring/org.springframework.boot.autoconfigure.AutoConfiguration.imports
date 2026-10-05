@@ -1,2 +1,2 @@
-io.codehunters.sdk.security.KeycloakSecurityAutoConfiguration
-io.codehunters.sdk.security.authz.KeycloakAuthzAutoConfiguration
+io.codehunters.security.KeycloakSecurityAutoConfiguration
+io.codehunters.security.authz.KeycloakAuthzAutoConfiguration

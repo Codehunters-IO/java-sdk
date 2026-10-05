@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security;
+package io.codehunters.security;
 
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;

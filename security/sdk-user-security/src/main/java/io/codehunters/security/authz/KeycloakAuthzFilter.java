@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security.authz;
+package io.codehunters.security.authz;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

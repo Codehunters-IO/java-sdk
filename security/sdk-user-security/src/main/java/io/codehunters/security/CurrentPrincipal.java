@@ -1,4 +1,4 @@
-package io.codehunters.sdk.security;
+package io.codehunters.security;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
