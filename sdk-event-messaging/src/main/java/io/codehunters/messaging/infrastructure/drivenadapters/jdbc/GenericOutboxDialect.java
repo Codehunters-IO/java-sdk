@@ -27,6 +27,16 @@ public final class GenericOutboxDialect implements OutboxDialect {
       )
       """;
 
+  private static final String PURGE_PUBLISHED_SQL =
+      """
+      DELETE FROM outbox_message
+      WHERE id IN (
+          SELECT id FROM outbox_message
+          WHERE origin = :origin AND status = 'PUBLISHED' AND published_at < :cutoff
+          ORDER BY published_at
+          OFFSET 0 ROWS FETCH NEXT :limit ROWS ONLY)
+      """;
+
   /** Creates the generic dialect. */
   public GenericOutboxDialect() {
     // stateless
@@ -45,5 +55,10 @@ public final class GenericOutboxDialect implements OutboxDialect {
   @Override
   public boolean claimReturnsRows() {
     return false;
+  }
+
+  @Override
+  public String purgePublishedSql() {
+    return PURGE_PUBLISHED_SQL;
   }
 }

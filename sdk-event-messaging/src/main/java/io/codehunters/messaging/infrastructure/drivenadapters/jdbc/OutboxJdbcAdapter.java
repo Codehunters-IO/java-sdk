@@ -61,6 +61,9 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
       WHERE id = :id AND claimed_by = :expectedClaimedBy
       """;
 
+  private static final String COUNT_FAILED_SQL =
+      "SELECT COUNT(*) FROM outbox_message WHERE origin = :origin AND status = 'FAILED'";
+
   private static final RowMapper<OutboxMessage<String>> ROW_MAPPER =
       (rs, rowNum) ->
           OutboxMessage.<String>builder()
@@ -182,6 +185,28 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
       return;
     }
     log.debug("[END] - updated outbox message {}", outboxMessage.getId());
+  }
+
+  @Override
+  public int purgePublished(LocalDateTime cutoff, int batchSize) {
+    int deleted =
+        jdbcClient
+            .sql(settings.dialect().purgePublishedSql())
+            .param("origin", settings.origin())
+            .param("cutoff", cutoff)
+            .param("limit", batchSize)
+            .update();
+    log.debug("Purged {} published outbox messages for origin={}", deleted, settings.origin());
+    return deleted;
+  }
+
+  @Override
+  public long countFailed() {
+    return jdbcClient
+        .sql(COUNT_FAILED_SQL)
+        .param("origin", settings.origin())
+        .query(Long.class)
+        .single();
   }
 
   private List<OutboxMessage<String>> selectClaimed(int updated, String origin, String marker) {

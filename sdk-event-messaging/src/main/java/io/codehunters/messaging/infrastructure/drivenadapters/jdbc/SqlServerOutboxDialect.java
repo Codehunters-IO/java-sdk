@@ -34,6 +34,12 @@ public final class SqlServerOutboxDialect implements OutboxDialect {
           inserted.claimed_at, inserted.claimed_by, inserted.seq
       """;
 
+  private static final String PURGE_PUBLISHED_SQL =
+      """
+      DELETE TOP (:limit) FROM outbox_message
+      WHERE origin = :origin AND status = 'PUBLISHED' AND published_at < :cutoff
+      """;
+
   /** Creates the SQL Server dialect. */
   public SqlServerOutboxDialect() {
     // stateless
@@ -52,5 +58,10 @@ public final class SqlServerOutboxDialect implements OutboxDialect {
   @Override
   public boolean claimReturnsRows() {
     return true;
+  }
+
+  @Override
+  public String purgePublishedSql() {
+    return PURGE_PUBLISHED_SQL;
   }
 }

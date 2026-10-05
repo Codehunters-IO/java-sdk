@@ -34,4 +34,13 @@ public interface OutboxDialect {
    *     claimed rows by {@code claimed_by} afterwards
    */
   boolean claimReturnsRows();
+
+  /**
+   * Returns the bounded purge statement. It deletes at most {@code :limit} {@code PUBLISHED} rows
+   * of {@code :origin} whose {@code published_at} is older than {@code :cutoff}.
+   *
+   * @return constant purge SQL using the named parameters {@code :origin}, {@code :cutoff} and
+   *     {@code :limit}
+   */
+  String purgePublishedSql();
 }

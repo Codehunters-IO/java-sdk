@@ -34,6 +34,16 @@ public final class PostgresOutboxDialect implements OutboxDialect {
           m.claimed_by, m.seq
       """;
 
+  private static final String PURGE_PUBLISHED_SQL =
+      """
+      DELETE FROM outbox_message
+      WHERE id IN (
+          SELECT id FROM outbox_message
+          WHERE origin = :origin AND status = 'PUBLISHED' AND published_at < :cutoff
+          ORDER BY published_at
+          LIMIT :limit)
+      """;
+
   /** Creates the PostgreSQL dialect. */
   public PostgresOutboxDialect() {
     // stateless
@@ -52,5 +62,10 @@ public final class PostgresOutboxDialect implements OutboxDialect {
   @Override
   public boolean claimReturnsRows() {
     return true;
+  }
+
+  @Override
+  public String purgePublishedSql() {
+    return PURGE_PUBLISHED_SQL;
   }
 }
