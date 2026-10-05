@@ -78,8 +78,7 @@ class KafkaMessagePublisherAdapterIT {
   }
 
   private static String idHeader(ConsumerRecord<String, String> record) {
-    byte[] value =
-        record.headers().lastHeader(MessagePublisherPort.OUTBOX_ID_HEADER).value();
+    byte[] value = record.headers().lastHeader(MessagePublisherPort.OUTBOX_ID_HEADER).value();
     return new String(value, StandardCharsets.UTF_8);
   }
 

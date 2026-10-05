@@ -13,6 +13,12 @@ import io.codehunters.messaging.domain.model.OutboxMessage;
 public interface MessagePublisherPort {
 
   /**
+   * Broker header carrying the outbox row id as UTF-8 text. Adapters set it in {@link
+   * #publish(OutboxMessage)}; delivery is at-least-once, so consumers dedupe on it.
+   */
+  String OUTBOX_ID_HEADER = "outbox-message-id";
+
+  /**
    * Publishes a JSON message with a routing key.
    *
    * @param topic the destination topic or exchange

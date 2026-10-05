@@ -17,8 +17,9 @@ import org.springframework.kafka.core.KafkaTemplate;
  *
  * <p>{@link #publish(OutboxMessage)} sends the outbox row keyed by its {@code message_key}, so
  * every event of one aggregate lands on the same partition in order. Each record carries a {@code
- * content-type: application/json} header and an {@value #OUTBOX_ID_HEADER} header with the outbox
- * row id; delivery is at-least-once, so consumers MUST dedupe on that header.
+ * content-type: application/json} header and an {@value MessagePublisherPort#OUTBOX_ID_HEADER}
+ * header with the outbox row id; delivery is at-least-once, so consumers MUST dedupe on that
+ * header.
  *
  * <p>Every send blocks on the broker acknowledgement for at most {@code sendTimeout}. The
  * dispatcher publishes a claimed batch sequentially, so deployments MUST keep {@code batchSize ×
@@ -28,9 +29,6 @@ import org.springframework.kafka.core.KafkaTemplate;
  */
 @Slf4j
 public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
-
-  /** Header carrying the outbox row id as UTF-8 text, the consumer-side dedupe handle. */
-  public static final String OUTBOX_ID_HEADER = "outbox-message-id";
 
   private static final String CONTENT_TYPE_HEADER = "content-type";
   private static final byte[] CONTENT_TYPE_JSON =
