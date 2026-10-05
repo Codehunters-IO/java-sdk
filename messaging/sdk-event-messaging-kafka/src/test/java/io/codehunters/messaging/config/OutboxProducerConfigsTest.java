@@ -3,6 +3,7 @@ package io.codehunters.messaging.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.Map;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -15,6 +16,8 @@ class OutboxProducerConfigsTest {
   private static final String BOOTSTRAP = "broker:9092";
 
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
+  private static final String MAX_IN_FLIGHT = ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION;
+  private static final String RETRIES = ProducerConfig.RETRIES_CONFIG;
   private static final int SEND_TIMEOUT_MS = 5000;
 
   private static final Map<String, Object> LOCAL_WITH_TIMEOUTS =
@@ -100,9 +103,53 @@ class OutboxProducerConfigsTest {
   }
 
   @Test
+  void should_cap_max_in_flight_at_five_when_application_allows_more() {
+    Map<String, Object> config =
+        OutboxProducerConfigs.from(withSetting(MAX_IN_FLIGHT, 10), SEND_TIMEOUT);
+
+    assertThat(config).containsEntry(MAX_IN_FLIGHT, 5);
+  }
+
+  @Test
+  void should_keep_max_in_flight_when_application_allows_at_most_five() {
+    Map<String, Object> config =
+        OutboxProducerConfigs.from(withSetting(MAX_IN_FLIGHT, "3"), SEND_TIMEOUT);
+
+    assertThat(config).containsEntry(MAX_IN_FLIGHT, 3);
+  }
+
+  @Test
+  void should_restore_retries_when_application_disables_them() {
+    Map<String, Object> config =
+        OutboxProducerConfigs.from(withSetting(RETRIES, "0"), SEND_TIMEOUT);
+
+    assertThat(config).containsEntry(RETRIES, Integer.MAX_VALUE);
+  }
+
+  @Test
+  void should_keep_retries_when_application_sets_a_positive_count() {
+    Map<String, Object> config = OutboxProducerConfigs.from(withSetting(RETRIES, 7), SEND_TIMEOUT);
+
+    assertThat(config).containsEntry(RETRIES, 7);
+  }
+
+  @Test
+  void should_leave_retries_and_in_flight_to_kafka_defaults_when_application_sets_none() {
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+
+    assertThat(config).doesNotContainKeys(RETRIES, MAX_IN_FLIGHT);
+  }
+
+  @Test
   void should_drop_transactional_id_when_application_producer_is_transactional() {
     Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
 
     assertThat(config).doesNotContainKey(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
+  }
+
+  private static Map<String, Object> withSetting(String key, Object value) {
+    Map<String, Object> application = new HashMap<>(APPLICATION);
+    application.put(key, value);
+    return application;
   }
 }

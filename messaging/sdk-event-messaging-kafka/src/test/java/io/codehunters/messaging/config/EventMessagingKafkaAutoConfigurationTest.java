@@ -8,6 +8,7 @@ import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
 import io.codehunters.messaging.infrastructure.drivenadapters.kafka.KafkaMessagePublisherAdapter;
 import io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxScheduler;
+import java.util.HashMap;
 import java.util.Map;
 import javax.sql.DataSource;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -117,6 +118,43 @@ class EventMessagingKafkaAutoConfigurationTest {
                 assertThat(context.getStartupFailure())
                     .rootCause()
                     .hasMessageContaining("codehunters.outbox.publisher.kafka.send-timeout"));
+  }
+
+  @Test
+  void should_fail_startup_naming_setting_when_application_producer_config_invalid() {
+    contextRunner
+        .withBean(
+            ProducerFactory.class,
+            () -> producersWith(Map.of(ProducerConfig.COMPRESSION_TYPE_CONFIG, "bogus")))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining(ProducerConfig.COMPRESSION_TYPE_CONFIG));
+  }
+
+  @Test
+  void should_start_when_application_producer_config_conflicts_with_idempotence() {
+    contextRunner
+        .withBean(
+            ProducerFactory.class,
+            () ->
+                producersWith(
+                    Map.of(
+                        ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION,
+                        10,
+                        ProducerConfig.RETRIES_CONFIG,
+                        0)))
+        .run(context -> assertThat(context).hasNotFailed());
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ProducerFactory<Object, Object> producersWith(Map<String, Object> settings) {
+    Map<String, Object> config = new HashMap<>(settings);
+    config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+    ProducerFactory<Object, Object> producerFactory = mock(ProducerFactory.class);
+    when(producerFactory.getConfigurationProperties()).thenReturn(config);
+    return producerFactory;
   }
 
   @SuppressWarnings("unchecked")
