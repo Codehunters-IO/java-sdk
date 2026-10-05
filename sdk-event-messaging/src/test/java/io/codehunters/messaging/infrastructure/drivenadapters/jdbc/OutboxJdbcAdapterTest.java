@@ -183,7 +183,7 @@ class OutboxJdbcAdapterTest {
   }
 
   @Test
-  void should_claim_pending_messages_ordered_by_occurred_at() {
+  void should_claim_pending_messages_in_insertion_order_regardless_of_occurred_at() {
     var now = LocalDateTime.now();
 
     adapter.save(
@@ -212,10 +212,9 @@ class OutboxJdbcAdapterTest {
 
     var result = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
 
-    assertThat(result).hasSize(3);
-    assertThat(result.get(0).getMessage()).isEqualTo("oldest");
-    assertThat(result.get(1).getMessage()).isEqualTo("middle");
-    assertThat(result.get(2).getMessage()).isEqualTo("newest");
+    assertThat(result)
+        .extracting(OutboxMessage::getMessage)
+        .containsExactly("oldest", "newest", "middle");
   }
 
   @Test
@@ -502,38 +501,51 @@ class OutboxJdbcAdapterTest {
   }
 
   @Test
-  void should_persist_claim_columns_on_update() {
-    var id = UUID.randomUUID();
-    var now = LocalDateTime.now();
-    adapter.save(
-        OutboxMessage.<String>builder()
-            .id(id)
-            .topic("t")
-            .key("k")
-            .message("p")
-            .occurredAt(now)
-            .build());
+  void should_keep_claim_columns_when_updated_in_flight_by_claim_owner() {
+    adapter.save(OutboxMessage.<String>builder().topic("t").key("k").message("p").build());
+    var claimed =
+        adapter.claimPendingMessages(ORIGIN, 10, "instance-x", Duration.ofMinutes(5)).get(0);
 
-    var updated =
-        OutboxMessage.<String>builder()
-            .id(id)
-            .topic("t")
-            .key("k")
-            .message("p")
-            .status(OutboxStatus.IN_FLIGHT)
-            .attempts(0)
-            .claimedAt(now)
-            .claimedBy("instance-x")
-            .build();
-    adapter.update(updated);
+    claimed.setAttempts(1);
+    adapter.update(claimed);
 
     var claimedBy =
         jdbcClient
             .sql("SELECT claimed_by FROM outbox_message WHERE id=:id")
-            .param("id", id)
+            .param("id", claimed.getId())
             .query(String.class)
             .single();
-    assertThat(claimedBy).isEqualTo("instance-x");
+    assertThat(claimedBy).isEqualTo(claimed.getClaimedBy());
+  }
+
+  @Test
+  void should_ignore_update_when_claim_marker_does_not_match() {
+    adapter.save(OutboxMessage.<String>builder().topic("t").key("k").message("p").build());
+    var claimed =
+        adapter.claimPendingMessages(ORIGIN, 10, "instance-x", Duration.ofMinutes(5)).get(0);
+
+    claimed.setClaimedBy("instance-stale:marker");
+    claimed.setStatus(OutboxStatus.PUBLISHED);
+    adapter.update(claimed);
+
+    var status =
+        jdbcClient
+            .sql("SELECT status FROM outbox_message WHERE id=:id")
+            .param("id", claimed.getId())
+            .query(String.class)
+            .single();
+    assertThat(status).isEqualTo("IN_FLIGHT");
+  }
+
+  @Test
+  void should_hold_later_same_key_row_when_earlier_row_is_pending_on_generic_dialect() {
+    adapter.save(OutboxMessage.<String>builder().topic("t").key("A").message("A1").build());
+    adapter.save(OutboxMessage.<String>builder().topic("t").key("A").message("A2").build());
+    adapter.save(OutboxMessage.<String>builder().topic("t").key("B").message("B1").build());
+
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+
+    assertThat(claimed).extracting(OutboxMessage::getMessage).containsExactly("A1", "B1");
   }
 
   @Test

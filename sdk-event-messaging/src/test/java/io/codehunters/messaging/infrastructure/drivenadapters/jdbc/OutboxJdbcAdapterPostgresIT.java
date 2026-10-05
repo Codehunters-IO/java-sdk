@@ -100,6 +100,38 @@ class OutboxJdbcAdapterPostgresIT {
     assertThat(row.get("claimed_by")).isNull();
   }
 
+  @Test
+  void should_fence_out_stale_worker_when_claim_was_taken_over_after_ttl() {
+    adapter.save(message("k1", "payload"));
+    var staleClaim = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL).get(0);
+    jdbcClient
+        .sql("UPDATE outbox_message SET claimed_at = :old WHERE id = :id")
+        .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10))
+        .param("id", staleClaim.getId())
+        .update();
+    var liveClaim = adapter.claimPendingMessages(ORIGIN, 10, "w2", TTL).get(0);
+
+    staleClaim.setStatus(OutboxStatus.PUBLISHED);
+    adapter.update(staleClaim);
+
+    var afterStale = rowOf(staleClaim.getId());
+    assertThat(afterStale.get("status")).isEqualTo("IN_FLIGHT");
+    assertThat(afterStale.get("claimed_by")).isEqualTo(liveClaim.getClaimedBy());
+
+    liveClaim.setStatus(OutboxStatus.PUBLISHED);
+    adapter.update(liveClaim);
+
+    assertThat(rowOf(liveClaim.getId()).get("status")).isEqualTo("PUBLISHED");
+  }
+
+  private Map<String, Object> rowOf(UUID id) {
+    return jdbcClient
+        .sql("SELECT status, claimed_by FROM outbox_message WHERE id = :id")
+        .param("id", id)
+        .query()
+        .singleRow();
+  }
+
   private Long seqOf(UUID id) {
     return jdbcClient
         .sql("SELECT seq FROM outbox_message WHERE id = :id")

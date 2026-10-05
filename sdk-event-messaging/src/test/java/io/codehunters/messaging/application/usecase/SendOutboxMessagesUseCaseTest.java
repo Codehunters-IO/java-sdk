@@ -44,6 +44,7 @@ class SendOutboxMessagesUseCaseTest {
   private static final long PRODUCTION_MAX_BACKOFF_MS = 3_600_000L;
   private static final Instant NOW = Instant.parse("2026-10-05T10:00:00Z");
   private static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+  private static final String CLAIM_MARKER = "instance-1:4f1c";
   private static final String PII_SENTINEL = "PII-SENTINEL-4242 holder Juan";
 
   private OutboxRepositoryPort repo;
@@ -102,6 +103,52 @@ class SendOutboxMessagesUseCaseTest {
         .routingKey(routingKey)
         .message("payload")
         .build();
+  }
+
+  private OutboxMessage<String> claimed() {
+    var msg = pending("k");
+    msg.setStatus(OutboxStatus.IN_FLIGHT);
+    msg.setClaimedBy(CLAIM_MARKER);
+    return msg;
+  }
+
+  @Test
+  void should_keep_claim_marker_for_fenced_update_when_published() {
+    OutboxMessage<String> msg = claimed();
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+
+    useCase.execute();
+
+    assertThat(msg.getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
+    assertThat(msg.getClaimedBy()).isEqualTo(CLAIM_MARKER);
+    verify(repo).update(msg);
+  }
+
+  @Test
+  void should_keep_claim_marker_for_fenced_update_when_retry_scheduled() {
+    OutboxMessage<String> msg = claimed();
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+
+    useCase.execute();
+
+    assertThat(msg.getStatus()).isEqualTo(OutboxStatus.PENDING);
+    assertThat(msg.getClaimedBy()).isEqualTo(CLAIM_MARKER);
+    verify(repo).update(msg);
+  }
+
+  @Test
+  void should_keep_claim_marker_for_fenced_update_when_marked_failed() {
+    OutboxMessage<String> msg = claimed();
+    msg.setAttempts(MAX_ATTEMPTS - 1);
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+
+    useCase.execute();
+
+    assertThat(msg.getStatus()).isEqualTo(OutboxStatus.FAILED);
+    assertThat(msg.getClaimedBy()).isEqualTo(CLAIM_MARKER);
+    verify(repo).update(msg);
   }
 
   @Test
