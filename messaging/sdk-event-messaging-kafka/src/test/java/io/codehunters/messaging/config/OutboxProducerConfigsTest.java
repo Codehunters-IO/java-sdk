@@ -2,7 +2,9 @@ package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Duration;
 import java.util.Map;
+import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
@@ -11,6 +13,20 @@ import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
 class OutboxProducerConfigsTest {
 
   private static final String BOOTSTRAP = "broker:9092";
+
+  private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
+  private static final int SEND_TIMEOUT_MS = 5000;
+
+  private static final Map<String, Object> LOCAL_WITH_TIMEOUTS =
+      Map.of(
+          ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
+          "localhost:1",
+          ProducerConfig.LINGER_MS_CONFIG,
+          100,
+          ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG,
+          30000,
+          ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG,
+          120000);
 
   private static final Map<String, Object> APPLICATION =
       Map.of(
@@ -31,7 +47,7 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_keep_application_connection_settings_when_deriving_outbox_config() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
 
     assertThat(config)
         .containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP)
@@ -40,7 +56,7 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_force_string_serializers_when_application_uses_json() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
 
     assertThat(config)
         .containsEntry(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class)
@@ -49,7 +65,7 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_force_idempotent_all_acks_producer_when_application_relaxes_them() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
 
     assertThat(config)
         .containsEntry(ProducerConfig.ACKS_CONFIG, "all")
@@ -57,8 +73,35 @@ class OutboxProducerConfigsTest {
   }
 
   @Test
+  void should_bound_metadata_and_buffer_wait_by_send_timeout_when_deriving_config() {
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+
+    assertThat(config).containsEntry(ProducerConfig.MAX_BLOCK_MS_CONFIG, SEND_TIMEOUT_MS);
+  }
+
+  @Test
+  void should_bound_delivery_by_send_timeout_without_lingering_when_deriving_config() {
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+
+    assertThat(config)
+        .containsEntry(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, SEND_TIMEOUT_MS)
+        .containsEntry(ProducerConfig.REQUEST_TIMEOUT_MS_CONFIG, SEND_TIMEOUT_MS)
+        .containsEntry(ProducerConfig.LINGER_MS_CONFIG, 0);
+  }
+
+  @Test
+  void should_build_kafka_producer_when_application_sets_conflicting_timeouts() {
+    Map<String, Object> config = OutboxProducerConfigs.from(LOCAL_WITH_TIMEOUTS, SEND_TIMEOUT);
+
+    try (var producer = new KafkaProducer<String, String>(config)) {
+      assertThat(producer.metrics()).isNotEmpty();
+      producer.close(Duration.ZERO);
+    }
+  }
+
+  @Test
   void should_drop_transactional_id_when_application_producer_is_transactional() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
 
     assertThat(config).doesNotContainKey(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
   }

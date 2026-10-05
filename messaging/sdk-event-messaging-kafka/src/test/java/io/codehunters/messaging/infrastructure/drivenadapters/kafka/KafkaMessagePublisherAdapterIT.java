@@ -1,7 +1,10 @@
 package io.codehunters.messaging.infrastructure.drivenadapters.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import io.codehunters.messaging.application.port.MessagePublishException;
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.config.EventMessagingKafkaAutoConfiguration;
@@ -36,6 +39,8 @@ class KafkaMessagePublisherAdapterIT {
   private static final KafkaContainer KAFKA = new KafkaContainer(KAFKA_IMAGE);
   private static final Duration RECEIVE_TIMEOUT = Duration.ofSeconds(10);
   private static final Duration DRAIN_WINDOW = Duration.ofSeconds(2);
+  private static final String UNREACHABLE = "localhost:1";
+  private static final Duration UNREACHABLE_BOUND = Duration.ofSeconds(4);
   private static final String KEY = "k-1";
   private static final String PAYLOAD = "{\"extractionId\":\"k-1\"}";
 
@@ -80,6 +85,23 @@ class KafkaMessagePublisherAdapterIT {
     assertThat(consumeAll(topic)).extracting(ConsumerRecord::value).containsExactly(PAYLOAD);
   }
 
+  @Test
+  void should_fail_within_send_timeout_when_broker_unreachable() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.publisher.kafka.send-timeout=2s")
+        .withBean(ProducerFactory.class, () -> producersFor(UNREACHABLE, StringSerializer.class))
+        .run(
+            context -> {
+              MessagePublisherPort publisher = context.getBean(MessagePublisherPort.class);
+              assertTimeoutPreemptively(
+                  UNREACHABLE_BOUND,
+                  () ->
+                      assertThatThrownBy(
+                              () -> publisher.publish(message("unreachable", UUID.randomUUID())))
+                          .isInstanceOf(MessagePublishException.class));
+            });
+  }
+
   @SuppressWarnings("rawtypes")
   private void publishThroughOutbox(
       Class<? extends Serializer> valueSerializer, OutboxMessage<String> message) {
@@ -91,10 +113,16 @@ class KafkaMessagePublisherAdapterIT {
   @SuppressWarnings("rawtypes")
   private static ProducerFactory<Object, Object> applicationProducers(
       Class<? extends Serializer> valueSerializer) {
+    return producersFor(KAFKA.getBootstrapServers(), valueSerializer);
+  }
+
+  @SuppressWarnings("rawtypes")
+  private static ProducerFactory<Object, Object> producersFor(
+      String bootstrapServers, Class<? extends Serializer> valueSerializer) {
     return new DefaultKafkaProducerFactory<>(
         Map.of(
             ProducerConfig.BOOTSTRAP_SERVERS_CONFIG,
-            KAFKA.getBootstrapServers(),
+            bootstrapServers,
             ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG,
             StringSerializer.class,
             ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG,

@@ -2,6 +2,7 @@ package io.codehunters.messaging.infrastructure.drivenadapters.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -82,6 +83,31 @@ class KafkaMessagePublisherAdapterTest {
   }
 
   @Test
+  void should_throw_publish_exception_when_send_blocks_past_max_block() {
+    when(kafkaTemplate.send(any(ProducerRecord.class)))
+        .thenThrow(new org.apache.kafka.common.errors.TimeoutException(PII_SENTINEL));
+
+    assertThatThrownBy(() -> adapter.publish(message()))
+        .isInstanceOf(MessagePublishException.class)
+        .hasMessageNotContaining("PII-SENTINEL")
+        .hasCauseInstanceOf(org.apache.kafka.common.errors.TimeoutException.class);
+  }
+
+  @Test
+  void should_count_blocking_send_against_send_timeout_when_acknowledgement_never_arrives() {
+    Duration sendTimeout = Duration.ofMillis(300);
+    var bounded = new KafkaMessagePublisherAdapter(kafkaTemplate, sendTimeout);
+    when(kafkaTemplate.send(any(ProducerRecord.class)))
+        .thenAnswer(call -> blockThenReturnPending(sendTimeout));
+
+    assertTimeoutPreemptively(
+        Duration.ofMillis(500),
+        () ->
+            assertThatThrownBy(() -> bounded.publish(message()))
+                .isInstanceOf(MessagePublishException.class));
+  }
+
+  @Test
   void should_restore_interrupt_flag_when_calling_thread_interrupted() {
     givenSendReturns(new CompletableFuture<>());
     Thread.currentThread().interrupt();
@@ -114,6 +140,12 @@ class KafkaMessagePublisherAdapterTest {
     ProducerRecord<String, String> record = sentRecord();
     assertThat(record.topic()).isEqualTo(TOPIC);
     assertThat(record.key()).isNull();
+  }
+
+  private static CompletableFuture<SendResult<String, String>> blockThenReturnPending(
+      Duration blocked) throws InterruptedException {
+    Thread.sleep(blocked);
+    return new CompletableFuture<>();
   }
 
   private void givenSendReturns(CompletableFuture<SendResult<String, String>> future) {
