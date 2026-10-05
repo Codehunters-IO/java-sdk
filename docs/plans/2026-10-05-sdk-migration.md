@@ -210,21 +210,24 @@ dos y la propiedad no está definida, el arranque falla con un mensaje explícit
 `sdk-event-messaging-rabbit` (o `-kafka`). Prefijo `outbox.*` → `codehunters.outbox.*`. DDL `seq` en
 SQL Server.
 
-## Fase 4 — `sdk-tracing` 1.0.0
+## Fase 4 — `sdk-tracing` 1.0.0 ✅ (rama `feature/sdk-tracing-v1`, sobre `feature/build-logic`)
 
-Rama: `feature/sdk-tracing-v1`. Va antes de liberar la Fase 3 si se usa la tarea 3.7. Si no, se
-puede hacer en paralelo.
+Detalle en `sdk-tracing/CHANGELOG.md` y `README.md`.
 
-1. Nueva clase pública `TraceHeaders`, con las constantes de MDC y de headers. Las 4 clases la usan.
-2. Headers W3C `traceparent` y `tracestate` al escribir; se acepta `x-traceparent` al leer (alias
-   documentado, se elimina en 2.0). Se rechaza el trace id todo en cero. Se valida el formato del
-   trace id tomado del body.
-3. `WebTracingAutoConfiguration`: `@ConditionalOnWebApplication(SERVLET)` y
-   `@ConditionalOnMissingClass("io.micrometer.tracing.Tracer")`.
-4. Rabbit: el BPP recibe `ObjectProvider`s. `@ConditionalOnBean(JsonMapper.class)`. Es el único dueño
-   del MPP de traza.
-5. `TraceContextPort` devuelve `Optional<String>`.
-6. Prefijo nuevo `codehunters.tracing.*` (solo `enabled`).
+- `88337e2` → `55c658f`: `TraceParent` (W3C), `TraceHeaders`, `traceparent` primero con `x-traceparent` /
+  `x-trace-id` como respaldo, span hijo por servicio, flag de muestreo en el MDC (`traceFlags`),
+  `TraceContextPort` con `Optional` y `currentTraceParent()`, Rabbit sin bean `JsonMapper`, BPP estático
+  y perezoso sin duplicar el post-processor, `codehunters.tracing.enabled`.
+- `3ecfc96`, `21d0513`: README, CHANGELOG, 1.0.0 y metadata de configuración.
+- Revisión independiente → `9b9b0b6`: MDC con solo `traceId` mantiene el trace; dispatch async y de error
+  con el mismo trace; listeners batch; headers en otra capitalización o `byte[]`. **Cambio respecto al
+  plan:** el filtro no se aparta por la clase de Micrometer (Boot registra un `Tracer` no-op sin puente);
+  se ordena justo después del filtro de observación de Micrometer y respeta un MDC ya poblado.
+
+Verificación: 64 tests, mutaciones detectadas, `./gradlew clean build` en verde.
+
+Para la Fase 3: `event-messaging` debe usar `TraceContextPort.currentTraceParent()` para guardar el
+`traceparent` en el outbox y quitar su propio post-processor de traza (este módulo es el dueño).
 
 ## Fase 5 — `sdk-file-share` 2.0.0
 
