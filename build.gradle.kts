@@ -8,7 +8,7 @@ allprojects {
 }
 
 subprojects {
-    apply(plugin = "java")
+    apply(plugin = "java-library")
     apply(plugin = "com.diffplug.spotless")
     apply(plugin = "maven-publish")
     apply(plugin = "jacoco")
@@ -17,9 +17,24 @@ subprojects {
         mavenCentral()
     }
 
+    // Boot's BOM aligns versions inside this build only. It is kept out of apiElements and
+    // runtimeElements so consumers don't inherit Boot constraints; published metadata carries
+    // the resolved versions instead (see versionMapping below).
+    val bootPlatform = configurations.create("bootPlatform") {
+        isCanBeConsumed = false
+        isCanBeResolved = false
+    }
+    listOf(
+        "compileClasspath",
+        "runtimeClasspath",
+        "annotationProcessor",
+        "testCompileClasspath",
+        "testRuntimeClasspath",
+        "testAnnotationProcessor",
+    ).forEach { configurations.named(it) { extendsFrom(bootPlatform) } }
+
     dependencies {
-        "implementation"(platform("org.springframework.boot:spring-boot-dependencies:${property("spring.boot.version")}"))
-        "annotationProcessor"(platform("org.springframework.boot:spring-boot-dependencies:${property("spring.boot.version")}"))
+        "bootPlatform"(platform("org.springframework.boot:spring-boot-dependencies:${property("spring.boot.version")}"))
 
         "compileOnly"("org.springframework.boot:spring-boot-autoconfigure")
         "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
@@ -168,6 +183,9 @@ subprojects {
             // runs before each module's script assigns `version`, which published "unspecified".
             create<MavenPublication>("mavenJava") {
                 from(components["java"])
+                versionMapping {
+                    allVariants { fromResolutionResult() }
+                }
             }
         }
     }
