@@ -5,6 +5,7 @@ import io.codehunters.messaging.application.port.OutboxRepositoryPort;
 import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,9 +29,10 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   private final Duration claimTtl;
   private final long baseBackoffMs;
   private final long maxBackoffMs;
+  private final Clock clock;
 
   /**
-   * Creates the use case.
+   * Creates the use case with a UTC system clock.
    *
    * @param outboxRepositoryPort the outbox repository
    * @param messagePublisherPort the message publisher
@@ -52,6 +54,46 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
       long claimTtlMs,
       long baseBackoffMs,
       long maxBackoffMs) {
+    this(
+        outboxRepositoryPort,
+        messagePublisherPort,
+        batchSize,
+        maxAttempts,
+        instanceId,
+        origin,
+        claimTtlMs,
+        baseBackoffMs,
+        maxBackoffMs,
+        Clock.systemUTC());
+  }
+
+  /**
+   * Creates the use case with an explicit clock for every timestamp it writes. This overload only
+   * appends {@code clock} to the pre-existing public constructor, which services already consume;
+   * replacing the long parameter list with a parameter object is a separate breaking change.
+   *
+   * @param outboxRepositoryPort the outbox repository
+   * @param messagePublisherPort the message publisher
+   * @param batchSize the maximum number of messages dispatched per call
+   * @param maxAttempts the maximum number of publish attempts before marking a message FAILED
+   * @param instanceId the identifier of this dispatcher instance (used as claim marker)
+   * @param origin the origin scope used to claim messages
+   * @param claimTtlMs the stale-claim TTL in milliseconds
+   * @param baseBackoffMs the initial retry backoff in milliseconds
+   * @param maxBackoffMs the maximum retry backoff in milliseconds
+   * @param clock the clock for publish and retry timestamps (UTC expected)
+   */
+  public SendOutboxMessagesUseCase(
+      OutboxRepositoryPort outboxRepositoryPort,
+      MessagePublisherPort messagePublisherPort,
+      int batchSize,
+      int maxAttempts,
+      String instanceId,
+      String origin,
+      long claimTtlMs,
+      long baseBackoffMs,
+      long maxBackoffMs,
+      Clock clock) {
     this.outboxRepositoryPort = outboxRepositoryPort;
     this.messagePublisherPort = messagePublisherPort;
     this.batchSize = batchSize;
@@ -61,6 +103,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
     this.claimTtl = Duration.ofMillis(claimTtlMs);
     this.baseBackoffMs = baseBackoffMs;
     this.maxBackoffMs = maxBackoffMs;
+    this.clock = clock;
   }
 
   @Override
@@ -82,7 +125,8 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
       publish(message);
       markPublished(message);
     } catch (Exception e) {
-      log.error("Failed to publish outbox message id={}: {}", message.getId(), e.getMessage());
+      log.error(
+          "Failed to publish outbox message id={}: {}", message.getId(), e.getClass().getName());
       markRetryOrFailed(message, e);
     }
   }
@@ -102,7 +146,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
 
   private void markPublished(OutboxMessage<String> message) {
     message.setStatus(OutboxStatus.PUBLISHED);
-    message.setPublishedAt(LocalDateTime.now());
+    message.setPublishedAt(LocalDateTime.now(clock));
     message.setClaimedAt(null);
     message.setClaimedBy(null);
     message.setError(null);
@@ -112,7 +156,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   private void markRetryOrFailed(OutboxMessage<String> message, Exception e) {
     int attempts = message.getAttempts() + 1;
     message.setAttempts(attempts);
-    message.setError(e.getMessage());
+    message.setError(e.getClass().getName());
     message.setClaimedAt(null);
     message.setClaimedBy(null);
     if (attempts >= maxAttempts) {
@@ -121,7 +165,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
     } else {
       message.setStatus(OutboxStatus.PENDING);
       message.setNextAttemptAt(
-          LocalDateTime.now().plusNanos(computeBackoffMs(attempts) * 1_000_000L));
+          LocalDateTime.now(clock).plusNanos(computeBackoffMs(attempts) * 1_000_000L));
     }
   }
 

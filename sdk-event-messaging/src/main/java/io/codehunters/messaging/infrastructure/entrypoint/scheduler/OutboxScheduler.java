@@ -35,7 +35,7 @@ public class OutboxScheduler {
       sendOutboxMessagesPort.execute();
       log.debug("[END] - outbox scheduler completed");
     } catch (Exception e) {
-      log.error("[ERROR] - outbox scheduler failed: {}", e.getMessage(), e);
+      log.error("[ERROR] - outbox scheduler failed: {}", e.getClass().getName());
     }
   }
 }
