@@ -5,20 +5,20 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 
 /**
- * Registers {@link TraceIdFilter} first in servlet applications. When Micrometer Tracing is on the
- * classpath it owns the request's trace context, so this configuration steps aside.
+ * Registers {@link TraceIdFilter} in servlet applications, right after Micrometer's observation
+ * filter ({@code HIGHEST_PRECEDENCE + 1}) and well before Spring Security. With a real Micrometer
+ * tracer the MDC is already populated and the filter does nothing; with the no-op tracer, or
+ * without Micrometer, the filter provides the trace context.
  */
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass(FilterRegistrationBean.class)
-@ConditionalOnMissingClass("io.micrometer.tracing.Tracer")
 @ConditionalOnBooleanProperty(name = "codehunters.tracing.enabled", matchIfMissing = true)
 public class WebTracingAutoConfiguration {
 
@@ -37,7 +37,7 @@ public class WebTracingAutoConfiguration {
   }
 
   /**
-   * Registers the filter for all paths at highest precedence.
+   * Registers the filter for all paths, right after Micrometer's observation filter.
    *
    * @param filter the trace context filter
    * @return the filter registration
@@ -47,7 +47,7 @@ public class WebTracingAutoConfiguration {
   public FilterRegistrationBean<TraceIdFilter> traceIdFilterRegistration(TraceIdFilter filter) {
     FilterRegistrationBean<TraceIdFilter> registration = new FilterRegistrationBean<>(filter);
     registration.addUrlPatterns("/*");
-    registration.setOrder(Ordered.HIGHEST_PRECEDENCE);
+    registration.setOrder(Ordered.HIGHEST_PRECEDENCE + 2);
     registration.setName("traceIdFilter");
     return registration;
   }

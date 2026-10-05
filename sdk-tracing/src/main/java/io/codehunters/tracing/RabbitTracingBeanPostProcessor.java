@@ -4,6 +4,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Stream;
 import org.aopalliance.aop.Advice;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.rabbit.config.AbstractRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.ObjectProvider;
@@ -16,6 +18,8 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
  * nothing is initialised early.
  */
 public class RabbitTracingBeanPostProcessor implements BeanPostProcessor {
+
+  private static final Logger log = LoggerFactory.getLogger(RabbitTracingBeanPostProcessor.class);
 
   private final ObjectProvider<TracePropagationMessagePostProcessor> outbound;
   private final ObjectProvider<InboundTraceMethodInterceptor> inbound;
@@ -46,10 +50,16 @@ public class RabbitTracingBeanPostProcessor implements BeanPostProcessor {
 
   private void addOutbound(RabbitTemplate template) {
     Collection<?> existing = template.getBeforePublishPostProcessors();
-    if (existing == null
-        || existing.stream().noneMatch(TracePropagationMessagePostProcessor.class::isInstance)) {
-      template.addBeforePublishPostProcessors(outbound.getObject());
+    if (existing != null
+        && existing.stream().anyMatch(TracePropagationMessagePostProcessor.class::isInstance)) {
+      return;
     }
+    TracePropagationMessagePostProcessor processor = outbound.getIfUnique();
+    if (processor == null) {
+      log.warn("No single TracePropagationMessagePostProcessor bean; RabbitTemplate not traced");
+      return;
+    }
+    template.addBeforePublishPostProcessors(processor);
   }
 
   private void addInbound(AbstractRabbitListenerContainerFactory<?> factory) {

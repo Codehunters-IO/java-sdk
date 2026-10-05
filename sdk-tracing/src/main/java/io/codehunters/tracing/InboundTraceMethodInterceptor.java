@@ -1,7 +1,9 @@
 package io.codehunters.tracing;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.amqp.core.Message;
@@ -34,10 +36,20 @@ public class InboundTraceMethodInterceptor implements MethodInterceptor {
 
   private static Optional<TraceParent> incoming(Object[] arguments) {
     return Arrays.stream(arguments == null ? new Object[0] : arguments)
-        .filter(Message.class::isInstance)
-        .map(argument -> ((Message) argument).getMessageProperties())
+        .flatMap(InboundTraceMethodInterceptor::messages)
         .findFirst()
-        .flatMap(InboundTraceMethodInterceptor::fromHeaders);
+        .flatMap(message -> fromHeaders(message.getMessageProperties()));
+  }
+
+  /** A single message, or the messages of a batch listener. */
+  private static Stream<Message> messages(Object argument) {
+    if (argument instanceof Message message) {
+      return Stream.of(message);
+    }
+    if (argument instanceof List<?> batch) {
+      return batch.stream().filter(Message.class::isInstance).map(Message.class::cast);
+    }
+    return Stream.empty();
   }
 
   private static Optional<TraceParent> fromHeaders(MessageProperties properties) {
@@ -47,7 +59,6 @@ public class InboundTraceMethodInterceptor implements MethodInterceptor {
   }
 
   private static String header(MessageProperties properties, String name) {
-    Object value = properties.getHeader(name);
-    return value == null ? null : value.toString();
+    return AmqpHeaders.get(properties, name);
   }
 }

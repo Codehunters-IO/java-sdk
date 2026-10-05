@@ -35,16 +35,15 @@ public class TracePropagationMessagePostProcessor implements MessagePostProcesso
             .or(TraceMdc::current)
             .or(() -> fromEnvelope(message.getBody()))
             .orElseGet(TraceParent::generate);
-    properties.setHeader(TraceHeaders.TRACEPARENT, context.format());
-    properties.setHeader(TraceHeaders.LEGACY_TRACEPARENT, context.format());
-    properties.setHeader(TraceHeaders.TRACE_ID, context.traceId());
-    properties.setHeader(TraceHeaders.SPAN_ID, context.spanId());
+    AmqpHeaders.set(properties, TraceHeaders.TRACEPARENT, context.format());
+    AmqpHeaders.set(properties, TraceHeaders.LEGACY_TRACEPARENT, context.format());
+    AmqpHeaders.set(properties, TraceHeaders.TRACE_ID, context.traceId());
+    AmqpHeaders.set(properties, TraceHeaders.SPAN_ID, context.spanId());
     return message;
   }
 
   private static Optional<TraceParent> existing(MessageProperties properties) {
-    Object header = properties.getHeader(TraceHeaders.TRACEPARENT);
-    return header == null ? Optional.empty() : TraceParent.parse(header.toString());
+    return TraceParent.parse(AmqpHeaders.get(properties, TraceHeaders.TRACEPARENT));
   }
 
   private static Optional<TraceParent> fromEnvelope(byte[] body) {

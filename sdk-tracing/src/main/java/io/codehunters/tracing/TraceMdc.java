@@ -12,11 +12,15 @@ final class TraceMdc {
     return MDC.get(TraceHeaders.MDC_TRACE_ID) != null;
   }
 
+  /**
+   * The context in the MDC. When only a W3C trace id is there (set by code other than this SDK),
+   * the trace is kept with a new span rather than lost.
+   */
   static Optional<TraceParent> current() {
+    String traceId = MDC.get(TraceHeaders.MDC_TRACE_ID);
     return TraceParent.of(
-        MDC.get(TraceHeaders.MDC_TRACE_ID),
-        MDC.get(TraceHeaders.MDC_SPAN_ID),
-        MDC.get(TraceHeaders.MDC_TRACE_FLAGS));
+            traceId, MDC.get(TraceHeaders.MDC_SPAN_ID), MDC.get(TraceHeaders.MDC_TRACE_FLAGS))
+        .or(() -> TraceParent.ofTraceId(traceId));
   }
 
   static void put(TraceParent context) {
