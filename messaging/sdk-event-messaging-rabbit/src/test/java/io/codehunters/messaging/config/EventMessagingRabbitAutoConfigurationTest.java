@@ -23,7 +23,6 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 
 class EventMessagingRabbitAutoConfigurationTest {
@@ -47,8 +46,7 @@ class EventMessagingRabbitAutoConfigurationTest {
                   EventMessagingKafkaAutoConfiguration.class,
                   EventMessagingCoreAutoConfiguration.class))
           .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
-          .withBean(ProducerFactory.class, EventMessagingRabbitAutoConfigurationTest::producers)
-          .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class));
+          .withBean(ProducerFactory.class, EventMessagingRabbitAutoConfigurationTest::producers);
 
   @Test
   void should_create_all_beans_when_datasource_and_rabbit_available() {
