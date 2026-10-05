@@ -43,8 +43,11 @@ class KeycloakAuthzLegacyPropertiesTest {
     assertThat(properties.enabled()).isTrue();
     assertThat(properties.enforcementMode()).isEqualTo(EnforcementMode.PERMISSIVE);
     assertThat(properties.resource()).isEqualTo("svc");
-    assertThat(properties.paths()).singleElement().satisfies(p -> assertThat(p.name()).isEqualTo("api"));
-    assertThat(environment.getProperty("codehunters.security.url")).isEqualTo("https://kc.example.com");
+    assertThat(properties.paths())
+        .singleElement()
+        .satisfies(p -> assertThat(p.name()).isEqualTo("api"));
+    assertThat(environment.getProperty("codehunters.security.url"))
+        .isEqualTo("https://kc.example.com");
     assertThat(environment.getProperty("codehunters.security.realm")).isEqualTo("acme");
   }
 }

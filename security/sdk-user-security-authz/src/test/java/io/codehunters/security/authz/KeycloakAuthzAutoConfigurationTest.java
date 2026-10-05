@@ -61,7 +61,8 @@ class KeycloakAuthzAutoConfigurationTest {
     var custom =
         new KeycloakAuthzFilter(
             () -> null,
-            new KeycloakPolicyEnforcerProperties(true, EnforcementMode.ENFORCING, "svc", "s", List.of()));
+            new KeycloakPolicyEnforcerProperties(
+                true, EnforcementMode.ENFORCING, "svc", "s", List.of()));
     runner
         .withPropertyValues(
             "codehunters.security.authz.enabled=true",

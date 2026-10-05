@@ -49,7 +49,8 @@ class KeycloakAuthzFilterTest {
 
   @Test
   void should_pass_through_when_path_is_not_in_catalog() throws ServletException, IOException {
-    filter(EnforcementMode.ENFORCING).doFilter(request("GET", "/api/v1/public/info"), response, chain);
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("GET", "/api/v1/public/info"), response, chain);
 
     assertAllowed();
     verifyNoInteractions(authzClient);
@@ -68,14 +69,16 @@ class KeycloakAuthzFilterTest {
 
   @Test
   void should_continue_when_keycloak_grants_permission() throws ServletException, IOException {
-    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
     assertAllowed();
   }
 
   @Test
   void should_ask_for_resource_of_most_specific_pattern() throws ServletException, IOException {
-    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
     var captor = ArgumentCaptor.forClass(AuthorizationRequest.class);
     verify(authorization).authorize(captor.capture());
@@ -88,7 +91,8 @@ class KeycloakAuthzFilterTest {
   void should_forbid_when_keycloak_denies_permission() throws ServletException, IOException {
     when(authorization.authorize(any())).thenThrow(denied());
 
-    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
     assertThat(response.getStatus()).isEqualTo(403);
     assertThat(chain.getRequest()).isNull();
@@ -109,7 +113,8 @@ class KeycloakAuthzFilterTest {
       throws ServletException, IOException {
     when(authorization.authorize(any())).thenThrow(new RuntimeException("Connection refused"));
 
-    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
     assertThat(response.getStatus()).isEqualTo(503);
   }
@@ -133,14 +138,16 @@ class KeycloakAuthzFilterTest {
   void should_allow_denied_request_when_permissive() throws ServletException, IOException {
     when(authorization.authorize(any())).thenThrow(denied());
 
-    filter(EnforcementMode.PERMISSIVE).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+    filter(EnforcementMode.PERMISSIVE)
+        .doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
     assertAllowed();
   }
 
   @Test
   void should_skip_enforcement_when_disabled() throws ServletException, IOException {
-    filter(EnforcementMode.DISABLED).doFilter(request("DELETE", "/api/v1/admin/users"), response, chain);
+    filter(EnforcementMode.DISABLED)
+        .doFilter(request("DELETE", "/api/v1/admin/users"), response, chain);
 
     assertAllowed();
     verifyNoInteractions(authzClient);

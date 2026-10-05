@@ -1,241 +1,92 @@
 package io.codehunters.security.authz;
 
-import java.util.ArrayList;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the shared {@link KeycloakAuthzFilter} PEP, bound from the {@code
- * keycloak.policy-enforcer} prefix. Each consuming service supplies its own {@link #paths} catalog
- * mapping its protected endpoints to Keycloak Resources and Scopes.
+ * Configuration of the Keycloak policy enforcement point, bound from {@code
+ * codehunters.security.authz}. Keycloak's URL and realm come from {@code codehunters.security}.
+ *
+ * @param enabled whether the PEP is registered; off by default
+ * @param enforcementMode how decisions are applied
+ * @param resource client id of this service's resource server in Keycloak
+ * @param clientSecret secret of that client
+ * @param paths this service's catalog of protected paths
  */
-@ConfigurationProperties(prefix = "keycloak.policy-enforcer")
-public class KeycloakPolicyEnforcerProperties {
+@ConfigurationProperties("codehunters.security.authz")
+public record KeycloakPolicyEnforcerProperties(
+    boolean enabled,
+    @DefaultValue("ENFORCING") EnforcementMode enforcementMode,
+    String resource,
+    String clientSecret,
+    @DefaultValue List<PathMapping> paths) {
 
-  private boolean enabled = false;
-  private String enforcementMode = "ENFORCING";
-  private String resource;
-  private String clientSecret;
-  private boolean lazyLoadPaths = false;
-  private List<PathMapping> paths = new ArrayList<>();
+  private static final String PREFIX = "codehunters.security.authz.";
 
-  /** Creates the properties with default values. */
-  public KeycloakPolicyEnforcerProperties() {}
-
-  /**
-   * Whether the PEP filter is active for this service.
-   *
-   * @return {@code true} if the filter should be registered
-   */
-  public boolean isEnabled() {
-    return enabled;
+  /** Requires the client credentials when enabled. */
+  public KeycloakPolicyEnforcerProperties {
+    require(!enabled || hasText(resource), PREFIX + "resource is required when enabled");
+    require(!enabled || hasText(clientSecret), PREFIX + "client-secret is required when enabled");
+    paths = List.copyOf(paths);
   }
 
-  /**
-   * Sets whether the PEP filter is active.
-   *
-   * @param enabled {@code true} to register the filter
-   */
-  public void setEnabled(boolean enabled) {
-    this.enabled = enabled;
+  @Override
+  public String toString() {
+    return "KeycloakPolicyEnforcerProperties[enabled=%s, enforcementMode=%s, resource=%s, clientSecret=***, paths=%s]"
+        .formatted(enabled, enforcementMode, resource, paths.size());
   }
 
-  /**
-   * Keycloak policy enforcer mode ({@code ENFORCING} or {@code PERMISSIVE}).
-   *
-   * @return the enforcement mode
-   */
-  public String getEnforcementMode() {
-    return enforcementMode;
+  private static boolean hasText(String value) {
+    return value != null && !value.isBlank();
   }
 
-  /**
-   * Sets the enforcement mode.
-   *
-   * @param enforcementMode the enforcement mode
-   */
-  public void setEnforcementMode(String enforcementMode) {
-    this.enforcementMode = enforcementMode;
-  }
-
-  /**
-   * Keycloak client id used as the Authorization Services resource server for this service.
-   *
-   * @return the client id
-   */
-  public String getResource() {
-    return resource;
-  }
-
-  /**
-   * Sets the client id.
-   *
-   * @param resource the client id
-   */
-  public void setResource(String resource) {
-    this.resource = resource;
-  }
-
-  /**
-   * Client secret used to authenticate this service against Keycloak Authorization Services.
-   *
-   * @return the client secret
-   */
-  public String getClientSecret() {
-    return clientSecret;
-  }
-
-  /**
-   * Sets the client secret.
-   *
-   * @param clientSecret the client secret
-   */
-  public void setClientSecret(String clientSecret) {
-    this.clientSecret = clientSecret;
-  }
-
-  /**
-   * Whether to defer loading the resource/scope paths lazily from Keycloak.
-   *
-   * @return {@code true} to lazy-load paths
-   */
-  public boolean isLazyLoadPaths() {
-    return lazyLoadPaths;
-  }
-
-  /**
-   * Sets whether to lazy-load paths.
-   *
-   * @param lazyLoadPaths {@code true} to lazy-load paths
-   */
-  public void setLazyLoadPaths(boolean lazyLoadPaths) {
-    this.lazyLoadPaths = lazyLoadPaths;
-  }
-
-  /**
-   * This service's catalog of protected paths, mapped to Keycloak Resources and Scopes.
-   *
-   * @return the path mappings
-   */
-  public List<PathMapping> getPaths() {
-    return paths;
-  }
-
-  /**
-   * Sets the path mappings.
-   *
-   * @param paths the path mappings
-   */
-  public void setPaths(List<PathMapping> paths) {
-    this.paths = paths;
-  }
-
-  /** One Ant-style path pattern mapped to a Keycloak Resource name and its method/scope rules. */
-  public static class PathMapping {
-    private String path;
-    private String name;
-    private List<MethodMapping> methods = new ArrayList<>();
-
-    /** Creates the mapping with default values. */
-    public PathMapping() {}
-
-    /**
-     * Ant-style path pattern (e.g. {@code /api/v1/admin/users/*}).
-     *
-     * @return the path pattern
-     */
-    public String getPath() {
-      return path;
-    }
-
-    /**
-     * Sets the path pattern.
-     *
-     * @param path the path pattern
-     */
-    public void setPath(String path) {
-      this.path = path;
-    }
-
-    /**
-     * Keycloak Resource name this path maps to.
-     *
-     * @return the resource name
-     */
-    public String getName() {
-      return name;
-    }
-
-    /**
-     * Sets the resource name.
-     *
-     * @param name the resource name
-     */
-    public void setName(String name) {
-      this.name = name;
-    }
-
-    /**
-     * HTTP method to required-scopes mappings for this path.
-     *
-     * @return the method mappings
-     */
-    public List<MethodMapping> getMethods() {
-      return methods;
-    }
-
-    /**
-     * Sets the method mappings.
-     *
-     * @param methods the method mappings
-     */
-    public void setMethods(List<MethodMapping> methods) {
-      this.methods = methods;
+  private static void require(boolean condition, String message) {
+    if (!condition) {
+      throw new IllegalArgumentException(message);
     }
   }
 
-  /** An HTTP method mapped to the Keycloak Scopes it requires on the enclosing Resource. */
-  public static class MethodMapping {
-    private String method;
-    private List<String> scopes = new ArrayList<>();
+  /** How the PEP applies Keycloak's decisions. */
+  public enum EnforcementMode {
+    /** Denials and catalog gaps are rejected; Keycloak outages answer 503. */
+    ENFORCING,
+    /** Decisions are logged but never block the request. */
+    PERMISSIVE,
+    /** The PEP does nothing. */
+    DISABLED
+  }
 
-    /** Creates the mapping with default values. */
-    public MethodMapping() {}
+  /**
+   * A protected path and the scopes each HTTP method requires.
+   *
+   * @param path Ant-style pattern, e.g. {@code /api/v1/admin/users/*}
+   * @param name Keycloak resource name
+   * @param methods HTTP methods allowed on the path and the scopes they need; any other method is
+   *     denied
+   */
+  public record PathMapping(String path, String name, @DefaultValue List<MethodMapping> methods) {
 
-    /**
-     * HTTP method (e.g. {@code POST}).
-     *
-     * @return the HTTP method
-     */
-    public String getMethod() {
-      return method;
+    /** Requires the pattern and the resource name. */
+    public PathMapping {
+      require(hasText(path), PREFIX + "paths[].path is required");
+      require(hasText(name), PREFIX + "paths[].name is required");
+      methods = List.copyOf(methods);
     }
+  }
 
-    /**
-     * Sets the HTTP method.
-     *
-     * @param method the HTTP method
-     */
-    public void setMethod(String method) {
-      this.method = method;
-    }
+  /**
+   * Scopes required for one HTTP method.
+   *
+   * @param method HTTP method, case-insensitive
+   * @param scopes Keycloak scopes requested for the resource
+   */
+  public record MethodMapping(String method, @DefaultValue List<String> scopes) {
 
-    /**
-     * Required Keycloak scopes for this method (e.g. {@code CREATE}, {@code READ}).
-     *
-     * @return the required scopes
-     */
-    public List<String> getScopes() {
-      return scopes;
-    }
-
-    /**
-     * Sets the required scopes.
-     *
-     * @param scopes the required scopes
-     */
-    public void setScopes(List<String> scopes) {
-      this.scopes = scopes;
+    /** Requires the method. */
+    public MethodMapping {
+      require(hasText(method), PREFIX + "paths[].methods[].method is required");
+      scopes = List.copyOf(scopes);
     }
   }
 }
