@@ -16,6 +16,7 @@ class OutboxProducerConfigsTest {
   private static final String BOOTSTRAP = "broker:9092";
 
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
+  private static final String APP_NAME = "orders-service";
   private static final String MAX_IN_FLIGHT = ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION;
   private static final String RETRIES = ProducerConfig.RETRIES_CONFIG;
   private static final int SEND_TIMEOUT_MS = 5000;
@@ -50,16 +51,30 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_keep_application_connection_settings_when_deriving_outbox_config() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
-    assertThat(config)
-        .containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP)
-        .containsEntry(ProducerConfig.CLIENT_ID_CONFIG, "orders");
+    assertThat(config).containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, BOOTSTRAP);
+  }
+
+  @Test
+  void should_suffix_application_client_id_when_application_sets_one() {
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
+
+    assertThat(config).containsEntry(ProducerConfig.CLIENT_ID_CONFIG, "orders-outbox");
+  }
+
+  @Test
+  void should_name_client_after_application_when_client_id_unset() {
+    Map<String, Object> config =
+        OutboxProducerConfigs.from(
+            withSetting(ProducerConfig.CLIENT_ID_CONFIG, " "), SEND_TIMEOUT, APP_NAME);
+
+    assertThat(config).containsEntry(ProducerConfig.CLIENT_ID_CONFIG, "outbox-orders-service");
   }
 
   @Test
   void should_force_string_serializers_when_application_uses_json() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
     assertThat(config)
         .containsEntry(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class)
@@ -68,7 +83,7 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_force_idempotent_all_acks_producer_when_application_relaxes_them() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
     assertThat(config)
         .containsEntry(ProducerConfig.ACKS_CONFIG, "all")
@@ -77,14 +92,14 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_bound_metadata_and_buffer_wait_by_send_timeout_when_deriving_config() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).containsEntry(ProducerConfig.MAX_BLOCK_MS_CONFIG, SEND_TIMEOUT_MS);
   }
 
   @Test
   void should_bound_delivery_by_send_timeout_without_lingering_when_deriving_config() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
     assertThat(config)
         .containsEntry(ProducerConfig.DELIVERY_TIMEOUT_MS_CONFIG, SEND_TIMEOUT_MS)
@@ -94,7 +109,8 @@ class OutboxProducerConfigsTest {
 
   @Test
   void should_build_kafka_producer_when_application_sets_conflicting_timeouts() {
-    Map<String, Object> config = OutboxProducerConfigs.from(LOCAL_WITH_TIMEOUTS, SEND_TIMEOUT);
+    Map<String, Object> config =
+        OutboxProducerConfigs.from(LOCAL_WITH_TIMEOUTS, SEND_TIMEOUT, APP_NAME);
 
     try (var producer = new KafkaProducer<String, String>(config)) {
       assertThat(producer.metrics()).isNotEmpty();
@@ -105,7 +121,7 @@ class OutboxProducerConfigsTest {
   @Test
   void should_cap_max_in_flight_at_five_when_application_allows_more() {
     Map<String, Object> config =
-        OutboxProducerConfigs.from(withSetting(MAX_IN_FLIGHT, 10), SEND_TIMEOUT);
+        OutboxProducerConfigs.from(withSetting(MAX_IN_FLIGHT, 10), SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).containsEntry(MAX_IN_FLIGHT, 5);
   }
@@ -113,7 +129,7 @@ class OutboxProducerConfigsTest {
   @Test
   void should_keep_max_in_flight_when_application_allows_at_most_five() {
     Map<String, Object> config =
-        OutboxProducerConfigs.from(withSetting(MAX_IN_FLIGHT, "3"), SEND_TIMEOUT);
+        OutboxProducerConfigs.from(withSetting(MAX_IN_FLIGHT, "3"), SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).containsEntry(MAX_IN_FLIGHT, 3);
   }
@@ -121,28 +137,29 @@ class OutboxProducerConfigsTest {
   @Test
   void should_restore_retries_when_application_disables_them() {
     Map<String, Object> config =
-        OutboxProducerConfigs.from(withSetting(RETRIES, "0"), SEND_TIMEOUT);
+        OutboxProducerConfigs.from(withSetting(RETRIES, "0"), SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).containsEntry(RETRIES, Integer.MAX_VALUE);
   }
 
   @Test
   void should_keep_retries_when_application_sets_a_positive_count() {
-    Map<String, Object> config = OutboxProducerConfigs.from(withSetting(RETRIES, 7), SEND_TIMEOUT);
+    Map<String, Object> config =
+        OutboxProducerConfigs.from(withSetting(RETRIES, 7), SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).containsEntry(RETRIES, 7);
   }
 
   @Test
   void should_leave_retries_and_in_flight_to_kafka_defaults_when_application_sets_none() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).doesNotContainKeys(RETRIES, MAX_IN_FLIGHT);
   }
 
   @Test
   void should_drop_transactional_id_when_application_producer_is_transactional() {
-    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT);
+    Map<String, Object> config = OutboxProducerConfigs.from(APPLICATION, SEND_TIMEOUT, APP_NAME);
 
     assertThat(config).doesNotContainKey(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
   }

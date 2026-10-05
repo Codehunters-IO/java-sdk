@@ -1,6 +1,7 @@
 package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -16,10 +17,13 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.kafka.autoconfigure.DefaultKafkaProducerFactoryCustomizer;
 import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer;
@@ -148,10 +152,106 @@ class EventMessagingKafkaAutoConfigurationTest {
         .run(context -> assertThat(context).hasNotFailed());
   }
 
+  @Test
+  void should_apply_boot_producer_factory_customizers_when_building_outbox_factory() {
+    ProducerFactory.Listener<Object, Object> listener = new ProducerFactory.Listener<>() {};
+
+    contextRunner
+        .withBean(ProducerFactory.class, EventMessagingKafkaAutoConfigurationTest::producers)
+        .withBean(DefaultKafkaProducerFactoryCustomizer.class, () -> addListener(listener))
+        .run(
+            context -> assertThat(outboxFactory(context).getListeners()).containsExactly(listener));
+  }
+
+  @Test
+  void should_keep_string_serializers_when_customizer_sets_application_serializer() {
+    contextRunner
+        .withBean(ProducerFactory.class, EventMessagingKafkaAutoConfigurationTest::producers)
+        .withBean(
+            DefaultKafkaProducerFactoryCustomizer.class,
+            EventMessagingKafkaAutoConfigurationTest::jsonValueSerializer)
+        .run(
+            context ->
+                assertThat(outboxFactory(context).getValueSerializerSupplier().get())
+                    .isInstanceOf(StringSerializer.class));
+  }
+
+  @Test
+  void should_give_outbox_producer_its_own_client_id_when_application_sets_none() {
+    contextRunner
+        .withBean(ProducerFactory.class, EventMessagingKafkaAutoConfigurationTest::producers)
+        .run(
+            context ->
+                assertThat(outboxFactory(context).getConfigurationProperties())
+                    .containsEntry(ProducerConfig.CLIENT_ID_CONFIG, "outbox-test-app"));
+  }
+
+  @Test
+  void should_fail_startup_asking_for_primary_when_several_producer_factories_present() {
+    contextRunner
+        .withBean("ordersProducers", ProducerFactory.class, () -> producersAt("orders:9092"))
+        .withBean("auditProducers", ProducerFactory.class, () -> producersAt("audit:9092"))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("ProducerFactory")
+                    .hasMessageContaining("@Primary"));
+  }
+
+  @Test
+  void should_derive_outbox_factory_from_primary_when_several_producer_factories_present() {
+    contextRunner
+        .withBean("ordersProducers", ProducerFactory.class, () -> producersAt("orders:9092"))
+        .withBean(
+            "auditProducers",
+            ProducerFactory.class,
+            () -> producersAt("audit:9092"),
+            definition -> definition.setPrimary(true))
+        .run(
+            context ->
+                assertThat(outboxFactory(context).getConfigurationProperties())
+                    .containsEntry(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "audit:9092"));
+  }
+
+  @Test
+  void should_fail_startup_naming_override_when_producer_factory_hides_its_configuration() {
+    contextRunner
+        .withBean(ProducerFactory.class, () -> mock(ProducerFactory.class, CALLS_REAL_METHODS))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("outboxKafkaProducerFactory"));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static DefaultKafkaProducerFactory<Object, Object> outboxFactory(
+      AssertableApplicationContext context) {
+    return context.getBean("outboxKafkaProducerFactory", DefaultKafkaProducerFactory.class);
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private static DefaultKafkaProducerFactoryCustomizer addListener(
+      ProducerFactory.Listener<Object, Object> listener) {
+    return factory -> ((DefaultKafkaProducerFactory) factory).addListener(listener);
+  }
+
+  @SuppressWarnings({"unchecked", "rawtypes"})
+  private static DefaultKafkaProducerFactoryCustomizer jsonValueSerializer() {
+    return factory ->
+        ((DefaultKafkaProducerFactory) factory).setValueSerializer(new JacksonJsonSerializer<>());
+  }
+
+  private static ProducerFactory<Object, Object> producersAt(String bootstrapServers) {
+    return producersWith(Map.of(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers));
+  }
+
   @SuppressWarnings("unchecked")
   private static ProducerFactory<Object, Object> producersWith(Map<String, Object> settings) {
-    Map<String, Object> config = new HashMap<>(settings);
-    config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+    Map<String, Object> config =
+        new HashMap<>(Map.of(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092"));
+    config.putAll(settings);
     ProducerFactory<Object, Object> producerFactory = mock(ProducerFactory.class);
     when(producerFactory.getConfigurationProperties()).thenReturn(config);
     return producerFactory;
