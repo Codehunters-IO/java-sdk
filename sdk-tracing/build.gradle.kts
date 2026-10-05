@@ -22,5 +22,4 @@ dependencies {
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-test")
-    testImplementation("io.micrometer:micrometer-tracing")
 }

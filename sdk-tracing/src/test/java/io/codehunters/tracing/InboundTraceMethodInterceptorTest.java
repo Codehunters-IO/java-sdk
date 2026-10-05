@@ -88,9 +88,22 @@ class InboundTraceMethodInterceptorTest {
     assertThat(MDC.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo("a".repeat(32));
   }
 
+  @Test
+  void should_continue_trace_for_batch_listeners() throws Throwable {
+    properties.setHeader(TraceHeaders.TRACEPARENT, "00-" + TRACE_ID + "-" + PRODUCER_SPAN + "-01");
+
+    invokeWith(java.util.List.of(new Message(new byte[0], properties)));
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+  }
+
   private void invoke() throws Throwable {
+    invokeWith(new Message(new byte[0], properties));
+  }
+
+  private void invokeWith(Object listenerData) throws Throwable {
     MethodInvocation invocation = mock(MethodInvocation.class);
-    when(invocation.getArguments()).thenReturn(new Object[] {new Message(new byte[0], properties)});
+    when(invocation.getArguments()).thenReturn(new Object[] {listenerData});
     when(invocation.proceed())
         .thenAnswer(
             call -> {

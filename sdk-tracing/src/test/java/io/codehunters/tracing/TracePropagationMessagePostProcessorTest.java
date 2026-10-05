@@ -76,6 +76,28 @@ class TracePropagationMessagePostProcessorTest {
     assertThat(TraceParent.parse(headers.getHeader(TraceHeaders.TRACEPARENT))).isPresent();
   }
 
+  @Test
+  void should_keep_mdc_trace_id_when_span_id_is_missing() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+
+    MessageProperties headers = process(message("{}")).getMessageProperties();
+
+    assertThat((String) headers.getHeader(TraceHeaders.TRACE_ID)).isEqualTo(TRACE_ID);
+  }
+
+  @Test
+  void should_keep_traceparent_sent_with_different_case_or_as_bytes() {
+    Message message = message("{}");
+    String existing = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
+    message
+        .getMessageProperties()
+        .setHeader("Traceparent", existing.getBytes(StandardCharsets.UTF_8));
+
+    MessageProperties headers = process(message).getMessageProperties();
+
+    assertThat((String) headers.getHeader(TraceHeaders.TRACEPARENT)).isEqualTo(existing);
+  }
+
   private Message process(Message message) {
     return processor.postProcessMessage(message);
   }

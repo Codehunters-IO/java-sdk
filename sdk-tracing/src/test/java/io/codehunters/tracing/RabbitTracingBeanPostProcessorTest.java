@@ -60,6 +60,22 @@ class RabbitTracingBeanPostProcessorTest {
     assertThat(lazy.postProcessAfterInitialization(bean, "other")).isSameAs(bean);
   }
 
+  @Test
+  void should_leave_template_alone_when_post_processor_bean_is_ambiguous() {
+    var beans = new StaticListableBeanFactory();
+    beans.addBean("first", new TracePropagationMessagePostProcessor());
+    beans.addBean("second", new TracePropagationMessagePostProcessor());
+    var ambiguous =
+        new RabbitTracingBeanPostProcessor(
+            beans.getBeanProvider(TracePropagationMessagePostProcessor.class),
+            beans.getBeanProvider(InboundTraceMethodInterceptor.class));
+    RabbitTemplate template = new RabbitTemplate(mock(ConnectionFactory.class));
+
+    ambiguous.postProcessAfterInitialization(template, "rabbitTemplate");
+
+    assertThat(template.getBeforePublishPostProcessors()).isNullOrEmpty();
+  }
+
   private static RabbitTracingBeanPostProcessor processorFor(
       TracePropagationMessagePostProcessor outbound, InboundTraceMethodInterceptor inbound) {
     var beans = new StaticListableBeanFactory();

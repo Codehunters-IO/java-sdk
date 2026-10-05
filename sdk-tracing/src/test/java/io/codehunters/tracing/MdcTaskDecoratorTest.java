@@ -73,4 +73,17 @@ class MdcTaskDecoratorTest {
 
     assertThat(MDC.get("inner")).isNull();
   }
+
+  @Test
+  void should_carry_trace_flags_to_task_thread() {
+    MDC.put(TraceHeaders.MDC_TRACE_FLAGS, "00");
+    String[] seenFlags = new String[1];
+    Runnable task =
+        new MdcTaskDecorator().decorate(() -> seenFlags[0] = MDC.get(TraceHeaders.MDC_TRACE_FLAGS));
+    MDC.clear();
+
+    task.run();
+
+    assertThat(seenFlags[0]).isEqualTo("00");
+  }
 }

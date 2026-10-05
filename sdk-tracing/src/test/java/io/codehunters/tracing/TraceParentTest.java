@@ -22,6 +22,17 @@ class TraceParentTest {
   }
 
   @Test
+  void should_read_sampled_bit_when_other_flags_are_set() {
+    assertThat(TraceParent.parse("00-" + TRACE_ID + "-" + SPAN_ID + "-03"))
+        .hasValueSatisfying(parent -> assertThat(parent.sampled()).isTrue());
+  }
+
+  @Test
+  void should_accept_surrounding_whitespace() {
+    assertThat(TraceParent.parse("  " + HEADER + " ")).isPresent();
+  }
+
+  @Test
   void should_format_back_to_the_same_header() {
     assertThat(TraceParent.parse(HEADER).map(TraceParent::format)).contains(HEADER);
   }

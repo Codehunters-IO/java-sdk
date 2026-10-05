@@ -48,6 +48,14 @@ class MdcTraceContextAdapterTest {
   }
 
   @Test
+  void should_derive_trace_parent_when_only_trace_id_is_in_mdc() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+
+    assertThat(adapter.currentTraceParent())
+        .hasValueSatisfying(parent -> assertThat(parent.traceId()).isEqualTo(TRACE_ID));
+  }
+
+  @Test
   void should_have_no_trace_parent_when_mdc_holds_non_w3c_ids() {
     MDC.put(TraceHeaders.MDC_TRACE_ID, "tr-1");
     MDC.put(TraceHeaders.MDC_SPAN_ID, "sp-1");
