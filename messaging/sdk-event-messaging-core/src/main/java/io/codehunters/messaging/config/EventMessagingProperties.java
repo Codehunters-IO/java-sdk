@@ -18,9 +18,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param backoff the retry backoff configuration
  * @param publisher the broker publisher selection
  * @param purge the PUBLISHED-row retention configuration
- * @throws IllegalArgumentException when a value is out of range, naming the offending key; with the
- *     Kafka publisher, also when {@code claim.ttl-ms} does not exceed {@code batch-size} times
- *     {@code publisher.kafka.send-timeout}
  */
 @ConfigurationProperties(prefix = "codehunters.outbox")
 public record EventMessagingProperties(
@@ -45,7 +42,13 @@ public record EventMessagingProperties(
           + "publisher.kafka.send-timeout (%d ms): a batch still being sent when its claim"
           + " expires is reclaimed by another instance and published as duplicates";
 
-  /** Validates the ranges and the claim budget of the Kafka publisher. */
+  /**
+   * Validates the ranges and the claim budget of the Kafka publisher.
+   *
+   * @throws IllegalArgumentException when a value is out of range, naming the offending key; with
+   *     the Kafka publisher, also when {@code claim.ttl-ms} does not exceed {@code batch-size}
+   *     times {@code publisher.kafka.send-timeout}
+   */
   public EventMessagingProperties {
     requireAtLeastOne(batchSize, "batch-size");
     requireAtLeastOne(maxAttempts, "max-attempts");
