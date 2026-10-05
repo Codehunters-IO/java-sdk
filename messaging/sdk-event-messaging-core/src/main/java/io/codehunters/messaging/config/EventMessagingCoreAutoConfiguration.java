@@ -6,15 +6,20 @@ import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
 import io.codehunters.messaging.application.usecase.SendOutboxMessagesUseCase;
 import io.codehunters.messaging.domain.factory.EventMessageFactory;
 import io.codehunters.messaging.domain.factory.OutboxEventFactory;
+import io.codehunters.messaging.infrastructure.metrics.MeteredMessagePublisher;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
 /**
  * Spring Boot auto-configuration for the transport-neutral part of the transactional-outbox SDK.
@@ -24,13 +29,18 @@ import org.springframework.context.annotation.Bean;
  * <p>The use case needs an {@link OutboxRepositoryPort} and a {@link MessagePublisherPort}, which
  * come from {@code sdk-event-messaging-jdbc} and a transport artifact ({@code
  * sdk-event-messaging-rabbit} or {@code sdk-event-messaging-kafka}). This configuration therefore
- * runs after their auto-configurations, referenced by name because any of them may be absent.
+ * runs after their auto-configurations, referenced by name because any of them may be absent. It
+ * also runs after Boot's metrics auto-configuration so a {@link MeterRegistry} bean, when present,
+ * turns on the {@code outbox.publish} timer.
  */
 @AutoConfiguration(
     afterName = {
       "io.codehunters.messaging.config.EventMessagingJdbcAutoConfiguration",
       "io.codehunters.messaging.config.EventMessagingRabbitAutoConfiguration",
-      "io.codehunters.messaging.config.EventMessagingKafkaAutoConfiguration"
+      "io.codehunters.messaging.config.EventMessagingKafkaAutoConfiguration",
+      "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
+      "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
+      "org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration"
     })
 @ConditionalOnProperty(
     prefix = "codehunters.outbox",
@@ -88,6 +98,7 @@ public class EventMessagingCoreAutoConfiguration {
    *
    * @param outboxRepositoryPort the outbox repository
    * @param messagePublisherPort the message publisher
+   * @param decorators the decorators applied to the publisher, in bean order
    * @param properties the messaging configuration
    * @param applicationName the originating application name (used as instance prefix)
    * @param clock the outbox clock
@@ -99,12 +110,13 @@ public class EventMessagingCoreAutoConfiguration {
   public SendOutboxMessagesPort sendOutboxMessagesPort(
       OutboxRepositoryPort outboxRepositoryPort,
       MessagePublisherPort messagePublisherPort,
+      ObjectProvider<MessagePublisherDecorator> decorators,
       EventMessagingProperties properties,
       @Value("${spring.application.name:unknown}") String applicationName,
       Clock clock) {
     return new SendOutboxMessagesUseCase(
         outboxRepositoryPort,
-        messagePublisherPort,
+        decorate(messagePublisherPort, decorators),
         properties.batchSize(),
         properties.maxAttempts(),
         resolveInstanceId(applicationName),
@@ -115,8 +127,36 @@ public class EventMessagingCoreAutoConfiguration {
         clock);
   }
 
+  private static MessagePublisherPort decorate(
+      MessagePublisherPort publisher, ObjectProvider<MessagePublisherDecorator> decorators) {
+    MessagePublisherPort decorated = publisher;
+    for (MessagePublisherDecorator decorator : decorators.orderedStream().toList()) {
+      decorated = decorator.decorate(decorated);
+    }
+    return decorated;
+  }
+
   private String resolveInstanceId(String applicationName) {
     String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
     return applicationName + "@" + runtimeName;
+  }
+
+  /** Publish-timer wiring. Loaded only when Micrometer is on the classpath. */
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(MeterRegistry.class)
+  static class OutboxPublisherMetricsConfiguration {
+
+    /**
+     * Wraps the dispatch publisher in a {@link MeteredMessagePublisher}.
+     *
+     * @param meterRegistry the application's meter registry
+     * @return the timing decorator
+     */
+    @Bean
+    @ConditionalOnBean(MeterRegistry.class)
+    @ConditionalOnMissingBean(name = "outboxPublisherMetricsDecorator")
+    MessagePublisherDecorator outboxPublisherMetricsDecorator(MeterRegistry meterRegistry) {
+      return publisher -> new MeteredMessagePublisher(publisher, meterRegistry);
+    }
   }
 }
