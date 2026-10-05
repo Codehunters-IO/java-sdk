@@ -28,13 +28,13 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D5 | Renombrar `sdk-utils` a `sdk-totp` | `docs/adr/0005-utils-to-totp.md` |
 | D6 | Crear `sdk-bom` (`java-platform`) y dejar de exportar el BOM de Boot a los consumidores | `docs/adr/0006-sdk-bom.md` |
 | D7 | Solo Spring Boot 4. Los `afterName` apuntan solo a paquetes de Boot 4 y el README lo declara (2026-10-05) | `docs/adr/0007-boot4-only.md` |
+| D9 | `user-security` 3.0 verifica el JWT localmente (JWKS); los headers del gateway solo se aceptan si coinciden (2026-10-05) | (en el CHANGELOG del módulo) |
 | D8 | Mantener `@Measured` y su aspecto propio; no se reemplaza por `@Timed`/`@Counted` de Micrometer (2026-10-05) | `docs/adr/0008-keep-measured.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
 | # | Pregunta | Recomendación | Bloquea |
 |---|---|---|---|
-| A1 | `user-security`: ¿verificar el JWT localmente (JWKS) o exigir por red que solo el gateway llegue al pod? | Verificación local; los headers del gateway quedan como pista | Fase 2 |
 | A4 | `file-share`: auth saliente, ¿reenviar el token del usuario o usar client credentials? | Hook `ClientHttpRequestInterceptor`; client credentials por defecto | Fase 5 |
 | A5 | Modelo mutable de `event-messaging` (`@Setter` en `OutboxMessage` y `EventMessage`) | Fuera de este plan; se aborda en la 7.0 | — |
 
@@ -132,50 +132,29 @@ Decidido y no hecho: un plugin `codehunters.spring-autoconfig` (no aporta mientr
 son autoconfiguraciones; lo cubre `codehunters.java-library`); un módulo público de soporte de tests
 (se usa `java-test-fixtures` en `-core` en la Fase 3).
 
-## Fase 2 — `sdk-user-security` 3.0.0 + `sdk-user-security-authz` 3.0.0 (prioridad: seguridad)
+## Fase 2 — `sdk-user-security` 3.0.0 + `sdk-user-security-authz` 3.0.0 ✅ (rama `feature/sdk-user-security-v3`)
 
-Bloqueada por A1. Rama: `feature/sdk-user-security-v3`.
+Hecha según D9. Resumen (detalle en `security/*/CHANGELOG.md` y `README.md`):
 
-**Sin helper de capability en esta fase:** el paquete pasa a `io.codehunters.security`, así que el
-jar 2.x y los 3.x no pueden tener clases duplicadas, y `-authz` 3.0 arrastra la base 3.0. El helper se
-escribe en la Fase 3, que es la primera que lo necesita.
+- `147a0bf` paquete `io.codehunters.security`; `ca6567f` PEP extraído a `security/sdk-user-security-authz`.
+- `95c9b9b` → `0f2dc89` verificación local del JWT (RS256, issuer, sub, audiencia, timestamps), introspección
+  que falla cerrada con timeouts y caché acotada por hash, `GatewayHeadersFilter` que exige que
+  `x-user-id`/`x-user-roles` coincidan con el token, propiedades `codehunters.security` validadas.
+- `74e493c` → `431f0af` alias de claves 2.x (`EnvironmentPostProcessor` + `LegacyPropertyAliases`).
+- `9eb8a68` → `c700eb5` PEP: cliente perezoso, deniega métodos fuera del catálogo, patrón más específico,
+  403/503, modos `ENFORCING`/`PERMISSIVE`/`DISABLED`, keycloak-authz-client 26.0.12.
+- `4b4c43e` (build) la metadata adicional ahora se fusiona; `4094892` README, CHANGELOG, metadata de deprecación.
+- Revisión independiente → `a2ba265` tests, `733f739` y `f5aee60` correcciones: alias con variables de entorno
+  (crasheaba el arranque), `audiences` obligatorio, `issuer-uri`/`jwk-set-uri`, JWKS cacheado y con límite
+  de frecuencia (un `kid` desconocido forzaba una descarga por petición), timeouts y back-off del PEP,
+  orden determinista de alias, `method-security.enabled`.
 
-**Estructura:**
-- `sdk-user-security`: `io.codehunters.security`. Contiene `KeycloakSecurityFilter`, `SessionIntrospector`,
-  `KeycloakPrincipal`, `CurrentPrincipal`, su argument resolver, las utilidades, las propiedades y la
-  autoconfiguración.
-- `sdk-user-security-authz` (nuevo): `io.codehunters.security.authz`. Contiene `KeycloakAuthzFilter`,
-  sus propiedades y su autoconfiguración. `api(project(":sdk-user-security"))`. 
+Verificación: 99 tests en la base (matriz de 18 ataques de punta a punta), 22 en el PEP; pruebas de mutación
+sobre cada defensa; `./gradlew clean build` en verde.
 
-**Prefijos:** `keycloak.security.*` → `codehunters.security.*`; `keycloak.policy-enforcer.*` →
-`codehunters.security.authz.*`. Se eliminan `@Value("${keycloak.host}")` y `${keycloak.realm}`, porque
-la URL y el realm salen de una sola fuente: `codehunters.security.url` y `.realm`.
-
-**Tareas propias:**
-1. Roles y sujeto salen de claims verificados (según A1). Los headers `x-user-*` deben coincidir o se
-   rechaza con 401.
-2. `failOpen=false` por defecto. Validar al arrancar `url`, `realm`, `clientId` y `clientSecret`.
-   Nunca fail-open sin firma verificada.
-3. Introspección: `RestClient.Builder` con timeouts de conexión y lectura; caché LRU acotada (por
-   defecto 10k), con clave SHA-256 del token; no se cachean los errores. Devuelve el record
-   `IntrospectionResult(active, roles)`.
-4. Se elimina `@Profile`, que se reemplaza por el toggle. `securityMatcher` y `@Order` explícitos para
-   coexistir con el `SecurityFilterChain` del consumidor.
-5. PEP: un path que coincide con un método no listado se deniega; los patrones se ordenan por
-   especificidad; `enforcementMode` se implementa (`ENFORCING`/`PERMISSIVE`/`DISABLED`) y
-   `lazyLoadPaths` se elimina.
-6. Arreglos menores: `Locale.ROOT`, `Bearer` sin distinguir mayúsculas, rechazo de JSON de roles
-   malformado, sanitización de logs, `ProblemDetail`, `createEmptyContext()`.
-7. Dependencias: se quitan aspectj, micrometer, aop y expression. `keycloak-authz-client` 26.x solo
-   en `-authz`. Servlet, webmvc y security pasan a `compileOnly`.
-
-**Tests clave:** `x-user-roles: ["ADMIN"]` con un token sin ese rol devuelve 401. Un token sin firma
-válida con Keycloak caído devuelve 401. El arranque sin `realm` falla. Con 10.001 tokens distintos, la
-caché tiene ≤ 10.000. DELETE sobre un path que solo lista GET devuelve 403.
-
-**Migración del consumidor:** cambiar los imports `io.codehunters.sdk.security` →
-`io.codehunters.security`; agregar `sdk-user-security-authz` si usa el PEP; documentar en el README
-que el gateway debe eliminar los `x-user-*` entrantes.
+**Pendiente fuera del repo:** el gateway debe seguir eliminando los `x-user-*` entrantes (ahora es
+defensa en profundidad, no la única barrera); cada servicio debe configurar `codehunters.security.audiences`
+con su client id y revisar que el realm le otorga los roles que antes llegaban solo por header.
 
 ## Fase 3 — `sdk-event-messaging-*` 6.0.0
 
