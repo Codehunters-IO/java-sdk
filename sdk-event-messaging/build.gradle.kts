@@ -19,5 +19,8 @@ dependencies {
     testImplementation("org.springframework.amqp:spring-rabbit")
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation("org.mockito:mockito-core")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testRuntimeOnly("com.h2database:h2")
+    testRuntimeOnly("org.postgresql:postgresql")
 }
