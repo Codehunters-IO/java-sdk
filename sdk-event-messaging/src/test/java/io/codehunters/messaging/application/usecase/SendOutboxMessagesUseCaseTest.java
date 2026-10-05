@@ -11,16 +11,25 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.application.port.OutboxRepositoryPort;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class SendOutboxMessagesUseCaseTest {
 
@@ -31,15 +40,24 @@ class SendOutboxMessagesUseCaseTest {
   private static final long CLAIM_TTL_MS = 30_000L;
   private static final long BASE_BACKOFF_MS = 100L;
   private static final long MAX_BACKOFF_MS = 60_000L;
+  private static final long PRODUCTION_BASE_BACKOFF_MS = 30_000L;
+  private static final long PRODUCTION_MAX_BACKOFF_MS = 3_600_000L;
+  private static final Instant NOW = Instant.parse("2026-10-05T10:00:00Z");
+  private static final Clock FIXED_CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
+  private static final String PII_SENTINEL = "PII-SENTINEL-4242 holder Juan";
 
   private OutboxRepositoryPort repo;
   private MessagePublisherPort publisher;
   private SendOutboxMessagesUseCase useCase;
+  private ListAppender<ILoggingEvent> logAppender;
 
   @BeforeEach
   void setUp() {
     repo = mock(OutboxRepositoryPort.class);
     publisher = mock(MessagePublisherPort.class);
+    logAppender = new ListAppender<>();
+    logAppender.start();
+    useCaseLogger().addAppender(logAppender);
     useCase =
         new SendOutboxMessagesUseCase(
             repo,
@@ -51,6 +69,29 @@ class SendOutboxMessagesUseCaseTest {
             CLAIM_TTL_MS,
             BASE_BACKOFF_MS,
             MAX_BACKOFF_MS);
+  }
+
+  @AfterEach
+  void tearDown() {
+    useCaseLogger().detachAppender(logAppender);
+  }
+
+  private static Logger useCaseLogger() {
+    return (Logger) LoggerFactory.getLogger(SendOutboxMessagesUseCase.class);
+  }
+
+  private SendOutboxMessagesUseCase useCaseWithFixedClock() {
+    return new SendOutboxMessagesUseCase(
+        repo,
+        publisher,
+        BATCH_SIZE,
+        MAX_ATTEMPTS,
+        INSTANCE_ID,
+        ORIGIN,
+        CLAIM_TTL_MS,
+        PRODUCTION_BASE_BACKOFF_MS,
+        PRODUCTION_MAX_BACKOFF_MS,
+        FIXED_CLOCK);
   }
 
   private OutboxMessage<String> pending(String routingKey) {
@@ -113,7 +154,7 @@ class SendOutboxMessagesUseCaseTest {
 
     assertThat(msg.getStatus()).isEqualTo(OutboxStatus.PENDING);
     assertThat(msg.getAttempts()).isEqualTo(1);
-    assertThat(msg.getError()).isEqualTo("boom");
+    assertThat(msg.getError()).isEqualTo("java.lang.RuntimeException");
     assertThat(msg.getNextAttemptAt()).isNotNull();
   }
 
@@ -157,5 +198,54 @@ class SendOutboxMessagesUseCaseTest {
   void should_cap_backoff_at_max() {
     assertThat(useCase.computeBackoffMs(30)).isEqualTo(MAX_BACKOFF_MS);
     assertThat(useCase.computeBackoffMs(100)).isEqualTo(MAX_BACKOFF_MS);
+  }
+
+  @Test
+  void should_store_exception_class_name_only_when_publish_fails() {
+    OutboxMessage<String> msg = pending("k");
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    doThrow(new IllegalStateException(PII_SENTINEL)).when(publisher).publish(any(), any(), any());
+
+    useCase.execute();
+
+    assertThat(msg.getError())
+        .isEqualTo("java.lang.IllegalStateException")
+        .doesNotContain("PII-SENTINEL");
+  }
+
+  @Test
+  void should_log_exception_class_name_without_message_or_throwable_when_publish_fails() {
+    OutboxMessage<String> msg = pending("k");
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    doThrow(new IllegalStateException(PII_SENTINEL)).when(publisher).publish(any(), any(), any());
+
+    useCase.execute();
+
+    assertThat(logAppender.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .anyMatch(line -> line.contains("java.lang.IllegalStateException"))
+        .noneMatch(line -> line.contains("PII-SENTINEL"));
+    assertThat(logAppender.list).allMatch(event -> event.getThrowableProxy() == null);
+  }
+
+  @Test
+  void should_schedule_retry_from_injected_clock_when_publish_fails() {
+    OutboxMessage<String> msg = pending("k");
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+
+    useCaseWithFixedClock().execute();
+
+    assertThat(msg.getNextAttemptAt()).isEqualTo(LocalDateTime.of(2026, 10, 5, 10, 0, 30));
+  }
+
+  @Test
+  void should_stamp_publish_time_from_injected_clock_when_publish_succeeds() {
+    OutboxMessage<String> msg = pending("k");
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+
+    useCaseWithFixedClock().execute();
+
+    assertThat(msg.getPublishedAt()).isEqualTo(LocalDateTime.of(2026, 10, 5, 10, 0, 0));
   }
 }
