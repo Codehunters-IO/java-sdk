@@ -2,10 +2,9 @@ package io.codehunters.security.authz;
 
 import io.codehunters.security.KeycloakSecurityAutoConfiguration;
 import io.codehunters.security.KeycloakSecurityProperties;
-import java.util.Map;
+import java.time.Clock;
 import java.util.function.Supplier;
 import org.keycloak.authorization.client.AuthzClient;
-import org.keycloak.authorization.client.Configuration;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -17,14 +16,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
-import org.springframework.util.function.SingletonSupplier;
 
 /**
  * Registers the Keycloak policy enforcement point. Opt-in per service with {@code
  * codehunters.security.authz.enabled=true}; each service supplies its own path catalog.
  *
  * <p>The Keycloak client is created on the first enforced request rather than at startup, so a
- * service starts while Keycloak is unreachable; failed creation is retried on the next request.
+ * service starts while Keycloak is unreachable. Its calls have connect and read timeouts, and a
+ * failed creation is retried only after {@code retry-backoff}.
  */
 @AutoConfiguration(after = KeycloakSecurityAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -52,10 +51,10 @@ public class KeycloakAuthzAutoConfiguration {
       KeycloakPolicyEnforcerProperties properties,
       ObjectProvider<AuthzClient> authzClient) {
     Supplier<AuthzClient> client =
-        SingletonSupplier.of(
-            () ->
-                authzClient.getIfAvailable(
-                    () -> AuthzClient.create(configuration(security, properties))));
+        new BackoffSupplier<>(
+            () -> authzClient.getIfAvailable(() -> create(security, properties)),
+            properties.retryBackoff(),
+            Clock.systemUTC());
     return new KeycloakAuthzFilter(client, properties);
   }
 
@@ -75,13 +74,14 @@ public class KeycloakAuthzAutoConfiguration {
     return registration;
   }
 
-  private static Configuration configuration(
+  private static AuthzClient create(
       KeycloakSecurityProperties security, KeycloakPolicyEnforcerProperties properties) {
-    return new Configuration(
+    return KeycloakAuthzClients.create(
         security.url(),
         security.realm(),
         properties.resource(),
-        Map.of("secret", properties.clientSecret()),
-        null);
+        properties.clientSecret(),
+        properties.connectTimeout(),
+        properties.readTimeout());
   }
 }

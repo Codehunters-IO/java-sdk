@@ -1,5 +1,6 @@
 package io.codehunters.security.authz;
 
+import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
@@ -13,6 +14,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param resource client id of this service's resource server in Keycloak
  * @param clientSecret secret of that client
  * @param paths this service's catalog of protected paths
+ * @param connectTimeout connect timeout of calls to Keycloak
+ * @param readTimeout read timeout of calls to Keycloak
+ * @param retryBackoff wait before retrying to create the Keycloak client after a failure
  */
 @ConfigurationProperties("codehunters.security.authz")
 public record KeycloakPolicyEnforcerProperties(
@@ -20,7 +24,10 @@ public record KeycloakPolicyEnforcerProperties(
     @DefaultValue("ENFORCING") EnforcementMode enforcementMode,
     String resource,
     String clientSecret,
-    @DefaultValue List<PathMapping> paths) {
+    @DefaultValue List<PathMapping> paths,
+    @DefaultValue("2s") Duration connectTimeout,
+    @DefaultValue("3s") Duration readTimeout,
+    @DefaultValue("30s") Duration retryBackoff) {
 
   private static final String PREFIX = "codehunters.security.authz.";
 
@@ -29,16 +36,24 @@ public record KeycloakPolicyEnforcerProperties(
     require(!enabled || hasText(resource), PREFIX + "resource is required when enabled");
     require(!enabled || hasText(clientSecret), PREFIX + "client-secret is required when enabled");
     paths = List.copyOf(paths);
+    require(isPositive(connectTimeout), PREFIX + "connect-timeout must be positive");
+    require(isPositive(readTimeout), PREFIX + "read-timeout must be positive");
+    require(isPositive(retryBackoff), PREFIX + "retry-backoff must be positive");
   }
 
   @Override
   public String toString() {
-    return "KeycloakPolicyEnforcerProperties[enabled=%s, enforcementMode=%s, resource=%s, clientSecret=***, paths=%s]"
+    return ("KeycloakPolicyEnforcerProperties[enabled=%s, enforcementMode=%s, resource=%s,"
+            + " clientSecret=***, paths=%s]")
         .formatted(enabled, enforcementMode, resource, paths.size());
   }
 
   private static boolean hasText(String value) {
     return value != null && !value.isBlank();
+  }
+
+  private static boolean isPositive(Duration duration) {
+    return duration != null && duration.isPositive();
   }
 
   private static void require(boolean condition, String message) {

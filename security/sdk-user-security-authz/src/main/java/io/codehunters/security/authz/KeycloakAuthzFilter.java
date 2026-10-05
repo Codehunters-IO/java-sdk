@@ -67,7 +67,7 @@ public class KeycloakAuthzFilter extends OncePerRequestFilter {
     }
     String token = bearerToken(request);
     if (token == null) {
-      response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing bearer token");
+      rejectAnonymous(request, response, chain, path.get());
       return;
     }
     Decision decision = decide(path.get(), request.getMethod(), token);
@@ -76,6 +76,17 @@ public class KeycloakAuthzFilter extends OncePerRequestFilter {
       return;
     }
     response.sendError(decision.status, decision.reason);
+  }
+
+  private void rejectAnonymous(
+      HttpServletRequest request, HttpServletResponse response, FilterChain chain, PathMapping path)
+      throws ServletException, IOException {
+    if (properties.enforcementMode() == EnforcementMode.PERMISSIVE) {
+      log.warn("Permissive: request without token on resource={}", path.name());
+      chain.doFilter(request, response);
+      return;
+    }
+    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing bearer token");
   }
 
   private Optional<PathMapping> mostSpecificMatch(String path) {
@@ -113,12 +124,22 @@ public class KeycloakAuthzFilter extends OncePerRequestFilter {
     }
   }
 
+  /**
+   * 401/403 are Keycloak's decisions; 400 means Keycloak does not know the resource or scope, which
+   * is a catalog mistake that must fail closed rather than look like an outage.
+   */
   private static boolean isDenial(RuntimeException e) {
     Throwable cause =
         e instanceof AuthorizationDeniedException && e.getCause() != null ? e.getCause() : e;
-    return cause instanceof HttpResponseException http
-        && (http.getStatusCode() == HttpServletResponse.SC_UNAUTHORIZED
-            || http.getStatusCode() == HttpServletResponse.SC_FORBIDDEN);
+    if (!(cause instanceof HttpResponseException http)) {
+      return false;
+    }
+    if (http.getStatusCode() == HttpServletResponse.SC_BAD_REQUEST) {
+      log.error("Keycloak rejected the authorization request; check the resource and scopes");
+    }
+    return http.getStatusCode() == HttpServletResponse.SC_BAD_REQUEST
+        || http.getStatusCode() == HttpServletResponse.SC_UNAUTHORIZED
+        || http.getStatusCode() == HttpServletResponse.SC_FORBIDDEN;
   }
 
   private static String bearerToken(HttpServletRequest request) {

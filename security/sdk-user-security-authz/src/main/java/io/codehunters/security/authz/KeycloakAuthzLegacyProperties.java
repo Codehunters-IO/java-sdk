@@ -44,6 +44,7 @@ public class KeycloakAuthzLegacyProperties implements EnvironmentPostProcessor, 
 
   @Override
   public int getOrder() {
-    return ConfigDataEnvironmentPostProcessor.ORDER + 1;
+    // After sdk-user-security's aliases, so keycloak.security.url wins over keycloak.host.
+    return ConfigDataEnvironmentPostProcessor.ORDER + 2;
   }
 }
