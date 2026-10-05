@@ -6,6 +6,7 @@ shedlock = "7.2.0"
 google-java-format = "1.28.0"
 spotless = "8.1.0"
 sonarqube = "7.1.0.6387"
+junit = "6.0.3"
 
 [libraries]
 spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
@@ -13,6 +14,9 @@ keycloak-authz-client = { module = "org.keycloak:keycloak-authz-client", version
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
 shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
 
 [plugins]
