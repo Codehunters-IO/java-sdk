@@ -7,6 +7,7 @@ import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +17,17 @@ import lombok.extern.slf4j.Slf4j;
  * MessagePublisherPort} and updates persistent state. Failed publications are retried with
  * exponential backoff until {@code maxAttempts} is reached, after which the message is marked
  * {@code FAILED}.
+ *
+ * <p>Two guards protect against duplicates and poison messages. A claimed message whose attempts
+ * already reached {@code maxAttempts} (reclaimed after dispatcher crashes) is marked {@code FAILED}
+ * without being published. Publishing stops once half the claim TTL has elapsed since the claim;
+ * the remaining messages are released back to {@code PENDING} before their claim can go stale, so
+ * no other instance reclaims a message this one may still be sending.
  */
 @Slf4j
 public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
+
+  static final String MAX_ATTEMPTS_EXCEEDED = "max-attempts-exceeded";
 
   private final OutboxRepositoryPort outboxRepositoryPort;
   private final MessagePublisherPort messagePublisherPort;
@@ -27,6 +36,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   private final String instanceId;
   private final String origin;
   private final Duration claimTtl;
+  private final Duration publishBudget;
   private final long baseBackoffMs;
   private final long maxBackoffMs;
   private final Clock clock;
@@ -40,7 +50,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
    * @param maxAttempts the maximum number of publish attempts before marking a message FAILED
    * @param instanceId the identifier of this dispatcher instance (used as claim marker)
    * @param origin the origin scope used to claim messages
-   * @param claimTtlMs the stale-claim TTL in milliseconds
+   * @param claimTtlMs the stale-claim TTL in milliseconds; publishing stops once half of it elapsed
    * @param baseBackoffMs the initial retry backoff in milliseconds
    * @param maxBackoffMs the maximum retry backoff in milliseconds
    */
@@ -78,7 +88,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
    * @param maxAttempts the maximum number of publish attempts before marking a message FAILED
    * @param instanceId the identifier of this dispatcher instance (used as claim marker)
    * @param origin the origin scope used to claim messages
-   * @param claimTtlMs the stale-claim TTL in milliseconds
+   * @param claimTtlMs the stale-claim TTL in milliseconds; publishing stops once half of it elapsed
    * @param baseBackoffMs the initial retry backoff in milliseconds
    * @param maxBackoffMs the maximum retry backoff in milliseconds
    * @param clock the clock for publish and retry timestamps (UTC expected)
@@ -101,6 +111,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
     this.instanceId = instanceId;
     this.origin = origin;
     this.claimTtl = Duration.ofMillis(claimTtlMs);
+    this.publishBudget = claimTtl.dividedBy(2);
     this.baseBackoffMs = baseBackoffMs;
     this.maxBackoffMs = maxBackoffMs;
     this.clock = clock;
@@ -109,15 +120,49 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   @Override
   public void execute() {
     log.debug("[START] - send outbox messages, instance={}, origin={}", instanceId, origin);
+    Instant claimStart = clock.instant();
     List<OutboxMessage<String>> claimed =
         outboxRepositoryPort.claimPendingMessages(origin, batchSize, instanceId, claimTtl);
 
     for (OutboxMessage<String> message : claimed) {
-      processMessage(message);
+      dispatch(message, claimStart);
       outboxRepositoryPort.update(message);
     }
 
     log.debug("[END] - send outbox messages, processed {} messages", claimed.size());
+  }
+
+  private void dispatch(OutboxMessage<String> message, Instant claimStart) {
+    if (isBudgetExhausted(claimStart)) {
+      release(message);
+    } else if (message.getAttempts() >= maxAttempts) {
+      markExhausted(message);
+    } else {
+      processMessage(message);
+    }
+  }
+
+  private boolean isBudgetExhausted(Instant claimStart) {
+    return Duration.between(claimStart, clock.instant()).compareTo(publishBudget) >= 0;
+  }
+
+  // The claim marker stays on the message: the repository fences the update with it and clears
+  // the claim columns of any row that is no longer IN_FLIGHT.
+  private void release(OutboxMessage<String> message) {
+    log.debug("Releasing outbox message id={}: claim time budget spent", message.getId());
+    message.setStatus(OutboxStatus.PENDING);
+    message.setClaimedAt(null);
+    message.setNextAttemptAt(LocalDateTime.now(clock));
+  }
+
+  private void markExhausted(OutboxMessage<String> message) {
+    log.warn(
+        "Outbox message id={} reclaimed after {} attempts, marking FAILED",
+        message.getId(),
+        message.getAttempts());
+    message.setStatus(OutboxStatus.FAILED);
+    message.setError(MAX_ATTEMPTS_EXCEEDED);
+    message.setNextAttemptAt(null);
   }
 
   private void processMessage(OutboxMessage<String> message) {
