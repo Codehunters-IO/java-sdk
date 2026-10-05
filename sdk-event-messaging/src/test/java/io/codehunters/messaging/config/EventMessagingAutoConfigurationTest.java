@@ -10,6 +10,7 @@ import io.codehunters.messaging.domain.factory.EventMessageFactory;
 import io.codehunters.messaging.domain.factory.OutboxEventFactory;
 import io.codehunters.messaging.domain.model.EventMessage;
 import io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxScheduler;
+import java.time.Duration;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,45 @@ class EventMessagingAutoConfigurationTest {
               EventMessage<String> event =
                   factory.create("trace-1", "aggregate-1", "event.name", "EVENT_TYPE", "payload");
               assertThat(event.getHeader().getOrigin()).isEqualTo("test-app");
+            });
+  }
+
+  @Test
+  void should_bind_default_properties_when_nothing_configured() {
+    contextRunner.run(
+        context -> {
+          EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+          assertThat(props.batchSize()).isEqualTo(50);
+          assertThat(props.maxAttempts()).isEqualTo(5);
+          assertThat(props.claim().ttlMs()).isEqualTo(300_000L);
+          assertThat(props.claim().dialect()).isEqualTo("auto");
+          assertThat(props.backoff().baseDelayMs()).isEqualTo(30_000L);
+          assertThat(props.backoff().maxDelayMs()).isEqualTo(3_600_000L);
+          assertThat(props.publisher().type()).isEqualTo("rabbit");
+          assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(10));
+          assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(7));
+          assertThat(props.purge().batchSize()).isEqualTo(500);
+        });
+  }
+
+  @Test
+  void should_bind_overridden_properties_when_configured() {
+    contextRunner
+        .withPropertyValues(
+            "outbox.publisher.type=kafka",
+            "outbox.publisher.kafka.send-timeout=3s",
+            "outbox.purge.retention=3d",
+            "outbox.purge.batch-size=100",
+            "outbox.claim.dialect=postgresql")
+        .run(
+            context -> {
+              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+              assertThat(props.publisher().type()).isEqualTo("kafka");
+              assertThat(props.publisher().kafka().sendTimeout())
+                  .isEqualTo(Duration.ofSeconds(3));
+              assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(3));
+              assertThat(props.purge().batchSize()).isEqualTo(100);
+              assertThat(props.claim().dialect()).isEqualTo("postgresql");
             });
   }
 
