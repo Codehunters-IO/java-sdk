@@ -182,6 +182,7 @@ public class EventMessagingJdbcAutoConfiguration {
      *
      * @param outboxRepositoryPort the outbox repository
      * @param origin the originating application name
+     * @param clock the outbox clock, which ages the cached count
      * @return an {@link OutboxFailedGauge}
      */
     @Bean
@@ -189,8 +190,9 @@ public class EventMessagingJdbcAutoConfiguration {
     @ConditionalOnBean(DataSource.class)
     public OutboxFailedGauge outboxFailedGauge(
         OutboxRepositoryPort outboxRepositoryPort,
-        @Value("${spring.application.name:unknown}") String origin) {
-      return new OutboxFailedGauge(outboxRepositoryPort, origin);
+        @Value("${spring.application.name:unknown}") String origin,
+        Clock clock) {
+      return new OutboxFailedGauge(outboxRepositoryPort, origin, clock);
     }
   }
 }

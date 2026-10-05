@@ -26,7 +26,7 @@ First release; the JDBC store, schedulers and DDL of `sdk-event-messaging` 5.1.5
 - Claim fencing: an update only applies while this instance still holds the claim.
 - Purge of `PUBLISHED` rows older than `purge.retention` (default `7d`), per origin, in batches,
   ShedLock-protected.
-- `outbox_failed_messages{origin}` gauge.
+- `outbox_failed_messages{origin}` gauge, counting `FAILED` rows at most once per 30 s.
 - PostgreSQL reference DDL.
 - `codehunters.outbox.scheduling.enabled` (default `true`): `false` leaves out the dispatch and purge
   schedulers and `@EnableScheduling` / `@EnableSchedulerLock`, for applications that trigger

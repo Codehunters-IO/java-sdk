@@ -22,7 +22,7 @@ supplies a `DataSource` (`spring-boot-starter-jdbc`) and Jackson 3 (`tools.jacks
 | `LockProvider` (`JdbcTemplateLockProvider`, DB time) | `DataSource` bean | Table `shedlock` |
 | `OutboxScheduler` | `SendOutboxMessagesPort` bean (a transport is active) and `scheduling.enabled` | Dispatch every `task.fixed-delay` |
 | `OutboxPurgeScheduler` | repository bean and `scheduling.enabled` | Purge every `purge.fixed-delay` |
-| `OutboxFailedGauge` | Micrometer on the classpath | `outbox_failed_messages{origin}` |
+| `OutboxFailedGauge` | Micrometer on the classpath | `outbox_failed_messages{origin}`; the count is cached for 30 s (outbox `Clock`), so scrapes do not each query the table |
 
 Every bean backs off when the application defines its own. The module turns on `@EnableScheduling`
 and `@EnableSchedulerLock` (default lock-at-most `60s`) whenever `codehunters.outbox.enabled` and

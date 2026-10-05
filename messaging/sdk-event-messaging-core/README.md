@@ -80,7 +80,7 @@ fails naming the keys. Raise the lock when you raise `claim.ttl-ms`.
 | Meter | Type | Tags | Source |
 |---|---|---|---|
 | `outbox.publish` | Timer, one sample per send | `outcome` (`success`/`failure`), `exception` (simple class name or `none`) | `-core`, when Micrometer and a `MeterRegistry` bean are present |
-| `outbox_failed_messages` | Gauge, `FAILED` rows of this origin | `origin` | `-jdbc`; queries the table on each scrape |
+| `outbox_failed_messages` | Gauge, `FAILED` rows of this origin | `origin` | `-jdbc`; counts at most once per 30 s, scrapes in between reuse the last count |
 
 Alert on `outbox_failed_messages > 0`: those rows block their key.
 
