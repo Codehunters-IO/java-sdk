@@ -23,9 +23,13 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.scheduling.config.TaskManagementConfigUtils;
 import tools.jackson.databind.json.JsonMapper;
 
 class EventMessagingJdbcAutoConfigurationTest {
+
+  private static final String SCHEDULED_ANNOTATION_PROCESSOR =
+      TaskManagementConfigUtils.SCHEDULED_ANNOTATION_PROCESSOR_BEAN_NAME;
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -59,6 +63,28 @@ class EventMessagingJdbcAutoConfigurationTest {
               assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
               assertThat(context).hasSingleBean(OutboxScheduler.class);
             });
+  }
+
+  @Test
+  void should_keep_use_case_without_schedulers_when_scheduling_disabled() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.scheduling.enabled=false")
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
+              assertThat(context).doesNotHaveBean(OutboxScheduler.class);
+              assertThat(context).doesNotHaveBean(OutboxPurgeScheduler.class);
+              assertThat(context).doesNotHaveBean(SCHEDULED_ANNOTATION_PROCESSOR);
+            });
+  }
+
+  @Test
+  void should_enable_scheduling_when_scheduling_property_unset() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .run(context -> assertThat(context).hasBean(SCHEDULED_ANNOTATION_PROCESSOR));
   }
 
   @Test
