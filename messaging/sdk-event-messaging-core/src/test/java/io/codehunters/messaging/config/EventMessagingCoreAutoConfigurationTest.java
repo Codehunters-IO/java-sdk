@@ -1,7 +1,10 @@
 package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.application.port.OutboxRepositoryPort;
@@ -9,13 +12,18 @@ import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
 import io.codehunters.messaging.domain.factory.EventMessageFactory;
 import io.codehunters.messaging.domain.factory.OutboxEventFactory;
 import io.codehunters.messaging.domain.model.EventMessage;
+import io.codehunters.messaging.domain.model.OutboxMessage;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class EventMessagingCoreAutoConfigurationTest {
@@ -179,6 +187,43 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
+  void should_time_publishes_when_meter_registry_present() {
+    SimpleMeterRegistry registry = new SimpleMeterRegistry();
+
+    contextRunner
+        .withBean(OutboxRepositoryPort.class, this::repositoryWithOneMessage)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .withBean(MeterRegistry.class, () -> registry)
+        .run(
+            context -> {
+              context.getBean(SendOutboxMessagesPort.class).execute();
+              assertThat(registry.get("outbox.publish").tag("outcome", "success").timer().count())
+                  .isEqualTo(1);
+            });
+  }
+
+  @Test
+  void should_not_decorate_publisher_when_no_meter_registry() {
+    contextRunner
+        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
+              assertThat(context).doesNotHaveBean(MessagePublisherDecorator.class);
+            });
+  }
+
+  @Test
+  void should_create_use_case_when_micrometer_absent() {
+    contextRunner
+        .withClassLoader(new FilteredClassLoader(MeterRegistry.class))
+        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(context -> assertThat(context).hasSingleBean(SendOutboxMessagesPort.class));
+  }
+
+  @Test
   void should_provide_utc_clock_when_no_clock_defined() {
     contextRunner.run(
         context -> assertThat(context.getBean(Clock.class).getZone()).isEqualTo(ZoneOffset.UTC));
@@ -191,5 +236,14 @@ class EventMessagingCoreAutoConfigurationTest {
     contextRunner
         .withBean(Clock.class, () -> custom)
         .run(context -> assertThat(context.getBean(Clock.class)).isSameAs(custom));
+  }
+
+  private OutboxRepositoryPort repositoryWithOneMessage() {
+    OutboxRepositoryPort repository = mock(OutboxRepositoryPort.class);
+    OutboxMessage<String> message =
+        OutboxMessage.<String>builder().topic("events").key("k").message("{}").build();
+    when(repository.claimPendingMessages(any(), anyInt(), any(), any()))
+        .thenReturn(List.of(message));
+    return repository;
   }
 }
