@@ -8,6 +8,7 @@ import io.codehunters.messaging.domain.model.OutboxStatus;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -547,6 +548,61 @@ class OutboxJdbcAdapterTest {
     var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
 
     assertThat(claimed).extracting(OutboxMessage::getMessage).containsExactly("A1", "B1");
+  }
+
+  @Test
+  void should_purge_only_old_published_rows_of_origin_when_dialect_is_generic() {
+    var now = LocalDateTime.now(ZoneOffset.UTC);
+    insertRow(ORIGIN, "PUBLISHED", now.minusDays(8));
+    insertRow(ORIGIN, "PUBLISHED", now.minusDays(1));
+    insertRow(ORIGIN, "FAILED", now.minusDays(30));
+    insertRow("other-origin", "PUBLISHED", now.minusDays(8));
+
+    int deleted = adapter.purgePublished(now.minusDays(7), 500);
+
+    assertThat(deleted).isEqualTo(1);
+    assertThat(statusesByOrigin())
+        .containsExactlyInAnyOrder(
+            ORIGIN + ":PUBLISHED", ORIGIN + ":FAILED", "other-origin:PUBLISHED");
+  }
+
+  @Test
+  void should_bound_purge_by_batch_size_when_dialect_is_generic() {
+    var now = LocalDateTime.now(ZoneOffset.UTC);
+    insertRow(ORIGIN, "PUBLISHED", now.minusDays(8));
+    insertRow(ORIGIN, "PUBLISHED", now.minusDays(9));
+    insertRow(ORIGIN, "PUBLISHED", now.minusDays(10));
+
+    int deleted = adapter.purgePublished(now.minusDays(7), 2);
+
+    assertThat(deleted).isEqualTo(2);
+  }
+
+  @Test
+  void should_count_failed_rows_of_origin_only() {
+    insertRow(ORIGIN, "FAILED", null);
+    insertRow(ORIGIN, "PENDING", null);
+    insertRow("other-origin", "FAILED", null);
+
+    assertThat(adapter.countFailed()).isEqualTo(1L);
+  }
+
+  private void insertRow(String origin, String status, LocalDateTime publishedAt) {
+    jdbcClient
+        .sql(
+            "INSERT INTO outbox_message (origin, topic, payload, status, published_at)"
+                + " VALUES (:origin, 't', 'p', :status, :publishedAt)")
+        .param("origin", origin)
+        .param("status", status)
+        .param("publishedAt", publishedAt)
+        .update();
+  }
+
+  private List<String> statusesByOrigin() {
+    return jdbcClient
+        .sql("SELECT origin, status FROM outbox_message")
+        .query((rs, rowNum) -> rs.getString("origin") + ":" + rs.getString("status"))
+        .list();
   }
 
   @Test

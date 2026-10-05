@@ -106,4 +106,25 @@ class OutboxDialectTest {
     assertThat(sqlServer.name()).isEqualTo("sqlserver");
     assertThat(generic.name()).isEqualTo("generic");
   }
+
+  @Test
+  void should_scope_purge_to_old_published_rows_of_origin_when_any_dialect_builds_purge() {
+    assertScopedPurge(postgres);
+    assertScopedPurge(sqlServer);
+    assertScopedPurge(generic);
+  }
+
+  @Test
+  void should_bound_purge_with_top_when_dialect_is_sql_server() {
+    assertThat(sqlServer.purgePublishedSql()).contains("DELETE TOP (:limit)");
+  }
+
+  private static void assertScopedPurge(OutboxDialect dialect) {
+    assertThat(dialect.purgePublishedSql())
+        .startsWith("DELETE")
+        .contains("origin = :origin")
+        .contains("status = 'PUBLISHED'")
+        .contains("published_at < :cutoff")
+        .contains(":limit");
+  }
 }
