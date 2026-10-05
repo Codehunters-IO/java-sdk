@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -94,14 +95,18 @@ class EventMessagingRabbitAutoConfigurationTest {
         .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(
             context -> {
-              assertThat(context.getBeanProvider(RabbitTemplate.class).getIfAvailable()).isNull();
+              assertThat(
+                      ((AbstractBeanDefinition)
+                              context.getBeanFactory().getBeanDefinition("outboxRabbitTemplate"))
+                          .isDefaultCandidate())
+                  .isFalse();
               assertThat(context).doesNotHaveBean(MessageConverter.class);
             });
   }
 
   @Test
   void should_leave_application_rabbit_template_untouched_when_outbox_template_built() {
-    RabbitTemplate applicationTemplate = new RabbitTemplate();
+    RabbitTemplate applicationTemplate = new RabbitTemplate(connectionFactory(false, false));
 
     contextRunner
         .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))

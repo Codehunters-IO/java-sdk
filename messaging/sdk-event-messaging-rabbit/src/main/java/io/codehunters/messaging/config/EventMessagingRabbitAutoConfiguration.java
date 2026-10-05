@@ -2,11 +2,11 @@ package io.codehunters.messaging.config;
 
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.infrastructure.drivenadapters.rabbitmq.RabbitMessagePublisherAdapter;
-import org.springframework.amqp.core.MessagePostProcessor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -21,9 +21,17 @@ import org.springframework.context.annotation.Bean;
  * {@code rabbit}, or it is unset and {@code sdk-event-messaging-kafka} is absent (see {@link
  * ConditionalOnOutboxTransport}).
  *
+ * <p>The publisher sends through its own {@code outboxRabbitTemplate}, built from the application's
+ * {@link ConnectionFactory} and kept out of by-type injection, so the application's {@link
+ * RabbitTemplate}, message converter and listeners are never touched. That factory MUST enable
+ * simple publisher confirms and returns ({@code spring.rabbitmq.publisher-confirm-type=simple},
+ * {@code spring.rabbitmq.publisher-returns=true}); otherwise startup fails. Trace propagation is
+ * left to {@code sdk-tracing}, which instruments every {@link RabbitTemplate} bean.
+ *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
  */
+@Slf4j
 @AutoConfiguration(
     before = EventMessagingCoreAutoConfiguration.class,
     afterName = "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration")
@@ -34,64 +42,63 @@ import org.springframework.context.annotation.Bean;
     havingValue = "true",
     matchIfMissing = true)
 @ConditionalOnOutboxTransport("rabbit")
+@ConditionalOnBean(ConnectionFactory.class)
 public class EventMessagingRabbitAutoConfiguration {
+
+  private static final String OUTBOX_TEMPLATE = "outboxRabbitTemplate";
+  private static final String CONFIRMS_REQUIRED =
+      "The outbox RabbitMQ publisher needs publisher confirms and returns on the connection"
+          + " factory: set spring.rabbitmq.publisher-confirm-type=simple and"
+          + " spring.rabbitmq.publisher-returns=true";
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public EventMessagingRabbitAutoConfiguration() {}
 
   /**
-   * Provides the default Jackson message converter for RabbitMQ.
+   * Provides the outbox's own {@link RabbitTemplate}: {@code mandatory=true}, so an unroutable
+   * message comes back as {@code basic.return}, with a returns callback that logs it. It is not a
+   * default candidate, so it never replaces the application's template.
    *
-   * @return a {@link JacksonJsonMessageConverter}
+   * @param connectionFactory the application's connection factory, with simple publisher confirms
+   *     and returns enabled
+   * @return the outbox template
+   * @throws IllegalStateException when the connection factory lacks confirms or returns
    */
-  @Bean
-  @ConditionalOnMissingBean(JacksonJsonMessageConverter.class)
-  public JacksonJsonMessageConverter jacksonJsonMessageConverter() {
-    return new JacksonJsonMessageConverter();
-  }
-
-  /**
-   * Provides the {@link RabbitTemplate}, attaching the trace-propagation post-processor when one is
-   * available.
-   *
-   * <p><b>Note:</b> The {@link JacksonJsonMessageConverter} attached here is consumed only when
-   * callers invoke {@link RabbitTemplate#convertAndSend} directly. The SDK's own {@link
-   * RabbitMessagePublisherAdapter} uses {@link RabbitTemplate#send} with pre-built {@link
-   * org.springframework.amqp.core.MessageProperties}, bypassing the converter. Do not remove the
-   * converter: external SDK consumers may rely on it.
-   *
-   * @param connectionFactory the RabbitMQ connection factory
-   * @param converter the message converter (used by external {@code convertAndSend} callers only)
-   * @param tracePropagationMessagePostProcessor optional trace-propagation processor
-   * @return a configured {@link RabbitTemplate}
-   */
-  @Bean
-  @ConditionalOnBean(ConnectionFactory.class)
-  @ConditionalOnMissingBean(RabbitTemplate.class)
-  public RabbitTemplate rabbitTemplate(
-      ConnectionFactory connectionFactory,
-      JacksonJsonMessageConverter converter,
-      ObjectProvider<MessagePostProcessor> tracePropagationMessagePostProcessor) {
-    RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
-    rabbitTemplate.setMessageConverter(converter);
-    tracePropagationMessagePostProcessor.ifAvailable(
-        rabbitTemplate::addBeforePublishPostProcessors);
-    return rabbitTemplate;
+  @Bean(name = OUTBOX_TEMPLATE, defaultCandidate = false)
+  @ConditionalOnMissingBean(name = OUTBOX_TEMPLATE)
+  public RabbitTemplate outboxRabbitTemplate(ConnectionFactory connectionFactory) {
+    if (!connectionFactory.isSimplePublisherConfirms() || !connectionFactory.isPublisherReturns()) {
+      throw new IllegalStateException(CONFIRMS_REQUIRED);
+    }
+    RabbitTemplate template = new RabbitTemplate(connectionFactory);
+    template.setMandatory(true);
+    template.setReturnsCallback(EventMessagingRabbitAutoConfiguration::logReturned);
+    return template;
   }
 
   /**
    * Provides the RabbitMQ-backed message publisher.
    *
-   * @param rabbitTemplate the underlying {@link RabbitTemplate}
+   * @param outboxRabbitTemplate the outbox template
    * @param properties the messaging configuration, whose RabbitMQ claim budget is validated
    * @return a {@link MessagePublisherPort}
    */
   @Bean
   @ConditionalOnMissingBean(MessagePublisherPort.class)
-  @ConditionalOnBean(RabbitTemplate.class)
   public MessagePublisherPort messagePublisherPort(
-      RabbitTemplate rabbitTemplate, EventMessagingProperties properties) {
+      @Qualifier(OUTBOX_TEMPLATE) RabbitTemplate outboxRabbitTemplate,
+      EventMessagingProperties properties) {
     properties.requireClaimBudget("rabbit");
-    return new RabbitMessagePublisherAdapter(rabbitTemplate);
+    return new RabbitMessagePublisherAdapter(
+        outboxRabbitTemplate, properties.publisher().rabbit().confirmTimeout());
+  }
+
+  private static void logReturned(ReturnedMessage returned) {
+    log.warn(
+        "Outbox message {} returned by exchange {} for routing key {} (reply code {})",
+        returned.getMessage().getMessageProperties().getMessageId(),
+        returned.getExchange(),
+        returned.getRoutingKey(),
+        returned.getReplyCode());
   }
 }

@@ -15,6 +15,7 @@ import static org.mockito.Mockito.when;
 import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.ReturnListener;
+import com.rabbitmq.client.ShutdownSignalException;
 import io.codehunters.messaging.application.port.MessagePublishException;
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.domain.model.OutboxMessage;
@@ -134,6 +135,18 @@ class RabbitMessagePublisherAdapterTest {
     assertThatThrownBy(() -> adapter.publish(message(ROUTING_KEY)))
         .isInstanceOf(MessagePublishException.class)
         .hasCauseInstanceOf(AmqpTimeoutException.class);
+  }
+
+  @Test
+  void should_throw_publish_exception_without_broker_text_when_channel_closed_by_broker() {
+    doThrow(new ShutdownSignalException(false, false, null, PII_SENTINEL))
+        .when(dedicated)
+        .waitForConfirmsOrDie(anyLong());
+
+    assertThatThrownBy(() -> adapter.publish(message(ROUTING_KEY)))
+        .isInstanceOf(MessagePublishException.class)
+        .hasMessageNotContaining("PII-SENTINEL")
+        .hasCauseInstanceOf(ShutdownSignalException.class);
   }
 
   @Test

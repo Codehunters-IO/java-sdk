@@ -41,7 +41,7 @@ class RabbitMessagePublisherAdapterIT {
   private static final String PAYLOAD = "{\"orderId\":\"o-1\"}";
   private static final long RECEIVE_TIMEOUT_MS = 5_000L;
 
-  private static CachingConnectionFactory confirmingConnectionFactory;
+  private static CachingConnectionFactory consumerConnectionFactory;
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -54,13 +54,13 @@ class RabbitMessagePublisherAdapterIT {
   @BeforeAll
   static void startBroker() {
     RABBIT.start();
-    confirmingConnectionFactory = connectionFactory(ConfirmType.SIMPLE, true);
-    declareTopology(confirmingConnectionFactory);
+    consumerConnectionFactory = connectionFactory(ConfirmType.NONE, false);
+    declareTopology(consumerConnectionFactory);
   }
 
   @AfterAll
   static void stopBroker() {
-    confirmingConnectionFactory.destroy();
+    consumerConnectionFactory.destroy();
     RABBIT.stop();
   }
 
@@ -71,7 +71,7 @@ class RabbitMessagePublisherAdapterIT {
     withPublisher(publisher -> publisher.publish(message(BOUND_EXCHANGE, id)));
 
     Message received =
-        new RabbitTemplate(confirmingConnectionFactory).receive(QUEUE, RECEIVE_TIMEOUT_MS);
+        new RabbitTemplate(consumerConnectionFactory).receive(QUEUE, RECEIVE_TIMEOUT_MS);
     assertThat(received.getMessageProperties().getMessageId()).isEqualTo(id.toString());
     assertThat(
             (String)
@@ -112,28 +112,25 @@ class RabbitMessagePublisherAdapterIT {
         });
 
     Message received =
-        new RabbitTemplate(confirmingConnectionFactory).receive(QUEUE, RECEIVE_TIMEOUT_MS);
+        new RabbitTemplate(consumerConnectionFactory).receive(QUEUE, RECEIVE_TIMEOUT_MS);
     assertThat(received.getMessageProperties().getMessageId()).isEqualTo(id.toString());
   }
 
   @Test
   void should_fail_startup_when_connection_factory_lacks_confirms_and_returns() {
-    CachingConnectionFactory plain = connectionFactory(ConfirmType.NONE, false);
-
     contextRunner
-        .withBean(ConnectionFactory.class, () -> plain)
+        .withBean(ConnectionFactory.class, () -> connectionFactory(ConfirmType.NONE, false))
         .run(
             context ->
                 assertThat(context.getStartupFailure())
                     .rootCause()
                     .hasMessageContaining("spring.rabbitmq.publisher-confirm-type=simple")
                     .hasMessageContaining("spring.rabbitmq.publisher-returns=true"));
-    plain.destroy();
   }
 
   private void withPublisher(Consumer<MessagePublisherPort> action) {
     contextRunner
-        .withBean(ConnectionFactory.class, () -> confirmingConnectionFactory)
+        .withBean(ConnectionFactory.class, () -> connectionFactory(ConfirmType.SIMPLE, true))
         .run(context -> action.accept(context.getBean(MessagePublisherPort.class)));
   }
 
