@@ -19,7 +19,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-measure-micrometer` | `io.codehunters.measure` | pending |
 | `sdk-geo-validation` | `io.codehunters.geo` | pending |
 | `sdk-i18n` | `io.codehunters.i18n` | pending |
-| `sdk-tracing` | `io.codehunters.tracing` | pending |
+| `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 — [README](sdk-tracing/README.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | pending |
 | `sdk-audit-log` | `io.codehunters.audit` | pending |
 | `sdk-user-security` | `io.codehunters.security` | 3.0.0 — [README](security/sdk-user-security/README.md) |
