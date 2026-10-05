@@ -18,8 +18,11 @@ policies should depend on `sdk-user-security` only.
 - A method the catalog does not list for a matched path is **denied** (403), so a new route is never
   left unprotected by omission.
 - Keycloak denial answers 403; Keycloak unreachable answers 503.
-- The Keycloak client is created on the first enforced request, not at startup, and creation is
-  retried after a failure.
+- The Keycloak client is created on the first enforced request, not at startup. Its calls have
+  connect and read timeouts; a failed creation is retried only after `retry-backoff`.
+- `PERMISSIVE` logs decisions, including missing tokens, and never blocks.
+- Keycloak answering 400 (unknown resource or scope) is a catalog mistake: denied and logged as an
+  error.
 - Runs after Spring Security, so the request is already authenticated.
 
 ## Configuration
@@ -32,6 +35,9 @@ Keycloak's URL and realm come from `codehunters.security.url` and `codehunters.s
 | `codehunters.security.authz.enforcement-mode` | `ENFORCING` | `PERMISSIVE` logs and never blocks; `DISABLED` does nothing |
 | `codehunters.security.authz.resource` | — | Required when enabled: this service's client id |
 | `codehunters.security.authz.client-secret` | — | Required when enabled |
+| `codehunters.security.authz.connect-timeout` | `2s` | |
+| `codehunters.security.authz.read-timeout` | `3s` | |
+| `codehunters.security.authz.retry-backoff` | `30s` | Wait before retrying a failed client creation |
 | `codehunters.security.authz.paths[].path` | — | Ant pattern |
 | `codehunters.security.authz.paths[].name` | — | Keycloak resource name |
 | `codehunters.security.authz.paths[].methods[].method` | — | HTTP method |
@@ -60,7 +66,7 @@ codehunters:
 |---|---|
 | package `io.codehunters.sdk.security.authz` | `io.codehunters.security.authz` |
 | `keycloak.policy-enforcer.*` | `codehunters.security.authz.*` (old keys honoured until 4.0) |
-| `keycloak.host`, `keycloak.realm` | `codehunters.security.url`, `codehunters.security.realm` |
+| `keycloak.host`, `keycloak.realm` | `codehunters.security.url`, `codehunters.security.realm` (`keycloak.security.url` wins when both are set) |
 | `lazy-load-paths` | Removed (had no effect) |
 | `enforcement-mode` ignored | Honoured |
 | Unlisted method on a catalogued path passed through | Denied (403) |

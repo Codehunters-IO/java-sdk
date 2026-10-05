@@ -17,6 +17,7 @@ First release as its own artifact; the policy enforcer previously shipped inside
 - Unlisted methods on catalogued paths passed unenforced; the first declared pattern, not the most
   specific, decided.
 - `enforcement-mode` was ignored. Keycloak outages answered 403 instead of 503.
+- Calls to Keycloak had no timeouts; they now have connect/read timeouts and a retry back-off.
 
 ### Changed
 - `keycloak-authz-client` 25.0.6 → 26.0.12.

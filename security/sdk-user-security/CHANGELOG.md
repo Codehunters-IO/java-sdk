@@ -11,6 +11,9 @@
   `codehunters.security.introspection`. Old keys are honoured until 4.0 with a warning.
 - `fail-open` defaults to `false`.
 - No longer gated by the `develop`/`cert`/`prod` profiles; use `codehunters.security.enabled`.
+- `codehunters.security.audiences` is required (or `allow-any-audience=true`).
+- `public-paths` / `excluded-paths` use `PathPattern` syntax; `**` in the middle of a pattern fails
+  startup.
 - The Keycloak policy enforcer moved to `sdk-user-security-authz`.
 
 ### Fixed
@@ -22,6 +25,10 @@
   and failures are never cached.
 - Role names were upper-cased with the default locale (`admin` → `ROLE_ADMİN` under Turkish).
 - Malformed `x-user-roles` JSON fell back to CSV parsing and produced junk roles; it is rejected.
+
+### Added
+- `issuer-uri` and `jwk-set-uri` overrides; `method-security.enabled`.
+- The key set is cached and rate-limited; unknown key ids answer 401 without refetching it.
 
 ### Removed
 - Dependencies on AspectJ, Micrometer, `spring-aop` and `spring-expression`, which were unused.

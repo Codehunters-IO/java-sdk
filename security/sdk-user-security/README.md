@@ -10,9 +10,10 @@ implementation("io.codehunters:sdk-user-security:3.0.0")
 
 The access token is the only source of identity and authorities.
 
-1. The bearer token is verified locally against the realm's JWK set: signature, `iss`, `exp`/`nbf`,
-   `sub`, and `aud` when `audiences` is set. Unsigned tokens and tokens signed with an unknown key
-   are rejected.
+1. The bearer token is verified locally against the realm's JWK set: RS256 signature, `iss`,
+   `exp`/`nbf` (60 s skew), `sub` and `aud`. Unsigned tokens, HS256 tokens and tokens signed with an
+   unknown key are rejected. The key set is cached and refetched at most every 30 s, so tokens with
+   made-up key ids cannot make the service hammer Keycloak.
 2. Unless introspection is disabled, Keycloak is asked whether the token's session is still active
    (RFC 7662). This runs only for tokens that passed step 1.
 3. Authorities are the realm roles plus the roles of the clients listed in `role-clients`, as
@@ -33,11 +34,15 @@ it.
 | `codehunters.security.enabled` | `true` | `false` registers nothing |
 | `codehunters.security.url` | — | **Required.** Keycloak base URL, `http(s)://…` |
 | `codehunters.security.realm` | — | **Required** |
-| `codehunters.security.audiences` | `[]` | Accepted `aud` values; empty accepts any. Set it |
+| `codehunters.security.issuer-uri` | `<url>/realms/<realm>` | Set when the service reaches Keycloak through another host than the one in the tokens' `iss` |
+| `codehunters.security.jwk-set-uri` | `<url>/realms/<realm>/protocol/openid-connect/certs` | |
+| `codehunters.security.audiences` | — | **Required**: accepted `aud` values, normally this service's client id |
+| `codehunters.security.allow-any-audience` | `false` | `true` accepts tokens issued to any client of the realm; avoid in shared realms |
 | `codehunters.security.role-clients` | `[]` | Clients whose `resource_access` roles are granted |
 | `codehunters.security.public-paths` | `[]` | Anonymous allowed; a token, when sent, must be valid |
 | `codehunters.security.excluded-paths` | `[]` | No security at all (health probes) |
 | `codehunters.security.cors.*` | see below | `allowed-origins` `[]`, `allowed-methods` GET/POST/PUT/DELETE/PATCH/OPTIONS, `allowed-headers` `*`, `allow-credentials` `false`, `max-age` `3600` |
+| `codehunters.security.method-security.enabled` | `true` | `false` leaves `@EnableMethodSecurity` to the application |
 | `codehunters.security.introspection.enabled` | `true` | Rejects tokens of revoked sessions |
 | `codehunters.security.introspection.client-id` | — | Required when introspection is enabled |
 | `codehunters.security.introspection.client-secret` | — | Required when introspection is enabled |
@@ -47,7 +52,8 @@ it.
 | `codehunters.security.introspection.connect-timeout` | `2s` | |
 | `codehunters.security.introspection.read-timeout` | `3s` | |
 
-Missing or invalid required keys fail startup.
+Missing or invalid required keys fail startup. Path patterns use Spring's `PathPattern` syntax:
+`**` is only allowed at the end (`/api/**`), unlike 2.x's Ant patterns (`/api/**/health`).
 
 ## Failure semantics
 
@@ -77,6 +83,8 @@ yourself if you still want the header checks.
 | `keycloak.security.cache-ttl-seconds: 30` | `codehunters.security.introspection.cache-ttl: 30s` |
 | `keycloak.security.fail-open` (default `true`) | `codehunters.security.introspection.fail-open` (default `false`) |
 | Active only in `develop`, `cert`, `prod` profiles | Active unless `codehunters.security.enabled=false` |
+| No audience check | `codehunters.security.audiences` required |
+| Ant path patterns (`/api/**/health`) | `PathPattern` (`**` only at the end); invalid patterns fail startup |
 | Identity and roles from gateway headers | Identity and roles from the verified token |
 | Policy enforcer included | Separate artifact `sdk-user-security-authz` |
 
