@@ -31,8 +31,11 @@ Application code reads the context through `TraceContextPort` (`currentTraceId()
 - **Partial MDC:** if other code puts only a W3C `traceId` in the MDC, publishing keeps that trace
   with a new span.
 - **Gateway:** matches the gateway contract (`traceparent`, with `x-traceparent` as a defensive copy).
-- **sdk-event-messaging:** this module is the single owner of the outbound Rabbit post-processor;
-  it is added to each `RabbitTemplate` at most once.
+- **sdk-event-messaging-rabbit 6.x:** this module is the single owner of the outbound Rabbit
+  post-processor, also on the outbox's `outboxRabbitTemplate`; it is added to each `RabbitTemplate`
+  at most once. `sdk-event-messaging-core` reads `TraceContextPort` to fill the trace id of new
+  events. Kafka is not instrumented: `sdk-event-messaging-kafka` records carry the trace id only in
+  the event envelope.
 
 ## Known limits
 
