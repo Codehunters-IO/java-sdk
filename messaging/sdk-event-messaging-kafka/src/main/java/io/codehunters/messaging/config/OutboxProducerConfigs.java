@@ -9,7 +9,9 @@ import org.apache.kafka.common.serialization.StringSerializer;
 /**
  * Derives the outbox producer configuration from the application's. Connection, security and tuning
  * settings are kept; serializers, acknowledgements and idempotence are forced, and the
- * transactional id is dropped because outbox sends run outside Kafka transactions.
+ * transactional id is dropped because outbox sends run outside Kafka transactions. The client id is
+ * the application's with an {@code -outbox} suffix, or {@code outbox-<spring.application.name>}
+ * when the application sets none.
  *
  * <p>Every wait of one send is bounded by the outbox send timeout: {@code max.block.ms} (metadata
  * fetch, full buffer), {@code delivery.timeout.ms} and {@code request.timeout.ms} all equal it, and
@@ -28,9 +30,11 @@ final class OutboxProducerConfigs {
 
   private OutboxProducerConfigs() {}
 
-  static Map<String, Object> from(Map<String, Object> application, Duration sendTimeout) {
+  static Map<String, Object> from(
+      Map<String, Object> application, Duration sendTimeout, String applicationName) {
     Map<String, Object> config = new HashMap<>(application);
     config.remove(ProducerConfig.TRANSACTIONAL_ID_CONFIG);
+    config.put(ProducerConfig.CLIENT_ID_CONFIG, outboxClientId(application, applicationName));
     config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
     config.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -49,6 +53,15 @@ final class OutboxProducerConfigs {
   static Map<String, Object> validated(Map<String, Object> config) {
     new ProducerConfig(config);
     return config;
+  }
+
+  // A client id of its own keeps the outbox producer's JMX names and broker quotas apart from the
+  // application's producer.
+  private static String outboxClientId(Map<String, Object> application, String applicationName) {
+    Object clientId = application.get(ProducerConfig.CLIENT_ID_CONFIG);
+    return clientId == null || clientId.toString().isBlank()
+        ? "outbox-" + applicationName
+        : clientId.toString().trim() + "-outbox";
   }
 
   private static void keepIdempotenceValid(Map<String, Object> config) {

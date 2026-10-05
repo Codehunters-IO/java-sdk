@@ -2,7 +2,12 @@ package io.codehunters.messaging.config;
 
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.infrastructure.drivenadapters.kafka.KafkaMessagePublisherAdapter;
+import java.util.Map;
+import org.apache.kafka.common.serialization.StringSerializer;
+import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -42,6 +47,16 @@ public class EventMessagingKafkaAutoConfiguration {
 
   private static final String OUTBOX_PRODUCER_FACTORY = "outboxKafkaProducerFactory";
   private static final String OUTBOX_TEMPLATE = "outboxKafkaTemplate";
+  private static final String SEVERAL_FACTORIES =
+      "The outbox Kafka publisher derives its producer from the application's ProducerFactory, but"
+          + " there are several and none is @Primary: mark one @Primary or define a"
+          + " DefaultKafkaProducerFactory<String, String> bean named "
+          + OUTBOX_PRODUCER_FACTORY;
+  private static final String HIDDEN_CONFIGURATION =
+      "The application's ProducerFactory (%s) does not expose its configuration, which the outbox"
+          + " Kafka publisher derives its producer from: define a"
+          + " DefaultKafkaProducerFactory<String, String> bean named "
+          + OUTBOX_PRODUCER_FACTORY;
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public EventMessagingKafkaAutoConfiguration() {}
@@ -49,25 +64,65 @@ public class EventMessagingKafkaAutoConfiguration {
   /**
    * Provides the outbox's own producer factory, derived from the application's producer
    * configuration with String key and value serializers, {@code acks=all} and {@code
-   * enable.idempotence=true}, without a transactional id, and with every producer wait ({@code
-   * max.block.ms}, {@code delivery.timeout.ms}, {@code request.timeout.ms}) bounded by {@code
-   * codehunters.outbox.publisher.kafka.send-timeout}. Settings idempotence rejects are corrected
-   * and the result is parsed as the producer will, so an invalid value fails startup instead of
-   * every dispatch. It is not a default candidate, so it never replaces the application's factory.
+   * enable.idempotence=true}, without a transactional id, with its own {@code client.id}, and with
+   * every producer wait ({@code max.block.ms}, {@code delivery.timeout.ms}, {@code
+   * request.timeout.ms}) bounded by {@code codehunters.outbox.publisher.kafka.send-timeout}.
+   * Settings idempotence rejects are corrected and the result is parsed as the producer will, so an
+   * invalid value fails startup instead of every dispatch. Boot's {@code
+   * DefaultKafkaProducerFactoryCustomizer} beans (the Micrometer listener, for example) are
+   * applied, after which the forced settings are applied again. It is not a default candidate, so
+   * it never replaces the application's factory.
    *
-   * @param applicationProducerFactory the application's producer factory
+   * @param applicationProducerFactories the application's producer factories; one, or one primary
    * @param properties the messaging configuration, whose Kafka send timeout bounds the producer
+   * @param applicationName the application name, used in the outbox {@code client.id}
+   * @param beanFactory the bean factory the Boot customizers are looked up in
    * @return the outbox producer factory
+   * @throws IllegalStateException when the application has several producer factories and none is
+   *     primary, or its factory does not expose its configuration
    */
   @Bean(name = OUTBOX_PRODUCER_FACTORY, defaultCandidate = false)
   @ConditionalOnMissingBean(name = OUTBOX_PRODUCER_FACTORY)
   public DefaultKafkaProducerFactory<String, String> outboxKafkaProducerFactory(
-      ProducerFactory<?, ?> applicationProducerFactory, EventMessagingProperties properties) {
-    return new DefaultKafkaProducerFactory<>(
+      ObjectProvider<ProducerFactory<?, ?>> applicationProducerFactories,
+      EventMessagingProperties properties,
+      @Value("${spring.application.name:unknown}") String applicationName,
+      ListableBeanFactory beanFactory) {
+    Map<String, Object> config =
         OutboxProducerConfigs.validated(
             OutboxProducerConfigs.from(
-                applicationProducerFactory.getConfigurationProperties(),
-                properties.publisher().kafka().sendTimeout())));
+                applicationConfig(applicationProducerFactories),
+                properties.publisher().kafka().sendTimeout(),
+                applicationName));
+    DefaultKafkaProducerFactory<String, String> factory = new DefaultKafkaProducerFactory<>(config);
+    OutboxProducerFactoryCustomizers.apply(beanFactory, factory);
+    factory.updateConfigs(config);
+    factory.setKeySerializer(new StringSerializer());
+    factory.setValueSerializer(new StringSerializer());
+    return factory;
+  }
+
+  private static Map<String, Object> applicationConfig(
+      ObjectProvider<ProducerFactory<?, ?>> applicationProducerFactories) {
+    ProducerFactory<?, ?> applicationFactory = applicationProducerFactories.getIfUnique();
+    if (applicationFactory == null) {
+      throw new IllegalStateException(SEVERAL_FACTORIES);
+    }
+    Map<String, Object> config = configurationOf(applicationFactory);
+    if (config.isEmpty()) {
+      throw new IllegalStateException(
+          HIDDEN_CONFIGURATION.formatted(applicationFactory.getClass().getName()));
+    }
+    return config;
+  }
+
+  // ProducerFactory's default answers an empty map; other implementations may refuse instead.
+  private static Map<String, Object> configurationOf(ProducerFactory<?, ?> applicationFactory) {
+    try {
+      return applicationFactory.getConfigurationProperties();
+    } catch (UnsupportedOperationException e) {
+      return Map.of();
+    }
   }
 
   /**

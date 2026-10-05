@@ -28,3 +28,10 @@ First release; the Kafka publisher of `sdk-event-messaging` 5.1.5. Migration gui
   `retries=0`) made every outbox send fail; the outbox producer caps the first at 5 and resets the
   second. The derived configuration is parsed at startup, so other invalid values fail startup
   instead of the first dispatch.
+- The outbox factory skipped Boot's `DefaultKafkaProducerFactoryCustomizer` beans (no Micrometer
+  producer metrics); they are now applied, with the forced settings re-applied afterwards.
+- Several `ProducerFactory` beans without a primary failed with an unclear injection error, and a
+  factory without exposed configuration produced a producer with no bootstrap servers; both now fail
+  startup with a message naming `outboxKafkaProducerFactory`.
+- The outbox producer reused the application's `client.id`, colliding in JMX and broker quotas; it
+  now uses `<client.id>-outbox`, or `outbox-<spring.application.name>`.

@@ -225,6 +225,25 @@ class EventMessagingKafkaAutoConfigurationTest {
                     .hasMessageContaining("outboxKafkaProducerFactory"));
   }
 
+  @Test
+  void should_fail_startup_naming_override_when_producer_factory_refuses_its_configuration() {
+    contextRunner
+        .withBean(ProducerFactory.class, EventMessagingKafkaAutoConfigurationTest::refusing)
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("outboxKafkaProducerFactory"));
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ProducerFactory<Object, Object> refusing() {
+    ProducerFactory<Object, Object> producerFactory = mock(ProducerFactory.class);
+    when(producerFactory.getConfigurationProperties())
+        .thenThrow(new UnsupportedOperationException());
+    return producerFactory;
+  }
+
   @SuppressWarnings("unchecked")
   private static DefaultKafkaProducerFactory<Object, Object> outboxFactory(
       AssertableApplicationContext context) {

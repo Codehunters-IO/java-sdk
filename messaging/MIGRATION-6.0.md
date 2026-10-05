@@ -103,6 +103,11 @@ The outbox producer also bounds every wait by `publisher.kafka.send-timeout`: `m
 `max.in.flight.requests.per.connection` above 5 is capped at 5 and `retries=0` is reset for the
 outbox producer, and an invalid producer setting now fails startup instead of the first dispatch.
 
+The outbox producer gets Boot's producer-factory customizers (Micrometer listener included) and its
+own `client.id` (`<client.id>-outbox`, or `outbox-<spring.application.name>`): update quotas or
+dashboards keyed on the client id. With several `ProducerFactory` beans, mark the one to derive from
+`@Primary`.
+
 ## DDL
 
 The SDK never runs DDL. Copy the reference files from the `-jdbc` jar
