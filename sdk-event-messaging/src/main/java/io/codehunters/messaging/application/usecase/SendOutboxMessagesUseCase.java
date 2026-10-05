@@ -122,26 +122,13 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
 
   private void processMessage(OutboxMessage<String> message) {
     try {
-      publish(message);
+      messagePublisherPort.publish(message);
       markPublished(message);
     } catch (Exception e) {
       log.error(
           "Failed to publish outbox message id={}: {}", message.getId(), e.getClass().getName());
       markRetryOrFailed(message, e);
     }
-  }
-
-  private void publish(OutboxMessage<String> message) {
-    String routingKey = message.getRoutingKey();
-    if (hasRoutingKey(routingKey)) {
-      messagePublisherPort.publish(message.getTopic(), routingKey, message.getMessage());
-    } else {
-      messagePublisherPort.publish(message.getTopic(), message.getMessage());
-    }
-  }
-
-  private boolean hasRoutingKey(String routingKey) {
-    return routingKey != null && !routingKey.isBlank();
   }
 
   private void markPublished(OutboxMessage<String> message) {

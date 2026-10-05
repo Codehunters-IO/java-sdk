@@ -1,5 +1,7 @@
 package io.codehunters.messaging.application.port;
 
+import io.codehunters.messaging.domain.model.OutboxMessage;
+
 /**
  * Outbound port to publish a serialized message to a broker topic/exchange.
  *
@@ -26,4 +28,21 @@ public interface MessagePublisherPort {
    * @param payload the message payload, MUST be valid JSON (UTF-8)
    */
   void publish(String topic, String payload);
+
+  /**
+   * Publishes a whole outbox message. Adapters that support a partition key override this to read
+   * the message key and id; the default ignores the key and id and delegates to {@link
+   * #publish(String, String, String)} when the routing key is non-blank, otherwise to {@link
+   * #publish(String, String)}.
+   *
+   * @param message the claimed outbox message carrying topic, routing key, key, id and payload
+   */
+  default void publish(OutboxMessage<String> message) {
+    String routingKey = message.getRoutingKey();
+    if (routingKey != null && !routingKey.isBlank()) {
+      publish(message.getTopic(), routingKey, message.getMessage());
+    } else {
+      publish(message.getTopic(), message.getMessage());
+    }
+  }
 }
