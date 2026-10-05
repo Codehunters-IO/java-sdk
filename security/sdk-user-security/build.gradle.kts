@@ -3,7 +3,7 @@ plugins {
 }
 
 version = "2.6.0"
-description = "Keycloak-backed request authentication and optional policy enforcement."
+description = "Keycloak-backed request authentication for servlet applications."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")
@@ -18,7 +18,6 @@ dependencies {
     implementation("org.springframework.security:spring-security-config")
     implementation("org.springframework.security:spring-security-web")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
-    implementation(libs.keycloak.authz.client)
     implementation("tools.jackson.core:jackson-databind")
     implementation("org.aspectj:aspectjrt")
     runtimeOnly("org.aspectj:aspectjweaver")
