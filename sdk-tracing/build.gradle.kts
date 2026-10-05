@@ -21,4 +21,7 @@ dependencies {
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation("org.mockito:mockito-core")
     testImplementation("tools.jackson.core:jackson-databind")
+    testImplementation("org.springframework:spring-test")
+    testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("io.micrometer:micrometer-tracing")
 }
