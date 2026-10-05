@@ -33,10 +33,10 @@ import tools.jackson.databind.json.JsonMapper;
  * FAILED-row gauge. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the repository is visible to the
- * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration so the
- * dedicated {@code outboxJsonMapper} never displaces Boot's primary {@link JsonMapper}. The
- * dispatch scheduler, which needs the use case, lives in {@link
- * OutboxDispatchSchedulerAutoConfiguration}.
+ * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration. The dedicated
+ * {@code outboxJsonMapper} is not a default candidate, so it never displaces nor competes with the
+ * application's {@link JsonMapper}. The dispatch scheduler, which needs the use case, lives in
+ * {@link OutboxDispatchSchedulerAutoConfiguration}.
  */
 @AutoConfiguration(
     before = EventMessagingCoreAutoConfiguration.class,
@@ -57,11 +57,13 @@ public class EventMessagingJdbcAutoConfiguration {
   public EventMessagingJdbcAutoConfiguration() {}
 
   /**
-   * Provides the dedicated JSON mapper used to serialize outbox payloads.
+   * Provides the dedicated JSON mapper used to serialize outbox payloads. It is not a default
+   * candidate, so injecting a {@link JsonMapper} by type never sees it and Boot's or the
+   * application's mapper stays the only match; the repository asks for it by qualifier.
    *
    * @return a {@link JsonMapper}
    */
-  @Bean("outboxJsonMapper")
+  @Bean(name = "outboxJsonMapper", defaultCandidate = false)
   @ConditionalOnMissingBean(name = "outboxJsonMapper")
   public JsonMapper outboxJsonMapper() {
     return JsonMapper.builder().build();

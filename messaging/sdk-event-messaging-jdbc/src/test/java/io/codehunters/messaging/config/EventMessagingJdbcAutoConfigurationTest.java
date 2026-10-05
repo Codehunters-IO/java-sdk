@@ -16,6 +16,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -130,12 +131,10 @@ class EventMessagingJdbcAutoConfigurationTest {
             context -> {
               assertThat(context.getBean(JsonMapper.class))
                   .isSameAs(context.getBean("jacksonJsonMapper"));
-              assertThat(
-                      context
-                          .getBeanFactory()
-                          .getBeanDefinition("outboxJsonMapper")
-                          .isDefaultCandidate())
-                  .isFalse();
+              AbstractBeanDefinition outboxMapper =
+                  (AbstractBeanDefinition)
+                      context.getBeanFactory().getBeanDefinition("outboxJsonMapper");
+              assertThat(outboxMapper.isDefaultCandidate()).isFalse();
             });
   }
 
