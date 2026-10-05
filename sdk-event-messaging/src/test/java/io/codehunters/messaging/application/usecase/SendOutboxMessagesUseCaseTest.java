@@ -128,7 +128,7 @@ class SendOutboxMessagesUseCaseTest {
   void should_keep_claim_marker_for_fenced_update_when_retry_scheduled() {
     OutboxMessage<String> msg = claimed();
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any());
 
     useCase.execute();
 
@@ -142,7 +142,7 @@ class SendOutboxMessagesUseCaseTest {
     OutboxMessage<String> msg = claimed();
     msg.setAttempts(MAX_ATTEMPTS - 1);
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any());
 
     useCase.execute();
 
@@ -152,15 +152,15 @@ class SendOutboxMessagesUseCaseTest {
   }
 
   @Test
-  @DisplayName("should_publish_with_routing_key_when_present_and_mark_published")
-  void should_publish_with_routing_key() {
+  void should_publish_whole_message_when_claimed_and_mark_published() {
     OutboxMessage<String> msg = pending("user.created");
     when(repo.claimPendingMessages(eq(ORIGIN), anyInt(), eq(INSTANCE_ID), any(Duration.class)))
         .thenReturn(List.of(msg));
 
     useCase.execute();
 
-    verify(publisher).publish("events.test", "user.created", "payload");
+    verify(publisher).publish(msg);
+    verify(publisher, never()).publish(anyString(), anyString(), anyString());
     verify(publisher, never()).publish(anyString(), anyString());
     assertThat(msg.getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
     assertThat(msg.getPublishedAt()).isNotNull();
@@ -169,33 +169,11 @@ class SendOutboxMessagesUseCaseTest {
   }
 
   @Test
-  @DisplayName("should_publish_without_routing_key_when_blank")
-  void should_publish_without_routing_key_when_blank() {
-    OutboxMessage<String> msg = pending("   ");
-    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-
-    useCase.execute();
-
-    verify(publisher).publish("events.test", "payload");
-  }
-
-  @Test
-  @DisplayName("should_publish_without_routing_key_when_null")
-  void should_publish_without_routing_key_when_null() {
-    OutboxMessage<String> msg = pending(null);
-    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-
-    useCase.execute();
-
-    verify(publisher).publish("events.test", "payload");
-  }
-
-  @Test
   @DisplayName("should_set_PENDING_and_schedule_next_attempt_when_publish_fails_under_limit")
   void should_schedule_retry_on_failure_under_limit() {
     OutboxMessage<String> msg = pending("k");
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any());
 
     useCase.execute();
 
@@ -211,7 +189,7 @@ class SendOutboxMessagesUseCaseTest {
     OutboxMessage<String> msg = pending("k");
     msg.setAttempts(MAX_ATTEMPTS - 1);
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any());
 
     useCase.execute();
 
@@ -227,8 +205,7 @@ class SendOutboxMessagesUseCaseTest {
 
     useCase.execute();
 
-    verify(publisher, never()).publish(any(), any(), any());
-    verify(publisher, never()).publish(any(), any());
+    verify(publisher, never()).publish(any());
     verify(repo, never()).update(any());
   }
 
@@ -251,7 +228,7 @@ class SendOutboxMessagesUseCaseTest {
   void should_store_exception_class_name_only_when_publish_fails() {
     OutboxMessage<String> msg = pending("k");
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new IllegalStateException(PII_SENTINEL)).when(publisher).publish(any(), any(), any());
+    doThrow(new IllegalStateException(PII_SENTINEL)).when(publisher).publish(any());
 
     useCase.execute();
 
@@ -264,7 +241,7 @@ class SendOutboxMessagesUseCaseTest {
   void should_log_exception_class_name_without_message_or_throwable_when_publish_fails() {
     OutboxMessage<String> msg = pending("k");
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new IllegalStateException(PII_SENTINEL)).when(publisher).publish(any(), any(), any());
+    doThrow(new IllegalStateException(PII_SENTINEL)).when(publisher).publish(any());
 
     useCase.execute();
 
@@ -279,7 +256,7 @@ class SendOutboxMessagesUseCaseTest {
   void should_schedule_retry_from_injected_clock_when_publish_fails() {
     OutboxMessage<String> msg = pending("k");
     when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
-    doThrow(new RuntimeException("boom")).when(publisher).publish(any(), any(), any());
+    doThrow(new RuntimeException("boom")).when(publisher).publish(any());
 
     useCaseWithFixedClock().execute();
 
