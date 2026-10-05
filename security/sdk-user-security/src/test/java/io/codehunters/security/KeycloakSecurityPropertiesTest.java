@@ -18,6 +18,7 @@ class KeycloakSecurityPropertiesTest {
       Map.of(
           "codehunters.security.url", "https://kc.example.com/",
           "codehunters.security.realm", "acme",
+          "codehunters.security.audiences[0]", "svc",
           "codehunters.security.introspection.client-id", "svc",
           "codehunters.security.introspection.client-secret", "secret");
 
@@ -26,7 +27,7 @@ class KeycloakSecurityPropertiesTest {
     KeycloakSecurityProperties properties = bind(REQUIRED);
 
     assertThat(properties.enabled()).isTrue();
-    assertThat(properties.audiences()).isEmpty();
+    assertThat(properties.allowAnyAudience()).isFalse();
     assertThat(properties.introspection().enabled()).isTrue();
     assertThat(properties.introspection().failOpen()).isFalse();
     assertThat(properties.introspection().cacheTtl()).isEqualTo(Duration.ofSeconds(30));
@@ -42,7 +43,7 @@ class KeycloakSecurityPropertiesTest {
   void should_derive_realm_endpoints_when_url_has_trailing_slash() {
     KeycloakSecurityProperties properties = bind(REQUIRED);
 
-    assertThat(properties.issuer()).isEqualTo("https://kc.example.com/realms/acme");
+    assertThat(properties.issuerUri()).isEqualTo("https://kc.example.com/realms/acme");
     assertThat(properties.jwkSetUri())
         .isEqualTo("https://kc.example.com/realms/acme/protocol/openid-connect/certs");
     assertThat(properties.introspectionUri())
@@ -85,9 +86,42 @@ class KeycloakSecurityPropertiesTest {
             Map.of(
                 "codehunters.security.url", "https://kc.example.com",
                 "codehunters.security.realm", "acme",
+                "codehunters.security.allow-any-audience", "true",
                 "codehunters.security.introspection.enabled", "false"));
 
     assertThat(bind(source).introspection().enabled()).isFalse();
+  }
+
+  @Test
+  void should_fail_when_no_audience_is_configured() {
+    assertThatThrownBy(() -> bind(without("codehunters.security.audiences[0]")))
+        .rootCause()
+        .hasMessageContaining("codehunters.security.audiences");
+  }
+
+  @Test
+  void should_accept_any_audience_only_when_explicitly_allowed() {
+    Map<String, String> source = without("codehunters.security.audiences[0]");
+    source.put("codehunters.security.allow-any-audience", "true");
+
+    assertThat(bind(source).audiences()).isEmpty();
+  }
+
+  @Test
+  void should_use_explicit_issuer_and_jwk_set_uri_when_keycloak_is_reached_internally() {
+    Map<String, String> source = with("codehunters.security.url", "http://keycloak:8080");
+    source.put("codehunters.security.issuer-uri", "https://login.example.com/realms/acme");
+    source.put(
+        "codehunters.security.jwk-set-uri",
+        "http://keycloak:8080/realms/acme/protocol/openid-connect/certs");
+
+    KeycloakSecurityProperties properties = bind(source);
+
+    assertThat(properties.issuerUri()).isEqualTo("https://login.example.com/realms/acme");
+    assertThat(properties.jwkSetUri())
+        .isEqualTo("http://keycloak:8080/realms/acme/protocol/openid-connect/certs");
+    assertThat(properties.introspectionUri())
+        .isEqualTo("http://keycloak:8080/realms/acme/protocol/openid-connect/token/introspect");
   }
 
   @Test
@@ -101,14 +135,14 @@ class KeycloakSecurityPropertiesTest {
   @Test
   void should_bind_lists_when_configured() {
     Map<String, String> source = new HashMap<>(REQUIRED);
-    source.put("codehunters.security.audiences[0]", "svc");
+    source.put("codehunters.security.audiences[1]", "web");
     source.put("codehunters.security.role-clients[0]", "svc");
     source.put("codehunters.security.public-paths[0]", "/public/**");
     source.put("codehunters.security.excluded-paths[0]", "/health");
 
     KeycloakSecurityProperties properties = bind(source);
 
-    assertThat(properties.audiences()).isEqualTo(List.of("svc"));
+    assertThat(properties.audiences()).isEqualTo(List.of("svc", "web"));
     assertThat(properties.roleClients()).isEqualTo(List.of("svc"));
     assertThat(properties.publicPaths()).isEqualTo(List.of("/public/**"));
     assertThat(properties.excludedPaths()).isEqualTo(List.of("/health"));

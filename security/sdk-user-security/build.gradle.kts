@@ -21,6 +21,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-test")
     testImplementation("org.springframework.boot:spring-boot-security")
     testImplementation("org.springframework.boot:spring-boot-security-oauth2-resource-server")
+    testImplementation("org.springframework.boot:spring-boot-actuator-autoconfigure")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.assertj:assertj-core")
     testImplementation("org.mockito:mockito-core")

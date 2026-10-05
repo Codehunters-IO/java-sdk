@@ -13,6 +13,7 @@ import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.MethodMapp
 import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.PathMapping;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -145,6 +146,29 @@ class KeycloakAuthzFilterTest {
   }
 
   @Test
+  void should_allow_request_without_token_when_permissive() throws ServletException, IOException {
+    var request = new MockHttpServletRequest("POST", "/api/v1/admin/users");
+
+    filter(EnforcementMode.PERMISSIVE).doFilter(request, response, chain);
+
+    assertAllowed();
+  }
+
+  @Test
+  void should_forbid_when_keycloak_rejects_the_request_as_malformed()
+      throws ServletException, IOException {
+    when(authorization.authorize(any()))
+        .thenThrow(
+            new AuthorizationDeniedException(
+                new HttpResponseException("invalid_resource", 400, "Bad Request", null)));
+
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+  }
+
+  @Test
   void should_skip_enforcement_when_disabled() throws ServletException, IOException {
     filter(EnforcementMode.DISABLED)
         .doFilter(request("DELETE", "/api/v1/admin/users"), response, chain);
@@ -158,7 +182,15 @@ class KeycloakAuthzFilterTest {
   }
 
   private static KeycloakPolicyEnforcerProperties properties(EnforcementMode mode) {
-    return new KeycloakPolicyEnforcerProperties(true, mode, "svc", "secret", CATALOG);
+    return new KeycloakPolicyEnforcerProperties(
+        true,
+        mode,
+        "svc",
+        "secret",
+        CATALOG,
+        Duration.ofSeconds(2),
+        Duration.ofSeconds(3),
+        Duration.ofSeconds(30));
   }
 
   private static MockHttpServletRequest request(String method, String path) {

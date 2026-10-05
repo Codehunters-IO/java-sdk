@@ -13,6 +13,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.logging.DeferredLogFactory;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.core.io.support.SpringFactoriesLoader.ArgumentResolver;
 
@@ -35,7 +36,8 @@ class KeycloakSecurityLegacyPropertiesTest {
                     "keycloak.security.cache-ttl-seconds", "45",
                     "keycloak.security.fail-open", "true",
                     "keycloak.security.public-paths[0]", "/public/**",
-                    "keycloak.security.cors.allowed-origins[0]", "https://app.example.com")));
+                    "keycloak.security.cors.allowed-origins[0]", "https://app.example.com",
+                    "codehunters.security.audiences[0]", "svc")));
 
     new KeycloakSecurityLegacyProperties(Supplier::get)
         .postProcessEnvironment(environment, new SpringApplication());
@@ -43,13 +45,41 @@ class KeycloakSecurityLegacyPropertiesTest {
     KeycloakSecurityProperties properties =
         Binder.get(environment)
             .bindOrCreate("codehunters.security", KeycloakSecurityProperties.class);
-    assertThat(properties.issuer()).isEqualTo("https://kc.example.com/realms/acme");
+    assertThat(properties.issuerUri()).isEqualTo("https://kc.example.com/realms/acme");
     assertThat(properties.introspection().clientId()).isEqualTo("svc");
     assertThat(properties.introspection().clientSecret()).isEqualTo("secret");
     assertThat(properties.introspection().cacheTtl()).isEqualTo(Duration.ofSeconds(45));
     assertThat(properties.introspection().failOpen()).isTrue();
     assertThat(properties.publicPaths()).isEqualTo(List.of("/public/**"));
     assertThat(properties.cors().allowedOrigins()).isEqualTo(List.of("https://app.example.com"));
+  }
+
+  @Test
+  void should_bind_2x_keys_when_set_as_environment_variables() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of(
+                    "KEYCLOAK_SECURITY_URL", "https://kc.example.com",
+                    "KEYCLOAK_SECURITY_REALM", "acme",
+                    "KEYCLOAK_SECURITY_CLIENTID", "svc",
+                    "KEYCLOAK_SECURITY_CLIENTSECRET", "secret",
+                    "KEYCLOAK_SECURITY_CACHETTLSECONDS", "60",
+                    "KEYCLOAK_SECURITY_FAILOPEN", "true",
+                    "CODEHUNTERS_SECURITY_ALLOWANYAUDIENCE", "true")));
+
+    new KeycloakSecurityLegacyProperties(Supplier::get)
+        .postProcessEnvironment(environment, new SpringApplication());
+
+    KeycloakSecurityProperties properties =
+        Binder.get(environment)
+            .bindOrCreate("codehunters.security", KeycloakSecurityProperties.class);
+    assertThat(properties.introspection().clientSecret()).isEqualTo("secret");
+    assertThat(properties.introspection().cacheTtl()).isEqualTo(Duration.ofSeconds(60));
+    assertThat(properties.introspection().failOpen()).isTrue();
   }
 
   @Test

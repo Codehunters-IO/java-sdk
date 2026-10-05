@@ -81,6 +81,16 @@ class GatewayHeadersFilterTest {
   }
 
   @Test
+  void should_reject_when_roles_header_contains_null() throws ServletException, IOException {
+    authenticate("ROLE_USER");
+    request.addHeader("x-user-roles", "[\"user\",null]");
+
+    filter.doFilter(request, response, chain);
+
+    assertRejected();
+  }
+
+  @Test
   void should_continue_when_roles_header_is_subset_of_token_roles()
       throws ServletException, IOException {
     authenticate("ROLE_USER", "ROLE_ADMIN");

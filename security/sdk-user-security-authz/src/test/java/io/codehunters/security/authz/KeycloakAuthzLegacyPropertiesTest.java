@@ -2,12 +2,16 @@ package io.codehunters.security.authz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.KeycloakSecurityLegacyProperties;
 import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
+import org.springframework.boot.EnvironmentPostProcessor;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 
@@ -49,5 +53,28 @@ class KeycloakAuthzLegacyPropertiesTest {
     assertThat(environment.getProperty("codehunters.security.url"))
         .isEqualTo("https://kc.example.com");
     assertThat(environment.getProperty("codehunters.security.realm")).isEqualTo("acme");
+  }
+
+  @Test
+  void should_prefer_keycloak_security_url_over_keycloak_host_regardless_of_classpath_order() {
+    environment
+        .getPropertySources()
+        .addFirst(
+            new MapPropertySource(
+                "application",
+                Map.of(
+                    "keycloak.security.url", "https://from-security.example.com",
+                    "keycloak.host", "https://from-host.example.com")));
+    List<EnvironmentPostProcessor> postProcessors =
+        new java.util.ArrayList<>(
+            List.of(
+                new KeycloakAuthzLegacyProperties(Supplier::get),
+                new KeycloakSecurityLegacyProperties(Supplier::get)));
+    AnnotationAwareOrderComparator.sort(postProcessors);
+
+    postProcessors.forEach(p -> p.postProcessEnvironment(environment, new SpringApplication()));
+
+    assertThat(environment.getProperty("codehunters.security.url"))
+        .isEqualTo("https://from-security.example.com");
   }
 }

@@ -62,6 +62,28 @@ class KeycloakSecurityEndToEndTest {
   }
 
   @Test
+  void should_reject_hs256_token_signed_with_public_key() {
+    expect(
+        bearer(get("/api/me"), keycloak.hs256TokenSignedWithPublicKey()),
+        status().isUnauthorized());
+  }
+
+  @Test
+  void should_not_refetch_key_set_for_every_unknown_key_id() {
+    runner.run(
+        context -> {
+          MockMvc mvc = mockMvc(context);
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-1")));
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-2")));
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-3")));
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-4")));
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-5")));
+
+          org.assertj.core.api.Assertions.assertThat(keycloak.jwksCalls()).isLessThanOrEqualTo(2);
+        });
+  }
+
+  @Test
   void should_reject_unsigned_token() {
     expect(bearer(get("/api/me"), keycloak.unsignedToken()), status().isUnauthorized());
   }

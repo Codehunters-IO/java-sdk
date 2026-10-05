@@ -77,6 +77,21 @@ class LegacyPropertyAliasesTest {
   }
 
   @Test
+  void should_map_dashed_key_and_transform_value_when_set_as_environment_variable() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of("OLD_PREFIX_TIMEOUTSECONDS", "30")));
+
+    aliases.apply(environment, recordingLog());
+
+    assertThat(environment.getProperty("new.prefix.timeout")).isEqualTo("30s");
+  }
+
+  @Test
   void should_warn_once_with_keys_but_without_values() {
     use(Map.of("old.prefix.secret", "s3cr3t", "old.prefix.url", "https://kc"));
 

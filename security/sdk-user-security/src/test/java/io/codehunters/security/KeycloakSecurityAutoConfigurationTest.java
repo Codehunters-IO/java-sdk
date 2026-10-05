@@ -6,12 +6,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.actuate.web.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -27,6 +29,7 @@ class KeycloakSecurityAutoConfigurationTest {
           .withPropertyValues(
               "codehunters.security.url=" + keycloak.url(),
               "codehunters.security.realm=" + FakeKeycloak.REALM,
+              "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
               "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
               "codehunters.security.introspection.client-secret=secret");
 
@@ -73,6 +76,43 @@ class KeycloakSecurityAutoConfigurationTest {
                     .getFailure()
                     .rootCause()
                     .hasMessageContaining("codehunters.security.realm"));
+  }
+
+  @Test
+  void should_fail_startup_when_no_audience_is_configured() {
+    runner
+        .withPropertyValues("codehunters.security.audiences=")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("codehunters.security.audiences"));
+  }
+
+  @Test
+  void should_keep_keycloak_chain_when_actuator_security_is_present() {
+    runner
+        .withConfiguration(
+            AutoConfigurations.of(
+                ManagementWebSecurityAutoConfiguration.class,
+                ServletWebSecurityAutoConfiguration.class))
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasBean("keycloakSecurityFilterChain");
+              assertThat(context).doesNotHaveBean("managementSecurityFilterChain");
+            });
+  }
+
+  @Test
+  void should_leave_method_security_to_the_application_when_disabled() {
+    runner
+        .withPropertyValues("codehunters.security.method-security.enabled=false")
+        .run(
+            context ->
+                assertThat(context)
+                    .doesNotHaveBean(AuthorizationManagerBeforeMethodInterceptor.class));
   }
 
   @Test

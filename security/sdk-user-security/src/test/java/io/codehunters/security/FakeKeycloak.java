@@ -3,6 +3,7 @@ package io.codehunters.security;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -38,6 +39,7 @@ final class FakeKeycloak implements AutoCloseable {
   private final RSAKey foreignKey = generateKey("realm-key");
   private final HttpServer server;
   private final AtomicInteger introspectionCalls = new AtomicInteger();
+  private final AtomicInteger jwksCalls = new AtomicInteger();
   private volatile int introspectionStatus = 200;
   private volatile boolean sessionActive = true;
 
@@ -69,6 +71,10 @@ final class FakeKeycloak implements AutoCloseable {
     return introspectionCalls.get();
   }
 
+  int jwksCalls() {
+    return jwksCalls.get();
+  }
+
   void sessionActive(boolean active) {
     this.sessionActive = active;
   }
@@ -88,6 +94,25 @@ final class FakeKeycloak implements AutoCloseable {
   /** A well-formed token signed with a key the realm never published. */
   String foreignToken() {
     return sign(foreignKey, claims(claims -> {}));
+  }
+
+  /** A token signed with the realm key but naming a key id the realm never published. */
+  String tokenWithKeyId(String keyId) {
+    return sign(signingKey, keyId, claims(claims -> {}));
+  }
+
+  /** HS256 token whose HMAC secret is the realm's public key: the algorithm-confusion attack. */
+  String hs256TokenSignedWithPublicKey() {
+    try {
+      var jwt =
+          new SignedJWT(
+              new JWSHeader.Builder(JWSAlgorithm.HS256).keyID(signingKey.getKeyID()).build(),
+              claims(claims -> {}));
+      jwt.sign(new MACSigner(signingKey.toRSAPublicKey().getEncoded()));
+      return jwt.serialize();
+    } catch (JOSEException e) {
+      throw new IllegalStateException(e);
+    }
   }
 
   /** An {@code alg: none} token carrying otherwise valid claims. */
@@ -117,10 +142,13 @@ final class FakeKeycloak implements AutoCloseable {
   }
 
   private static String sign(RSAKey key, JWTClaimsSet claims) {
+    return sign(key, key.getKeyID(), claims);
+  }
+
+  private static String sign(RSAKey key, String keyId, JWTClaimsSet claims) {
     try {
       var jwt =
-          new SignedJWT(
-              new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
+          new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(keyId).build(), claims);
       jwt.sign(new RSASSASigner(key));
       return jwt.serialize();
     } catch (JOSEException e) {
@@ -137,6 +165,7 @@ final class FakeKeycloak implements AutoCloseable {
   }
 
   private void serveJwks(HttpExchange exchange) throws IOException {
+    jwksCalls.incrementAndGet();
     respond(exchange, 200, new JWKSet(signingKey.toPublicJWK()).toString());
   }
 

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.codehunters.security.KeycloakSecurityAutoConfiguration;
 import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -21,6 +22,7 @@ class KeycloakAuthzAutoConfigurationTest {
           .withPropertyValues(
               "codehunters.security.url=http://127.0.0.1:1",
               "codehunters.security.realm=test",
+              "codehunters.security.audiences[0]=svc",
               "codehunters.security.introspection.enabled=false");
 
   @Test
@@ -62,7 +64,14 @@ class KeycloakAuthzAutoConfigurationTest {
         new KeycloakAuthzFilter(
             () -> null,
             new KeycloakPolicyEnforcerProperties(
-                true, EnforcementMode.ENFORCING, "svc", "s", List.of()));
+                true,
+                EnforcementMode.ENFORCING,
+                "svc",
+                "s",
+                List.of(),
+                Duration.ofSeconds(2),
+                Duration.ofSeconds(3),
+                Duration.ofSeconds(30)));
     runner
         .withPropertyValues(
             "codehunters.security.authz.enabled=true",
