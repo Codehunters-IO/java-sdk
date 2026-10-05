@@ -73,11 +73,16 @@ class KeycloakSecurityEndToEndTest {
     runner.run(
         context -> {
           MockMvc mvc = mockMvc(context);
-          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-1")));
-          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-2")));
-          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-3")));
-          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-4")));
-          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-5")));
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-1")))
+              .andExpect(status().isUnauthorized());
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-2")))
+              .andExpect(status().isUnauthorized());
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-3")))
+              .andExpect(status().isUnauthorized());
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-4")))
+              .andExpect(status().isUnauthorized());
+          mvc.perform(bearer(get("/api/me"), keycloak.tokenWithKeyId("unknown-5")))
+              .andExpect(status().isUnauthorized());
 
           org.assertj.core.api.Assertions.assertThat(keycloak.jwksCalls()).isLessThanOrEqualTo(2);
         });

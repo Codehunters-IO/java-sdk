@@ -51,7 +51,8 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
-    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    Authentication authentication =
+        SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication();
     Object principal = authentication == null ? null : authentication.getPrincipal();
     if (!(principal instanceof KeycloakPrincipal tokenPrincipal)) {
       continueAnonymous(request, response, chain);
@@ -62,7 +63,8 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
       reject(response, mismatch.get());
       return;
     }
-    SecurityContextHolder.setContext(withGatewayContext(tokenPrincipal, authentication, request));
+    SecurityContextHolder.getContextHolderStrategy()
+        .setContext(withGatewayContext(tokenPrincipal, authentication, request));
     chain.doFilter(request, response);
   }
 
@@ -111,7 +113,8 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
           Arrays.stream(header.split(",")).map(String::trim).filter(r -> !r.isEmpty()).toList());
     }
     try {
-      return Optional.of(Arrays.asList(jsonMapper.readValue(header, String[].class)));
+      List<String> roles = Arrays.asList(jsonMapper.readValue(header, String[].class));
+      return roles.contains(null) ? Optional.empty() : Optional.of(roles);
     } catch (JacksonException e) {
       return Optional.empty();
     }
@@ -134,7 +137,7 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
         UsernamePasswordAuthenticationToken.authenticated(
             enriched, authentication.getCredentials(), authentication.getAuthorities());
     token.setDetails(authentication.getDetails());
-    SecurityContext context = SecurityContextHolder.createEmptyContext();
+    SecurityContext context = SecurityContextHolder.getContextHolderStrategy().createEmptyContext();
     context.setAuthentication(token);
     return context;
   }

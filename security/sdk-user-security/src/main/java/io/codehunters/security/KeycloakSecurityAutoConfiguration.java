@@ -1,5 +1,15 @@
 package io.codehunters.security;
 
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.source.JWKSource;
+import com.nimbusds.jose.jwk.source.JWKSourceBuilder;
+import com.nimbusds.jose.jwk.source.RateLimitReachedException;
+import com.nimbusds.jose.proc.JWSVerificationKeySelector;
+import com.nimbusds.jose.proc.SecurityContext;
+import com.nimbusds.jose.util.DefaultResourceRetriever;
+import com.nimbusds.jwt.proc.DefaultJWTProcessor;
+import java.net.MalformedURLException;
+import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -35,7 +45,6 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -55,7 +64,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
     beforeName = {
       "org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration",
       "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration",
-      "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration"
+      "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
+      "org.springframework.boot.security.autoconfigure.actuate.web.servlet.ManagementWebSecurityAutoConfiguration"
     })
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass({SecurityFilterChain.class, JwtDecoder.class})
@@ -64,9 +74,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class KeycloakSecurityAutoConfiguration {
 
   /** JWK set fetches are rare and small; these bounds keep a slow realm from stalling requests. */
-  private static final Duration JWKS_CONNECT_TIMEOUT = Duration.ofSeconds(2);
+  private static final int JWKS_CONNECT_TIMEOUT_MILLIS = 2_000;
 
-  private static final Duration JWKS_READ_TIMEOUT = Duration.ofSeconds(3);
+  private static final int JWKS_READ_TIMEOUT_MILLIS = 3_000;
+  private static final int JWKS_SIZE_LIMIT_BYTES = 50 * 1024;
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public KeycloakSecurityAutoConfiguration() {}
@@ -107,11 +118,7 @@ public class KeycloakSecurityAutoConfiguration {
   @ConditionalOnMissingBean
   public JwtDecoder keycloakJwtDecoder(
       KeycloakSecurityProperties properties, ObjectProvider<SessionIntrospector> introspector) {
-    NimbusJwtDecoder decoder =
-        NimbusJwtDecoder.withJwkSetUri(properties.jwkSetUri())
-            .restOperations(
-                new RestTemplate(requestFactory(JWKS_CONNECT_TIMEOUT, JWKS_READ_TIMEOUT)))
-            .build();
+    NimbusJwtDecoder decoder = new NimbusJwtDecoder(rs256Processor(properties.jwkSetUri()));
     OAuth2TokenValidator<Jwt> claims = claimValidator(properties);
     SessionIntrospector sessions = introspector.getIfAvailable();
     decoder.setJwtValidator(
@@ -132,9 +139,47 @@ public class KeycloakSecurityAutoConfiguration {
     return new KeycloakJwtAuthenticationConverter(properties.roleClients());
   }
 
+  /**
+   * RS256 only, with Nimbus' cached and rate-limited key source: a token naming an unknown key id
+   * cannot make the service refetch the key set on every request. Claims are checked by Spring's
+   * validators, so Nimbus' own claim verification is switched off.
+   */
+  private static DefaultJWTProcessor<SecurityContext> rs256Processor(String jwkSetUri) {
+    JWKSource<SecurityContext> keys =
+        JWKSourceBuilder.<SecurityContext>create(
+                url(jwkSetUri),
+                new DefaultResourceRetriever(
+                    JWKS_CONNECT_TIMEOUT_MILLIS, JWKS_READ_TIMEOUT_MILLIS, JWKS_SIZE_LIMIT_BYTES))
+            .build();
+    var processor = new DefaultJWTProcessor<SecurityContext>();
+    // A rate-limited refetch means "no such key": the token is rejected with 401, not a 500.
+    JWSVerificationKeySelector<SecurityContext> selector =
+        new JWSVerificationKeySelector<>(
+            JWSAlgorithm.RS256,
+            (jwkSelector, context) -> {
+              try {
+                return keys.get(jwkSelector, context);
+              } catch (RateLimitReachedException e) {
+                return List.of();
+              }
+            });
+    processor.setJWSKeySelector(selector);
+    processor.setJWTClaimsSetVerifier((claims, context) -> {});
+    return processor;
+  }
+
+  private static java.net.URL url(String value) {
+    try {
+      return URI.create(value).toURL();
+    } catch (MalformedURLException | IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          "codehunters.security.jwk-set-uri is not a URL: " + value, e);
+    }
+  }
+
   private static OAuth2TokenValidator<Jwt> claimValidator(KeycloakSecurityProperties properties) {
     List<OAuth2TokenValidator<Jwt>> validators = new ArrayList<>();
-    validators.add(new JwtIssuerValidator(properties.issuer()));
+    validators.add(new JwtIssuerValidator(properties.issuerUri()));
     validators.add(
         new JwtClaimValidator<String>(JwtClaimNames.SUB, sub -> sub != null && !sub.isBlank()));
     if (!properties.audiences().isEmpty()) {
@@ -219,8 +264,15 @@ public class KeycloakSecurityAutoConfiguration {
     }
   }
 
-  /** Enables {@code @PreAuthorize} and friends on application beans. */
+  /**
+   * Enables {@code @PreAuthorize} and friends on application beans. Applications with their own
+   * {@code @EnableMethodSecurity} settings turn this off with {@code
+   * codehunters.security.method-security.enabled=false}.
+   */
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnBooleanProperty(
+      name = "codehunters.security.method-security.enabled",
+      matchIfMissing = true)
   @EnableMethodSecurity
   static class MethodSecurityConfiguration {}
 

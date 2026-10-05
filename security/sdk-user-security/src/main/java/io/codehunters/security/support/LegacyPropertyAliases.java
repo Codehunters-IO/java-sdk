@@ -27,7 +27,7 @@ public final class LegacyPropertyAliases {
 
   private final String name;
   private final List<Map.Entry<ConfigurationPropertyName, String>> renames;
-  private final Map<String, UnaryOperator<String>> valueTransforms;
+  private final List<Map.Entry<ConfigurationPropertyName, UnaryOperator<String>>> valueTransforms;
 
   /**
    * Creates the aliases.
@@ -46,7 +46,10 @@ public final class LegacyPropertyAliases {
             .map(e -> Map.entry(ConfigurationPropertyName.of(e.getKey()), e.getValue()))
             .sorted(Comparator.comparingInt(e -> -e.getKey().getNumberOfElements()))
             .toList();
-    this.valueTransforms = Map.copyOf(valueTransforms);
+    this.valueTransforms =
+        valueTransforms.entrySet().stream()
+            .map(e -> Map.entry(ConfigurationPropertyName.of(e.getKey()), e.getValue()))
+            .toList();
   }
 
   /**
@@ -92,20 +95,28 @@ public final class LegacyPropertyAliases {
                         }));
   }
 
+  // Names are compared element by element: an environment variable such as
+  // KEYCLOAK_SECURITY_CLIENTSECRET is the same name as keycloak.security.client-secret.
   private Optional<String> newName(ConfigurationPropertyName oldName) {
     return renames.stream()
         .filter(rename -> rename.getKey().equals(oldName) || rename.getKey().isAncestorOf(oldName))
         .findFirst()
-        .map(
-            rename ->
-                rename.getValue()
-                    + oldName.toString().substring(rename.getKey().toString().length()));
+        .map(rename -> rename(oldName, rename.getKey(), rename.getValue()));
+  }
+
+  private static String rename(
+      ConfigurationPropertyName oldName, ConfigurationPropertyName oldPrefix, String newPrefix) {
+    ConfigurationPropertyName suffix = oldName.subName(oldPrefix.getNumberOfElements());
+    return ConfigurationPropertyName.of(newPrefix).append(suffix).toString();
   }
 
   private Object value(ConfigurationPropertyName oldName, ConfigurationProperty property) {
-    UnaryOperator<String> transform = valueTransforms.get(oldName.toString());
     Object value = property.getValue();
-    return transform == null ? value : transform.apply(String.valueOf(value));
+    return valueTransforms.stream()
+        .filter(transform -> transform.getKey().equals(oldName))
+        .findFirst()
+        .<Object>map(transform -> transform.getValue().apply(String.valueOf(value)))
+        .orElse(value);
   }
 
   private static boolean isSet(ConfigurableEnvironment environment, String key) {

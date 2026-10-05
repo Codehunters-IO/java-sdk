@@ -13,7 +13,13 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param enabled whether the SDK configures request security at all
  * @param url Keycloak base URL, e.g. {@code https://kc.example.com}
  * @param realm realm that issues the access tokens
- * @param audiences accepted {@code aud} values; empty accepts any audience
+ * @param issuerUri expected {@code iss} claim; defaults to {@code <url>/realms/<realm>}. Set it
+ *     when the service reaches Keycloak through another host than the one in the tokens
+ * @param jwkSetUri where the realm's signing keys are fetched; defaults to the realm's certs
+ *     endpoint under {@code url}
+ * @param audiences accepted {@code aud} values; at least one is required unless {@code
+ *     allowAnyAudience} is set
+ * @param allowAnyAudience accept tokens issued to any client of the realm
  * @param roleClients clients whose {@code resource_access} roles become authorities, in addition to
  *     the realm roles
  * @param publicPaths path patterns open to anonymous callers; a bearer token, when sent, must still
@@ -27,7 +33,10 @@ public record KeycloakSecurityProperties(
     @DefaultValue("true") boolean enabled,
     String url,
     String realm,
+    String issuerUri,
+    String jwkSetUri,
     @DefaultValue List<String> audiences,
+    boolean allowAnyAudience,
     @DefaultValue List<String> roleClients,
     @DefaultValue List<String> publicPaths,
     @DefaultValue List<String> excludedPaths,
@@ -41,29 +50,17 @@ public record KeycloakSecurityProperties(
     require(
         url != null && url.matches("(?i)https?://\\S+"),
         PREFIX + "url must be an absolute http(s) URL");
-    require(realm != null && !realm.isBlank(), PREFIX + "realm is required");
-    audiences = List.copyOf(audiences);
+    require(hasText(realm), PREFIX + "realm is required");
+    audiences = audiences.stream().filter(KeycloakSecurityProperties::hasText).toList();
+    require(
+        allowAnyAudience || !audiences.isEmpty(),
+        PREFIX + "audiences must name this service's client, or set allow-any-audience=true");
+    issuerUri = hasText(issuerUri) ? issuerUri : realmUrl(url, realm);
+    jwkSetUri =
+        hasText(jwkSetUri) ? jwkSetUri : realmUrl(url, realm) + "/protocol/openid-connect/certs";
     roleClients = List.copyOf(roleClients);
     publicPaths = List.copyOf(publicPaths);
     excludedPaths = List.copyOf(excludedPaths);
-  }
-
-  /**
-   * Expected {@code iss} claim of the realm's tokens.
-   *
-   * @return the issuer URI
-   */
-  public String issuer() {
-    return url.replaceAll("/+$", "") + "/realms/" + realm;
-  }
-
-  /**
-   * Endpoint publishing the realm's signing keys.
-   *
-   * @return the JWK set URI
-   */
-  public String jwkSetUri() {
-    return issuer() + "/protocol/openid-connect/certs";
   }
 
   /**
@@ -72,7 +69,15 @@ public record KeycloakSecurityProperties(
    * @return the introspection URI
    */
   public String introspectionUri() {
-    return issuer() + "/protocol/openid-connect/token/introspect";
+    return realmUrl(url, realm) + "/protocol/openid-connect/token/introspect";
+  }
+
+  private static String realmUrl(String url, String realm) {
+    return url.replaceAll("/+$", "") + "/realms/" + realm;
+  }
+
+  private static boolean hasText(String value) {
+    return value != null && !value.isBlank();
   }
 
   private static void require(boolean condition, String message) {
