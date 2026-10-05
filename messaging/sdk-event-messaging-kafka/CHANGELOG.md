@@ -20,3 +20,7 @@ First release; the Kafka publisher of `sdk-event-messaging` 5.1.5. Migration gui
 
 ### Fixed
 - An application JSON value serializer double-encoded outbox payloads.
+- A publish could block far beyond `send-timeout`: `send()` waited up to `max.block.ms` (60 s) for
+  metadata or buffer space before the acknowledgement wait began. The outbox producer now sets
+  `max.block.ms`, `delivery.timeout.ms` and `request.timeout.ms` to `send-timeout` and `linger.ms`
+  to `0`, and the acknowledgement wait gets only what is left of `send-timeout`.

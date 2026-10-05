@@ -49,18 +49,23 @@ public class EventMessagingKafkaAutoConfiguration {
   /**
    * Provides the outbox's own producer factory, derived from the application's producer
    * configuration with String key and value serializers, {@code acks=all} and {@code
-   * enable.idempotence=true}, and without a transactional id. It is not a default candidate, so it
-   * never replaces the application's factory.
+   * enable.idempotence=true}, without a transactional id, and with every producer wait ({@code
+   * max.block.ms}, {@code delivery.timeout.ms}, {@code request.timeout.ms}) bounded by {@code
+   * codehunters.outbox.publisher.kafka.send-timeout}. It is not a default candidate, so it never
+   * replaces the application's factory.
    *
    * @param applicationProducerFactory the application's producer factory
+   * @param properties the messaging configuration, whose Kafka send timeout bounds the producer
    * @return the outbox producer factory
    */
   @Bean(name = OUTBOX_PRODUCER_FACTORY, defaultCandidate = false)
   @ConditionalOnMissingBean(name = OUTBOX_PRODUCER_FACTORY)
   public DefaultKafkaProducerFactory<String, String> outboxKafkaProducerFactory(
-      ProducerFactory<?, ?> applicationProducerFactory) {
+      ProducerFactory<?, ?> applicationProducerFactory, EventMessagingProperties properties) {
     return new DefaultKafkaProducerFactory<>(
-        OutboxProducerConfigs.from(applicationProducerFactory.getConfigurationProperties()));
+        OutboxProducerConfigs.from(
+            applicationProducerFactory.getConfigurationProperties(),
+            properties.publisher().kafka().sendTimeout()));
   }
 
   /**

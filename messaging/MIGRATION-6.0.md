@@ -97,6 +97,10 @@ a `KafkaTemplate`. It derives its own idempotent producer from it (String serial
 `enable.idempotence=true`, no transactional id). The application's `KafkaTemplate` is no longer
 used for outbox records, so a JSON value serializer can no longer double-encode them.
 
+The outbox producer also bounds every wait by `publisher.kafka.send-timeout`: `max.block.ms`,
+`delivery.timeout.ms` and `request.timeout.ms` equal it and `linger.ms` is `0`, whatever
+`spring.kafka.producer.*` says. The application's own producer keeps its settings.
+
 ## DDL
 
 The SDK never runs DDL. Copy the reference files from the `-jdbc` jar

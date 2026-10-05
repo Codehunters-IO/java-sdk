@@ -10,6 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.KafkaException;
 import org.springframework.kafka.core.KafkaTemplate;
 
 /**
@@ -21,11 +22,11 @@ import org.springframework.kafka.core.KafkaTemplate;
  * header with the outbox row id; delivery is at-least-once, so consumers MUST dedupe on that
  * header.
  *
- * <p>Every send blocks on the broker acknowledgement for at most {@code sendTimeout}. The
- * dispatcher publishes a claimed batch sequentially, so deployments MUST keep {@code batchSize ×
- * sendTimeout < claim.ttlMs}; otherwise another instance re-claims rows still being published and
- * publishes them twice. Failures, timeouts and interrupts surface as {@link
- * MessagePublishException}, whose message never carries broker text.
+ * <p>Every send, including any wait inside {@link KafkaTemplate#send} for metadata or buffer space,
+ * blocks for at most {@code sendTimeout}. The dispatcher publishes a claimed batch sequentially, so
+ * deployments MUST keep {@code batchSize × sendTimeout < claim.ttlMs}; otherwise another instance
+ * re-claims rows still being published and publishes them twice. Failures, timeouts and interrupts
+ * surface as {@link MessagePublishException}, whose message never carries broker text.
  */
 @Slf4j
 public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
@@ -89,13 +90,20 @@ public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
     return record;
   }
 
+  // send() itself may block (metadata, full buffer) for up to max.block.ms; the acknowledgement
+  // wait gets only what is left of the send timeout, so one publish never exceeds it.
   private void send(ProducerRecord<String, String> record) {
+    long deadline = System.nanoTime() + sendTimeout.toNanos();
     try {
-      kafkaTemplate.send(record).get(sendTimeout.toMillis(), TimeUnit.MILLISECONDS);
+      var acknowledgement = kafkaTemplate.send(record);
+      acknowledgement.get(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new MessagePublishException(e);
-    } catch (ExecutionException | TimeoutException e) {
+    } catch (ExecutionException
+        | TimeoutException
+        | KafkaException
+        | org.springframework.kafka.KafkaException e) {
       throw new MessagePublishException(e);
     }
   }
