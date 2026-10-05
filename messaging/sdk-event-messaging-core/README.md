@@ -97,6 +97,7 @@ All keys are under `codehunters.outbox`. Invalid values fail startup with a mess
 | `publisher.type` | unset | `rabbit` or `kafka`, case-insensitive; only needed with both transports present |
 | `publisher.rabbit.confirm-timeout` | `5s` | > 0 |
 | `publisher.kafka.send-timeout` | `5s` | > 0 (was `10s` in 5.x) |
+| `scheduling.enabled` | `true` | `false` leaves dispatch and purge scheduling to the application, see [`-jdbc`](../sdk-event-messaging-jdbc/README.md) |
 | `task.*`, `purge.*` | | Scheduler settings, see [`-jdbc`](../sdk-event-messaging-jdbc/README.md) |
 
 ## Extension points

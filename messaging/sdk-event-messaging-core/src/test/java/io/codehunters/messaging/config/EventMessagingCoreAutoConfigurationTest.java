@@ -133,6 +133,24 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
+  void should_bind_scheduling_enabled_when_nothing_configured() {
+    contextRunner.run(
+        context ->
+            assertThat(context.getBean(EventMessagingProperties.class).scheduling().enabled())
+                .isTrue());
+  }
+
+  @Test
+  void should_bind_scheduling_disabled_when_configured_off() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.scheduling.enabled=false")
+        .run(
+            context ->
+                assertThat(context.getBean(EventMessagingProperties.class).scheduling().enabled())
+                    .isFalse());
+  }
+
+  @Test
   void should_ignore_legacy_prefix_when_bound_directly() {
     contextRunner
         .withPropertyValues("outbox.batch-size=7")

@@ -18,6 +18,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param backoff the retry backoff configuration
  * @param publisher the broker publisher selection
  * @param purge the PUBLISHED-row retention configuration
+ * @param scheduling whether the SDK schedules dispatch and purge itself
  */
 @ConfigurationProperties(prefix = "codehunters.outbox")
 public record EventMessagingProperties(
@@ -28,7 +29,8 @@ public record EventMessagingProperties(
     @DefaultValue Claim claim,
     @DefaultValue Backoff backoff,
     @DefaultValue Publisher publisher,
-    @DefaultValue Purge purge) {
+    @DefaultValue Purge purge,
+    @DefaultValue Scheduling scheduling) {
 
   private static final String PREFIX = "codehunters.outbox.";
   private static final String RABBIT = "rabbit";
@@ -232,4 +234,13 @@ public record EventMessagingProperties(
       requireAtLeastOne(batchSize, "purge.batch-size");
     }
   }
+
+  /**
+   * Scheduling switch of {@code sdk-event-messaging-jdbc}.
+   *
+   * @param enabled {@code true} (the default) registers the ShedLock-protected dispatch and purge
+   *     schedulers and enables Spring scheduling; {@code false} leaves dispatch and purge to the
+   *     application, for example when another process runs them
+   */
+  public record Scheduling(@DefaultValue("true") boolean enabled) {}
 }

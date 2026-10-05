@@ -23,6 +23,9 @@ First release; the JDBC store, schedulers and DDL of `sdk-event-messaging` 5.1.5
   ShedLock-protected.
 - `outbox_failed_messages{origin}` gauge.
 - PostgreSQL reference DDL.
+- `codehunters.outbox.scheduling.enabled` (default `true`): `false` leaves out the dispatch and purge
+  schedulers and `@EnableScheduling` / `@EnableSchedulerLock`, for applications that trigger
+  dispatch themselves or in another process.
 
 ### Fixed
 - Reclaiming a stale `IN_FLIGHT` row did not count as an attempt, so a message that kept crashing

@@ -31,6 +31,8 @@ First release of the split artifacts; replaces `sdk-event-messaging` 5.1.5. Migr
   `OUTBOX_ID_HEADER` (`outbox-message-id`) consumers deduplicate on.
 - `publisher.rabbit.confirm-timeout` (default `5s`) and the claim-budget check for both transports.
 - Injectable `Clock` for every timestamp the use case writes.
+- `scheduling.enabled` (default `true`), read by `-jdbc` to leave dispatch and purge scheduling to
+  the application.
 - ArchUnit rules keeping `domain` and `application` free of Spring, JDBC, AMQP and Kafka types.
 
 ### Fixed

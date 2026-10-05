@@ -20,13 +20,20 @@ supplies a `DataSource` (`spring-boot-starter-jdbc`) and Jackson 3 (`tools.jacks
 | `OutboxDialect` | `DataSource` bean | From `claim.dialect` |
 | `OutboxRepositoryPort` (`OutboxJdbcAdapter`) | `DataSource` bean | |
 | `LockProvider` (`JdbcTemplateLockProvider`, DB time) | `DataSource` bean | Table `shedlock` |
-| `OutboxScheduler` | `SendOutboxMessagesPort` bean, i.e. a transport is active | Dispatch every `task.fixed-delay` |
-| `OutboxPurgeScheduler` | repository bean | Purge every `purge.fixed-delay` |
+| `OutboxScheduler` | `SendOutboxMessagesPort` bean (a transport is active) and `scheduling.enabled` | Dispatch every `task.fixed-delay` |
+| `OutboxPurgeScheduler` | repository bean and `scheduling.enabled` | Purge every `purge.fixed-delay` |
 | `OutboxFailedGauge` | Micrometer on the classpath | `outbox_failed_messages{origin}` |
 
 Every bean backs off when the application defines its own. The module turns on `@EnableScheduling`
-and `@EnableSchedulerLock` (default lock-at-most `60s`) whenever `codehunters.outbox.enabled` is
-`true`, which also activates any other `@Scheduled` method in the application.
+and `@EnableSchedulerLock` (default lock-at-most `60s`) whenever `codehunters.outbox.enabled` and
+`codehunters.outbox.scheduling.enabled` are `true` (both default), which also activates any other
+`@Scheduled` method in the application.
+
+Set `codehunters.outbox.scheduling.enabled=false` when the application runs dispatch itself or
+another process does: the two schedulers and the scheduling annotations are left out, while the
+repository, `SendOutboxMessagesPort` and `LockProvider` stay. Call `SendOutboxMessagesPort.execute()`
+from your own trigger, one instance at a time (ShedLock or equivalent), and purge `PUBLISHED` rows
+yourself or in the process that keeps scheduling on.
 
 ## Dialects
 
@@ -64,6 +71,7 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 | Key | Default | Notes |
 |---|---|---|
 | `claim.dialect` | `auto` | `auto`, `postgresql`, `sqlserver`, `generic` |
+| `scheduling.enabled` | `true` | `false` drops the dispatch and purge schedulers and `@EnableScheduling` / `@EnableSchedulerLock` |
 | `task.fixed-delay` | `5000` | ms between dispatch ticks |
 | `task.lock-name` | `outbox-${spring.application.name}` | ShedLock name |
 | `task.lock-at-most` | `60000` | ms |

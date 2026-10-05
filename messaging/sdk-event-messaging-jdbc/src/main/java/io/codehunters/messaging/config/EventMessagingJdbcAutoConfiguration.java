@@ -31,6 +31,10 @@ import tools.jackson.databind.json.JsonMapper;
  * Spring Boot auto-configuration for the JDBC outbox store. Wires the dedicated JSON mapper, the
  * claim dialect, the JDBC outbox repository, the ShedLock provider, the purge scheduler and the
  * FAILED-row gauge. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
+ * Scheduling ({@code @EnableScheduling}, {@code @EnableSchedulerLock}) and the purge scheduler are
+ * registered only while {@code codehunters.outbox.scheduling.enabled} is {@code true} (the
+ * default), so an application that runs dispatch and purge itself, or in another process, can turn
+ * them off.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the repository is visible to the
  * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration. The dedicated
@@ -49,8 +53,6 @@ import tools.jackson.databind.json.JsonMapper;
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true)
-@EnableScheduling
-@EnableSchedulerLock(defaultLockAtMostFor = "60s")
 public class EventMessagingJdbcAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
@@ -121,6 +123,11 @@ public class EventMessagingJdbcAutoConfiguration {
   @Bean
   @ConditionalOnMissingBean(OutboxPurgeScheduler.class)
   @ConditionalOnBean(OutboxRepositoryPort.class)
+  @ConditionalOnProperty(
+      prefix = "codehunters.outbox.scheduling",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = true)
   public OutboxPurgeScheduler outboxPurgeScheduler(
       OutboxRepositoryPort outboxRepositoryPort, EventMessagingProperties properties, Clock clock) {
     EventMessagingProperties.Purge purge = properties.purge();
@@ -144,6 +151,20 @@ public class EventMessagingJdbcAutoConfiguration {
             .usingDbTime()
             .build());
   }
+
+  /**
+   * Turns on Spring scheduling and ShedLock for the dispatch and purge schedulers. Skipped when
+   * {@code codehunters.outbox.scheduling.enabled} is {@code false}.
+   */
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnProperty(
+      prefix = "codehunters.outbox.scheduling",
+      name = "enabled",
+      havingValue = "true",
+      matchIfMissing = true)
+  @EnableScheduling
+  @EnableSchedulerLock(defaultLockAtMostFor = "60s")
+  static class OutboxSchedulingConfiguration {}
 
   /**
    * FAILED-row gauge wiring. Loaded only when Micrometer is on the classpath.

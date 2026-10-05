@@ -9,6 +9,7 @@ import io.codehunters.messaging.config.EventMessagingProperties.Kafka;
 import io.codehunters.messaging.config.EventMessagingProperties.Publisher;
 import io.codehunters.messaging.config.EventMessagingProperties.Purge;
 import io.codehunters.messaging.config.EventMessagingProperties.Rabbit;
+import io.codehunters.messaging.config.EventMessagingProperties.Scheduling;
 import io.codehunters.messaging.config.EventMessagingProperties.Task;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,7 @@ class EventMessagingPropertiesTest {
   private static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(5);
   private static final long TTL_BELOW_BUDGET_MS = 250_000L;
   private static final Task TASK = new Task("5000", "60000", "10000", "outbox-app");
+  private static final Scheduling SCHEDULING = new Scheduling(true);
   private static final Backoff BACKOFF = new Backoff(30_000L, 3_600_000L);
   private static final Purge PURGE =
       new Purge(Duration.ofDays(7), 500, "3600000", "60000", "purge", "PT10M", "PT30S");
@@ -245,7 +247,7 @@ class EventMessagingPropertiesTest {
   private static EventMessagingProperties properties(
       int batchSize, int maxAttempts, Claim claim, Publisher publisher) {
     return new EventMessagingProperties(
-        true, batchSize, maxAttempts, TASK, claim, BACKOFF, publisher, PURGE);
+        true, batchSize, maxAttempts, TASK, claim, BACKOFF, publisher, PURGE, SCHEDULING);
   }
 
   private static Claim claim(long ttlMs) {

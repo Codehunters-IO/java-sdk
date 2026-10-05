@@ -55,6 +55,7 @@ Changed behaviour:
 | Out-of-range values accepted | Startup fails naming the key (sizes and attempts ≥ 1, positive durations) |
 | No claim budget check | Startup fails unless `claim.ttl-ms > batch-size x` the transport timeout |
 | — | New: `publisher.rabbit.confirm-timeout` (default `5s`) |
+| Scheduling always on with the outbox | New: `scheduling.enabled` (default `true`); `false` drops the dispatch and purge schedulers and `@EnableScheduling` |
 
 ## Transport selection
 
