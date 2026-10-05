@@ -5,6 +5,21 @@ plugins {
 
 group = "io.codehunters"
 
+val codehuntersPublishing = extensions.create<CodehuntersPublishingExtension>("codehuntersPublishing")
+
+// Declaring any capability drops the implicit one, so the module's own is declared too. Read after
+// evaluation: `version` is assigned in the module's script, after this plugin is applied.
+afterEvaluate {
+    val replaced = codehuntersPublishing.replacedArtifacts.get()
+    if (replaced.isEmpty()) return@afterEvaluate
+    listOf("apiElements", "runtimeElements")
+        .mapNotNull { configurations.findByName(it) }
+        .forEach { variant ->
+            variant.outgoing.capability("$group:$name:$version")
+            replaced.forEach { variant.outgoing.capability("$group:$it:$version") }
+        }
+}
+
 // GitHub Packages rejects re-publishing a version (409), so publish only what isn't there yet.
 fun isAlreadyPublished(repositoryUrl: java.net.URI, group: String, artifact: String, version: String): Boolean {
     val pom = "${group.replace('.', '/')}/$artifact/$version/$artifact-$version.pom"
