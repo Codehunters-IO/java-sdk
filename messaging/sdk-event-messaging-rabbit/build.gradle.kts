@@ -23,5 +23,7 @@ dependencies {
     testImplementation("org.springframework.amqp:spring-rabbit")
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation("org.mockito:mockito-core")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-rabbitmq")
     testRuntimeOnly("com.h2database:h2")
 }

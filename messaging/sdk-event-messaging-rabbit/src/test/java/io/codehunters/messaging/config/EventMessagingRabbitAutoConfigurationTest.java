@@ -2,28 +2,28 @@ package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.application.port.OutboxRepositoryPort;
 import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
-import io.codehunters.messaging.domain.factory.EventMessageFactory;
-import io.codehunters.messaging.domain.factory.OutboxEventFactory;
 import io.codehunters.messaging.infrastructure.drivenadapters.kafka.KafkaMessagePublisherAdapter;
 import io.codehunters.messaging.infrastructure.drivenadapters.rabbitmq.RabbitMessagePublisherAdapter;
 import io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxScheduler;
+import java.util.Map;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.kafka.core.KafkaTemplate;
-import tools.jackson.databind.json.JsonMapper;
+import org.springframework.kafka.core.ProducerFactory;
 
 class EventMessagingRabbitAutoConfigurationTest {
 
@@ -45,19 +45,17 @@ class EventMessagingRabbitAutoConfigurationTest {
                   EventMessagingRabbitAutoConfiguration.class,
                   EventMessagingKafkaAutoConfiguration.class,
                   EventMessagingCoreAutoConfiguration.class))
-          .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
+          .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
+          .withBean(ProducerFactory.class, EventMessagingRabbitAutoConfigurationTest::producers)
           .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class));
 
   @Test
   void should_create_all_beans_when_datasource_and_rabbit_available() {
     contextRunner
         .withBean(DataSource.class, this::createDataSource)
-        .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(
             context -> {
-              assertThat(context).hasSingleBean(JsonMapper.class);
-              assertThat(context).hasSingleBean(EventMessageFactory.class);
-              assertThat(context).hasSingleBean(OutboxEventFactory.class);
               assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
               assertThat(context).hasSingleBean(MessagePublisherPort.class);
               assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
@@ -67,10 +65,9 @@ class EventMessagingRabbitAutoConfigurationTest {
   }
 
   @Test
-  void should_select_rabbit_publisher_when_publisher_type_not_set() {
+  void should_select_rabbit_publisher_when_type_unset_and_only_rabbit_artifact_present() {
     contextRunner
-        .withBean(DataSource.class, this::createDataSource)
-        .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(
             context ->
                 assertThat(context)
@@ -79,25 +76,89 @@ class EventMessagingRabbitAutoConfigurationTest {
   }
 
   @Test
-  void should_create_rabbit_template_when_connection_factory_present() {
+  void should_build_mandatory_outbox_template_when_connection_factory_present() {
     contextRunner
-        .withBean(ConnectionFactory.class, () -> mock(ConnectionFactory.class))
-        .withBean(MessagePostProcessor.class, () -> message -> message)
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean("outboxRabbitTemplate", RabbitTemplate.class)
+                            .isMandatoryFor(null))
+                    .isTrue());
+  }
+
+  @Test
+  void should_keep_outbox_template_out_of_type_injection_when_application_has_none() {
+    contextRunner
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(
             context -> {
-              assertThat(context).hasSingleBean(RabbitTemplate.class);
-              assertThat(context)
-                  .getBean(MessagePublisherPort.class)
-                  .isInstanceOf(RabbitMessagePublisherAdapter.class);
+              assertThat(context.getBeanProvider(RabbitTemplate.class).getIfAvailable()).isNull();
+              assertThat(context).doesNotHaveBean(MessageConverter.class);
             });
+  }
+
+  @Test
+  void should_leave_application_rabbit_template_untouched_when_outbox_template_built() {
+    RabbitTemplate applicationTemplate = new RabbitTemplate();
+
+    contextRunner
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
+        .withBean("rabbitTemplate", RabbitTemplate.class, () -> applicationTemplate)
+        .run(
+            context -> {
+              assertThat(context.getBean(RabbitTemplate.class)).isSameAs(applicationTemplate);
+              assertThat(applicationTemplate.isMandatoryFor(null)).isFalse();
+            });
+  }
+
+  @Test
+  void should_fail_startup_naming_settings_when_publisher_confirms_disabled() {
+    contextRunner
+        .withBean(ConnectionFactory.class, () -> connectionFactory(false, true))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("spring.rabbitmq.publisher-confirm-type=simple")
+                    .hasMessageContaining("spring.rabbitmq.publisher-returns=true"));
+  }
+
+  @Test
+  void should_fail_startup_naming_settings_when_publisher_returns_disabled() {
+    contextRunner
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, false))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("spring.rabbitmq.publisher-returns=true"));
+  }
+
+  @Test
+  void should_not_create_rabbit_publisher_when_connection_factory_missing() {
+    contextRunner.run(context -> assertThat(context).doesNotHaveBean(MessagePublisherPort.class));
   }
 
   @Test
   void should_not_create_rabbit_publisher_when_publisher_type_is_kafka() {
     contextRunner
         .withPropertyValues("codehunters.outbox.publisher.type=kafka")
-        .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(context -> assertThat(context).doesNotHaveBean(MessagePublisherPort.class));
+  }
+
+  @Test
+  void should_fail_startup_naming_budget_when_type_unset_and_rabbit_claim_budget_exceeded() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.ttl-ms=1000")
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout"));
   }
 
   @Test
@@ -131,16 +192,19 @@ class EventMessagingRabbitAutoConfigurationTest {
                     .isInstanceOf(KafkaMessagePublisherAdapter.class));
   }
 
-  @Test
-  void should_fail_startup_naming_budget_when_type_unset_and_rabbit_claim_budget_exceeded() {
-    contextRunner
-        .withPropertyValues("codehunters.outbox.claim.ttl-ms=1000")
-        .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
-        .run(
-            context ->
-                assertThat(context.getStartupFailure())
-                    .rootCause()
-                    .hasMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout"));
+  private static ConnectionFactory connectionFactory(boolean confirms, boolean returns) {
+    ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
+    when(connectionFactory.isSimplePublisherConfirms()).thenReturn(confirms);
+    when(connectionFactory.isPublisherReturns()).thenReturn(returns);
+    return connectionFactory;
+  }
+
+  @SuppressWarnings("unchecked")
+  private static ProducerFactory<Object, Object> producers() {
+    ProducerFactory<Object, Object> producerFactory = mock(ProducerFactory.class);
+    when(producerFactory.getConfigurationProperties())
+        .thenReturn(Map.of("bootstrap.servers", "localhost:9092"));
+    return producerFactory;
   }
 
   private DataSource createDataSource() {
