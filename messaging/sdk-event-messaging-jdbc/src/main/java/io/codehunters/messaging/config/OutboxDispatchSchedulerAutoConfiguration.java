@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Bean;
 
 /**
  * Spring Boot auto-configuration for the ShedLock-protected outbox dispatch scheduler. Active when
- * {@code outbox.enabled} is {@code true} (the default).
+ * {@code codehunters.outbox.enabled} is {@code true} (the default).
  *
  * <p>Separate from {@link EventMessagingJdbcAutoConfiguration} because it must run after {@link
  * EventMessagingCoreAutoConfiguration}, which creates the {@link SendOutboxMessagesPort} this
@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Bean;
  */
 @AutoConfiguration(after = EventMessagingCoreAutoConfiguration.class)
 @ConditionalOnProperty(
-    prefix = "outbox",
+    prefix = "codehunters.outbox",
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true)

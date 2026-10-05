@@ -5,7 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the event-messaging SDK, bound from the {@code outbox} prefix.
+ * Configuration for the event-messaging SDK, bound from the {@code codehunters.outbox} prefix. The
+ * pre-6.0 {@code outbox.*} keys are still honoured through {@link OutboxLegacyProperties}.
  *
  * @param enabled whether the outbox SDK is active
  * @param batchSize the number of messages dispatched per scheduler tick
@@ -16,7 +17,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param publisher the broker publisher selection
  * @param purge the PUBLISHED-row retention configuration
  */
-@ConfigurationProperties(prefix = "outbox")
+@ConfigurationProperties(prefix = "codehunters.outbox")
 public record EventMessagingProperties(
     @DefaultValue("true") boolean enabled,
     @DefaultValue("50") int batchSize,
@@ -79,6 +80,18 @@ public record EventMessagingProperties(
    *
    * @param retention how long PUBLISHED rows are kept before the purge job deletes them
    * @param batchSize the maximum number of rows deleted per purge statement
+   * @param fixedDelay the fixed delay between purge runs, in milliseconds
+   * @param initialDelay the delay before the first purge run, in milliseconds
+   * @param lockName the ShedLock lock name of the purge job; defaults to the application name
+   * @param lockAtMost the maximum time a node may hold the purge lock (ISO-8601 duration)
+   * @param lockAtLeast the minimum time a node holds the purge lock (ISO-8601 duration)
    */
-  public record Purge(@DefaultValue("7d") Duration retention, @DefaultValue("500") int batchSize) {}
+  public record Purge(
+      @DefaultValue("7d") Duration retention,
+      @DefaultValue("500") int batchSize,
+      @DefaultValue("3600000") String fixedDelay,
+      @DefaultValue("60000") String initialDelay,
+      @DefaultValue("outbox-purge-${spring.application.name:unknown}") String lockName,
+      @DefaultValue("PT10M") String lockAtMost,
+      @DefaultValue("PT30S") String lockAtLeast) {}
 }

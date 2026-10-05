@@ -30,7 +30,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Spring Boot auto-configuration for the JDBC outbox store. Wires the dedicated JSON mapper, the
  * claim dialect, the JDBC outbox repository, the ShedLock provider, the purge scheduler and the
- * FAILED-row gauge. Active when {@code outbox.enabled} is {@code true} (the default).
+ * FAILED-row gauge. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the repository is visible to the
  * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration so the
@@ -45,7 +45,7 @@ import tools.jackson.databind.json.JsonMapper;
       "org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration"
     })
 @ConditionalOnProperty(
-    prefix = "outbox",
+    prefix = "codehunters.outbox",
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true)
@@ -68,9 +68,9 @@ public class EventMessagingJdbcAutoConfiguration {
   }
 
   /**
-   * Resolves the claim dialect from {@code outbox.claim.dialect}. Startup fails when the value is
-   * unknown or {@code auto} meets an unsupported database. Skipped when the application supplies
-   * its own {@link OutboxRepositoryPort}.
+   * Resolves the claim dialect from {@code codehunters.outbox.claim.dialect}. Startup fails when
+   * the value is unknown or {@code auto} meets an unsupported database. Skipped when the
+   * application supplies its own {@link OutboxRepositoryPort}.
    *
    * @param dataSource the outbox data source
    * @param properties the messaging configuration
@@ -109,7 +109,7 @@ public class EventMessagingJdbcAutoConfiguration {
 
   /**
    * Provides the scheduled job that deletes PUBLISHED rows older than {@code
-   * outbox.purge.retention}.
+   * codehunters.outbox.purge.retention}.
    *
    * @param outboxRepositoryPort the outbox repository
    * @param properties the messaging configuration

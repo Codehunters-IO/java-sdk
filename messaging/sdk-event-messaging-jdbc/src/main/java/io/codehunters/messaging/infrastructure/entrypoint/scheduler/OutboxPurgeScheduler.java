@@ -33,12 +33,13 @@ public class OutboxPurgeScheduler {
    * exception class name only and never propagated, so the scheduler keeps running.
    */
   @Scheduled(
-      fixedDelayString = "${outbox.purge.fixed-delay:3600000}",
-      initialDelayString = "${outbox.purge.initial-delay:60000}")
+      fixedDelayString = "${codehunters.outbox.purge.fixed-delay:3600000}",
+      initialDelayString = "${codehunters.outbox.purge.initial-delay:60000}")
   @SchedulerLock(
-      name = "${outbox.purge.lock-name:outbox-purge-${spring.application.name:unknown}}",
-      lockAtMostFor = "${outbox.purge.lock-at-most:PT10M}",
-      lockAtLeastFor = "${outbox.purge.lock-at-least:PT30S}")
+      name =
+          "${codehunters.outbox.purge.lock-name:outbox-purge-${spring.application.name:unknown}}",
+      lockAtMostFor = "${codehunters.outbox.purge.lock-at-most:PT10M}",
+      lockAtLeastFor = "${codehunters.outbox.purge.lock-at-least:PT30S}")
   public void purgePublished() {
     try {
       LocalDateTime cutoff = LocalDateTime.now(settings.clock()).minus(settings.retention());

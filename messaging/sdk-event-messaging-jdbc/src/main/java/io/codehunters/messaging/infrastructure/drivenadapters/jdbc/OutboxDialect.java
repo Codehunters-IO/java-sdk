@@ -14,7 +14,8 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
 public interface OutboxDialect {
 
   /**
-   * Returns the configuration name of this dialect, as accepted by {@code outbox.claim.dialect}.
+   * Returns the configuration name of this dialect, as accepted by {@code
+   * codehunters.outbox.claim.dialect}.
    *
    * @return the dialect name
    */

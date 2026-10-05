@@ -8,13 +8,14 @@ import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.jdbc.support.MetaDataAccessException;
 
 /**
- * Resolves the {@link OutboxDialect} from the {@code outbox.claim.dialect} setting. The value
- * {@code auto} reads the database product name once; an unsupported product fails fast instead of
- * silently falling back to the generic dialect, which cannot claim atomically under concurrency.
+ * Resolves the {@link OutboxDialect} from the {@code codehunters.outbox.claim.dialect} setting. The
+ * value {@code auto} reads the database product name once; an unsupported product fails fast
+ * instead of silently falling back to the generic dialect, which cannot claim atomically under
+ * concurrency.
  */
 public final class OutboxDialectResolver {
 
-  private static final String PROPERTY = "outbox.claim.dialect";
+  private static final String PROPERTY = "codehunters.outbox.claim.dialect";
   private static final String AUTO = "auto";
 
   private OutboxDialectResolver() {}

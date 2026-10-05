@@ -10,6 +10,7 @@ codehuntersPublishing {
 }
 
 dependencies {
+    implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("org.springframework:spring-context")

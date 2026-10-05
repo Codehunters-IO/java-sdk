@@ -19,7 +19,7 @@ import org.springframework.context.annotation.Bean;
 /**
  * Spring Boot auto-configuration for the transport-neutral part of the transactional-outbox SDK.
  * Binds {@link EventMessagingProperties} and wires the UTC clock, the message factories and the
- * dispatch use case. Active when {@code outbox.enabled} is {@code true} (the default).
+ * dispatch use case. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
  *
  * <p>The use case needs an {@link OutboxRepositoryPort} and a {@link MessagePublisherPort}, which
  * come from {@code sdk-event-messaging-jdbc} and a transport artifact ({@code
@@ -33,7 +33,7 @@ import org.springframework.context.annotation.Bean;
       "io.codehunters.messaging.config.EventMessagingKafkaAutoConfiguration"
     })
 @ConditionalOnProperty(
-    prefix = "outbox",
+    prefix = "codehunters.outbox",
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true)

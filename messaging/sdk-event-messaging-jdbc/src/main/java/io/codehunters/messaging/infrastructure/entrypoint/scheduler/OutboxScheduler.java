@@ -24,11 +24,11 @@ public class OutboxScheduler {
   }
 
   /** Triggers one dispatch cycle, swallowing exceptions so the scheduler keeps running. */
-  @Scheduled(fixedDelayString = "${outbox.task.fixed-delay:5000}")
+  @Scheduled(fixedDelayString = "${codehunters.outbox.task.fixed-delay:5000}")
   @SchedulerLock(
-      name = "${outbox.task.lock-name:outbox-${spring.application.name:unknown}}",
-      lockAtMostFor = "${outbox.task.lock-at-most:60000}",
-      lockAtLeastFor = "${outbox.task.lock-at-least:10000}")
+      name = "${codehunters.outbox.task.lock-name:outbox-${spring.application.name:unknown}}",
+      lockAtMostFor = "${codehunters.outbox.task.lock-at-most:60000}",
+      lockAtLeastFor = "${codehunters.outbox.task.lock-at-least:10000}")
   public void processOutboxMessages() {
     try {
       log.debug("[START] - outbox scheduler triggered");
