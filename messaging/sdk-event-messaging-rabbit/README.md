@@ -49,6 +49,9 @@ backoff and ends `FAILED` after `max-attempts`:
 | Channel closed by the broker | For example a missing exchange |
 | `basic.return` | Exchange exists but no queue is bound for the routing key |
 
+The cause is always the publish failure; a failure to clean up the closed channel afterwards is
+attached to it as suppressed, never in its place.
+
 A confirm that arrives after the timeout means the message may be in the broker and is sent again:
 delivery is at-least-once. Consumers must deduplicate on `outbox-message-id` (or `messageId`).
 

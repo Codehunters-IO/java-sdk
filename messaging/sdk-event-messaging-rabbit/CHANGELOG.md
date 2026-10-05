@@ -24,3 +24,6 @@ First release; the RabbitMQ publisher of `sdk-event-messaging` 5.1.5. Migration 
 ### Fixed
 - A nack, a missing exchange or an unroutable message (`basic.return`) was marked `PUBLISHED`; it
   now raises `MessagePublishException` and the row is retried.
+- When the broker had closed the channel, a failure to remove the return listener replaced the
+  publish failure as the cause; the publish failure is kept, with the removal failure suppressed,
+  and a removal failure after a confirmed send no longer fails the send.

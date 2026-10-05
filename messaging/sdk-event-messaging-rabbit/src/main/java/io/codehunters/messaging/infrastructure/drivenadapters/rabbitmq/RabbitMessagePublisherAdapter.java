@@ -105,9 +105,25 @@ public class RabbitMessagePublisherAdapter implements MessagePublisherPort {
     try {
       ops.send(exchange, routingKey, message);
       ops.waitForConfirmsOrDie(confirmTimeout.toMillis());
-      return tracker.isReturned();
-    } finally {
+    } catch (RuntimeException e) {
+      removeListener(channel, tracker, e);
+      throw e;
+    }
+    removeListener(channel, tracker, null);
+    return tracker.isReturned();
+  }
+
+  // A channel closed by the broker can refuse the removal; the listener dies with the channel, so
+  // the failure is attached to the publish failure, if any, and otherwise ignored.
+  private static void removeListener(Channel channel, ReturnTracker tracker, Exception failure) {
+    try {
       channel.removeReturnListener(tracker);
+    } catch (RuntimeException e) {
+      if (failure != null) {
+        failure.addSuppressed(e);
+      } else {
+        log.debug("Return listener not removed: {}", e.getClass().getName());
+      }
     }
   }
 
