@@ -70,7 +70,10 @@ again.
 
 At startup, `claim.ttl-ms` must exceed `batch-size` times the transport timeout
 (`publisher.rabbit.confirm-timeout` or `publisher.kafka.send-timeout`); otherwise a batch still
-being sent could be reclaimed and published twice, and startup fails.
+being sent could be reclaimed and published twice, and startup fails. While scheduling is on, the
+dispatch lock `task.lock-at-most` must also exceed one dispatch run, `claim.ttl-ms / 2` plus the
+transport timeout (155 s with the defaults); otherwise ShedLock frees the lock mid-run and startup
+fails naming the keys. Raise the lock when you raise `claim.ttl-ms`.
 
 ## Metrics
 

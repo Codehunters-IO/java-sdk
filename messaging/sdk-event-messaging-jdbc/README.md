@@ -74,7 +74,7 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 | `scheduling.enabled` | `true` | `false` drops the dispatch and purge schedulers and `@EnableScheduling` / `@EnableSchedulerLock` |
 | `task.fixed-delay` | `5000` | ms between dispatch ticks |
 | `task.lock-name` | `outbox-${spring.application.name}` | ShedLock name |
-| `task.lock-at-most` | `60000` | ms |
+| `task.lock-at-most` | `300000` | ms, ISO-8601 (`PT5M`) or `5m`; must exceed `claim.ttl-ms / 2` + the transport timeout (startup fails otherwise) |
 | `task.lock-at-least` | `10000` | ms |
 | `purge.retention` | `7d` | `PUBLISHED` rows older than this are deleted; > 0 |
 | `purge.batch-size` | `500` | Rows per delete statement; repeated until a batch comes back short |

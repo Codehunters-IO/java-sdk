@@ -30,6 +30,8 @@ First release of the split artifacts; replaces `sdk-event-messaging` 5.1.5. Migr
 - `MessagePublisherPort.publish(OutboxMessage)` (keyed publish) and the shared
   `OUTBOX_ID_HEADER` (`outbox-message-id`) consumers deduplicate on.
 - `publisher.rabbit.confirm-timeout` (default `5s`) and the claim-budget check for both transports.
+- Dispatch-lock check: with scheduling on, `task.lock-at-most` (now `300000` by default) must exceed
+  `claim.ttl-ms / 2` plus the transport timeout, or startup fails naming the keys.
 - Injectable `Clock` for every timestamp the use case writes.
 - `scheduling.enabled` (default `true`), read by `-jdbc` to leave dispatch and purge scheduling to
   the application.

@@ -33,6 +33,7 @@ class OutboxLegacyPropertiesTest {
             "outbox.batch-size", "10",
             "outbox.publisher.type", "kafka",
             "outbox.claim.ttl-ms", "900000",
+            "outbox.task.lock-at-most", "PT10M",
             "outbox.task.fixed-delay", "1000",
             "outbox.purge.retention", "3d"));
 
@@ -42,6 +43,7 @@ class OutboxLegacyPropertiesTest {
     assertThat(properties.publisher().type()).isEqualTo("kafka");
     assertThat(properties.claim().ttlMs()).isEqualTo(900_000L);
     assertThat(properties.task().fixedDelay()).isEqualTo("1000");
+    assertThat(properties.task().lockAtMost()).isEqualTo("PT10M");
     assertThat(properties.purge().retention()).isEqualTo(Duration.ofDays(3));
   }
 

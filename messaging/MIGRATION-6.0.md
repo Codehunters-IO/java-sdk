@@ -54,6 +54,7 @@ Changed behaviour:
 | `publisher.type` default `rabbit` | No default; the transport artifact decides (below) |
 | Out-of-range values accepted | Startup fails naming the key (sizes and attempts ≥ 1, positive durations) |
 | No claim budget check | Startup fails unless `claim.ttl-ms > batch-size x` the transport timeout |
+| `task.lock-at-most` default `60000`, shorter than a dispatch run | `300000`; startup fails unless it exceeds `claim.ttl-ms / 2` + the transport timeout. A 5.x value of `60000` must be raised or removed |
 | — | New: `publisher.rabbit.confirm-timeout` (default `5s`) |
 | Scheduling always on with the outbox | New: `scheduling.enabled` (default `true`); `false` drops the dispatch and purge schedulers and `@EnableScheduling` |
 

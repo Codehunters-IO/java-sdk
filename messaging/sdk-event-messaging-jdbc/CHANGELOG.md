@@ -12,6 +12,9 @@ First release; the JDBC store, schedulers and DDL of `sdk-event-messaging` 5.1.5
 - The claim orders by a `seq` column and blocks a row while an earlier row with the same
   `(origin, topic, message_key)` is `PENDING`, `IN_FLIGHT` or `FAILED`. SQL Server tables created
   before 6.0 need `sqlserver/outbox_message_add_seq.sql` **before** the deploy.
+- `task.lock-at-most` defaults to `300000` (was `60000`): the 5.x lock was shorter than a dispatch
+  run (`claim.ttl-ms / 2` + one transport timeout, 155 s by default), so ShedLock could free it
+  while a run was still publishing. A shorter configured value now fails startup.
 - `claim.dialect=auto` fails startup on databases other than PostgreSQL, SQL Server and H2 instead
   of falling back to a non-atomic claim.
 
