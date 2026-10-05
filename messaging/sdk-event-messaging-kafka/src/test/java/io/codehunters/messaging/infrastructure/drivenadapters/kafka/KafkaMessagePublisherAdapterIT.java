@@ -2,6 +2,7 @@ package io.codehunters.messaging.infrastructure.drivenadapters.kafka;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -78,7 +79,7 @@ class KafkaMessagePublisherAdapterIT {
 
   private static String idHeader(ConsumerRecord<String, String> record) {
     byte[] value =
-        record.headers().lastHeader(KafkaMessagePublisherAdapter.OUTBOX_ID_HEADER).value();
+        record.headers().lastHeader(MessagePublisherPort.OUTBOX_ID_HEADER).value();
     return new String(value, StandardCharsets.UTF_8);
   }
 

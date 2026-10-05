@@ -22,6 +22,11 @@ class MessagePublisherPortTest {
   }
 
   @Test
+  void should_expose_outbox_id_header_name_when_adapters_tag_messages() {
+    assertThat(MessagePublisherPort.OUTBOX_ID_HEADER).isEqualTo("outbox-message-id");
+  }
+
+  @Test
   void should_delegate_to_routing_key_overload_when_routing_key_present() {
     publisher.publish(message("user.created"));
 

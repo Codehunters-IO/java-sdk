@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.application.port.MessagePublishException;
+import io.codehunters.messaging.application.port.MessagePublisherPort;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -57,7 +58,7 @@ class KafkaMessagePublisherAdapterTest {
     assertThat(record.topic()).isEqualTo(TOPIC);
     assertThat(record.key()).isEqualTo(KEY);
     assertThat(record.value()).isEqualTo(PAYLOAD);
-    assertThat(header(record, "outbox-message-id")).isEqualTo(ID.toString());
+    assertThat(header(record, MessagePublisherPort.OUTBOX_ID_HEADER)).isEqualTo(ID.toString());
     assertThat(header(record, "content-type")).isEqualTo("application/json");
   }
 
