@@ -6,6 +6,8 @@ on:
       - 'feature/**'
       - 'bugfix/**'
       - 'hotfix/**'
+      - 'chore/**'
+      - 'docs/**'
   pull_request:
     branches:
       - develop
@@ -31,7 +33,7 @@ jobs:
           java-version: '21'
 
       - name: Build, test, coverage, format check
-        run: ./gradlew build --scan
+        run: ./gradlew build
 
       - name: SonarCloud scan
         if: ${{ env.SONAR_TOKEN != '' }}
