@@ -133,6 +133,26 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
+  void should_bind_dispatch_lock_longer_than_default_dispatch_run_when_nothing_configured() {
+    contextRunner.run(
+        context ->
+            assertThat(context.getBean(EventMessagingProperties.class).task().lockAtMost())
+                .isEqualTo("300000"));
+  }
+
+  @Test
+  void should_fail_startup_naming_lock_key_when_lock_at_most_shorter_than_dispatch_run() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.publisher.type=kafka", "codehunters.outbox.task.lock-at-most=60s")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.task.lock-at-most"));
+  }
+
+  @Test
   void should_bind_scheduling_enabled_when_nothing_configured() {
     contextRunner.run(
         context ->

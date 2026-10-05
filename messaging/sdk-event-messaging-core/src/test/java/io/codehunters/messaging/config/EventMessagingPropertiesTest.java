@@ -22,8 +22,9 @@ class EventMessagingPropertiesTest {
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(5);
   private static final long TTL_BELOW_BUDGET_MS = 250_000L;
-  private static final Task TASK = new Task("5000", "60000", "10000", "outbox-app");
+  private static final Task TASK = new Task("5000", "300000", "10000", "outbox-app");
   private static final Scheduling SCHEDULING = new Scheduling(true);
+  private static final String LOCK_KEY = "codehunters.outbox.task.lock-at-most";
   private static final Backoff BACKOFF = new Backoff(30_000L, 3_600_000L);
   private static final Purge PURGE =
       new Purge(Duration.ofDays(7), 500, "3600000", "60000", "purge", "PT10M", "PT30S");
@@ -242,6 +243,73 @@ class EventMessagingPropertiesTest {
     properties.requireClaimBudget("kafka");
 
     assertThat(properties.claim().ttlMs()).isEqualTo(CLAIM_TTL_MS);
+  }
+
+  @Test
+  void should_reject_lock_at_most_naming_keys_when_shorter_than_dispatch_run() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> scheduled(lockAtMost("60000"), SCHEDULING, kafka()))
+        .withMessageContaining(LOCK_KEY)
+        .withMessageContaining("codehunters.outbox.claim.ttl-ms")
+        .withMessageContaining("codehunters.outbox.publisher.kafka.send-timeout");
+  }
+
+  @Test
+  void should_accept_lock_at_most_when_iso_duration_exceeds_dispatch_run() {
+    EventMessagingProperties properties = scheduled(lockAtMost("PT3M"), SCHEDULING, rabbit());
+
+    assertThat(properties.task().lockAtMost()).isEqualTo("PT3M");
+  }
+
+  @Test
+  void should_accept_lock_at_most_when_simple_duration_exceeds_dispatch_run() {
+    EventMessagingProperties properties = scheduled(lockAtMost("4m"), SCHEDULING, kafka());
+
+    assertThat(properties.task().lockAtMost()).isEqualTo("4m");
+  }
+
+  @Test
+  void should_skip_lock_check_when_scheduling_disabled() {
+    EventMessagingProperties properties =
+        scheduled(lockAtMost("60000"), new Scheduling(false), kafka());
+
+    assertThat(properties.scheduling().enabled()).isFalse();
+  }
+
+  @Test
+  void should_reject_lock_at_most_naming_key_when_not_a_duration() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> scheduled(lockAtMost("soon"), SCHEDULING, kafka()))
+        .withMessageContaining(LOCK_KEY);
+  }
+
+  @Test
+  void should_reject_lock_at_most_when_budget_of_resolved_transport_exceeds_it() {
+    EventMessagingProperties properties =
+        scheduled(lockAtMost("60000"), SCHEDULING, publisher(null));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> properties.requireClaimBudget("rabbit"))
+        .withMessageContaining(LOCK_KEY)
+        .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
+  }
+
+  private static EventMessagingProperties scheduled(
+      Task task, Scheduling scheduling, Publisher publisher) {
+    return new EventMessagingProperties(
+        true,
+        BATCH_SIZE,
+        MAX_ATTEMPTS,
+        task,
+        claim(CLAIM_TTL_MS),
+        BACKOFF,
+        publisher,
+        PURGE,
+        scheduling);
+  }
+
+  private static Task lockAtMost(String lockAtMost) {
+    return new Task("5000", lockAtMost, "10000", "outbox-app");
   }
 
   private static EventMessagingProperties properties(

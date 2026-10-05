@@ -21,7 +21,7 @@ class SchedulerPlaceholdersTest {
     assertThat(lock.name())
         .isEqualTo(
             "${codehunters.outbox.task.lock-name:outbox-${spring.application.name:unknown}}");
-    assertThat(lock.lockAtMostFor()).isEqualTo("${codehunters.outbox.task.lock-at-most:60000}");
+    assertThat(lock.lockAtMostFor()).isEqualTo("${codehunters.outbox.task.lock-at-most:300000}");
     assertThat(lock.lockAtLeastFor()).isEqualTo("${codehunters.outbox.task.lock-at-least:10000}");
   }
 
