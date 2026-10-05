@@ -8,6 +8,11 @@ Migrated from the standalone `vitxo-sdk-*` repositories (org `SOLDIFE`, group `c
 
 ## Modules
 
+Modules that belong to one family live in a grouped directory (`messaging/`, `security/`,
+`platform/`); the rest sit at the root. Directories don't change project or artifact names: every
+artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and versions in
+`gradle/libs.versions.toml`.
+
 | Module | Package | Status |
 |---|---|---|
 | `sdk-utils` | `io.codehunters.totp` | pending |

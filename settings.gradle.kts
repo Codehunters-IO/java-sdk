@@ -20,3 +20,8 @@ include("sdk-user-security")
 include("sdk-file-share")
 include("sdk-event-messaging")
 include("sdk-bom")
+
+// Module families live in grouped directories; project and artifact names stay `sdk-*`.
+project(":sdk-event-messaging").projectDir = file("messaging/sdk-event-messaging")
+project(":sdk-user-security").projectDir = file("security/sdk-user-security")
+project(":sdk-bom").projectDir = file("platform/sdk-bom")
