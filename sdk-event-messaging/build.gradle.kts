@@ -16,6 +16,7 @@ dependencies {
     annotationProcessor("org.projectlombok:lombok:${property("lombok.version")}")
 
     testImplementation("org.springframework:spring-test")
+    testImplementation("org.springframework.boot:spring-boot-jackson")
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.springframework:spring-tx")
     testImplementation("org.springframework.amqp:spring-rabbit")
