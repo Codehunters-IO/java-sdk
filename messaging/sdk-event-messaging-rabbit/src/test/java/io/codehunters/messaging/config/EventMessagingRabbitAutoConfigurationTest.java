@@ -88,6 +88,30 @@ class EventMessagingRabbitAutoConfigurationTest {
   }
 
   @Test
+  void should_build_outbox_template_when_connection_factory_uses_correlated_confirms() {
+    contextRunner
+        .withBean(ConnectionFactory.class, EventMessagingRabbitAutoConfigurationTest::correlated)
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasBean("outboxRabbitTemplate");
+            });
+  }
+
+  @Test
+  void should_publish_on_publisher_connection_when_outbox_template_built() {
+    contextRunner
+        .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean("outboxRabbitTemplate", RabbitTemplate.class)
+                            .isUsePublisherConnection())
+                    .isTrue());
+  }
+
+  @Test
   void should_keep_outbox_template_out_of_type_injection_when_application_has_none() {
     contextRunner
         .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
@@ -125,6 +149,7 @@ class EventMessagingRabbitAutoConfigurationTest {
                 assertThat(context.getStartupFailure())
                     .rootCause()
                     .hasMessageContaining("spring.rabbitmq.publisher-confirm-type=simple")
+                    .hasMessageContaining("correlated")
                     .hasMessageContaining("spring.rabbitmq.publisher-returns=true"));
   }
 
@@ -199,6 +224,12 @@ class EventMessagingRabbitAutoConfigurationTest {
     ConnectionFactory connectionFactory = mock(ConnectionFactory.class);
     when(connectionFactory.isSimplePublisherConfirms()).thenReturn(confirms);
     when(connectionFactory.isPublisherReturns()).thenReturn(returns);
+    return connectionFactory;
+  }
+
+  private static ConnectionFactory correlated() {
+    ConnectionFactory connectionFactory = connectionFactory(false, true);
+    when(connectionFactory.isPublisherConfirms()).thenReturn(true);
     return connectionFactory;
   }
 

@@ -117,6 +117,28 @@ class RabbitMessagePublisherAdapterIT {
   }
 
   @Test
+  void should_deliver_message_when_connection_factory_uses_correlated_confirms() {
+    UUID id = UUID.randomUUID();
+
+    withPublisher(
+        ConfirmType.CORRELATED, publisher -> publisher.publish(message(BOUND_EXCHANGE, id)));
+
+    Message received =
+        new RabbitTemplate(consumerConnectionFactory).receive(QUEUE, RECEIVE_TIMEOUT_MS);
+    assertThat(received.getMessageProperties().getMessageId()).isEqualTo(id.toString());
+  }
+
+  @Test
+  void should_throw_publish_exception_when_correlated_confirms_and_no_binding_for_message() {
+    withPublisher(
+        ConfirmType.CORRELATED,
+        publisher ->
+            assertThatThrownBy(
+                    () -> publisher.publish(message(UNBOUND_EXCHANGE, UUID.randomUUID())))
+                .isInstanceOf(MessagePublishException.class));
+  }
+
+  @Test
   void should_fail_startup_when_connection_factory_lacks_confirms_and_returns() {
     contextRunner
         .withBean(ConnectionFactory.class, () -> connectionFactory(ConfirmType.NONE, false))
@@ -129,8 +151,12 @@ class RabbitMessagePublisherAdapterIT {
   }
 
   private void withPublisher(Consumer<MessagePublisherPort> action) {
+    withPublisher(ConfirmType.SIMPLE, action);
+  }
+
+  private void withPublisher(ConfirmType confirmType, Consumer<MessagePublisherPort> action) {
     contextRunner
-        .withBean(ConnectionFactory.class, () -> connectionFactory(ConfirmType.SIMPLE, true))
+        .withBean(ConnectionFactory.class, () -> connectionFactory(confirmType, true))
         .run(context -> action.accept(context.getBean(MessagePublisherPort.class)));
   }
 
