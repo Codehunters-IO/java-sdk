@@ -1,3 +1,7 @@
+plugins {
+    id("codehunters.java-library")
+}
+
 version = "0.2.2"
 description = "X-Locale request resolution, MessageSource and localized validation messages."
 

@@ -1,3 +1,7 @@
+plugins {
+    id("codehunters.java-library")
+}
+
 version = "5.1.5"
 description = "Transactional outbox with claim-based dispatch to RabbitMQ or Kafka."
 
@@ -10,11 +14,11 @@ dependencies {
     compileOnly("org.springframework.kafka:spring-kafka")
     compileOnly("org.springframework:spring-context")
     compileOnly("io.micrometer:micrometer-core")
-    implementation("net.javacrumbs.shedlock:shedlock-spring:${property("shedlock.version")}")
-    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:${property("shedlock.version")}")
+    implementation(libs.shedlock.spring)
+    implementation(libs.shedlock.provider.jdbc.template)
     compileOnly("tools.jackson.core:jackson-databind")
-    compileOnly("org.projectlombok:lombok:${property("lombok.version")}")
-    annotationProcessor("org.projectlombok:lombok:${property("lombok.version")}")
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-jackson")

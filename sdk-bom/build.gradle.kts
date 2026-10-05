@@ -1,5 +1,6 @@
 plugins {
     `java-platform`
+    id("codehunters.publishing")
 }
 
 version = "1.0.0-SNAPSHOT"

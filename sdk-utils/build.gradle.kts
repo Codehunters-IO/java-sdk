@@ -1,3 +1,7 @@
+plugins {
+    id("codehunters.java-library")
+}
+
 version = "1.0.4"
 description = "RFC 6238 TOTP generation and verification."
 

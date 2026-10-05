@@ -1,3 +1,7 @@
+plugins {
+    id("codehunters.java-library")
+}
+
 version = "1.2.1"
 description = "Typed read access to the shared parameters table over JDBC."
 
@@ -7,8 +11,8 @@ dependencies {
     compileOnly("org.springframework:spring-jdbc")
     compileOnly("org.springframework:spring-context")
     compileOnly("org.springframework.boot:spring-boot-starter-jdbc")
-    compileOnly("org.projectlombok:lombok:${property("lombok.version")}")
-    annotationProcessor("org.projectlombok:lombok:${property("lombok.version")}")
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-starter-jdbc")

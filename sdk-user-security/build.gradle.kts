@@ -1,3 +1,7 @@
+plugins {
+    id("codehunters.java-library")
+}
+
 version = "2.6.0"
 description = "Keycloak-backed request authentication and optional policy enforcement."
 
@@ -14,7 +18,7 @@ dependencies {
     implementation("org.springframework.security:spring-security-config")
     implementation("org.springframework.security:spring-security-web")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
-    implementation("org.keycloak:keycloak-authz-client:${property("keycloak.version")}")
+    implementation(libs.keycloak.authz.client)
     implementation("tools.jackson.core:jackson-databind")
     implementation("org.aspectj:aspectjrt")
     runtimeOnly("org.aspectj:aspectjweaver")

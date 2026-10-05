@@ -1,11 +1,8 @@
 pluginManagement {
+    includeBuild("build-logic")
     repositories {
         gradlePluginPortal()
         mavenCentral()
-    }
-    plugins {
-        id("com.diffplug.spotless") version providers.gradleProperty("spotless.plugin.version").get()
-        id("org.sonarqube") version providers.gradleProperty("sonarqube.plugin.version").get()
     }
 }
 
