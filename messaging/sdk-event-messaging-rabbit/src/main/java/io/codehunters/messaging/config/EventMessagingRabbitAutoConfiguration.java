@@ -24,9 +24,9 @@ import org.springframework.context.annotation.Bean;
  * <p>The publisher sends through its own {@code outboxRabbitTemplate}, built from the application's
  * {@link ConnectionFactory} and kept out of by-type injection, so the application's {@link
  * RabbitTemplate}, message converter and listeners are never touched. That factory MUST enable
- * simple publisher confirms and returns ({@code spring.rabbitmq.publisher-confirm-type=simple},
- * {@code spring.rabbitmq.publisher-returns=true}); otherwise startup fails. Trace propagation is
- * left to {@code sdk-tracing}, which instruments every {@link RabbitTemplate} bean.
+ * publisher confirms and returns ({@code spring.rabbitmq.publisher-confirm-type=simple} or {@code
+ * correlated}, {@code spring.rabbitmq.publisher-returns=true}); otherwise startup fails. Trace
+ * propagation is left to {@code sdk-tracing}, which instruments every {@link RabbitTemplate} bean.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
@@ -48,7 +48,7 @@ public class EventMessagingRabbitAutoConfiguration {
   private static final String OUTBOX_TEMPLATE = "outboxRabbitTemplate";
   private static final String CONFIRMS_REQUIRED =
       "The outbox RabbitMQ publisher needs publisher confirms and returns on the connection"
-          + " factory: set spring.rabbitmq.publisher-confirm-type=simple and"
+          + " factory: set spring.rabbitmq.publisher-confirm-type=simple (or correlated) and"
           + " spring.rabbitmq.publisher-returns=true";
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
@@ -56,22 +56,25 @@ public class EventMessagingRabbitAutoConfiguration {
 
   /**
    * Provides the outbox's own {@link RabbitTemplate}: {@code mandatory=true}, so an unroutable
-   * message comes back as {@code basic.return}, with a returns callback that logs it. It is not a
+   * message comes back as {@code basic.return}, with a returns callback that logs it, publishing on
+   * the factory's publisher connection when it has one (a {@code CachingConnectionFactory} does),
+   * so a broker that blocks publishers never blocks the application's consumers. It is not a
    * default candidate, so it never replaces the application's template.
    *
-   * @param connectionFactory the application's connection factory, with simple publisher confirms
-   *     and returns enabled
+   * @param connectionFactory the application's connection factory, with simple or correlated
+   *     publisher confirms and returns enabled
    * @return the outbox template
    * @throws IllegalStateException when the connection factory lacks confirms or returns
    */
   @Bean(name = OUTBOX_TEMPLATE, defaultCandidate = false)
   @ConditionalOnMissingBean(name = OUTBOX_TEMPLATE)
   public RabbitTemplate outboxRabbitTemplate(ConnectionFactory connectionFactory) {
-    if (!connectionFactory.isSimplePublisherConfirms() || !connectionFactory.isPublisherReturns()) {
+    if (!hasConfirms(connectionFactory) || !connectionFactory.isPublisherReturns()) {
       throw new IllegalStateException(CONFIRMS_REQUIRED);
     }
     RabbitTemplate template = new RabbitTemplate(connectionFactory);
     template.setMandatory(true);
+    template.setUsePublisherConnection(true);
     template.setReturnsCallback(EventMessagingRabbitAutoConfiguration::logReturned);
     return template;
   }
@@ -91,6 +94,11 @@ public class EventMessagingRabbitAutoConfiguration {
     properties.requireClaimBudget("rabbit");
     return new RabbitMessagePublisherAdapter(
         outboxRabbitTemplate, properties.publisher().rabbit().confirmTimeout());
+  }
+
+  // waitForConfirmsOrDie works on any channel in confirm mode, simple or correlated.
+  private static boolean hasConfirms(ConnectionFactory connectionFactory) {
+    return connectionFactory.isSimplePublisherConfirms() || connectionFactory.isPublisherConfirms();
   }
 
   private static void logReturned(ReturnedMessage returned) {

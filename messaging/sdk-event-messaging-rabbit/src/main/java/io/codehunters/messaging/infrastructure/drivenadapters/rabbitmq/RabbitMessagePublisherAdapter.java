@@ -21,7 +21,7 @@ import org.springframework.amqp.rabbit.core.RabbitOperations;
  *
  * <p>Each send runs on a dedicated channel ({@link RabbitOperations#invoke}) and blocks for the
  * broker confirm for at most {@code confirmTimeout}. The template must publish with {@code
- * mandatory=true} on a connection factory with simple publisher confirms and returns. A nack, a
+ * mandatory=true} on a connection factory with simple or correlated publisher confirms and returns. A nack, a
  * confirm timeout, a closed channel (for example a missing exchange) or a {@code basic.return} (no
  * queue bound for the routing key) surfaces as {@link MessagePublishException}, whose message never
  * carries broker text, so the dispatcher retries the row.

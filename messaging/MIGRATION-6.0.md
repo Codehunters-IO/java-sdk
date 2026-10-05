@@ -78,9 +78,13 @@ The outbox publishes through its own `outboxRabbitTemplate`, built from the appl
 ```yaml
 spring:
   rabbitmq:
-    publisher-confirm-type: simple
+    publisher-confirm-type: simple # or correlated
     publisher-returns: true
 ```
+
+Both `simple` and `correlated` confirms are accepted. The outbox template publishes on the factory's
+publisher connection (`usePublisherConnection=true`), separate from the consumers' connection with
+Boot's `CachingConnectionFactory`; count one more connection per instance against broker limits.
 
 The SDK no longer defines a global `RabbitTemplate` or `JacksonJsonMessageConverter`. An
 application that injected them must declare its own. Trace propagation on published messages is

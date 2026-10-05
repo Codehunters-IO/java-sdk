@@ -19,17 +19,21 @@ alone, or `codehunters.outbox.publisher.type=rabbit`).
 ```yaml
 spring:
   rabbitmq:
-    publisher-confirm-type: simple
+    publisher-confirm-type: simple # or correlated
     publisher-returns: true
 ```
 
-Without both, startup fails with a message naming them.
+Without confirms (`simple` or `correlated`) and returns, startup fails with a message naming them.
+Either confirm type works: the publisher waits on the channel with `waitForConfirmsOrDie`, which
+needs only confirm mode. `correlated` lets the application keep its own `ConfirmCallback` on its
+template; the outbox template sets none.
 
 ## How it publishes
 
 | Aspect | Behaviour |
 |---|---|
 | Template | Its own `outboxRabbitTemplate` (`mandatory=true`), built from the application's `ConnectionFactory`. Not a default candidate: the application's `RabbitTemplate`, converter and listeners are untouched |
+| Connection | `usePublisherConnection=true`: with Boot's `CachingConnectionFactory` the outbox publishes on its separate publisher connection, which inherits the confirm and returns settings, so a broker that blocks publishers (memory or disk alarm) does not stall the application's consumers. A factory without a publisher connection falls back to its main one |
 | Destination | Exchange = outbox `topic`; routing key = outbox `routingKey`, empty when unset |
 | Message | Persistent, `application/json`, UTF-8; the payload is sent as stored, no converter |
 | Dedupe id | AMQP `messageId` and header `outbox-message-id` = outbox row id |
