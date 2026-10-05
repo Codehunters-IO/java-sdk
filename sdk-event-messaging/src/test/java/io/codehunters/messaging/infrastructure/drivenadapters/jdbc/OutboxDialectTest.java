@@ -45,7 +45,10 @@ class OutboxDialectTest {
     String sql = sqlServer.claimSql();
 
     assertThat(sql.split("WITH \\(UPDLOCK, READPAST, ROWLOCK\\)", -1)).hasSize(2);
-    assertThat(sql).contains("OUTPUT inserted.").contains("TOP (:limit)").contains("ORDER BY o.seq");
+    assertThat(sql)
+        .contains("OUTPUT inserted.")
+        .contains("TOP (:limit)")
+        .contains("ORDER BY o.seq");
   }
 
   @Test
