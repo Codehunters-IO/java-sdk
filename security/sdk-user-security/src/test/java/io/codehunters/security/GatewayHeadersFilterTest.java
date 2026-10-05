@@ -120,7 +120,14 @@ class GatewayHeadersFilterTest {
     assertThat(authentication.getPrincipal())
         .isEqualTo(
             new KeycloakPrincipal(
-                "user-1", "alice", "CO", "Bogota", "4.71", "-74.07", "10.0.0.1", "test-agent",
+                "user-1",
+                "alice",
+                "CO",
+                "Bogota",
+                "4.71",
+                "-74.07",
+                "10.0.0.1",
+                "test-agent",
                 "sid-1"));
     assertThat(authentication.getAuthorities())
         .extracting(Object::toString)

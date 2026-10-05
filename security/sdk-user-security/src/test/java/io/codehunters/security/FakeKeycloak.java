@@ -119,7 +119,8 @@ final class FakeKeycloak implements AutoCloseable {
   private static String sign(RSAKey key, JWTClaimsSet claims) {
     try {
       var jwt =
-          new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
+          new SignedJWT(
+              new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.getKeyID()).build(), claims);
       jwt.sign(new RSASSASigner(key));
       return jwt.serialize();
     } catch (JOSEException e) {

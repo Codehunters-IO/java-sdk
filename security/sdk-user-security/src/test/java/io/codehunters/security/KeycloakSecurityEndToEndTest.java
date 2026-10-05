@@ -69,8 +69,7 @@ class KeycloakSecurityEndToEndTest {
   @Test
   void should_reject_expired_token() {
     String expired =
-        keycloak.token(
-            claims -> claims.expirationTime(Date.from(Instant.now().minusSeconds(600))));
+        keycloak.token(claims -> claims.expirationTime(Date.from(Instant.now().minusSeconds(600))));
 
     expect(bearer(get("/api/me"), expired), status().isUnauthorized());
   }

@@ -80,10 +80,12 @@ class KeycloakSecurityPropertiesTest {
 
   @Test
   void should_not_require_client_credentials_when_introspection_disabled() {
-    Map<String, String> source = new HashMap<>(Map.of(
-        "codehunters.security.url", "https://kc.example.com",
-        "codehunters.security.realm", "acme",
-        "codehunters.security.introspection.enabled", "false"));
+    Map<String, String> source =
+        new HashMap<>(
+            Map.of(
+                "codehunters.security.url", "https://kc.example.com",
+                "codehunters.security.realm", "acme",
+                "codehunters.security.introspection.enabled", "false"));
 
     assertThat(bind(source).introspection().enabled()).isFalse();
   }

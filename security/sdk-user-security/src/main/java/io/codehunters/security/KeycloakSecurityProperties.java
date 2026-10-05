@@ -1,316 +1,149 @@
 package io.codehunters.security;
 
-import java.util.ArrayList;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the user-security SDK, bound from the {@code keycloak.security} prefix. Covers
- * both the gateway-trust filter (public/excluded paths, CORS) and per-request Keycloak session
- * validation via RFC 7662 token introspection.
+ * Configuration of the user-security SDK, bound from {@code codehunters.security}. Access tokens
+ * are verified locally against the realm's published keys; token introspection additionally rejects
+ * tokens whose Keycloak session was revoked.
  *
- * <p>Session validation rejects requests whose access token belongs to a revoked Keycloak session
- * even though the JWT itself has not yet expired — closing the single-active-session gap left by
- * stateless JWT validation at the edge. Validation is mandatory by policy.
+ * @param enabled whether the SDK configures request security at all
+ * @param url Keycloak base URL, e.g. {@code https://kc.example.com}
+ * @param realm realm that issues the access tokens
+ * @param audiences accepted {@code aud} values; empty accepts any audience
+ * @param roleClients clients whose {@code resource_access} roles become authorities, in addition to
+ *     the realm roles
+ * @param publicPaths path patterns open to anonymous callers; a bearer token, when sent, must still
+ *     be valid
+ * @param excludedPaths path patterns that bypass request security entirely
+ * @param cors CORS configuration
+ * @param introspection per-request session validation
  */
-@ConfigurationProperties(prefix = "keycloak.security")
-public class KeycloakSecurityProperties {
+@ConfigurationProperties("codehunters.security")
+public record KeycloakSecurityProperties(
+    @DefaultValue("true") boolean enabled,
+    String url,
+    String realm,
+    @DefaultValue List<String> audiences,
+    @DefaultValue List<String> roleClients,
+    @DefaultValue List<String> publicPaths,
+    @DefaultValue List<String> excludedPaths,
+    @DefaultValue Cors cors,
+    @DefaultValue Introspection introspection) {
 
-  private List<String> publicPaths = new ArrayList<>();
-  private List<String> excludedPaths = new ArrayList<>();
-  private Cors cors = new Cors();
+  private static final String PREFIX = "codehunters.security.";
 
-  private String url;
-  private String realm;
-  private String clientId;
-  private String clientSecret;
-  private long cacheTtlSeconds = 30;
-  private boolean failOpen = true;
-
-  /** Creates the properties with default values. */
-  public KeycloakSecurityProperties() {}
-
-  /**
-   * Paths exposed to anonymous callers.
-   *
-   * @return the public path patterns
-   */
-  public List<String> getPublicPaths() {
-    return publicPaths;
+  /** Validates the realm coordinates and freezes the collections. */
+  public KeycloakSecurityProperties {
+    require(
+        url != null && url.matches("(?i)https?://\\S+"),
+        PREFIX + "url must be an absolute http(s) URL");
+    require(realm != null && !realm.isBlank(), PREFIX + "realm is required");
+    audiences = List.copyOf(audiences);
+    roleClients = List.copyOf(roleClients);
+    publicPaths = List.copyOf(publicPaths);
+    excludedPaths = List.copyOf(excludedPaths);
   }
 
   /**
-   * Sets the public path patterns.
+   * Expected {@code iss} claim of the realm's tokens.
    *
-   * @param publicPaths the patterns
+   * @return the issuer URI
    */
-  public void setPublicPaths(List<String> publicPaths) {
-    this.publicPaths = publicPaths;
+  public String issuer() {
+    return url.replaceAll("/+$", "") + "/realms/" + realm;
   }
 
   /**
-   * Paths for which the security filter is skipped entirely.
+   * Endpoint publishing the realm's signing keys.
    *
-   * @return the excluded path patterns
+   * @return the JWK set URI
    */
-  public List<String> getExcludedPaths() {
-    return excludedPaths;
+  public String jwkSetUri() {
+    return issuer() + "/protocol/openid-connect/certs";
   }
 
   /**
-   * Sets the excluded path patterns.
+   * RFC 7662 token introspection endpoint of the realm.
    *
-   * @param excludedPaths the patterns
+   * @return the introspection URI
    */
-  public void setExcludedPaths(List<String> excludedPaths) {
-    this.excludedPaths = excludedPaths;
+  public String introspectionUri() {
+    return issuer() + "/protocol/openid-connect/token/introspect";
+  }
+
+  private static void require(boolean condition, String message) {
+    if (!condition) {
+      throw new IllegalArgumentException(message);
+    }
   }
 
   /**
-   * CORS configuration.
+   * CORS configuration applied to every path.
    *
-   * @return the CORS configuration
+   * @param allowedOrigins origins allowed to call the service
+   * @param allowedMethods HTTP methods allowed on cross-origin requests
+   * @param allowedHeaders request headers allowed on cross-origin requests
+   * @param allowCredentials whether credentials are allowed on cross-origin requests
+   * @param maxAge preflight cache age, in seconds
    */
-  public Cors getCors() {
-    return cors;
-  }
+  public record Cors(
+      @DefaultValue List<String> allowedOrigins,
+      @DefaultValue({"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"})
+          List<String> allowedMethods,
+      @DefaultValue("*") List<String> allowedHeaders,
+      boolean allowCredentials,
+      @DefaultValue("3600") long maxAge) {}
 
   /**
-   * Sets the CORS configuration.
+   * Per-request session validation through Keycloak token introspection.
    *
-   * @param cors the CORS configuration
+   * @param enabled whether tokens are checked against their Keycloak session
+   * @param clientId confidential client that authenticates the introspection call
+   * @param clientSecret secret of that client
+   * @param cacheTtl how long a result is reused; also the worst-case revocation latency
+   * @param cacheMaxEntries upper bound of cached results
+   * @param failOpen whether to accept a verified token when Keycloak cannot be reached
+   * @param connectTimeout connect timeout of the introspection call
+   * @param readTimeout read timeout of the introspection call
    */
-  public void setCors(Cors cors) {
-    this.cors = cors;
-  }
+  public record Introspection(
+      @DefaultValue("true") boolean enabled,
+      String clientId,
+      String clientSecret,
+      @DefaultValue("30s") Duration cacheTtl,
+      @DefaultValue("10000") int cacheMaxEntries,
+      boolean failOpen,
+      @DefaultValue("2s") Duration connectTimeout,
+      @DefaultValue("3s") Duration readTimeout) {
 
-  /**
-   * Keycloak base URL, e.g. {@code https://kc} (env {@code KEYCLOAK_URL}).
-   *
-   * @return the Keycloak base URL
-   */
-  public String getUrl() {
-    return url;
-  }
+    private static final String PREFIX = "codehunters.security.introspection.";
 
-  /**
-   * Sets the Keycloak base URL.
-   *
-   * @param url the base URL
-   */
-  public void setUrl(String url) {
-    this.url = url;
-  }
-
-  /**
-   * Keycloak realm that issued the tokens (env {@code KEYCLOAK_REALM}).
-   *
-   * @return the realm
-   */
-  public String getRealm() {
-    return realm;
-  }
-
-  /**
-   * Sets the realm.
-   *
-   * @param realm the realm
-   */
-  public void setRealm(String realm) {
-    this.realm = realm;
-  }
-
-  /**
-   * Confidential client id (realm client) used to authenticate the introspection call (env {@code
-   * KEYCLOAK_CLIENT_ID}).
-   *
-   * @return the client id
-   */
-  public String getClientId() {
-    return clientId;
-  }
-
-  /**
-   * Sets the introspection client id.
-   *
-   * @param clientId the client id
-   */
-  public void setClientId(String clientId) {
-    this.clientId = clientId;
-  }
-
-  /**
-   * Confidential client secret used to authenticate the introspection call (env {@code
-   * KEYCLOAK_CLIENT_SECRET}).
-   *
-   * @return the client secret
-   */
-  public String getClientSecret() {
-    return clientSecret;
-  }
-
-  /**
-   * Sets the introspection client secret.
-   *
-   * @param clientSecret the client secret
-   */
-  public void setClientSecret(String clientSecret) {
-    this.clientSecret = clientSecret;
-  }
-
-  /**
-   * How long an introspection result is cached, in seconds. Bounds Keycloak load and caps
-   * invalidation latency to this value.
-   *
-   * @return the cache TTL in seconds
-   */
-  public long getCacheTtlSeconds() {
-    return cacheTtlSeconds;
-  }
-
-  /**
-   * Sets the cache TTL in seconds.
-   *
-   * @param cacheTtlSeconds the TTL
-   */
-  public void setCacheTtlSeconds(long cacheTtlSeconds) {
-    this.cacheTtlSeconds = cacheTtlSeconds;
-  }
-
-  /**
-   * When Keycloak is unreachable: {@code true} allows the request (availability first), {@code
-   * false} rejects it (security first).
-   *
-   * @return {@code true} to fail open
-   */
-  public boolean isFailOpen() {
-    return failOpen;
-  }
-
-  /**
-   * Sets the fail-open behavior.
-   *
-   * @param failOpen {@code true} to fail open
-   */
-  public void setFailOpen(boolean failOpen) {
-    this.failOpen = failOpen;
-  }
-
-  /**
-   * Token introspection endpoint derived from {@link #getUrl()} and {@link #getRealm()}.
-   *
-   * @return the RFC 7662 introspection URI
-   */
-  public String getIntrospectionUri() {
-    String base = url == null ? "" : url.replaceAll("/+$", "");
-    return base + "/realms/" + realm + "/protocol/openid-connect/token/introspect";
-  }
-
-  /** CORS-specific configuration. */
-  public static class Cors {
-
-    private List<String> allowedOrigins = new ArrayList<>();
-
-    private List<String> allowedMethods =
-        List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS");
-
-    private List<String> allowedHeaders = List.of("*");
-
-    private boolean allowCredentials = false;
-
-    private long maxAge = 3600;
-
-    /** Creates the CORS configuration with default values. */
-    public Cors() {}
-
-    /**
-     * Origins permitted to make cross-origin requests.
-     *
-     * @return the allowed origins
-     */
-    public List<String> getAllowedOrigins() {
-      return allowedOrigins;
+    /** Requires client credentials when enabled and positive limits. */
+    public Introspection {
+      require(!enabled || hasText(clientId), PREFIX + "client-id is required when enabled");
+      require(!enabled || hasText(clientSecret), PREFIX + "client-secret is required when enabled");
+      require(cacheMaxEntries > 0, PREFIX + "cache-max-entries must be positive");
+      require(isPositive(cacheTtl), PREFIX + "cache-ttl must be positive");
+      require(isPositive(connectTimeout), PREFIX + "connect-timeout must be positive");
+      require(isPositive(readTimeout), PREFIX + "read-timeout must be positive");
     }
 
-    /**
-     * Sets the allowed origins.
-     *
-     * @param allowedOrigins the allowed origins
-     */
-    public void setAllowedOrigins(List<String> allowedOrigins) {
-      this.allowedOrigins = allowedOrigins;
+    @Override
+    public String toString() {
+      return "Introspection[enabled=%s, clientId=%s, clientSecret=***, cacheTtl=%s, failOpen=%s]"
+          .formatted(enabled, clientId, cacheTtl, failOpen);
     }
 
-    /**
-     * HTTP methods permitted on cross-origin requests.
-     *
-     * @return the allowed methods
-     */
-    public List<String> getAllowedMethods() {
-      return allowedMethods;
+    private static boolean hasText(String value) {
+      return value != null && !value.isBlank();
     }
 
-    /**
-     * Sets the allowed HTTP methods.
-     *
-     * @param allowedMethods the allowed methods
-     */
-    public void setAllowedMethods(List<String> allowedMethods) {
-      this.allowedMethods = allowedMethods;
-    }
-
-    /**
-     * Request headers permitted on cross-origin requests.
-     *
-     * @return the allowed headers
-     */
-    public List<String> getAllowedHeaders() {
-      return allowedHeaders;
-    }
-
-    /**
-     * Sets the allowed request headers.
-     *
-     * @param allowedHeaders the allowed headers
-     */
-    public void setAllowedHeaders(List<String> allowedHeaders) {
-      this.allowedHeaders = allowedHeaders;
-    }
-
-    /**
-     * Whether credentials are allowed on cross-origin requests.
-     *
-     * @return {@code true} if credentials are allowed
-     */
-    public boolean isAllowCredentials() {
-      return allowCredentials;
-    }
-
-    /**
-     * Sets whether credentials are allowed.
-     *
-     * @param allowCredentials {@code true} to allow credentials
-     */
-    public void setAllowCredentials(boolean allowCredentials) {
-      this.allowCredentials = allowCredentials;
-    }
-
-    /**
-     * Cache age for the CORS preflight response, in seconds.
-     *
-     * @return the preflight cache max-age
-     */
-    public long getMaxAge() {
-      return maxAge;
-    }
-
-    /**
-     * Sets the preflight cache max-age in seconds.
-     *
-     * @param maxAge the max-age
-     */
-    public void setMaxAge(long maxAge) {
-      this.maxAge = maxAge;
+    private static boolean isPositive(Duration duration) {
+      return duration != null && duration.isPositive();
     }
   }
 }
