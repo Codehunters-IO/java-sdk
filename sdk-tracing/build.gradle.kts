@@ -10,7 +10,6 @@ dependencies {
     compileOnly("org.springframework:spring-web")
     compileOnly("org.springframework:spring-context")
     compileOnly("org.springframework.amqp:spring-rabbit")
-    compileOnly("org.aspectj:aspectjweaver")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
     compileOnly("org.slf4j:slf4j-api")
     compileOnly("tools.jackson.core:jackson-databind")

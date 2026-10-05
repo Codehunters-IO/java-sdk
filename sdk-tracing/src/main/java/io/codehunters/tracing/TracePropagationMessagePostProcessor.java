@@ -1,93 +1,59 @@
 package io.codehunters.tracing;
 
-import java.security.SecureRandom;
-import java.util.HexFormat;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessagePostProcessor;
-import tools.jackson.databind.JsonNode;
+import org.springframework.amqp.core.MessageProperties;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Outbound RabbitMQ {@link MessagePostProcessor} that stamps trace/span headers (and a W3C {@code
- * traceparent}) onto published messages, deriving them from the {@link MDC}, the message body, or a
- * freshly generated value.
+ * Stamps the trace context on published RabbitMQ messages: W3C {@code traceparent}, plus {@code
+ * x-traceparent}, {@code x-trace-id} and {@code x-span-id} for consumers still on 0.x.
+ *
+ * <p>A valid {@code traceparent} already on the message (for example, one stored with an outbox
+ * event) is kept. Otherwise the context comes from the MDC, then from the {@code header.traceId} of
+ * an event envelope body, and is generated as a last resort.
  */
 public class TracePropagationMessagePostProcessor implements MessagePostProcessor {
 
-  /** AMQP header carrying the W3C traceparent. */
-  public static final String AMQP_HEADER_TRACEPARENT = "x-traceparent";
-
-  /** AMQP header carrying the trace ID. */
-  public static final String AMQP_HEADER_TRACE_ID = "x-trace-id";
-
-  /** AMQP header carrying the span ID. */
-  public static final String AMQP_HEADER_SPAN_ID = "x-span-id";
-
-  private static final String MDC_TRACE_ID = "traceId";
-  private static final String MDC_SPAN_ID = "spanId";
   private static final Logger log =
       LoggerFactory.getLogger(TracePropagationMessagePostProcessor.class);
-  private static final int SPAN_ID_HEX_LENGTH = 16;
-  private static final int TRACE_ID_HEX_LENGTH = 32;
+  private static final JsonMapper JSON = JsonMapper.builder().build();
 
-  private final JsonMapper jsonMapper;
-  private final SecureRandom random = new SecureRandom();
-
-  /**
-   * Creates the post-processor.
-   *
-   * @param jsonMapper the mapper used to read the trace ID from message bodies
-   */
-  public TracePropagationMessagePostProcessor(JsonMapper jsonMapper) {
-    this.jsonMapper = jsonMapper;
-  }
+  /** Creates the post-processor. */
+  public TracePropagationMessagePostProcessor() {}
 
   @Override
   public Message postProcessMessage(Message message) throws AmqpException {
-    String traceId = MDC.get(MDC_TRACE_ID);
-    String spanId = MDC.get(MDC_SPAN_ID);
-
-    if (traceId == null) {
-      traceId = extractTraceIdFromBody(message);
-    }
-    if (traceId == null) {
-      traceId = generateHex(TRACE_ID_HEX_LENGTH);
-    }
-    if (spanId == null) {
-      spanId = generateHex(SPAN_ID_HEX_LENGTH);
-    }
-
-    message.getMessageProperties().setHeader(AMQP_HEADER_TRACE_ID, traceId);
-    message.getMessageProperties().setHeader(AMQP_HEADER_SPAN_ID, spanId);
-    message
-        .getMessageProperties()
-        .setHeader(AMQP_HEADER_TRACEPARENT, buildTraceparent(traceId, spanId));
+    MessageProperties properties = message.getMessageProperties();
+    TraceParent context =
+        existing(properties)
+            .or(TraceMdc::current)
+            .or(() -> fromEnvelope(message.getBody()))
+            .orElseGet(TraceParent::generate);
+    properties.setHeader(TraceHeaders.TRACEPARENT, context.format());
+    properties.setHeader(TraceHeaders.LEGACY_TRACEPARENT, context.format());
+    properties.setHeader(TraceHeaders.TRACE_ID, context.traceId());
+    properties.setHeader(TraceHeaders.SPAN_ID, context.spanId());
     return message;
   }
 
-  private String extractTraceIdFromBody(Message message) {
+  private static Optional<TraceParent> existing(MessageProperties properties) {
+    Object header = properties.getHeader(TraceHeaders.TRACEPARENT);
+    return header == null ? Optional.empty() : TraceParent.parse(header.toString());
+  }
+
+  private static Optional<TraceParent> fromEnvelope(byte[] body) {
     try {
-      JsonNode root = jsonMapper.readTree(message.getBody());
-      JsonNode header = root.path("header");
-      JsonNode traceId = header.path("traceId");
-      return traceId.isMissingNode() || traceId.isNull() ? null : traceId.asString(null);
-    } catch (RuntimeException e) {
-      log.debug("Failed to extract traceId from message body: {}", e.getMessage());
-      return null;
+      String traceId = JSON.readTree(body).path("header").path("traceId").asString(null);
+      return TraceParent.ofTraceId(traceId);
+    } catch (JacksonException e) {
+      log.debug("Message body is not a JSON event envelope; generating a trace");
+      return Optional.empty();
     }
-  }
-
-  private String buildTraceparent(String traceId, String spanId) {
-    return "00-" + traceId + "-" + spanId + "-01";
-  }
-
-  private String generateHex(int hexLength) {
-    byte[] bytes = new byte[hexLength / 2];
-    random.nextBytes(bytes);
-    return HexFormat.of().formatHex(bytes);
   }
 }

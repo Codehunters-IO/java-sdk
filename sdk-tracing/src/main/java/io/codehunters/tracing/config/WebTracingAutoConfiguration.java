@@ -1,24 +1,32 @@
 package io.codehunters.tracing.config;
 
 import io.codehunters.tracing.TraceIdFilter;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.Ordered;
 
-/** Web tracing auto-configuration: registers the {@link TraceIdFilter} for servlet requests. */
+/**
+ * Registers {@link TraceIdFilter} first in servlet applications. When Micrometer Tracing is on the
+ * classpath it owns the request's trace context, so this configuration steps aside.
+ */
 @AutoConfiguration
-@ConditionalOnClass({HttpServletRequest.class, FilterRegistrationBean.class})
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+@ConditionalOnClass(FilterRegistrationBean.class)
+@ConditionalOnMissingClass("io.micrometer.tracing.Tracer")
+@ConditionalOnBooleanProperty(name = "codehunters.tracing.enabled", matchIfMissing = true)
 public class WebTracingAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public WebTracingAutoConfiguration() {}
 
   /**
-   * Provides the trace ID servlet filter.
+   * Provides the trace context servlet filter.
    *
    * @return a {@link TraceIdFilter}
    */
@@ -29,9 +37,9 @@ public class WebTracingAutoConfiguration {
   }
 
   /**
-   * Registers the trace ID filter for all request paths at highest precedence.
+   * Registers the filter for all paths at highest precedence.
    *
-   * @param filter the trace ID filter
+   * @param filter the trace context filter
    * @return the filter registration
    */
   @Bean

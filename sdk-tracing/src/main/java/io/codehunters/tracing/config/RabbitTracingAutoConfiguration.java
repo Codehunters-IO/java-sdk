@@ -4,15 +4,21 @@ import io.codehunters.tracing.InboundTraceMethodInterceptor;
 import io.codehunters.tracing.RabbitTracingBeanPostProcessor;
 import io.codehunters.tracing.TracePropagationMessagePostProcessor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import tools.jackson.databind.json.JsonMapper;
 
-/** RabbitMQ tracing auto-configuration: wires inbound and outbound trace propagation. */
+/**
+ * Propagates the trace context through RabbitMQ. This module is the single owner of the outbound
+ * trace post-processor: it is added to each {@link RabbitTemplate} once.
+ */
 @AutoConfiguration
-@ConditionalOnClass(RabbitTemplate.class)
+@ConditionalOnClass({RabbitTemplate.class, JsonMapper.class})
+@ConditionalOnBooleanProperty(name = "codehunters.tracing.enabled", matchIfMissing = true)
 public class RabbitTracingAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
@@ -21,14 +27,12 @@ public class RabbitTracingAutoConfiguration {
   /**
    * Provides the outbound message post-processor.
    *
-   * @param jsonMapper the mapper used to read trace IDs from message bodies
    * @return a {@link TracePropagationMessagePostProcessor}
    */
-  @Bean(name = "tracePropagationMessagePostProcessor")
-  @ConditionalOnMissingBean(name = "tracePropagationMessagePostProcessor")
-  public TracePropagationMessagePostProcessor tracePropagationMessagePostProcessor(
-      JsonMapper jsonMapper) {
-    return new TracePropagationMessagePostProcessor(jsonMapper);
+  @Bean
+  @ConditionalOnMissingBean
+  public TracePropagationMessagePostProcessor tracePropagationMessagePostProcessor() {
+    return new TracePropagationMessagePostProcessor();
   }
 
   /**
@@ -43,7 +47,8 @@ public class RabbitTracingAutoConfiguration {
   }
 
   /**
-   * Provides the bean post-processor that attaches tracing to RabbitMQ infrastructure.
+   * Provides the bean post-processor that attaches tracing to RabbitMQ infrastructure. Static, and
+   * resolving its collaborators lazily, so the application's beans stay eligible for proxying.
    *
    * @param outbound the outbound message post-processor
    * @param inbound the inbound listener interceptor
@@ -52,7 +57,8 @@ public class RabbitTracingAutoConfiguration {
   @Bean
   @ConditionalOnMissingBean
   public static RabbitTracingBeanPostProcessor rabbitTracingBeanPostProcessor(
-      TracePropagationMessagePostProcessor outbound, InboundTraceMethodInterceptor inbound) {
+      ObjectProvider<TracePropagationMessagePostProcessor> outbound,
+      ObjectProvider<InboundTraceMethodInterceptor> inbound) {
     return new RabbitTracingBeanPostProcessor(outbound, inbound);
   }
 }
