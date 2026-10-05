@@ -1,4 +1,5 @@
 version = "0.2.2"
+description = "X-Locale request resolution, MessageSource and localized validation messages."
 
 dependencies {
     compileOnly("org.springframework.boot:spring-boot-webmvc")

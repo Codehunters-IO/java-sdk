@@ -1,4 +1,5 @@
 version = "1.2.1"
+description = "Typed read access to the shared parameters table over JDBC."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")

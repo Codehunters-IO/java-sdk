@@ -1,4 +1,5 @@
 version = "0.2.3"
+description = "Trace id propagation across HTTP, async tasks and RabbitMQ through the MDC."
 
 dependencies {
     compileOnly("org.springframework.boot:spring-boot")

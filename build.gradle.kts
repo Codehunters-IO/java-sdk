@@ -192,6 +192,22 @@ subprojects {
                 versionMapping {
                     allVariants { fromResolutionResult() }
                 }
+                pom {
+                    val repositoryUrl = rootProject.property("repository.url").toString()
+                    name.set(project.name)
+                    description.set(provider { project.description })
+                    url.set(repositoryUrl)
+                    licenses {
+                        license {
+                            name.set("MIT License")
+                            url.set("https://opensource.org/licenses/MIT")
+                        }
+                    }
+                    scm {
+                        url.set(repositoryUrl)
+                        connection.set("scm:git:$repositoryUrl.git")
+                    }
+                }
             }
         }
     }
