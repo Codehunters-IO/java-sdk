@@ -1,11 +1,13 @@
 -- Reference migration: Final schema for outbox_message and shedlock
 -- Copy to your ms changelog directory and adapt changeset author/id
+-- Existing installs created before SDK 6.0.0: run sqlserver/outbox_message_add_seq.sql instead
 
 -- changeset sdk:outbox-create-1
 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'outbox_message')
 BEGIN
     CREATE TABLE outbox_message (
         id UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
+        seq BIGINT IDENTITY(1,1) NOT NULL,
         origin NVARCHAR(255) NOT NULL,
         routing_key NVARCHAR(255),
         topic NVARCHAR(255) NOT NULL,
@@ -46,6 +48,30 @@ BEGIN
     CREATE INDEX idx_outbox_claim_recovery
         ON outbox_message(status, claimed_at)
         WHERE status = 'IN_FLIGHT';
+END
+
+-- changeset sdk:outbox-create-6
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_outbox_claimable')
+BEGIN
+    CREATE INDEX idx_outbox_claimable
+        ON outbox_message(origin, seq)
+        WHERE status IN ('PENDING', 'IN_FLIGHT');
+END
+
+-- changeset sdk:outbox-create-7
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_outbox_key_order')
+BEGIN
+    CREATE INDEX idx_outbox_key_order
+        ON outbox_message(origin, topic, message_key, seq)
+        WHERE status IN ('PENDING', 'IN_FLIGHT', 'FAILED');
+END
+
+-- changeset sdk:outbox-create-8
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'idx_outbox_published')
+BEGIN
+    CREATE INDEX idx_outbox_published
+        ON outbox_message(published_at)
+        WHERE status = 'PUBLISHED';
 END
 
 -- changeset sdk:outbox-create-5

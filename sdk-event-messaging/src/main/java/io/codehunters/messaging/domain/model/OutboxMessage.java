@@ -1,6 +1,7 @@
 package io.codehunters.messaging.domain.model;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -22,6 +23,13 @@ import lombok.Setter;
 @Builder(toBuilder = true)
 public class OutboxMessage<T> {
   private UUID id;
+
+  /**
+   * Database-assigned insertion order; per-key ordering uses it. Read-only: never inserted, {@code
+   * null} until the row is read back.
+   */
+  private Long seq;
+
   private String origin;
   private String routingKey;
   private String topic;
@@ -30,7 +38,7 @@ public class OutboxMessage<T> {
   @Builder.Default private OutboxStatus status = OutboxStatus.PENDING;
   @Builder.Default private int attempts = 0;
   private String error;
-  @Builder.Default private LocalDateTime occurredAt = LocalDateTime.now();
+  @Builder.Default private LocalDateTime occurredAt = LocalDateTime.now(ZoneOffset.UTC);
   private LocalDateTime nextAttemptAt;
   private LocalDateTime publishedAt;
   private LocalDateTime claimedAt;

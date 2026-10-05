@@ -1,5 +1,6 @@
 CREATE TABLE outbox_message (
     id UUID DEFAULT RANDOM_UUID() PRIMARY KEY,
+    seq BIGINT GENERATED ALWAYS AS IDENTITY,
     origin VARCHAR(255) NOT NULL,
     routing_key VARCHAR(255),
     topic VARCHAR(255) NOT NULL,
@@ -27,3 +28,6 @@ CREATE INDEX idx_outbox_origin_next_attempt
 
 CREATE INDEX idx_outbox_claim_recovery
     ON outbox_message(status, claimed_at);
+
+CREATE INDEX idx_outbox_key_order
+    ON outbox_message(origin, topic, message_key, seq);

@@ -3,6 +3,8 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
 import io.codehunters.messaging.application.port.OutboxRepositoryPort;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,7 +51,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   private static final String SELECT_CLAIMED_SQL =
       """
       SELECT id, origin, routing_key, topic, message_key, payload, status, attempts,
-          error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by
+          error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by, seq
       FROM outbox_message
       WHERE origin = :origin AND claimed_by = :claimedBy AND status = 'IN_FLIGHT'
       ORDER BY occurred_at ASC
@@ -81,6 +83,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
               .publishedAt(rs.getObject("published_at", LocalDateTime.class))
               .claimedAt(rs.getObject("claimed_at", LocalDateTime.class))
               .claimedBy(rs.getString("claimed_by"))
+              .seq(readSeq(rs))
               .build();
 
   private final JdbcClient jdbcClient;
@@ -178,11 +181,20 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
         .param("error", outboxMessage.getError())
         .param("publishedAt", outboxMessage.getPublishedAt())
         .param("nextAttemptAt", outboxMessage.getNextAttemptAt())
-        .param("claimedAt", outboxMessage.getClaimedAt())
-        .param("claimedBy", outboxMessage.getClaimedBy())
+        .param("claimedAt", keepsClaim(outboxMessage) ? outboxMessage.getClaimedAt() : null)
+        .param("claimedBy", keepsClaim(outboxMessage) ? outboxMessage.getClaimedBy() : null)
         .update();
 
     log.debug("[END] - updated outbox message {}", outboxMessage.getId());
+  }
+
+  private static boolean keepsClaim(OutboxMessage<String> outboxMessage) {
+    return outboxMessage.getStatus() == OutboxStatus.IN_FLIGHT;
+  }
+
+  private static Long readSeq(ResultSet rs) throws SQLException {
+    long seq = rs.getLong("seq");
+    return rs.wasNull() ? null : seq;
   }
 
   private String resolveOrigin(String messageOrigin) {
