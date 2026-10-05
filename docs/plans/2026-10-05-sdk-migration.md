@@ -79,7 +79,8 @@ Cada fase de módulo debe cumplir todo esto además de sus tareas propias:
 - [ ] Las dependencias usadas en firmas públicas van en `api`; las opcionales, en `compileOnly`.
 - [ ] `README.md` del módulo con propiedades y valores por defecto, dependencias que el consumidor
       debe traer, la tabla de migración desde la versión anterior y su semántica de fallos.
-- [ ] Entrada en `CHANGELOG.md` y bump de `version` en el `build.gradle.kts` del módulo.
+- [ ] `CHANGELOG.md` **del módulo** (el raíz solo enlaza) y bump de `version` en su `build.gradle.kts`.
+- [ ] Test ArchUnit del módulo si tiene capas `domain`/`application`.
 - [ ] `./gradlew :<módulo>:check` en verde.
 
 ---
@@ -106,28 +107,45 @@ Ningún módulo cambió de versión. Las clases de los 10 jars son idénticas by
 | 1.9 | `a0af28f` | `sdk-bom` (`java-platform`, `1.0.0-SNAPSHOT`, no se publica todavía). La publicación compartida pasa a un bloque común para librerías y BOM |
 | 1.10 | `4236a6f` | ADR 0001–0008 en `docs/adr/` con índice; README con el requisito de Boot 4 y de Docker |
 | 1.11 | — | `codehuntersio-java-commons-support/` agregado a `.git/info/exclude`. **Moverlo fuera del árbol queda pendiente de ti**: es un repo git propio |
-| 1.6 | — | **Movida a la Fase 2.** El helper de capability se escribe junto a su primer uso (`sdk-user-security-authz`), con su test |
+| 1.6 | — | **Movida a la Fase 3** (tarea 3.0). El helper de capability se escribe junto a su primer uso real, con su test |
 
 **Pendiente de confirmar:** el repo `codehunters/java-sdk` no existe en GitHub, o el token local no
 tiene acceso. `github_packages_url` y `repository.url` apuntan ahí. Si la org es `Codehunters-IO`,
 hay que cambiar las dos propiedades en `gradle.properties`.
 
+## Fase 1b — Reestructuración del repo ✅ (rama `feature/build-logic`)
+
+Decidida el 2026-10-05 tras el análisis de estructura: hacerla **antes** de partir módulos para no
+moverlos dos veces.
+
+| Commit | Qué |
+|---|---|
+| `13645d7` (en `feature/build-foundations`) | **Bug:** `gradle-wrapper.jar` nunca estuvo versionado (un `*.jar` posterior anulaba la excepción); `./gradlew` fallaba en un clon limpio y en CI |
+| `5224ae9` | `build-logic/` (included build) con `codehunters.java-library` y `codehunters.publishing`; versiones en `gradle/libs.versions.toml`. El build raíz queda solo con Sonar. Artefactos idénticos salvo `spring-configuration-metadata.json` de event-messaging, que ahora trae las descripciones completas |
+| `33c57a5` | Familias agrupadas: `messaging/sdk-event-messaging`, `security/sdk-user-security`, `platform/sdk-bom`. Nombres de proyecto y artefacto sin cambios |
+| `681cada` | CI sin `--scan`, triggers `chore/**` y `docs/**`; eliminado el workflow del agente |
+
+Ubicación de los módulos nuevos: `security/sdk-user-security-authz` (Fase 2),
+`messaging/sdk-event-messaging-{core,jdbc,rabbit,kafka}` (Fase 3). `sdk-totp` queda en la raíz.
+
+Decidido y no hecho: un plugin `codehunters.spring-autoconfig` (no aporta mientras todos los módulos
+son autoconfiguraciones; lo cubre `codehunters.java-library`); un módulo público de soporte de tests
+(se usa `java-test-fixtures` en `-core` en la Fase 3).
+
 ## Fase 2 — `sdk-user-security` 3.0.0 + `sdk-user-security-authz` 3.0.0 (prioridad: seguridad)
 
 Bloqueada por A1. Rama: `feature/sdk-user-security-v3`.
 
-**Tarea 2.0 (movida desde la Fase 1):** helper `replacesArtifact(oldName)` en el build raíz, que agrega
-`outgoing.capability("io.codehunters:<old>:<version>")` a `apiElements` y `runtimeElements` además de
-la capability propia. Test: un proyecto de prueba que pide `sdk-user-security:2.6.0` y
-`sdk-user-security-authz` falla la resolución por conflicto de capability.
+**Sin helper de capability en esta fase:** el paquete pasa a `io.codehunters.security`, así que el
+jar 2.x y los 3.x no pueden tener clases duplicadas, y `-authz` 3.0 arrastra la base 3.0. El helper se
+escribe en la Fase 3, que es la primera que lo necesita.
 
 **Estructura:**
 - `sdk-user-security`: `io.codehunters.security`. Contiene `KeycloakSecurityFilter`, `SessionIntrospector`,
   `KeycloakPrincipal`, `CurrentPrincipal`, su argument resolver, las utilidades, las propiedades y la
   autoconfiguración.
 - `sdk-user-security-authz` (nuevo): `io.codehunters.security.authz`. Contiene `KeycloakAuthzFilter`,
-  sus propiedades y su autoconfiguración. `api(project(":sdk-user-security"))`. Declara la capability
-  `io.codehunters:sdk-user-security:2.x` para que Gradle rechace tener el 2.6 junto con el 3.0.
+  sus propiedades y su autoconfiguración. `api(project(":sdk-user-security"))`. 
 
 **Prefijos:** `keycloak.security.*` → `codehunters.security.*`; `keycloak.policy-enforcer.*` →
 `codehunters.security.authz.*`. Se eliminan `@Value("${keycloak.host}")` y `${keycloak.realm}`, porque
@@ -171,6 +189,11 @@ Rama: `feature/sdk-event-messaging-v6`.
 | `sdk-event-messaging-jdbc` | `drivenadapters/jdbc/**`, `entrypoint/scheduler/**`, `metrics/OutboxFailedGauge`, SQL de `db/migration/outbox/**` y su autoconfiguración | `api` core; `api` ShedLock; `compileOnly` spring-jdbc, spring-tx, micrometer |
 | `sdk-event-messaging-rabbit` | `drivenadapters/rabbitmq/**` y su autoconfiguración | `api` core; `compileOnly` spring-rabbit |
 | `sdk-event-messaging-kafka` | `drivenadapters/kafka/**` y su autoconfiguración | `api` core; `compileOnly` spring-kafka |
+
+**Tarea 3.0:** extensión `replaces("<artefacto viejo>")` en el plugin `codehunters.publishing`, que agrega
+`outgoing.capability("io.codehunters:<viejo>:<version>")` a `apiElements` y `runtimeElements` además de
+la propia. Test: un proyecto de prueba que pide `sdk-event-messaging:5.1.5` y `-core:6.0.0` falla la
+resolución. Los contenedores compartidos por `-jdbc` y `-kafka` van como `java-test-fixtures` de `-core`.
 
 `-core` declara la capability `io.codehunters:sdk-event-messaging`. El transporte lo decide el
 artefacto presente. `codehunters.outbox.publisher.type` (`rabbit` | `kafka`, validado en el
@@ -329,7 +352,9 @@ Rama: `feature/sdk-totp-v2`.
 2. Comprobar que ningún módulo sobrescribe `coverage.branch.minimum`.
 3. `README.md` raíz: tabla de módulos con su estado real, el BOM y una guía de migración por
    consumidor (artefactos, imports, prefijos, DDL).
-4. `CHANGELOG.md` consolidado.
+4. `CHANGELOG.md` raíz como índice de los CHANGELOG por módulo; tags `sdk-<módulo>/vX.Y.Z` y
+   `bom/vX.Y.Z` creados por `publish.yml` después de publicar.
+5. `CONTRIBUTING.md` con las convenciones reales (ramas, commits, TDD, definición de terminado, ADR).
 
 ---
 
@@ -387,7 +412,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 ## Puntos críticos de revisión (fallos que ninguna tarea cubre por sí sola)
 
 1. **Jars viejo y nuevo juntos en el classpath** (`sdk-event-messaging:5.x` con `-core:6.0`,
-   `sdk-user-security:2.6` con `-authz:3.0`, `sdk-utils` con `sdk-totp`): clases duplicadas, y gana
+   `sdk-utils` con `sdk-totp`): clases duplicadas, y gana
    una al azar. El consumidor espera que el build falle. Se cubre con la capability (1.6) y con un
    test en `sdk-bom` que resuelve ambas coordenadas y espera el conflicto.
 2. **Un consumidor que actualiza sin cambiar sus propiedades:** espera que todo siga funcionando, con
