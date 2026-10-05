@@ -1,5 +1,6 @@
 package io.codehunters.messaging.config;
 
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
@@ -10,8 +11,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param batchSize the number of messages dispatched per scheduler tick
  * @param maxAttempts the maximum number of publish attempts before marking a message FAILED
  * @param task the scheduler/ShedLock configuration
- * @param claim the claim-lifetime configuration for stale-claim recovery
+ * @param claim the claim-lifetime and claim-dialect configuration
  * @param backoff the retry backoff configuration
+ * @param publisher the broker publisher selection
+ * @param purge the PUBLISHED-row retention configuration
  */
 @ConfigurationProperties(prefix = "outbox")
 public record EventMessagingProperties(
@@ -20,7 +23,9 @@ public record EventMessagingProperties(
     @DefaultValue("5") int maxAttempts,
     @DefaultValue Task task,
     @DefaultValue Claim claim,
-    @DefaultValue Backoff backoff) {
+    @DefaultValue Backoff backoff,
+    @DefaultValue Publisher publisher,
+    @DefaultValue Purge purge) {
 
   /**
    * Scheduler and ShedLock configuration.
@@ -37,11 +42,13 @@ public record EventMessagingProperties(
       @DefaultValue("outbox-${spring.application.name:unknown}") String lockName) {}
 
   /**
-   * Claim-lifetime configuration.
+   * Claim configuration.
    *
    * @param ttlMs the time after which an in-flight claim is considered stale and reclaimable
+   * @param dialect the claim SQL dialect: {@code auto} (detected from the database), {@code
+   *     postgresql}, {@code sqlserver} or {@code generic}; unknown values fail startup
    */
-  public record Claim(@DefaultValue("300000") long ttlMs) {}
+  public record Claim(@DefaultValue("300000") long ttlMs, @DefaultValue("auto") String dialect) {}
 
   /**
    * Retry backoff configuration.
@@ -51,4 +58,27 @@ public record EventMessagingProperties(
    */
   public record Backoff(
       @DefaultValue("30000") long baseDelayMs, @DefaultValue("3600000") long maxDelayMs) {}
+
+  /**
+   * Broker publisher selection.
+   *
+   * @param type the publisher type: {@code rabbit} (default) or {@code kafka}
+   * @param kafka the Kafka publisher settings, used when {@code type} is {@code kafka}
+   */
+  public record Publisher(@DefaultValue("rabbit") String type, @DefaultValue Kafka kafka) {}
+
+  /**
+   * Kafka publisher settings.
+   *
+   * @param sendTimeout the maximum time to wait for a broker acknowledgement per message
+   */
+  public record Kafka(@DefaultValue("10s") Duration sendTimeout) {}
+
+  /**
+   * Retention of PUBLISHED outbox rows.
+   *
+   * @param retention how long PUBLISHED rows are kept before the purge job deletes them
+   * @param batchSize the maximum number of rows deleted per purge statement
+   */
+  public record Purge(@DefaultValue("7d") Duration retention, @DefaultValue("500") int batchSize) {}
 }
