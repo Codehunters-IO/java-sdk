@@ -160,6 +160,12 @@ tasks.withType<JavaCompile> {
     options.compilerArgs.add("-parameters")
 }
 
+// The configuration processor merges META-INF/additional-spring-configuration-metadata.json only
+// when it can see it while compiling, so resources must be processed first.
+tasks.named<JavaCompile>("compileJava") {
+    inputs.files(tasks.named("processResources"))
+}
+
 tasks.withType<Javadoc> {
     (options as StandardJavadocDocletOptions).apply {
         addStringOption("Xdoclint:all", "-quiet")
