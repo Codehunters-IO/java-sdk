@@ -101,7 +101,7 @@ class EventMessagingCoreAutoConfigurationTest {
           assertThat(props.backoff().baseDelayMs()).isEqualTo(30_000L);
           assertThat(props.backoff().maxDelayMs()).isEqualTo(3_600_000L);
           assertThat(props.publisher().type()).isEqualTo("rabbit");
-          assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(10));
+          assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(7));
           assertThat(props.purge().batchSize()).isEqualTo(500);
         });
@@ -148,6 +148,34 @@ class EventMessagingCoreAutoConfigurationTest {
               assertThat(props.purge().batchSize()).isEqualTo(100);
               assertThat(props.claim().dialect()).isEqualTo("postgresql");
             });
+  }
+
+  @Test
+  void should_fail_startup_explaining_duplicates_when_claim_ttl_below_kafka_publish_budget() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.publisher.type=kafka",
+            "codehunters.outbox.batch-size=100",
+            "codehunters.outbox.claim.ttl-ms=60000")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .rootCause()
+                  .hasMessageContaining("codehunters.outbox.claim.ttl-ms")
+                  .hasMessageContaining("duplicate");
+            });
+  }
+
+  @Test
+  void should_fail_startup_naming_key_when_publisher_type_unknown() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.publisher.type=sqs")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.publisher.type"));
   }
 
   @Test
