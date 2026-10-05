@@ -17,7 +17,9 @@ import org.springframework.context.annotation.Bean;
 /**
  * Spring Boot auto-configuration for the RabbitMQ outbox publisher. Loaded only when {@code
  * spring-rabbit} is on the classpath, {@code codehunters.outbox.enabled} is {@code true} (the
- * default) and {@code codehunters.outbox.publisher.type} is {@code rabbit} or unset.
+ * default) and RabbitMQ is the outbox transport: {@code codehunters.outbox.publisher.type} is
+ * {@code rabbit}, or it is unset and {@code sdk-event-messaging-kafka} is absent (see {@link
+ * ConditionalOnOutboxTransport}).
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
@@ -31,11 +33,7 @@ import org.springframework.context.annotation.Bean;
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true)
-@ConditionalOnProperty(
-    prefix = "codehunters.outbox.publisher",
-    name = "type",
-    havingValue = "rabbit",
-    matchIfMissing = true)
+@ConditionalOnOutboxTransport("rabbit")
 public class EventMessagingRabbitAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
@@ -85,12 +83,15 @@ public class EventMessagingRabbitAutoConfiguration {
    * Provides the RabbitMQ-backed message publisher.
    *
    * @param rabbitTemplate the underlying {@link RabbitTemplate}
+   * @param properties the messaging configuration, whose RabbitMQ claim budget is validated
    * @return a {@link MessagePublisherPort}
    */
   @Bean
   @ConditionalOnMissingBean(MessagePublisherPort.class)
   @ConditionalOnBean(RabbitTemplate.class)
-  public MessagePublisherPort messagePublisherPort(RabbitTemplate rabbitTemplate) {
+  public MessagePublisherPort messagePublisherPort(
+      RabbitTemplate rabbitTemplate, EventMessagingProperties properties) {
+    properties.requireClaimBudget("rabbit");
     return new RabbitMessagePublisherAdapter(rabbitTemplate);
   }
 }
