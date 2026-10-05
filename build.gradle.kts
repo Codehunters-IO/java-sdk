@@ -39,7 +39,6 @@ subprojects {
         "compileOnly"("org.springframework.boot:spring-boot-autoconfigure")
         "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
 
-        "testImplementation"(platform("org.junit:junit-bom:${property("junit.version")}"))
         "testImplementation"("org.junit.jupiter:junit-jupiter")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
