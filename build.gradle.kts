@@ -70,6 +70,7 @@ subprojects {
         }
     }
 
+    // Property records are pure binding; keep this list in sync with sonar.coverage.exclusions.
     val jacocoExclusions = listOf("**/*Properties*")
 
     fun org.gradle.testing.jacoco.tasks.JacocoReportBase.applyExclusions() {
@@ -95,6 +96,12 @@ subprojects {
                 limit {
                     counter = "LINE"
                     minimum = "0.90".toBigDecimal()
+                }
+                // A module below the bar sets coverage.branch.minimum in its own gradle.properties
+                // until its next release raises it.
+                limit {
+                    counter = "BRANCH"
+                    minimum = (findProperty("coverage.branch.minimum") as String? ?: "0.80").toBigDecimal()
                 }
             }
         }
@@ -203,7 +210,7 @@ sonar {
             subprojects.joinToString(",") { "${it.layout.buildDirectory.get()}/reports/jacoco/test/jacocoTestReport.xml" }
         )
         property("sonar.exclusions", "**/src/test/**,**/*Test.java,**/*IT.java")
-        property("sonar.coverage.exclusions", "**/config/**")
+        property("sonar.coverage.exclusions", "**/*Properties.java")
         property("sonar.cpd.exclusions", "**/*Config*")
     }
 }
