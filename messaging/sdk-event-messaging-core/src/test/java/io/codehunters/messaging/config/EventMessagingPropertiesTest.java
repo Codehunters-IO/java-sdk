@@ -209,6 +209,30 @@ class EventMessagingPropertiesTest {
   }
 
   @Test
+  void should_reject_send_timeout_when_batch_budget_overflows_long() {
+    Publisher publisher =
+        new Publisher(
+            "kafka",
+            new Kafka(Duration.ofMillis(Long.MAX_VALUE / 25)),
+            new Rabbit(CONFIRM_TIMEOUT));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher))
+        .withMessageContaining("codehunters.outbox.publisher.kafka.send-timeout");
+  }
+
+  @Test
+  void should_reject_confirm_timeout_when_it_overflows_milliseconds() {
+    Publisher publisher =
+        new Publisher(
+            "rabbit", new Kafka(SEND_TIMEOUT), new Rabbit(Duration.ofSeconds(Long.MAX_VALUE)));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher))
+        .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
+  }
+
+  @Test
   void should_accept_resolved_transport_when_claim_ttl_exceeds_its_budget() {
     EventMessagingProperties properties =
         properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher(null));
