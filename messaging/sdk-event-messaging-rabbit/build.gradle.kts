@@ -15,6 +15,8 @@ dependencies {
     annotationProcessor(libs.lombok)
 
     testImplementation(project(":sdk-event-messaging-jdbc"))
+    testImplementation(project(":sdk-event-messaging-kafka"))
+    testImplementation("org.springframework.kafka:spring-kafka")
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.springframework:spring-tx")

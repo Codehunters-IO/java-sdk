@@ -49,10 +49,36 @@ class EventMessagingKafkaAutoConfigurationTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void should_not_create_kafka_publisher_when_publisher_type_not_set() {
+  void should_select_kafka_publisher_when_type_unset_and_only_kafka_artifact_present() {
     contextRunner
         .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class))
+        .run(
+            context ->
+                assertThat(context)
+                    .getBean(MessagePublisherPort.class)
+                    .isInstanceOf(KafkaMessagePublisherAdapter.class));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void should_not_create_kafka_publisher_when_publisher_type_is_rabbit() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.publisher.type=rabbit")
+        .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class))
         .run(context -> assertThat(context).doesNotHaveBean(MessagePublisherPort.class));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void should_fail_startup_naming_budget_when_type_unset_and_kafka_claim_budget_exceeded() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.ttl-ms=1000")
+        .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.publisher.kafka.send-timeout"));
   }
 
   private DataSource createDataSource() {

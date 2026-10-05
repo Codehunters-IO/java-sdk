@@ -8,6 +8,7 @@ import io.codehunters.messaging.application.port.OutboxRepositoryPort;
 import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
 import io.codehunters.messaging.domain.factory.EventMessageFactory;
 import io.codehunters.messaging.domain.factory.OutboxEventFactory;
+import io.codehunters.messaging.infrastructure.drivenadapters.kafka.KafkaMessagePublisherAdapter;
 import io.codehunters.messaging.infrastructure.drivenadapters.rabbitmq.RabbitMessagePublisherAdapter;
 import io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxScheduler;
 import javax.sql.DataSource;
@@ -17,9 +18,11 @@ import org.springframework.amqp.core.MessagePostProcessor;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.kafka.core.KafkaTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 class EventMessagingRabbitAutoConfigurationTest {
@@ -32,7 +35,18 @@ class EventMessagingRabbitAutoConfigurationTest {
                   EventMessagingJdbcAutoConfiguration.class,
                   EventMessagingCoreAutoConfiguration.class,
                   OutboxDispatchSchedulerAutoConfiguration.class))
-          .withPropertyValues("spring.application.name=test-app");
+          .withPropertyValues("spring.application.name=test-app")
+          .withClassLoader(new FilteredClassLoader(EventMessagingKafkaAutoConfiguration.class));
+
+  private final ApplicationContextRunner bothTransportsRunner =
+      new ApplicationContextRunner()
+          .withConfiguration(
+              AutoConfigurations.of(
+                  EventMessagingRabbitAutoConfiguration.class,
+                  EventMessagingKafkaAutoConfiguration.class,
+                  EventMessagingCoreAutoConfiguration.class))
+          .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
+          .withBean(KafkaTemplate.class, () -> mock(KafkaTemplate.class));
 
   @Test
   void should_create_all_beans_when_datasource_and_rabbit_available() {
@@ -84,6 +98,49 @@ class EventMessagingRabbitAutoConfigurationTest {
         .withPropertyValues("codehunters.outbox.publisher.type=kafka")
         .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
         .run(context -> assertThat(context).doesNotHaveBean(MessagePublisherPort.class));
+  }
+
+  @Test
+  void should_fail_startup_naming_type_key_when_both_transports_present_and_type_unset() {
+    bothTransportsRunner.run(
+        context ->
+            assertThat(context.getStartupFailure())
+                .rootCause()
+                .hasMessageContaining("codehunters.outbox.publisher.type"));
+  }
+
+  @Test
+  void should_select_rabbit_publisher_when_both_transports_present_and_type_rabbit() {
+    bothTransportsRunner
+        .withPropertyValues("codehunters.outbox.publisher.type=rabbit")
+        .run(
+            context ->
+                assertThat(context)
+                    .getBean(MessagePublisherPort.class)
+                    .isInstanceOf(RabbitMessagePublisherAdapter.class));
+  }
+
+  @Test
+  void should_select_kafka_publisher_when_both_transports_present_and_type_kafka() {
+    bothTransportsRunner
+        .withPropertyValues("codehunters.outbox.publisher.type=KAFKA")
+        .run(
+            context ->
+                assertThat(context)
+                    .getBean(MessagePublisherPort.class)
+                    .isInstanceOf(KafkaMessagePublisherAdapter.class));
+  }
+
+  @Test
+  void should_fail_startup_naming_budget_when_type_unset_and_rabbit_claim_budget_exceeded() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.ttl-ms=1000")
+        .withBean(RabbitTemplate.class, () -> mock(RabbitTemplate.class))
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout"));
   }
 
   private DataSource createDataSource() {
