@@ -259,6 +259,18 @@ dos y la propiedad no está definida, el arranque falla con un mensaje explícit
 `sdk-event-messaging-rabbit` (o `-kafka`). Prefijo `outbox.*` → `codehunters.outbox.*`. DDL `seq` en
 SQL Server.
 
+**Revisión independiente** (`26630df` → `4f40ab4`): publish de Kafka acotado por `send-timeout`
+(`max.block.ms`, `delivery.timeout.ms`, `request.timeout.ms`, `linger.ms=0`); config idempotente
+corregida y validada al arrancar; factory del outbox con los customizers de Boot y `client.id` propio;
+`task.lock-at-most` por defecto 300 s y validado contra la duración de un despacho; MySQL/MariaDB fallan
+al arrancar; presupuesto del claim con aritmética exacta; Rabbit acepta confirms `CORRELATED`, usa
+conexión de publicación y conserva la causa original; gauge de FAILED cacheado 30 s;
+`codehunters.outbox.scheduling.enabled`. Límites conocidos documentados (intentos sumados a todo el lote
+tras un crash, hasta 7.0; consumidores Maven sin protección por capability → usar `sdk-bom`).
+
+Verificación final: core 116, jdbc 110, rabbit 35, kafka 41 tests; líneas 100% en los cuatro;
+`./gradlew clean build` y `./gradlew -p build-logic test` en verde.
+
 ## Fase 4 — `sdk-tracing` 1.0.0 ✅ (rama `feature/sdk-tracing-v1`, sobre `feature/sdk-user-security-v3`)
 
 Detalle en `sdk-tracing/CHANGELOG.md` y `README.md`.
