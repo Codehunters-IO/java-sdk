@@ -12,8 +12,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 
 /**
  * Spring Boot auto-configuration for the Kafka outbox publisher. Loaded only when {@code
- * spring-kafka} is on the classpath, {@code codehunters.outbox.enabled} is {@code true} (the default) and
- * {@code codehunters.outbox.publisher.type} is {@code kafka}.
+ * spring-kafka} is on the classpath, {@code codehunters.outbox.enabled} is {@code true} (the
+ * default) and {@code codehunters.outbox.publisher.type} is {@code kafka}.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
@@ -27,7 +27,10 @@ import org.springframework.kafka.core.KafkaTemplate;
     name = "enabled",
     havingValue = "true",
     matchIfMissing = true)
-@ConditionalOnProperty(prefix = "codehunters.outbox.publisher", name = "type", havingValue = "kafka")
+@ConditionalOnProperty(
+    prefix = "codehunters.outbox.publisher",
+    name = "type",
+    havingValue = "kafka")
 public class EventMessagingKafkaAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */

@@ -16,8 +16,8 @@ import org.springframework.context.annotation.Bean;
 
 /**
  * Spring Boot auto-configuration for the RabbitMQ outbox publisher. Loaded only when {@code
- * spring-rabbit} is on the classpath, {@code codehunters.outbox.enabled} is {@code true} (the default) and
- * {@code codehunters.outbox.publisher.type} is {@code rabbit} or unset.
+ * spring-rabbit} is on the classpath, {@code codehunters.outbox.enabled} is {@code true} (the
+ * default) and {@code codehunters.outbox.publisher.type} is {@code rabbit} or unset.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
