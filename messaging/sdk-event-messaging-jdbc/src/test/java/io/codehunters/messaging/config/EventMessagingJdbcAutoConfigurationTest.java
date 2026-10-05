@@ -118,6 +118,42 @@ class EventMessagingJdbcAutoConfigurationTest {
   }
 
   @Test
+  void should_resolve_boot_json_mapper_by_type_when_jackson_auto_configuration_present() {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                JacksonAutoConfiguration.class,
+                EventMessagingJdbcAutoConfiguration.class,
+                EventMessagingCoreAutoConfiguration.class))
+        .withBean(DataSource.class, this::createDataSource)
+        .run(
+            context -> {
+              assertThat(context.getBean(JsonMapper.class))
+                  .isSameAs(context.getBean("jacksonJsonMapper"));
+              assertThat(
+                      context
+                          .getBeanFactory()
+                          .getBeanDefinition("outboxJsonMapper")
+                          .isDefaultCandidate())
+                  .isFalse();
+            });
+  }
+
+  @Test
+  void should_resolve_application_json_mapper_by_type_when_it_is_not_primary() {
+    JsonMapper applicationMapper = JsonMapper.builder().build();
+
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean("applicationJsonMapper", JsonMapper.class, () -> applicationMapper)
+        .run(
+            context -> {
+              assertThat(context.getBean(JsonMapper.class)).isSameAs(applicationMapper);
+              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+            });
+  }
+
+  @Test
   void should_fail_startup_naming_property_when_claim_dialect_unknown() {
     contextRunner
         .withPropertyValues("codehunters.outbox.claim.dialect=oracle")
