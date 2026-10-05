@@ -1,147 +1,134 @@
 package io.codehunters.security;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.List;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import tools.jackson.databind.json.JsonMapper;
 
 class KeycloakSecurityAutoConfigurationTest {
 
-  private final WebApplicationContextRunner contextRunner =
+  private final FakeKeycloak keycloak = new FakeKeycloak();
+
+  private final WebApplicationContextRunner runner =
       new WebApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(KeycloakSecurityAutoConfiguration.class))
-          .withUserConfiguration(JsonMapperTestConfig.class)
-          .withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("develop"));
+          .withPropertyValues(
+              "codehunters.security.url=" + keycloak.url(),
+              "codehunters.security.realm=" + FakeKeycloak.REALM,
+              "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
+              "codehunters.security.introspection.client-secret=secret");
+
+  @AfterEach
+  void tearDown() {
+    keycloak.close();
+  }
 
   @Test
-  void should_registerSecurityFilterChain_when_profileActive() {
-    contextRunner.run(
+  void should_register_decoder_introspector_and_filter_chains_when_configured() {
+    runner.run(
         context -> {
-          assertTrue(context.containsBean("keycloakSecurityFilterChain"));
-          SecurityFilterChain chain = context.getBean(SecurityFilterChain.class);
-          assertNotNull(chain);
-          assertTrue(chain.matches(new MockHttpServletRequest("GET", "/api/anything")));
+          assertThat(context).hasNotFailed();
+          assertThat(context).hasSingleBean(JwtDecoder.class);
+          assertThat(context).hasSingleBean(SessionIntrospector.class);
+          assertThat(context).hasSingleBean(KeycloakJwtAuthenticationConverter.class);
+          assertThat(context).hasBean("keycloakSecurityFilterChain");
+          assertThat(context).hasBean("keycloakExcludedPathsFilterChain");
         });
   }
 
   @Test
-  void should_registerKeycloakSecurityProperties_when_profileActive() {
-    contextRunner
+  void should_not_register_introspector_when_introspection_disabled() {
+    runner
         .withPropertyValues(
-            "keycloak.security.publicPaths[0]=/api/public/**",
-            "keycloak.security.excludedPaths[0]=/actuator/**",
-            "keycloak.security.cors.allowedOrigins[0]=http://localhost:3000",
-            "keycloak.security.cors.allowCredentials=true",
-            "keycloak.security.cors.maxAge=7200")
+            "codehunters.security.introspection.enabled=false",
+            "codehunters.security.introspection.client-id=",
+            "codehunters.security.introspection.client-secret=")
         .run(
             context -> {
-              KeycloakSecurityProperties properties =
-                  context.getBean(KeycloakSecurityProperties.class);
-              assertEquals(List.of("/api/public/**"), properties.getPublicPaths());
-              assertEquals(List.of("/actuator/**"), properties.getExcludedPaths());
-              assertEquals(
-                  List.of("http://localhost:3000"), properties.getCors().getAllowedOrigins());
-              assertTrue(properties.getCors().isAllowCredentials());
-              assertEquals(7200L, properties.getCors().getMaxAge());
+              assertThat(context).hasNotFailed();
+              assertThat(context).doesNotHaveBean(SessionIntrospector.class);
+              assertThat(context).hasSingleBean(JwtDecoder.class);
             });
   }
 
   @Test
-  void should_buildCorsConfiguration_when_propertiesPresent() throws Exception {
-    KeycloakSecurityProperties properties = new KeycloakSecurityProperties();
-    KeycloakSecurityProperties.Cors cors = properties.getCors();
-    cors.setAllowedOrigins(List.of("https://app.vitxo.com"));
-    cors.setAllowedMethods(List.of("GET", "POST"));
-    cors.setAllowedHeaders(List.of("Authorization"));
-    cors.setAllowCredentials(true);
-    cors.setMaxAge(1800L);
-
-    var method =
-        KeycloakSecurityAutoConfiguration.class.getDeclaredMethod(
-            "corsConfigurationSource", KeycloakSecurityProperties.class);
-    method.setAccessible(true);
-    CorsConfigurationSource source =
-        (CorsConfigurationSource)
-            method.invoke(new KeycloakSecurityAutoConfiguration(), properties);
-
-    assertInstanceOf(UrlBasedCorsConfigurationSource.class, source);
-    HttpServletRequest request = new MockHttpServletRequest("GET", "/api/orders");
-    CorsConfiguration config = source.getCorsConfiguration(request);
-    assertNotNull(config);
-    assertEquals(List.of("https://app.vitxo.com"), config.getAllowedOrigins());
-    assertEquals(List.of("GET", "POST"), config.getAllowedMethods());
-    assertEquals(List.of("Authorization"), config.getAllowedHeaders());
-    assertEquals(Boolean.TRUE, config.getAllowCredentials());
-    assertEquals(1800L, config.getMaxAge());
+  void should_fail_startup_when_realm_is_missing() {
+    runner
+        .withPropertyValues("codehunters.security.realm=")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("codehunters.security.realm"));
   }
 
   @Test
-  void should_permitExcludedAndPublicPaths_when_configured() {
-    contextRunner
-        .withPropertyValues(
-            "keycloak.security.excludedPaths[0]=/actuator/**",
-            "keycloak.security.publicPaths[0]=/api/public/**")
+  void should_register_nothing_when_disabled() {
+    runner
+        .withPropertyValues("codehunters.security.enabled=false")
         .run(
             context -> {
-              SecurityFilterChain chain = context.getBean(SecurityFilterChain.class);
-              MockHttpServletRequest excluded =
-                  new MockHttpServletRequest("GET", "/actuator/health");
-              MockHttpServletRequest publicPath =
-                  new MockHttpServletRequest("GET", "/api/public/info");
-              assertTrue(chain.matches(excluded));
-              assertTrue(chain.matches(publicPath));
+              assertThat(context).doesNotHaveBean(JwtDecoder.class);
+              assertThat(context).doesNotHaveBean(SecurityFilterChain.class);
             });
   }
 
   @Test
-  void should_notLoad_when_profileNotMatching() {
-    new WebApplicationContextRunner()
-        .withConfiguration(AutoConfigurations.of(KeycloakSecurityAutoConfiguration.class))
-        .withUserConfiguration(JsonMapperTestConfig.class)
-        .withInitializer(ctx -> ctx.getEnvironment().setActiveProfiles("local"))
+  void should_register_nothing_when_spring_security_is_absent() {
+    runner
+        .withClassLoader(new FilteredClassLoader(SecurityFilterChain.class))
+        .run(context -> assertThat(context).doesNotHaveBean(JwtDecoder.class));
+  }
+
+  @Test
+  void should_keep_application_filter_chain_when_one_is_defined() {
+    runner
+        .withUserConfiguration(ApplicationSecurity.class)
         .run(
             context -> {
-              assertTrue(context.getBeansOfType(SecurityFilterChain.class).isEmpty());
-              assertTrue(context.getBeansOfType(KeycloakSecurityProperties.class).isEmpty());
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasSingleBean(SecurityFilterChain.class);
+              assertThat(context).hasBean("applicationFilterChain");
+              assertThat(context).hasSingleBean(JwtDecoder.class);
             });
   }
 
   @Test
-  void should_invokeFilterChain_when_requestServed() throws Exception {
-    contextRunner.run(
-        context -> {
-          SecurityFilterChain chain = context.getBean(SecurityFilterChain.class);
-          MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/secured");
-          MockHttpServletResponse response = new MockHttpServletResponse();
-          // Smoke check — the chain was built and is usable, even if the underlying
-          // filters reject unauthenticated requests downstream.
-          assertNotNull(chain.getFilters());
-          assertTrue(chain.matches(request));
-          // Touch response to keep static analysers quiet about unused vars.
-          assertEquals(200, response.getStatus());
-        });
+  void should_win_over_boot_security_and_resource_server_defaults() {
+    runner
+        .withConfiguration(
+            AutoConfigurations.of(
+                SecurityAutoConfiguration.class,
+                ServletWebSecurityAutoConfiguration.class,
+                OAuth2ResourceServerAutoConfiguration.class))
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasSingleBean(JwtDecoder.class);
+              assertThat(context).hasBean("keycloakSecurityFilterChain");
+              assertThat(context).doesNotHaveBean("defaultSecurityFilterChain");
+            });
   }
 
-  @Configuration
-  static class JsonMapperTestConfig {
+  @Configuration(proxyBeanMethods = false)
+  @EnableWebSecurity
+  static class ApplicationSecurity {
     @Bean
-    JsonMapper jsonMapper() {
-      return JsonMapper.builder().build();
+    SecurityFilterChain applicationFilterChain(HttpSecurity http) throws Exception {
+      return http.build();
     }
   }
 }

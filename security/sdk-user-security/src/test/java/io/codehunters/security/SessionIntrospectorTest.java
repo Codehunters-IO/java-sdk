@@ -1,96 +1,83 @@
 package io.codehunters.security;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import com.sun.net.httpserver.HttpServer;
-import java.io.IOException;
-import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.time.Clock;
+import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.client.RestClient;
-import tools.jackson.databind.json.JsonMapper;
 
 class SessionIntrospectorTest {
 
-  private static final String TOKEN = "access-token-abc";
-  private static final String PATH = "/realms/vitxo/protocol/openid-connect/token/introspect";
-
-  private final JsonMapper jsonMapper = JsonMapper.builder().build();
-  private HttpServer server;
-  private final AtomicInteger callCount = new AtomicInteger();
+  private final FakeKeycloak keycloak = new FakeKeycloak();
 
   @AfterEach
   void tearDown() {
-    if (server != null) {
-      server.stop(0);
-    }
-  }
-
-  private SessionIntrospector startStub(int status, String body, boolean failOpen)
-      throws IOException {
-    server = HttpServer.create(new InetSocketAddress(0), 0);
-    server.createContext(
-        PATH,
-        exchange -> {
-          callCount.incrementAndGet();
-          byte[] payload = body.getBytes(StandardCharsets.UTF_8);
-          exchange.getResponseHeaders().add("Content-Type", "application/json");
-          exchange.sendResponseHeaders(status, payload.length);
-          exchange.getResponseBody().write(payload);
-          exchange.close();
-        });
-    server.start();
-
-    var cfg = new KeycloakSecurityProperties();
-    cfg.setUrl("http://localhost:" + server.getAddress().getPort());
-    cfg.setRealm("vitxo");
-    cfg.setClientId("vitxo-auth");
-    cfg.setClientSecret("secret");
-    cfg.setCacheTtlSeconds(30);
-    cfg.setFailOpen(failOpen);
-    return new SessionIntrospector(RestClient.create(), jsonMapper, cfg);
+    keycloak.close();
   }
 
   @Test
-  void should_returnTrue_when_sessionActive() throws IOException {
-    var introspector = startStub(200, "{\"active\":true}", true);
-
-    assertTrue(introspector.isActive(TOKEN));
-    assertEquals(1, callCount.get());
+  void should_report_active_when_keycloak_says_active() {
+    assertThat(introspector(false).isActive(keycloak.token())).isTrue();
   }
 
   @Test
-  void should_returnFalse_when_sessionRevoked() throws IOException {
-    var introspector = startStub(200, "{\"active\":false}", true);
+  void should_report_inactive_when_session_revoked() {
+    keycloak.sessionActive(false);
 
-    assertFalse(introspector.isActive(TOKEN));
+    assertThat(introspector(false).isActive(keycloak.token())).isFalse();
   }
 
   @Test
-  void should_cacheResult_and_notCallKeycloakTwice_withinTtl() throws IOException {
-    var introspector = startStub(200, "{\"active\":true}", true);
+  void should_reuse_cached_result_when_same_token_checked_again() {
+    var introspector = introspector(false);
+    String token = keycloak.token();
 
-    assertTrue(introspector.isActive(TOKEN));
-    assertTrue(introspector.isActive(TOKEN)); // second call served from cache
+    introspector.isActive(token);
+    introspector.isActive(token);
 
-    assertEquals(1, callCount.get());
+    assertThat(keycloak.introspectionCalls()).isEqualTo(1);
   }
 
   @Test
-  void should_failOpen_when_keycloakErrors() throws IOException {
-    var introspector = startStub(500, "boom", true);
+  void should_reject_when_keycloak_fails_and_fail_open_disabled() {
+    keycloak.introspectionFailsWith(500);
 
-    assertTrue(introspector.isActive(TOKEN));
+    assertThat(introspector(false).isActive(keycloak.token())).isFalse();
   }
 
   @Test
-  void should_failClosed_when_keycloakErrors_andFailOpenFalse() throws IOException {
-    var introspector = startStub(500, "boom", false);
+  void should_allow_when_keycloak_fails_and_fail_open_enabled() {
+    keycloak.introspectionFailsWith(500);
 
-    assertFalse(introspector.isActive(TOKEN));
+    assertThat(introspector(true).isActive(keycloak.token())).isTrue();
+  }
+
+  @Test
+  void should_not_cache_result_when_introspection_failed() {
+    keycloak.introspectionFailsWith(500);
+    var introspector = introspector(true);
+    String token = keycloak.token();
+
+    introspector.isActive(token);
+    introspector.isActive(token);
+
+    assertThat(keycloak.introspectionCalls()).isEqualTo(2);
+  }
+
+  private SessionIntrospector introspector(boolean failOpen) {
+    var config =
+        new KeycloakSecurityProperties.Introspection(
+            true,
+            FakeKeycloak.CLIENT_ID,
+            "secret",
+            Duration.ofSeconds(30),
+            100,
+            failOpen,
+            Duration.ofSeconds(1),
+            Duration.ofSeconds(1));
+    return new SessionIntrospector(
+        RestClient.create(), keycloak.introspectionUri(), config, Clock.systemUTC());
   }
 }
