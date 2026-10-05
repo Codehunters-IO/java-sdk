@@ -18,6 +18,7 @@ Migrated from the standalone `vitxo-sdk-*` repositories (org `SOLDIFE`, group `c
 | `sdk-user-security` | `io.codehunters.sdk.security` | pending |
 | `sdk-file-share` | `io.codehunters.fileshare` | pending |
 | `sdk-event-messaging` | `io.codehunters.messaging` | pending |
+| `sdk-bom` | — (BOM, `java-platform`) | pending |
 
 ## Build
 

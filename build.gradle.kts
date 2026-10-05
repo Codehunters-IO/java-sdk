@@ -29,10 +29,59 @@ fun isAlreadyPublished(repositoryUrl: java.net.URI, group: String, artifact: Str
     }
 }
 
+val libraries = subprojects.filter { it.name != "sdk-bom" }
+
+// Publishing shared by the libraries and the sdk-bom platform.
 subprojects {
+    apply(plugin = "maven-publish")
+
+    tasks.withType<PublishToMavenRepository>().configureEach {
+        onlyIf("version is a release not yet in the target repository") {
+            val version = publication.version
+            if (version == Project.DEFAULT_VERSION) {
+                throw GradleException("${project.name} has no version; set `version` in its build script")
+            }
+            !version.endsWith("-SNAPSHOT") &&
+                !isAlreadyPublished(repository.url, publication.groupId, publication.artifactId, version)
+        }
+    }
+
+    configure<PublishingExtension> {
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("${rootProject.findProperty("github_packages_url")}")
+                credentials {
+                    username = System.getenv("GH_PACKAGES_USERNAME")
+                    password = System.getenv("GH_PACKAGES_TOKEN")
+                }
+            }
+        }
+
+        publications.withType<MavenPublication>().configureEach {
+            pom {
+                val repositoryUrl = rootProject.property("repository.url").toString()
+                name.set(project.name)
+                description.set(provider { project.description })
+                url.set(repositoryUrl)
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                scm {
+                    url.set(repositoryUrl)
+                    connection.set("scm:git:$repositoryUrl.git")
+                }
+            }
+        }
+    }
+}
+
+configure(libraries) {
     apply(plugin = "java-library")
     apply(plugin = "com.diffplug.spotless")
-    apply(plugin = "maven-publish")
     apply(plugin = "jacoco")
 
     repositories {
@@ -194,29 +243,7 @@ subprojects {
         }
     }
 
-    tasks.withType<PublishToMavenRepository>().configureEach {
-        onlyIf("version is a release not yet in the target repository") {
-            val version = publication.version
-            if (version == Project.DEFAULT_VERSION) {
-                throw GradleException("${project.name} has no version; set `version` in its build script")
-            }
-            !version.endsWith("-SNAPSHOT") &&
-                !isAlreadyPublished(repository.url, publication.groupId, publication.artifactId, version)
-        }
-    }
-
     configure<PublishingExtension> {
-        repositories {
-            maven {
-                name = "GitHubPackages"
-                url = uri("${rootProject.findProperty("github_packages_url")}")
-                credentials {
-                    username = System.getenv("GH_PACKAGES_USERNAME")
-                    password = System.getenv("GH_PACKAGES_TOKEN")
-                }
-            }
-        }
-
         publications {
             // groupId/artifactId/version default to the project's, read lazily: setting them here
             // runs before each module's script assigns `version`, which published "unspecified".
@@ -224,22 +251,6 @@ subprojects {
                 from(components["java"])
                 versionMapping {
                     allVariants { fromResolutionResult() }
-                }
-                pom {
-                    val repositoryUrl = rootProject.property("repository.url").toString()
-                    name.set(project.name)
-                    description.set(provider { project.description })
-                    url.set(repositoryUrl)
-                    licenses {
-                        license {
-                            name.set("MIT License")
-                            url.set("https://opensource.org/licenses/MIT")
-                        }
-                    }
-                    scm {
-                        url.set(repositoryUrl)
-                        connection.set("scm:git:$repositoryUrl.git")
-                    }
                 }
             }
         }
@@ -256,7 +267,7 @@ sonar {
         property("sonar.gradle.skipCompile", "true")
         property(
             "sonar.coverage.jacoco.xmlReportPaths",
-            subprojects.joinToString(",") { "${it.layout.buildDirectory.get()}/reports/jacoco/test/jacocoTestReport.xml" }
+            libraries.joinToString(",") { "${it.layout.buildDirectory.get()}/reports/jacoco/test/jacocoTestReport.xml" }
         )
         property("sonar.exclusions", "**/src/test/**,**/*Test.java,**/*IT.java")
         property("sonar.coverage.exclusions", "**/*Properties.java")
