@@ -23,4 +23,5 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("io.micrometer:micrometer-core")
     testImplementation(project(":sdk-tracing"))
+    testImplementation(libs.archunit.junit5)
 }
