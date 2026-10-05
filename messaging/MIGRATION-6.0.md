@@ -123,6 +123,14 @@ Drain the outbox before adding `seq` if the relative order of rows already queue
 
 MySQL and MariaDB are not supported: `claim.dialect` `auto` or `generic` fails startup on them.
 
+## Known limits
+
+- A reclaim after a crash or stall adds one attempt to every row of the abandoned batch, including
+  rows that were never sent. Keep `max-attempts` high enough to absorb a few reclaims; the fix needs
+  a schema change and is planned for 7.0.
+- Maven does not apply the Gradle capability conflict check: import `io.codehunters:sdk-bom` to keep
+  the `sdk-event-messaging-*` artifacts on one version, and remove the 5.x artifact yourself.
+
 ## Consumers
 
 Delivery is at-least-once. A stale claim, a confirm timeout or a crash after the broker accepted

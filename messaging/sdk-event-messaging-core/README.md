@@ -110,6 +110,18 @@ Every bean backs off when the application defines its own: `Clock` (UTC by defau
 `MessagePublisherDecorator` beans wrap the publisher handed to the use case, in bean order; the
 `outbox.publish` timer is one.
 
+## Known limits
+
+- **A reclaim counts against every row of the abandoned batch.** When a dispatcher crashes or stalls
+  past `claim.ttl-ms`, the next claim adds one attempt to each `IN_FLIGHT` row it takes over,
+  including rows that were never sent: the table does not record which rows of a batch were tried.
+  With a low `max-attempts`, repeated crashes can mark unsent rows `FAILED`. Fixing it needs a
+  schema change, planned for 7.0.
+- **Maven builds get no artifact-alignment protection.** The Gradle capability that makes a build
+  fail when the 5.x `sdk-event-messaging` jar is still resolved, or when artifacts of different
+  versions meet, is invisible to Maven. Import `io.codehunters:sdk-bom` so all
+  `sdk-event-messaging-*` artifacts resolve to the same version, and remove the 5.x dependency.
+
 ## Migrating from 5.x
 
 See [MIGRATION-6.0.md](../MIGRATION-6.0.md): coordinates, property keys, transport selection,
