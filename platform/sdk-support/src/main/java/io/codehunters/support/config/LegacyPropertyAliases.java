@@ -1,4 +1,4 @@
-package io.codehunters.security.support;
+package io.codehunters.support.config;
 
 import java.util.Comparator;
 import java.util.LinkedHashMap;

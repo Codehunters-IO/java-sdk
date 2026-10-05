@@ -1,6 +1,6 @@
 package io.codehunters.security.authz;
 
-import io.codehunters.security.support.LegacyPropertyAliases;
+import io.codehunters.support.config.LegacyPropertyAliases;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;

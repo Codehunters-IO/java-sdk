@@ -1,4 +1,4 @@
-package io.codehunters.security.support;
+package io.codehunters.support.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

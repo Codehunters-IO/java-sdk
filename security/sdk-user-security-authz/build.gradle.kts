@@ -7,6 +7,7 @@ description = "Keycloak Authorization Services policy enforcement point for sdk-
 
 dependencies {
     api(project(":sdk-user-security"))
+    implementation(project(":sdk-support"))
     implementation(libs.keycloak.authz.client)
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework:spring-web")

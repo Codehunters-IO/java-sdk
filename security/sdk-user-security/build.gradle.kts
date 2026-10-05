@@ -10,6 +10,7 @@ dependencies {
     api("org.springframework.security:spring-security-web")
     api("org.springframework.security:spring-security-oauth2-resource-server")
     api("org.springframework.security:spring-security-oauth2-jose")
+    implementation(project(":sdk-support"))
     implementation("org.springframework:spring-web")
     implementation("org.slf4j:slf4j-api")
     implementation("tools.jackson.core:jackson-databind")

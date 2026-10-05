@@ -26,6 +26,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 — [README](security/sdk-user-security-authz/README.md) |
 | `sdk-file-share` | `io.codehunters.fileshare` | pending |
 | `sdk-event-messaging` | `io.codehunters.messaging` | pending |
+| `sdk-support` | `io.codehunters.support` | internal |
 | `sdk-bom` | — (BOM, `java-platform`) | pending |
 
 ## Build
