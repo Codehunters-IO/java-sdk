@@ -38,3 +38,5 @@ First release of the split artifacts; replaces `sdk-event-messaging` 5.1.5. Migr
   again; it is now marked `FAILED` (`max-attempts-exceeded`).
 - A long batch could outlive its claim and be reclaimed by another instance while still being sent;
   publishing now stops at half the claim TTL and releases the rest of the batch to `PENDING`.
+- A transport timeout large enough to overflow `batch-size × timeout` wrapped to a small or negative
+  budget and passed the claim-budget check; it now fails startup naming the key.

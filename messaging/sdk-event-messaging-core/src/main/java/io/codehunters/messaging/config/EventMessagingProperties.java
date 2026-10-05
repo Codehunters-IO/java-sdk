@@ -80,10 +80,21 @@ public record EventMessagingProperties(
     Duration timeout =
         isKafka ? publisher.kafka().sendTimeout() : publisher.rabbit().confirmTimeout();
     String key = isKafka ? "publisher.kafka.send-timeout" : "publisher.rabbit.confirm-timeout";
-    long budgetMs = batchSize * timeout.toMillis();
+    long budgetMs = batchBudgetMs(batchSize, timeout, key);
     if (claim.ttlMs() <= budgetMs) {
       throw new IllegalArgumentException(
           CLAIM_BUDGET_MESSAGE.formatted(claim.ttlMs(), key, budgetMs));
+    }
+  }
+
+  // Exact arithmetic: a wrapped product would turn a huge timeout into a small or negative budget
+  // and let the claim TTL check pass.
+  private static long batchBudgetMs(int batchSize, Duration timeout, String key) {
+    try {
+      return Math.multiplyExact(batchSize, timeout.toMillis());
+    } catch (ArithmeticException e) {
+      throw new IllegalArgumentException(
+          PREFIX + key + " is too large: batch-size times it overflows milliseconds");
     }
   }
 
