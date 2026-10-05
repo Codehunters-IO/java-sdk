@@ -31,39 +31,59 @@ public record EventMessagingProperties(
     @DefaultValue Purge purge) {
 
   private static final String PREFIX = "codehunters.outbox.";
+  private static final String RABBIT = "rabbit";
   private static final String KAFKA = "kafka";
-  private static final Set<String> PUBLISHER_TYPES = Set.of("rabbit", KAFKA);
+  private static final Set<String> PUBLISHER_TYPES = Set.of(RABBIT, KAFKA);
   private static final String CLAIM_BUDGET_MESSAGE =
       PREFIX
           + "claim.ttl-ms (%d) must exceed "
           + PREFIX
           + "batch-size * "
           + PREFIX
-          + "publisher.kafka.send-timeout (%d ms): a batch still being sent when its claim"
-          + " expires is reclaimed by another instance and published as duplicates";
+          + "%s (%d ms): a batch still being sent when its claim expires is reclaimed by another"
+          + " instance and published as duplicates";
 
   /**
-   * Validates the ranges and the claim budget of the Kafka publisher.
+   * Validates the ranges and, when {@code publisher.type} is set, the claim budget of that
+   * transport (see {@link #requireClaimBudget(String)}).
    *
-   * @throws IllegalArgumentException when a value is out of range, naming the offending key; with
-   *     the Kafka publisher, also when {@code claim.ttl-ms} does not exceed {@code batch-size}
-   *     times {@code publisher.kafka.send-timeout}
+   * @throws IllegalArgumentException when a value is out of range, naming the offending key, or
+   *     when the claim budget of the configured transport is exceeded
    */
   public EventMessagingProperties {
     requireAtLeastOne(batchSize, "batch-size");
     requireAtLeastOne(maxAttempts, "max-attempts");
-    requireClaimBudget(batchSize, claim, publisher);
+    if (claim != null && publisher != null && publisher.type() != null) {
+      checkClaimBudget(batchSize, claim, publisher, publisher.type());
+    }
+  }
+
+  /**
+   * Validates the claim budget of the transport that publishes the outbox. A claimed batch is
+   * published sequentially, each send blocking for at most the per-message timeout of the transport
+   * ({@code publisher.kafka.send-timeout} or {@code publisher.rabbit.confirm-timeout}); {@code
+   * claim.ttl-ms} must exceed {@code batch-size} times that timeout. Transport auto-configurations
+   * call it once the transport is resolved, which covers an unset {@code publisher.type}.
+   *
+   * @param transport the resolved transport, {@code rabbit} or {@code kafka}
+   * @throws IllegalArgumentException when {@code claim.ttl-ms} does not exceed the batch budget
+   */
+  public void requireClaimBudget(String transport) {
+    checkClaimBudget(batchSize, claim, publisher, transport);
   }
 
   // A claimed batch must be published before its claim goes stale; otherwise another instance
   // reclaims rows that are still being sent and the broker receives them twice.
-  private static void requireClaimBudget(int batchSize, Claim claim, Publisher publisher) {
-    if (claim == null || publisher == null || !KAFKA.equals(publisher.type())) {
-      return;
-    }
-    long budgetMs = batchSize * publisher.kafka().sendTimeout().toMillis();
+  private static void checkClaimBudget(
+      int batchSize, Claim claim, Publisher publisher, String transport) {
+    boolean isKafka = KAFKA.equals(transport);
+    Duration timeout =
+        isKafka ? publisher.kafka().sendTimeout() : publisher.rabbit().confirmTimeout();
+    String key = isKafka ? "publisher.kafka.send-timeout" : "publisher.rabbit.confirm-timeout";
+    long budgetMs = batchSize * timeout.toMillis();
     if (claim.ttlMs() <= budgetMs) {
-      throw new IllegalArgumentException(CLAIM_BUDGET_MESSAGE.formatted(claim.ttlMs(), budgetMs));
+      throw new IllegalArgumentException(
+          CLAIM_BUDGET_MESSAGE.formatted(claim.ttlMs(), key, budgetMs));
     }
   }
 
@@ -127,20 +147,37 @@ public record EventMessagingProperties(
   /**
    * Broker publisher selection.
    *
-   * @param type the publisher type: {@code rabbit} (default) or {@code kafka}, case-insensitive and
-   *     normalised to lower case; other values fail startup
-   * @param kafka the Kafka publisher settings, used when {@code type} is {@code kafka}
+   * @param type the publisher type: {@code rabbit} or {@code kafka}, case-insensitive and
+   *     normalised to lower case; other values fail startup. Unset ({@code null}) lets the
+   *     transport artifact on the classpath decide; with both artifacts present, startup fails
+   * @param kafka the Kafka publisher settings, used when the transport is Kafka
+   * @param rabbit the RabbitMQ publisher settings, used when the transport is RabbitMQ
    */
-  public record Publisher(@DefaultValue("rabbit") String type, @DefaultValue Kafka kafka) {
+  public record Publisher(String type, @DefaultValue Kafka kafka, @DefaultValue Rabbit rabbit) {
 
     /** Validates and normalises the publisher type. */
     public Publisher {
-      String normalised = type == null ? null : type.trim().toLowerCase(Locale.ROOT);
-      if (normalised == null || !PUBLISHER_TYPES.contains(normalised)) {
+      String normalised =
+          type == null || type.isBlank() ? null : type.trim().toLowerCase(Locale.ROOT);
+      if (normalised != null && !PUBLISHER_TYPES.contains(normalised)) {
         throw new IllegalArgumentException(
             PREFIX + "publisher.type must be 'rabbit' or 'kafka' but was '" + type + "'");
       }
       type = normalised;
+    }
+  }
+
+  /**
+   * RabbitMQ publisher settings.
+   *
+   * @param confirmTimeout the maximum time to wait for the broker confirm of one message; with
+   *     {@code batch-size}, it bounds the claim TTL
+   */
+  public record Rabbit(@DefaultValue("5s") Duration confirmTimeout) {
+
+    /** Validates the confirm timeout. */
+    public Rabbit {
+      requirePositive(confirmTimeout, "publisher.rabbit.confirm-timeout");
     }
   }
 
