@@ -13,6 +13,8 @@ import io.codehunters.messaging.domain.factory.EventMessageFactory;
 import io.codehunters.messaging.domain.factory.OutboxEventFactory;
 import io.codehunters.messaging.domain.model.EventMessage;
 import io.codehunters.messaging.domain.model.OutboxMessage;
+import io.codehunters.tracing.TraceContextPort;
+import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
@@ -21,6 +23,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -221,6 +224,40 @@ class EventMessagingCoreAutoConfigurationTest {
         .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(context -> assertThat(context).hasSingleBean(SendOutboxMessagesPort.class));
+  }
+
+  @Test
+  void should_stamp_current_trace_id_when_trace_context_port_present() {
+    TraceParent current = TraceParent.generate();
+    TraceContextPort port = mock(TraceContextPort.class);
+    when(port.currentTraceParent()).thenReturn(Optional.of(current));
+
+    contextRunner
+        .withBean(TraceContextPort.class, () -> port)
+        .run(
+            context -> {
+              EventMessage<String> event =
+                  context.getBean(EventMessageFactory.class).create(null, "a", "n", "T", "p");
+              OutboxMessage<EventMessage<String>> outbox =
+                  context.getBean(OutboxEventFactory.class).create("t", null, "a", "n", "T", "p");
+              assertThat(event.getHeader().getTraceId()).isEqualTo(current.traceId());
+              assertThat(outbox.getMessage().getHeader().getTraceId()).isEqualTo(current.traceId());
+            });
+  }
+
+  @Test
+  void should_leave_trace_id_empty_when_tracing_absent() {
+    contextRunner
+        .withClassLoader(new FilteredClassLoader(TraceContextPort.class))
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(EventMessageFactory.class)
+                            .create(null, "a", "n", "T", "p")
+                            .getHeader()
+                            .getTraceId())
+                    .isNull());
   }
 
   @Test

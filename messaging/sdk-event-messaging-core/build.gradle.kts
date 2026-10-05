@@ -15,10 +15,12 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("org.springframework:spring-context")
     compileOnly("io.micrometer:micrometer-core")
+    compileOnly(project(":sdk-tracing"))
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.mockito:mockito-core")
     testImplementation("io.micrometer:micrometer-core")
+    testImplementation(project(":sdk-tracing"))
 }
