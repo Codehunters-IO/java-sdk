@@ -111,7 +111,8 @@ class EventMessagingCoreAutoConfigurationTest {
           assertThat(props.claim().dialect()).isEqualTo("auto");
           assertThat(props.backoff().baseDelayMs()).isEqualTo(30_000L);
           assertThat(props.backoff().maxDelayMs()).isEqualTo(3_600_000L);
-          assertThat(props.publisher().type()).isEqualTo("rabbit");
+          assertThat(props.publisher().type()).isNull();
+          assertThat(props.publisher().rabbit().confirmTimeout()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(7));
           assertThat(props.purge().batchSize()).isEqualTo(500);
@@ -147,6 +148,7 @@ class EventMessagingCoreAutoConfigurationTest {
         .withPropertyValues(
             "codehunters.outbox.publisher.type=kafka",
             "codehunters.outbox.publisher.kafka.send-timeout=3s",
+            "codehunters.outbox.publisher.rabbit.confirm-timeout=2s",
             "codehunters.outbox.purge.retention=3d",
             "codehunters.outbox.purge.batch-size=100",
             "codehunters.outbox.claim.dialect=postgresql")
@@ -155,6 +157,8 @@ class EventMessagingCoreAutoConfigurationTest {
               EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
               assertThat(props.publisher().type()).isEqualTo("kafka");
               assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(3));
+              assertThat(props.publisher().rabbit().confirmTimeout())
+                  .isEqualTo(Duration.ofSeconds(2));
               assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(3));
               assertThat(props.purge().batchSize()).isEqualTo(100);
               assertThat(props.claim().dialect()).isEqualTo("postgresql");
@@ -176,6 +180,21 @@ class EventMessagingCoreAutoConfigurationTest {
                   .hasMessageContaining("codehunters.outbox.claim.ttl-ms")
                   .hasMessageContaining("duplicate");
             });
+  }
+
+  @Test
+  void should_fail_startup_explaining_duplicates_when_claim_ttl_below_rabbit_confirm_budget() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.publisher.type=rabbit",
+            "codehunters.outbox.publisher.rabbit.confirm-timeout=10s",
+            "codehunters.outbox.claim.ttl-ms=60000")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout")
+                    .hasMessageContaining("duplicate"));
   }
 
   @Test

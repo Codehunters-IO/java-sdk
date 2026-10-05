@@ -8,6 +8,7 @@ import io.codehunters.messaging.config.EventMessagingProperties.Claim;
 import io.codehunters.messaging.config.EventMessagingProperties.Kafka;
 import io.codehunters.messaging.config.EventMessagingProperties.Publisher;
 import io.codehunters.messaging.config.EventMessagingProperties.Purge;
+import io.codehunters.messaging.config.EventMessagingProperties.Rabbit;
 import io.codehunters.messaging.config.EventMessagingProperties.Task;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,8 @@ class EventMessagingPropertiesTest {
   private static final int MAX_ATTEMPTS = 5;
   private static final long CLAIM_TTL_MS = 300_000L;
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(5);
+  private static final long TTL_BELOW_BUDGET_MS = 250_000L;
   private static final Task TASK = new Task("5000", "60000", "10000", "outbox-app");
   private static final Backoff BACKOFF = new Backoff(30_000L, 3_600_000L);
   private static final Purge PURGE =
@@ -96,21 +99,24 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_publisher_type_when_unknown() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new Publisher("sqs", new Kafka(SEND_TIMEOUT)))
+        .isThrownBy(() -> publisher("sqs"))
         .withMessageContaining("codehunters.outbox.publisher.type")
         .withMessageContaining("sqs");
   }
 
   @Test
-  void should_reject_publisher_type_when_missing() {
-    assertThatIllegalArgumentException()
-        .isThrownBy(() -> new Publisher(null, new Kafka(SEND_TIMEOUT)))
-        .withMessageContaining("codehunters.outbox.publisher.type");
+  void should_leave_publisher_type_unset_when_missing() {
+    assertThat(publisher(null).type()).isNull();
+  }
+
+  @Test
+  void should_leave_publisher_type_unset_when_blank() {
+    assertThat(publisher("  ").type()).isNull();
   }
 
   @Test
   void should_accept_publisher_type_ignoring_case_when_known() {
-    Publisher publisher = new Publisher("KaFkA", new Kafka(SEND_TIMEOUT));
+    Publisher publisher = publisher("KaFkA");
 
     assertThat(publisher.type()).isEqualTo("kafka");
   }
@@ -118,7 +124,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_claim_ttl_explaining_duplicates_when_kafka_batch_budget_exceeds_it() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(250_000L), kafka()))
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(TTL_BELOW_BUDGET_MS), kafka()))
         .withMessageContaining("codehunters.outbox.claim.ttl-ms")
         .withMessageContaining("duplicate");
   }
@@ -132,11 +138,84 @@ class EventMessagingPropertiesTest {
   }
 
   @Test
-  void should_ignore_kafka_budget_when_publisher_is_rabbit() {
-    EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), rabbit());
+  void should_reject_rabbit_confirm_timeout_when_not_positive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new Rabbit(Duration.ofSeconds(-1)))
+        .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
+  }
 
-    assertThat(properties.claim().ttlMs()).isEqualTo(1_000L);
+  @Test
+  void should_reject_rabbit_confirm_timeout_when_missing() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new Rabbit(null))
+        .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
+  }
+
+  @Test
+  void should_reject_claim_ttl_naming_confirm_timeout_when_rabbit_batch_budget_exceeds_it() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(TTL_BELOW_BUDGET_MS), rabbit()))
+        .withMessageContaining("codehunters.outbox.claim.ttl-ms")
+        .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout")
+        .withMessageContaining("duplicate");
+  }
+
+  @Test
+  void should_accept_rabbit_publisher_when_claim_ttl_exceeds_batch_budget() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), rabbit());
+
+    assertThat(properties.publisher().type()).isEqualTo("rabbit");
+  }
+
+  @Test
+  void should_ignore_kafka_send_timeout_when_publisher_is_rabbit() {
+    Publisher publisher =
+        new Publisher("rabbit", new Kafka(Duration.ofHours(1)), new Rabbit(CONFIRM_TIMEOUT));
+
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher);
+
+    assertThat(properties.claim().ttlMs()).isEqualTo(CLAIM_TTL_MS);
+  }
+
+  @Test
+  void should_defer_claim_budget_when_publisher_type_unset() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), publisher(null));
+
+    assertThat(properties.publisher().type()).isNull();
+  }
+
+  @Test
+  void should_reject_claim_ttl_when_budget_of_resolved_rabbit_transport_exceeds_it() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), publisher(null));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> properties.requireClaimBudget("rabbit"))
+        .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
+  }
+
+  @Test
+  void should_reject_claim_ttl_when_budget_of_resolved_kafka_transport_exceeds_it() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), publisher(null));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> properties.requireClaimBudget("kafka"))
+        .withMessageContaining("codehunters.outbox.publisher.kafka.send-timeout");
+  }
+
+  @Test
+  void should_accept_resolved_transport_when_claim_ttl_exceeds_its_budget() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher(null));
+
+    properties.requireClaimBudget("kafka");
+
+    assertThat(properties.claim().ttlMs()).isEqualTo(CLAIM_TTL_MS);
   }
 
   private static EventMessagingProperties properties(
@@ -153,11 +232,15 @@ class EventMessagingPropertiesTest {
     return new Purge(retention, batchSize, "3600000", "60000", "purge", "PT10M", "PT30S");
   }
 
+  private static Publisher publisher(String type) {
+    return new Publisher(type, new Kafka(SEND_TIMEOUT), new Rabbit(CONFIRM_TIMEOUT));
+  }
+
   private static Publisher rabbit() {
-    return new Publisher("rabbit", new Kafka(SEND_TIMEOUT));
+    return publisher("rabbit");
   }
 
   private static Publisher kafka() {
-    return new Publisher("kafka", new Kafka(SEND_TIMEOUT));
+    return publisher("kafka");
   }
 }

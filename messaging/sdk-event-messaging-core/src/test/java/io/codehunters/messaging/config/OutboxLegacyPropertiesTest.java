@@ -103,7 +103,8 @@ class OutboxLegacyPropertiesTest {
         .contains("\"name\": \"outbox.batch-size\"")
         .contains("\"replacement\": \"codehunters.outbox.batch-size\"")
         .contains("\"replacement\": \"codehunters.outbox.purge.lock-at-least\"")
-        .contains("\"name\": \"codehunters.outbox.purge.fixed-delay\"");
+        .contains("\"name\": \"codehunters.outbox.purge.fixed-delay\"")
+        .contains("\"name\": \"codehunters.outbox.publisher.rabbit.confirm-timeout\"");
   }
 
   private void addApplicationProperties(Map<String, Object> properties) {
