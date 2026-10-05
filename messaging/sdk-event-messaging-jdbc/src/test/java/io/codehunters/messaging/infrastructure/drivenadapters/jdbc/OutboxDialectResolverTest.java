@@ -16,6 +16,7 @@ class OutboxDialectResolverTest {
 
   private static final String AUTO = "auto";
   private static final String PROPERTY = "codehunters.outbox.claim.dialect";
+  private static final String UNSUPPORTED = "not supported";
 
   private static DataSource dataSourceFor(String productName) throws SQLException {
     DataSource dataSource = mock(DataSource.class);
@@ -85,6 +86,43 @@ class OutboxDialectResolverTest {
   @Test
   void should_resolve_generic_when_configured_explicitly() {
     assertThat(OutboxDialectResolver.resolve(mock(DataSource.class), "Generic"))
+        .isInstanceOf(GenericOutboxDialect.class);
+  }
+
+  @Test
+  void should_fail_naming_mysql_as_unsupported_when_auto_meets_mysql() throws SQLException {
+    DataSource mysql = dataSourceFor("MySQL");
+
+    assertThatThrownBy(() -> OutboxDialectResolver.resolve(mysql, AUTO))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("MySQL")
+        .hasMessageContaining(UNSUPPORTED);
+  }
+
+  @Test
+  void should_fail_naming_mariadb_as_unsupported_when_auto_meets_mariadb() throws SQLException {
+    DataSource mariadb = dataSourceFor("MariaDB");
+
+    assertThatThrownBy(() -> OutboxDialectResolver.resolve(mariadb, AUTO))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("MariaDB")
+        .hasMessageContaining(UNSUPPORTED);
+  }
+
+  @Test
+  void should_fail_naming_mysql_as_unsupported_when_generic_configured_on_mysql()
+      throws SQLException {
+    DataSource mysql = dataSourceFor("MySQL");
+
+    assertThatThrownBy(() -> OutboxDialectResolver.resolve(mysql, "generic"))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("MySQL")
+        .hasMessageContaining(UNSUPPORTED);
+  }
+
+  @Test
+  void should_resolve_generic_when_configured_on_h2() throws SQLException {
+    assertThat(OutboxDialectResolver.resolve(dataSourceFor("H2"), "generic"))
         .isInstanceOf(GenericOutboxDialect.class);
   }
 
