@@ -49,6 +49,10 @@ An unknown value, or `auto` with an unsupported or unreadable database, fails st
 and skips a row while an earlier row with the same `(origin, topic, message_key)` is `PENDING`,
 `IN_FLIGHT` or `FAILED`.
 
+**MySQL and MariaDB are not supported.** The generic claim fails there at dispatch time (error 1093
+on the self-referencing update, then the `FETCH FIRST` syntax), so `auto` and `generic` read the
+product name and fail startup on either database instead of failing every dispatch.
+
 ## DDL
 
 The SDK never runs DDL. Copy the reference files from the jar into your changelog and adapt the
@@ -91,7 +95,7 @@ are never touched.
 
 | Situation | Result |
 |---|---|
-| Unsupported database with `auto`, unknown dialect | Startup fails |
+| Unsupported database with `auto`, MySQL/MariaDB with `auto` or `generic`, unknown dialect | Startup fails |
 | Dispatch or purge throws | Logged with the exception class only; the next tick runs normally |
 | Instance dies with a claimed batch | Rows are reclaimed after `claim.ttl-ms`, counting one attempt |
 | `outbox_message` lacks `seq` | Every claim fails until the DDL is applied |

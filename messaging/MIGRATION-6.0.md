@@ -106,6 +106,8 @@ The SDK never runs DDL. Copy the reference files from the `-jdbc` jar
 
 Drain the outbox before adding `seq` if the relative order of rows already queued matters.
 
+MySQL and MariaDB are not supported: `claim.dialect` `auto` or `generic` fails startup on them.
+
 ## Consumers
 
 Delivery is at-least-once. A stale claim, a confirm timeout or a crash after the broker accepted

@@ -17,6 +17,8 @@ First release; the JDBC store, schedulers and DDL of `sdk-event-messaging` 5.1.5
   while a run was still publishing. A shorter configured value now fails startup.
 - `claim.dialect=auto` fails startup on databases other than PostgreSQL, SQL Server and H2 instead
   of falling back to a non-atomic claim.
+- MySQL and MariaDB, unsupported, now fail startup with `auto` or `generic` instead of failing every
+  dispatch with error 1093 or a `FETCH FIRST` syntax error.
 
 ### Added
 - Claim dialects `postgresql` (`SKIP LOCKED`), `sqlserver` (`UPDLOCK, READPAST`) and `generic`,
