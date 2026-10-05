@@ -6,7 +6,10 @@ import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
 import io.codehunters.messaging.application.usecase.SendOutboxMessagesUseCase;
 import io.codehunters.messaging.domain.factory.EventMessageFactory;
 import io.codehunters.messaging.domain.factory.OutboxEventFactory;
+import io.codehunters.messaging.domain.factory.TraceIdSource;
 import io.codehunters.messaging.infrastructure.metrics.MeteredMessagePublisher;
+import io.codehunters.tracing.TraceContextPort;
+import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
@@ -31,13 +34,15 @@ import org.springframework.context.annotation.Configuration;
  * sdk-event-messaging-rabbit} or {@code sdk-event-messaging-kafka}). This configuration therefore
  * runs after their auto-configurations, referenced by name because any of them may be absent. It
  * also runs after Boot's metrics auto-configuration so a {@link MeterRegistry} bean, when present,
- * turns on the {@code outbox.publish} timer.
+ * turns on the {@code outbox.publish} timer, and after {@code sdk-tracing}'s so its {@link
+ * TraceContextPort}, when present, supplies the trace id of events created without one.
  */
 @AutoConfiguration(
     afterName = {
       "io.codehunters.messaging.config.EventMessagingJdbcAutoConfiguration",
       "io.codehunters.messaging.config.EventMessagingRabbitAutoConfiguration",
       "io.codehunters.messaging.config.EventMessagingKafkaAutoConfiguration",
+      "io.codehunters.tracing.config.TracingAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration"
@@ -66,16 +71,19 @@ public class EventMessagingCoreAutoConfiguration {
   }
 
   /**
-   * Provides the event-message factory bound to the current application name.
+   * Provides the event-message factory bound to the current application name. Events created
+   * without a trace id get the current one when a {@link TraceIdSource} bean exists.
    *
    * @param origin the originating application name
+   * @param traceIdSource the current-trace source, if any
    * @return an {@link EventMessageFactory}
    */
   @Bean
   @ConditionalOnMissingBean(EventMessageFactory.class)
   public EventMessageFactory eventMessageFactory(
-      @Value("${spring.application.name:unknown}") String origin) {
-    return new EventMessageFactory(origin);
+      @Value("${spring.application.name:unknown}") String origin,
+      ObjectProvider<TraceIdSource> traceIdSource) {
+    return new EventMessageFactory(origin, traceIdSource.getIfAvailable(TraceIdSource::none));
   }
 
   /**
@@ -157,6 +165,25 @@ public class EventMessagingCoreAutoConfiguration {
     @ConditionalOnMissingBean(name = "outboxPublisherMetricsDecorator")
     MessagePublisherDecorator outboxPublisherMetricsDecorator(MeterRegistry meterRegistry) {
       return publisher -> new MeteredMessagePublisher(publisher, meterRegistry);
+    }
+  }
+
+  /** Current-trace wiring. Loaded only when {@code sdk-tracing} is on the classpath. */
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(TraceContextPort.class)
+  static class OutboxTracingConfiguration {
+
+    /**
+     * Reads the current trace id from {@code sdk-tracing}'s {@link TraceContextPort}.
+     *
+     * @param traceContextPort the trace context of the current thread
+     * @return a {@link TraceIdSource}
+     */
+    @Bean
+    @ConditionalOnBean(TraceContextPort.class)
+    @ConditionalOnMissingBean(TraceIdSource.class)
+    TraceIdSource outboxTraceIdSource(TraceContextPort traceContextPort) {
+      return () -> traceContextPort.currentTraceParent().map(TraceParent::traceId);
     }
   }
 }

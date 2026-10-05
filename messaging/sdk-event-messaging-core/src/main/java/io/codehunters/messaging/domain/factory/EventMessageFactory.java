@@ -2,24 +2,39 @@ package io.codehunters.messaging.domain.factory;
 
 import io.codehunters.messaging.domain.model.EventMessage;
 
-/** Builds {@link EventMessage} instances, stamping the configured origin on the header. */
+/**
+ * Builds {@link EventMessage} instances, stamping the configured origin on the header. A null or
+ * blank trace id is replaced by the current one from the {@link TraceIdSource}, when there is one.
+ */
 public class EventMessageFactory {
 
   private final String origin;
+  private final TraceIdSource traceIdSource;
+
+  /**
+   * Creates the factory without a current-trace fallback.
+   *
+   * @param origin the origin service identifier stamped on every event header
+   */
+  public EventMessageFactory(String origin) {
+    this(origin, TraceIdSource.none());
+  }
 
   /**
    * Creates the factory.
    *
    * @param origin the origin service identifier stamped on every event header
+   * @param traceIdSource supplies the trace id when the caller passes none
    */
-  public EventMessageFactory(String origin) {
+  public EventMessageFactory(String origin, TraceIdSource traceIdSource) {
     this.origin = origin;
+    this.traceIdSource = traceIdSource;
   }
 
   /**
    * Builds an event message with no locale.
    *
-   * @param traceId the trace identifier
+   * @param traceId the trace identifier; null or blank uses the current trace
    * @param aggregate the aggregate identifier
    * @param eventName the event name
    * @param eventType the event type
@@ -35,7 +50,7 @@ public class EventMessageFactory {
   /**
    * Builds an event message with an explicit locale.
    *
-   * @param traceId the trace identifier
+   * @param traceId the trace identifier; null or blank uses the current trace
    * @param locale the locale
    * @param aggregate the aggregate identifier
    * @param eventName the event name
@@ -53,7 +68,11 @@ public class EventMessageFactory {
       T payload) {
     return EventMessage.<T>builder()
         .header(
-            EventMessage.Header.builder().traceId(traceId).origin(origin).locale(locale).build())
+            EventMessage.Header.builder()
+                .traceId(resolveTraceId(traceId))
+                .origin(origin)
+                .locale(locale)
+                .build())
         .body(
             EventMessage.Body.<T>builder()
                 .aggregate(aggregate)
@@ -62,5 +81,12 @@ public class EventMessageFactory {
                 .payload(payload)
                 .build())
         .build();
+  }
+
+  private String resolveTraceId(String traceId) {
+    if (traceId != null && !traceId.isBlank()) {
+      return traceId;
+    }
+    return traceIdSource.currentTraceId().orElse(traceId);
   }
 }
