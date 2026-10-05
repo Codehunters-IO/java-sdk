@@ -151,7 +151,8 @@ class OutboxJdbcAdapterPostgresIT {
   @Test
   void should_increment_attempts_when_reclaiming_stale_in_flight_row() {
     UUID id = UUID.randomUUID();
-    adapter.save(withAttempts(id));
+    adapter.save(unsent(id));
+    recordOneFailedAttempt(id);
     markStaleInFlight(id);
 
     var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
@@ -163,7 +164,8 @@ class OutboxJdbcAdapterPostgresIT {
   @Test
   void should_keep_attempts_when_claiming_pending_row() {
     UUID id = UUID.randomUUID();
-    adapter.save(withAttempts(id));
+    adapter.save(unsent(id));
+    recordOneFailedAttempt(id);
 
     var claimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
 
@@ -189,13 +191,19 @@ class OutboxJdbcAdapterPostgresIT {
         .single();
   }
 
-  private static OutboxMessage<String> withAttempts(UUID id) {
+  private void recordOneFailedAttempt(UUID id) {
+    jdbcClient
+        .sql("UPDATE outbox_message SET attempts = 1 WHERE id = :id")
+        .param("id", id)
+        .update();
+  }
+
+  private static OutboxMessage<String> unsent(UUID id) {
     return OutboxMessage.<String>builder()
         .id(id)
         .topic("t")
         .key("k")
         .message("p")
-        .attempts(1)
         .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
         .build();
   }

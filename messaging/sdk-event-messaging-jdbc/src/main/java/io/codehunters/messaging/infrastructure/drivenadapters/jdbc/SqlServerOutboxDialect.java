@@ -27,7 +27,8 @@ public final class SqlServerOutboxDialect implements OutboxDialect {
         ORDER BY o.seq
       )
       UPDATE candidates
-      SET status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
+      SET attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END,
+          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
       OUTPUT inserted.id, inserted.origin, inserted.routing_key, inserted.topic,
           inserted.message_key, inserted.payload, inserted.status, inserted.attempts,
           inserted.error, inserted.occurred_at, inserted.next_attempt_at, inserted.published_at,

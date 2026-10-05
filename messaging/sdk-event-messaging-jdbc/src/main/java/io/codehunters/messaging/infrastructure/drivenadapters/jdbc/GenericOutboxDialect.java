@@ -11,7 +11,8 @@ public final class GenericOutboxDialect implements OutboxDialect {
   private static final String CLAIM_SQL =
       """
       UPDATE outbox_message
-      SET status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
+      SET attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END,
+          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
       WHERE id IN (
           SELECT o.id FROM outbox_message o
           WHERE o.origin = :origin

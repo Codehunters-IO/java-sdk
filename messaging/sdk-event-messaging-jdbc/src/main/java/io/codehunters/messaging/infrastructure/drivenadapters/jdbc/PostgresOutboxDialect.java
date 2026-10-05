@@ -26,7 +26,8 @@ public final class PostgresOutboxDialect implements OutboxDialect {
         FOR UPDATE OF o SKIP LOCKED
       )
       UPDATE outbox_message m
-      SET status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
+      SET attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END,
+          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
       FROM candidates c
       WHERE m.id = c.id
       RETURNING m.id, m.origin, m.routing_key, m.topic, m.message_key, m.payload, m.status,
