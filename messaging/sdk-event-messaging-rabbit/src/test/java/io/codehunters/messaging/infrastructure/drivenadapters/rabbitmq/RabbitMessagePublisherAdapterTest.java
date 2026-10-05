@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.AlreadyClosedException;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.ReturnListener;
 import com.rabbitmq.client.ShutdownSignalException;
@@ -162,10 +163,36 @@ class RabbitMessagePublisherAdapterTest {
   }
 
   @Test
+  void should_keep_publish_failure_as_cause_when_listener_removal_fails_on_closed_channel() {
+    AlreadyClosedException closed = closedChannel();
+    doThrow(new AmqpTimeoutException("timed out")).when(dedicated).waitForConfirmsOrDie(anyLong());
+    doThrow(closed).when(channel).removeReturnListener(any(ReturnListener.class));
+
+    assertThatThrownBy(() -> adapter.publish(message(ROUTING_KEY)))
+        .isInstanceOf(MessagePublishException.class)
+        .cause()
+        .isInstanceOf(AmqpTimeoutException.class)
+        .satisfies(cause -> assertThat(cause.getSuppressed()).containsExactly(closed));
+  }
+
+  @Test
+  void should_complete_publish_when_listener_removal_fails_after_confirm() {
+    doThrow(closedChannel()).when(channel).removeReturnListener(any(ReturnListener.class));
+
+    adapter.publish(message(ROUTING_KEY));
+
+    verify(dedicated).waitForConfirmsOrDie(CONFIRM_TIMEOUT.toMillis());
+  }
+
+  @Test
   void should_remove_return_listener_when_publish_completes() {
     adapter.publish(message(ROUTING_KEY));
 
     verify(channel).removeReturnListener(returnListener);
+  }
+
+  private static AlreadyClosedException closedChannel() {
+    return new AlreadyClosedException(new ShutdownSignalException(false, false, null, "closed"));
   }
 
   private Object returnUnroutable() throws Exception {
