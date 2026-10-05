@@ -7,6 +7,7 @@ import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +47,7 @@ class OutboxJdbcAdapterTest {
             .routingKey("payment.RAFFLE")
             .key("key-1")
             .message("{\"data\":1}")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
     adapter.save(message);
@@ -74,7 +75,7 @@ class OutboxJdbcAdapterTest {
             .topic("test-topic")
             .key("key-3")
             .message("{\"data\":3}")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
     adapter.save(message);
@@ -95,7 +96,7 @@ class OutboxJdbcAdapterTest {
             .topic("test-topic")
             .key("key-2")
             .message("{\"data\":2}")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
     adapter.save(message);
@@ -115,7 +116,7 @@ class OutboxJdbcAdapterTest {
             .topic("test-topic")
             .key("key-default")
             .message("{\"data\":4}")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
     adapter.save(message);
@@ -137,7 +138,7 @@ class OutboxJdbcAdapterTest {
             .topic("test-topic")
             .key("key-1")
             .message(new TestPayload("test"))
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
     adapter.save(message);
@@ -149,7 +150,7 @@ class OutboxJdbcAdapterTest {
   @Test
   void should_update_outbox_message_status() {
     var id = UUID.randomUUID();
-    var now = LocalDateTime.now();
+    var now = LocalDateTime.now(ZoneOffset.UTC);
 
     var message =
         OutboxMessage.<String>builder()
@@ -169,7 +170,7 @@ class OutboxJdbcAdapterTest {
             .message("p")
             .status(OutboxStatus.PUBLISHED)
             .attempts(1)
-            .publishedAt(LocalDateTime.now())
+            .publishedAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
     adapter.update(updated);
 
@@ -184,7 +185,7 @@ class OutboxJdbcAdapterTest {
 
   @Test
   void should_claim_pending_messages_in_insertion_order_regardless_of_occurred_at() {
-    var now = LocalDateTime.now();
+    var now = LocalDateTime.now(ZoneOffset.UTC);
 
     adapter.save(
         OutboxMessage.<String>builder()
@@ -226,7 +227,7 @@ class OutboxJdbcAdapterTest {
 
   @Test
   void should_respect_batch_size_on_claim() {
-    var now = LocalDateTime.now();
+    var now = LocalDateTime.now(ZoneOffset.UTC);
     for (int i = 0; i < 5; i++) {
       adapter.save(
           OutboxMessage.<String>builder()
@@ -245,7 +246,7 @@ class OutboxJdbcAdapterTest {
   @Test
   void should_only_claim_pending_messages_not_published() {
     var id = UUID.randomUUID();
-    var now = LocalDateTime.now();
+    var now = LocalDateTime.now(ZoneOffset.UTC);
 
     adapter.save(
         OutboxMessage.<String>builder()
@@ -283,7 +284,7 @@ class OutboxJdbcAdapterTest {
 
   @Test
   void should_filter_pending_messages_by_origin() {
-    var now = LocalDateTime.now();
+    var now = LocalDateTime.now(ZoneOffset.UTC);
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("t")
@@ -309,7 +310,7 @@ class OutboxJdbcAdapterTest {
 
   @Test
   void should_filter_claim_by_origin() {
-    var now = LocalDateTime.now();
+    var now = LocalDateTime.now(ZoneOffset.UTC);
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("t")
@@ -375,7 +376,7 @@ class OutboxJdbcAdapterTest {
             .routingKey("")
             .key("k")
             .message("data")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build());
 
     var routingKey =
@@ -396,7 +397,7 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message("data")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build());
 
     var savedId = jdbcClient.sql("SELECT id FROM outbox_message").query(UUID.class).single();
@@ -410,7 +411,7 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build());
 
     var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
@@ -428,7 +429,7 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build());
 
     var firstClaim = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
@@ -448,10 +449,10 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build());
 
-    var oldClaimAt = LocalDateTime.now().minusMinutes(10);
+    var oldClaimAt = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10);
     jdbcClient
         .sql(
             "UPDATE outbox_message SET status='IN_FLIGHT', claimed_at=:claimedAt, claimed_by='dead-instance' WHERE id=:id")
@@ -475,8 +476,8 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now())
-            .nextAttemptAt(LocalDateTime.now().plusHours(1))
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .nextAttemptAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(1))
             .build());
 
     var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
@@ -491,8 +492,8 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now())
-            .nextAttemptAt(LocalDateTime.now().minusMinutes(1))
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .nextAttemptAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1))
             .build());
 
     var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
@@ -567,7 +568,7 @@ class OutboxJdbcAdapterTest {
             .topic("t")
             .key("k")
             .message(unserializable)
-            .occurredAt(LocalDateTime.now())
+            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
             .build();
 
     assertThatThrownBy(() -> adapterWithBrokenMapper.save(message))

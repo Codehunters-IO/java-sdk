@@ -147,8 +147,6 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   private void markPublished(OutboxMessage<String> message) {
     message.setStatus(OutboxStatus.PUBLISHED);
     message.setPublishedAt(LocalDateTime.now(clock));
-    message.setClaimedAt(null);
-    message.setClaimedBy(null);
     message.setError(null);
     message.setNextAttemptAt(null);
   }
@@ -157,8 +155,6 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
     int attempts = message.getAttempts() + 1;
     message.setAttempts(attempts);
     message.setError(e.getClass().getName());
-    message.setClaimedAt(null);
-    message.setClaimedBy(null);
     if (attempts >= maxAttempts) {
       message.setStatus(OutboxStatus.FAILED);
       message.setNextAttemptAt(null);
