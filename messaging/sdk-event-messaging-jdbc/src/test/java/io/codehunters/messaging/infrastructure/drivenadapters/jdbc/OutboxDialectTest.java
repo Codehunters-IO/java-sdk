@@ -127,4 +127,22 @@ class OutboxDialectTest {
         .contains("published_at < :cutoff")
         .contains(":limit");
   }
+
+  private static final String ATTEMPTS_ON_RECLAIM =
+      "attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END";
+
+  @Test
+  void should_count_reclaim_as_attempt_when_dialect_is_postgres() {
+    assertThat(postgres.claimSql()).contains(ATTEMPTS_ON_RECLAIM);
+  }
+
+  @Test
+  void should_count_reclaim_as_attempt_when_dialect_is_sql_server() {
+    assertThat(sqlServer.claimSql()).contains(ATTEMPTS_ON_RECLAIM);
+  }
+
+  @Test
+  void should_count_reclaim_as_attempt_when_dialect_is_generic() {
+    assertThat(generic.claimSql()).contains(ATTEMPTS_ON_RECLAIM);
+  }
 }

@@ -631,4 +631,56 @@ class OutboxJdbcAdapterTest {
         .isInstanceOf(RuntimeException.class)
         .hasMessageContaining("Failed to serialize outbox message payload");
   }
+
+  @Test
+  void should_increment_attempts_when_reclaiming_stale_in_flight_row() {
+    UUID id = UUID.randomUUID();
+    adapter.save(withAttempts(id));
+    markStaleInFlight(id);
+
+    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(2);
+    assertThat(attemptsOf(id)).isEqualTo(2);
+  }
+
+  @Test
+  void should_keep_attempts_when_claiming_pending_row() {
+    UUID id = UUID.randomUUID();
+    adapter.save(withAttempts(id));
+
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+
+    assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
+    assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  private void markStaleInFlight(UUID id) {
+    jdbcClient
+        .sql(
+            "UPDATE outbox_message SET status = 'IN_FLIGHT', claimed_at = :old,"
+                + " claimed_by = 'dead-instance' WHERE id = :id")
+        .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10))
+        .param("id", id)
+        .update();
+  }
+
+  private Integer attemptsOf(UUID id) {
+    return jdbcClient
+        .sql("SELECT attempts FROM outbox_message WHERE id = :id")
+        .param("id", id)
+        .query(Integer.class)
+        .single();
+  }
+
+  private static OutboxMessage<String> withAttempts(UUID id) {
+    return OutboxMessage.<String>builder()
+        .id(id)
+        .topic("t")
+        .key("k")
+        .message("p")
+        .attempts(1)
+        .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+        .build();
+  }
 }
