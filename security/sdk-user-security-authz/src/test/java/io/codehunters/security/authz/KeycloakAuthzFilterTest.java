@@ -2,98 +2,171 @@ package io.codehunters.security.authz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.MethodMapping;
+import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.PathMapping;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.keycloak.authorization.client.AuthorizationDeniedException;
 import org.keycloak.authorization.client.AuthzClient;
 import org.keycloak.authorization.client.resource.AuthorizationResource;
+import org.keycloak.authorization.client.util.HttpResponseException;
+import org.keycloak.representations.idm.authorization.AuthorizationRequest;
+import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 class KeycloakAuthzFilterTest {
 
-  private AuthzClient authzClient;
-  private AuthorizationResource authorizationResource;
-  private KeycloakAuthzFilter filter;
-  private MockHttpServletRequest request;
-  private MockHttpServletResponse response;
-  private MockFilterChain filterChain;
+  private static final List<PathMapping> CATALOG =
+      List.of(
+          new PathMapping(
+              "/api/v1/admin/**", "admin", List.of(new MethodMapping("GET", List.of("READ")))),
+          new PathMapping(
+              "/api/v1/admin/users",
+              "usuarios",
+              List.of(new MethodMapping("POST", List.of("CREATE")))));
+
+  private final AuthzClient authzClient = mock(AuthzClient.class);
+  private final AuthorizationResource authorization = mock(AuthorizationResource.class);
+  private final MockHttpServletResponse response = new MockHttpServletResponse();
+  private final MockFilterChain chain = new MockFilterChain();
 
   @BeforeEach
   void setUp() {
-    authzClient = mock(AuthzClient.class);
-    authorizationResource = mock(AuthorizationResource.class);
-    when(authzClient.authorization(org.mockito.ArgumentMatchers.anyString()))
-        .thenReturn(authorizationResource);
-
-    var props = new KeycloakPolicyEnforcerProperties();
-    var pathMapping = new KeycloakPolicyEnforcerProperties.PathMapping();
-    pathMapping.setPath("/api/v1/admin/users");
-    pathMapping.setName("usuarios");
-    var methodMapping = new KeycloakPolicyEnforcerProperties.MethodMapping();
-    methodMapping.setMethod("POST");
-    methodMapping.setScopes(List.of("CREATE"));
-    pathMapping.setMethods(List.of(methodMapping));
-    props.setPaths(List.of(pathMapping));
-
-    filter = new KeycloakAuthzFilter(authzClient, props);
-    request = new MockHttpServletRequest();
-    response = new MockHttpServletResponse();
-    filterChain = new MockFilterChain();
+    when(authzClient.authorization(anyString())).thenReturn(authorization);
   }
 
   @Test
-  void should_passThrough_when_pathNotMatched() throws ServletException, IOException {
-    request.setRequestURI("/api/v1/public/info");
-    request.setMethod("GET");
+  void should_pass_through_when_path_is_not_in_catalog() throws ServletException, IOException {
+    filter(EnforcementMode.ENFORCING).doFilter(request("GET", "/api/v1/public/info"), response, chain);
 
-    filter.doFilter(request, response, filterChain);
-
-    assertThat(response.getStatus()).isEqualTo(200);
+    assertAllowed();
     verifyNoInteractions(authzClient);
   }
 
   @Test
-  void should_returnUnauthorized_when_matchedPathHasNoBearerToken()
+  void should_return_unauthorized_when_matched_path_has_no_bearer_token()
       throws ServletException, IOException {
-    request.setRequestURI("/api/v1/admin/users");
-    request.setMethod("POST");
+    var request = new MockHttpServletRequest("POST", "/api/v1/admin/users");
 
-    filter.doFilter(request, response, filterChain);
+    filter(EnforcementMode.ENFORCING).doFilter(request, response, chain);
 
     assertThat(response.getStatus()).isEqualTo(401);
     verifyNoInteractions(authzClient);
   }
 
   @Test
-  void should_continueChain_when_authorizeSucceeds() throws ServletException, IOException {
-    request.setRequestURI("/api/v1/admin/users");
-    request.setMethod("POST");
-    request.addHeader("Authorization", "Bearer token-123");
+  void should_continue_when_keycloak_grants_permission() throws ServletException, IOException {
+    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
-    filter.doFilter(request, response, filterChain);
-
-    assertThat(response.getStatus()).isEqualTo(200);
-    verify(authorizationResource).authorize(any());
+    assertAllowed();
   }
 
   @Test
-  void should_returnForbidden_when_authorizeThrows() throws ServletException, IOException {
-    request.setRequestURI("/api/v1/admin/users");
-    request.setMethod("POST");
-    request.addHeader("Authorization", "Bearer token-123");
-    when(authorizationResource.authorize(any())).thenThrow(new RuntimeException("denied"));
+  void should_ask_for_resource_of_most_specific_pattern() throws ServletException, IOException {
+    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
-    filter.doFilter(request, response, filterChain);
+    var captor = ArgumentCaptor.forClass(AuthorizationRequest.class);
+    verify(authorization).authorize(captor.capture());
+    assertThat(captor.getValue().getPermissions().getPermissions())
+        .singleElement()
+        .satisfies(permission -> assertThat(permission.getResourceId()).isEqualTo("usuarios"));
+  }
+
+  @Test
+  void should_forbid_when_keycloak_denies_permission() throws ServletException, IOException {
+    when(authorization.authorize(any())).thenThrow(denied());
+
+    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
 
     assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(chain.getRequest()).isNull();
+  }
+
+  @Test
+  void should_forbid_method_missing_from_catalog_without_asking_keycloak()
+      throws ServletException, IOException {
+    filter(EnforcementMode.ENFORCING)
+        .doFilter(request("DELETE", "/api/v1/admin/users"), response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    verifyNoInteractions(authzClient);
+  }
+
+  @Test
+  void should_report_unavailable_when_keycloak_cannot_be_reached()
+      throws ServletException, IOException {
+    when(authorization.authorize(any())).thenThrow(new RuntimeException("Connection refused"));
+
+    filter(EnforcementMode.ENFORCING).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(503);
+  }
+
+  @Test
+  void should_report_unavailable_when_client_cannot_be_created()
+      throws ServletException, IOException {
+    var filter =
+        new KeycloakAuthzFilter(
+            () -> {
+              throw new RuntimeException("discovery failed");
+            },
+            properties(EnforcementMode.ENFORCING));
+
+    filter.doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(503);
+  }
+
+  @Test
+  void should_allow_denied_request_when_permissive() throws ServletException, IOException {
+    when(authorization.authorize(any())).thenThrow(denied());
+
+    filter(EnforcementMode.PERMISSIVE).doFilter(request("POST", "/api/v1/admin/users"), response, chain);
+
+    assertAllowed();
+  }
+
+  @Test
+  void should_skip_enforcement_when_disabled() throws ServletException, IOException {
+    filter(EnforcementMode.DISABLED).doFilter(request("DELETE", "/api/v1/admin/users"), response, chain);
+
+    assertAllowed();
+    verifyNoInteractions(authzClient);
+  }
+
+  private KeycloakAuthzFilter filter(EnforcementMode mode) {
+    return new KeycloakAuthzFilter(() -> authzClient, properties(mode));
+  }
+
+  private static KeycloakPolicyEnforcerProperties properties(EnforcementMode mode) {
+    return new KeycloakPolicyEnforcerProperties(true, mode, "svc", "secret", CATALOG);
+  }
+
+  private static MockHttpServletRequest request(String method, String path) {
+    var request = new MockHttpServletRequest(method, path);
+    request.addHeader("Authorization", "Bearer token-123");
+    return request;
+  }
+
+  private static AuthorizationDeniedException denied() {
+    return new AuthorizationDeniedException(
+        new HttpResponseException("Unexpected response from server", 403, "Forbidden", null));
+  }
+
+  private void assertAllowed() {
+    assertThat(response.getStatus()).isEqualTo(200);
+    assertThat(chain.getRequest()).isNotNull();
   }
 }

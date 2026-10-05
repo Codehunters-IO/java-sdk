@@ -14,6 +14,7 @@ dependencies {
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.springframework:spring-webmvc")
     testImplementation("org.assertj:assertj-core")
     testImplementation("org.mockito:mockito-core")
     testImplementation("jakarta.servlet:jakarta.servlet-api")

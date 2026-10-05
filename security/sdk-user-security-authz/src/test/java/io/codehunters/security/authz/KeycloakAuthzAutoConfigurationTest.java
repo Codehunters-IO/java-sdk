@@ -1,44 +1,73 @@
 package io.codehunters.security.authz;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
+import io.codehunters.security.KeycloakSecurityAutoConfiguration;
+import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import java.util.List;
 import org.junit.jupiter.api.Test;
-import org.keycloak.authorization.client.AuthzClient;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 
 class KeycloakAuthzAutoConfigurationTest {
 
-  private final ApplicationContextRunner runner =
-      new ApplicationContextRunner()
-          .withConfiguration(AutoConfigurations.of(KeycloakAuthzAutoConfiguration.class));
+  // Nothing listens on port 1: the context must start without contacting Keycloak.
+  private final WebApplicationContextRunner runner =
+      new WebApplicationContextRunner()
+          .withConfiguration(
+              AutoConfigurations.of(
+                  KeycloakSecurityAutoConfiguration.class, KeycloakAuthzAutoConfiguration.class))
+          .withPropertyValues(
+              "codehunters.security.url=http://127.0.0.1:1",
+              "codehunters.security.realm=test",
+              "codehunters.security.introspection.enabled=false");
 
   @Test
   void should_not_register_pep_when_not_enabled() {
-    runner.run(
-        context -> {
-          assertThat(context).doesNotHaveBean(KeycloakAuthzFilter.class);
-          assertThat(context).doesNotHaveBean(AuthzClient.class);
-        });
+    runner.run(context -> assertThat(context).doesNotHaveBean(KeycloakAuthzFilter.class));
   }
 
-  // AuthzClient.create() fetches the Keycloak discovery document eagerly, so a real client cannot
-  // be built without a running Keycloak; the PEP wiring is checked with a provided client.
   @Test
-  void should_register_pep_when_enabled() {
+  void should_register_pep_without_contacting_keycloak_when_enabled() {
     runner
-        .withBean(AuthzClient.class, () -> mock(AuthzClient.class))
         .withPropertyValues(
-            "keycloak.policy-enforcer.enabled=true",
-            "keycloak.policy-enforcer.resource=svc",
-            "keycloak.policy-enforcer.client-secret=secret")
+            "codehunters.security.authz.enabled=true",
+            "codehunters.security.authz.resource=svc",
+            "codehunters.security.authz.client-secret=secret")
         .run(
             context -> {
-              assertThat(context).hasSingleBean(AuthzClient.class);
+              assertThat(context).hasNotFailed();
               assertThat(context).hasSingleBean(KeycloakAuthzFilter.class);
               assertThat(context).hasSingleBean(FilterRegistrationBean.class);
             });
+  }
+
+  @Test
+  void should_fail_startup_when_enabled_without_client_secret() {
+    runner
+        .withPropertyValues(
+            "codehunters.security.authz.enabled=true", "codehunters.security.authz.resource=svc")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("codehunters.security.authz.client-secret"));
+  }
+
+  @Test
+  void should_keep_application_filter_when_one_is_defined() {
+    var custom =
+        new KeycloakAuthzFilter(
+            () -> null,
+            new KeycloakPolicyEnforcerProperties(true, EnforcementMode.ENFORCING, "svc", "s", List.of()));
+    runner
+        .withPropertyValues(
+            "codehunters.security.authz.enabled=true",
+            "codehunters.security.authz.resource=svc",
+            "codehunters.security.authz.client-secret=secret")
+        .withBean("customAuthzFilter", KeycloakAuthzFilter.class, () -> custom)
+        .run(context -> assertThat(context.getBean(KeycloakAuthzFilter.class)).isSameAs(custom));
   }
 }
