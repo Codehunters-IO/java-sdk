@@ -3,7 +3,6 @@ package io.codehunters.audit.persistence;
 import io.codehunters.audit.AuditEvent;
 import io.codehunters.audit.AuditEventPublisherPort;
 import io.codehunters.audit.AuditPersistenceException;
-import java.sql.Timestamp;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -84,9 +83,7 @@ public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
           .param("metadata", serializeMap(event.metadata()))
           .param("sourceService", event.sourceService())
           .param("correlationId", event.correlationId())
-          .param(
-              "eventCreatedAt",
-              event.createdAt() != null ? Timestamp.from(event.createdAt().toInstant()) : null)
+          .param("eventCreatedAt", event.createdAt())
           .update();
       log.debug("[END] persist audit event: {}", id);
     } catch (Exception e) {
