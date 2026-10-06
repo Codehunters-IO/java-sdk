@@ -313,9 +313,29 @@ Desbloqueada por D10 (A4). Detalle en `sdk-file-share/CHANGELOG.md`, `README.md`
 - `allowed-hosts` vacío acepta cualquier host https (no rompe a quien sube de versión); se recomienda
   configurarlo en producción.
 - `download(String, UUID, OutputStream)` además de `download(FileRef, OutputStream)`.
-- La revisión fue propia, no con un agente independiente.
+- El paso de client credentials corre **después** de los `FileShareRequestInterceptor` de la app y
+  ya no se puede reemplazar declarando uno: así ningún interceptor de la app ve el token ni lo quita
+  en silencio. Para usar otra auth se deja `client-registration-id` sin valor.
+- Las descargas de contenido usan su propio `RestClient` (`fileShareContentRestClient`, sobre
+  `HttpURLConnection`) con `download-idle-timeout` por lectura en vez de plazo total, y sin seguir
+  redirecciones.
 
-Verificación: 133 tests, cobertura 96,3 % líneas / 91,7 % ramas, `./gradlew clean build` y
+**Revisión independiente** (3 HIGH, 4 MEDIUM, varios LOW), corregida con TDD:
+- `9323951` → `6671d97`: puerto 443 obligatorio con `allowed-hosts`; `toString()` de tickets sin user
+  info ni fragmento; caracteres de control fuera del body de error.
+- `144f121` → `13d43a2`: `/content` solo acepta 2xx; fallo al escribir en el `OutputStream` del
+  llamador → `UncheckedIOException` (no `Unavailable`); límites de `max-download-size` en el adapter.
+- `65798d9` → `94dc7d0`: `download-idle-timeout` y cliente de contenido sin redirecciones;
+  `max-download-size` validado al arrancar; esquema del base URL sin distinguir mayúsculas; aviso al
+  arrancar si `allowed-hosts` está vacío.
+- `1139923` → `3de03b7`: interceptores compuestos (auth al final); 401/403 desalojan el token;
+  timeouts en el endpoint de token y caídas de ese endpoint → `FileShareUnavailableException`; https
+  obligatorio con auth salvo `auth.allow-insecure-http=true`; `client-registration-id` vacío = sin auth.
+- `a370e1c`, `c3e9c34`: README, ADR 0009, MIGRATION, CHANGELOG y javadoc.
+- Quedan como límites documentados: validación de nombre/tipo solo ASCII (controles Unicode,
+  bidi y barras parecidas pasan) y alias `vitxo.*` que no cubren claves de `@PropertySource`.
+
+Verificación: 163 tests, cobertura 96,2 % líneas / 93,1 % ramas, `./gradlew clean build` y
 `./gradlew -p build-logic test` en verde.
 
 1. `connectTimeout` real (`JdkClientHttpRequestFactory` + `HttpClient.connectTimeout`); `RestClient`
@@ -330,7 +350,8 @@ Verificación: 133 tests, cobertura 96,3 % líneas / 91,7 % ramas, `./gradlew cl
    host de `allowedPresignedHosts`.
 5. `download(FileRef, OutputStream)` en streaming, y `maxDownloadSize` para el `byte[]`.
 6. `FileStatus.UNKNOWN`; se elimina el código muerto y Lombok.
-7. Auth saliente según D10: client credentials + hook `FileShareRequestInterceptor`.
+7. Auth saliente según D10: client credentials + hook `FileShareRequestInterceptor` (se suma, no
+   reemplaza).
 8. Prefijo: `vitxo.file-share.*` → `codehunters.file-share.*`.
 
 ## Fase 6 — `sdk-audit-log` 3.0.0
