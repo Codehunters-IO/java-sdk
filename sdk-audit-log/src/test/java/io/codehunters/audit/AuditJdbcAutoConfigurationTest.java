@@ -3,7 +3,6 @@ package io.codehunters.audit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.audit.persistence.AuditEventJdbcAdapter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.OffsetDateTime;
@@ -16,6 +15,7 @@ import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguratio
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ApplicationContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -51,9 +51,10 @@ class AuditJdbcAutoConfigurationTest {
   @Test
   void should_publish_asynchronously_by_default() {
     runner.run(
-        ctx ->
-            assertThat(ctx.getBean(AuditEventPublisherPort.class))
-                .isInstanceOf(AsyncAuditEventPublisher.class));
+        ctx -> {
+          ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+          assertThat(scheduledTasks(ctx)).isEqualTo(1);
+        });
   }
 
   @Test
@@ -61,9 +62,11 @@ class AuditJdbcAutoConfigurationTest {
     runner
         .withPropertyValues("codehunters.audit.fail-on-error=true")
         .run(
-            ctx ->
-                assertThat(ctx.getBean(AuditEventPublisherPort.class))
-                    .isInstanceOf(AuditEventJdbcAdapter.class));
+            ctx -> {
+              ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+              assertThat(scheduledTasks(ctx)).isZero();
+              assertThat(countRows()).isEqualTo(1);
+            });
   }
 
   @Test
@@ -71,9 +74,11 @@ class AuditJdbcAutoConfigurationTest {
     runner
         .withPropertyValues("codehunters.audit.async.enabled=false")
         .run(
-            ctx ->
-                assertThat(ctx.getBean(AuditEventPublisherPort.class))
-                    .isInstanceOf(AuditEventJdbcAdapter.class));
+            ctx -> {
+              ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+              assertThat(scheduledTasks(ctx)).isZero();
+              assertThat(countRows()).isEqualTo(1);
+            });
   }
 
   @Test
@@ -200,9 +205,16 @@ class AuditJdbcAutoConfigurationTest {
     runner
         .withClassLoader(new FilteredClassLoader("io.micrometer"))
         .run(
-            ctx ->
-                assertThat(ctx.getBean(AuditEventPublisherPort.class))
-                    .isInstanceOf(AsyncAuditEventPublisher.class));
+            ctx -> {
+              ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+              assertThat(scheduledTasks(ctx)).isEqualTo(1);
+            });
+  }
+
+  private static long scheduledTasks(ApplicationContext ctx) {
+    return ctx.getBean("auditTaskExecutor", ThreadPoolTaskExecutor.class)
+        .getThreadPoolExecutor()
+        .getTaskCount();
   }
 
   private int countRows() {

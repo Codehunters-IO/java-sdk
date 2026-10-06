@@ -25,7 +25,9 @@ import java.util.UUID;
  * @param userAgent the caller user agent
  * @param responseSummary a summary of the response
  * @param success whether the action succeeded
- * @param errorMessage the class name of the exception when the action failed; never its message
+ * @param errorMessage the class name of the exception when the action failed, never its message; or
+ *     {@code ROLLED_BACK} / {@code UNKNOWN} when the action returned but its transaction did not
+ *     commit
  * @param durationMs the execution duration in milliseconds
  * @param metadata arbitrary additional metadata
  * @since 1.0.0
@@ -102,5 +104,39 @@ public record AuditEvent(
         null,
         null,
         null);
+  }
+
+  /**
+   * Returns a copy of this event with a different outcome.
+   *
+   * @param status the new status
+   * @param success whether the action succeeded, or {@code null} if unknown
+   * @param errorMessage the new error description
+   * @return the copied event
+   * @since 3.0.0
+   */
+  public AuditEvent withOutcome(String status, Boolean success, String errorMessage) {
+    return new AuditEvent(
+        entityType,
+        entityId,
+        action,
+        actorId,
+        actorType,
+        ipAddress,
+        payload,
+        status,
+        correlationId,
+        sourceService,
+        createdAt,
+        resource,
+        resourceId,
+        httpMethod,
+        httpStatus,
+        userAgent,
+        responseSummary,
+        success,
+        errorMessage,
+        durationMs,
+        metadata);
   }
 }

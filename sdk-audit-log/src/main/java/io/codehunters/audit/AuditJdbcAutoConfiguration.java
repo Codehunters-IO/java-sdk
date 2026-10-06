@@ -1,6 +1,10 @@
 package io.codehunters.audit;
 
 import io.codehunters.audit.persistence.AuditEventJdbcAdapter;
+import io.codehunters.audit.persistence.AutoCommitDataSource;
+import io.codehunters.audit.persistence.JsonSnapshotAuditEventPublisher;
+import io.codehunters.audit.persistence.RequiresNewAuditEventPublisher;
+import io.codehunters.audit.persistence.TransactionAwareAuditEventPublisher;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.Executor;
 import javax.sql.DataSource;
@@ -14,6 +18,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.transaction.PlatformTransactionManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -24,6 +29,12 @@ import tools.jackson.databind.json.JsonMapper;
  * so they never replace or collide with the application's own executor and mapper. Events are
  * written off the caller's thread unless {@code codehunters.audit.fail-on-error} is {@code true} or
  * {@code codehunters.audit.async.enabled} is {@code false}.
+ *
+ * <p>Inside a Spring transaction, the event of a failed call is written at once in a transaction of
+ * its own, so it survives the rollback. The event of a successful call is written inside the
+ * caller's transaction when {@code fail-on-error} is {@code true}; otherwise it is written after
+ * the transaction completes, marked {@code ROLLED_BACK} if it did not commit. See {@link
+ * TransactionAwareAuditEventPublisher}.
  */
 @AutoConfiguration(
     before = AuditAutoConfiguration.class,
@@ -31,6 +42,7 @@ import tools.jackson.databind.json.JsonMapper;
 @ConditionalOnClass(
     name = {
       "org.springframework.jdbc.core.simple.JdbcClient",
+      "org.springframework.transaction.PlatformTransactionManager",
       "tools.jackson.databind.json.JsonMapper"
     })
 @ConditionalOnBean(DataSource.class)
@@ -80,14 +92,17 @@ public class AuditJdbcAutoConfiguration {
   }
 
   /**
-   * Registers the JDBC-backed audit event publisher, wrapped in an {@link AsyncAuditEventPublisher}
-   * unless publishing must be synchronous.
+   * Registers the JDBC-backed audit event publisher. Payloads are copied to JSON on the caller's
+   * thread; the write is synchronous when {@code fail-on-error} is {@code true} or async is
+   * disabled, and on the {@code auditTaskExecutor} otherwise.
    *
    * @param dataSource the target data source
    * @param jsonMapper the JSON mapper for payload serialization
    * @param executor the executor for asynchronous publishing
    * @param properties the audit configuration
+   * @param transactionManager the application's transaction manager, if it has exactly one
    * @param rejectionListener notified of events the executor refuses, if defined
+   * @param failureListener notified of events that could not be written, if defined
    * @return the {@link AuditEventPublisherPort}
    */
   @Bean
@@ -97,13 +112,53 @@ public class AuditJdbcAutoConfiguration {
       @Qualifier(JSON_MAPPER) JsonMapper jsonMapper,
       @Qualifier(EXECUTOR) Executor executor,
       AuditProperties properties,
-      ObjectProvider<AuditEventRejectionListener> rejectionListener) {
-    var jdbc = new AuditEventJdbcAdapter(dataSource, jsonMapper, properties.failOnError());
-    if (properties.failOnError() || !properties.async().enabled()) {
-      return jdbc;
+      ObjectProvider<PlatformTransactionManager> transactionManager,
+      ObjectProvider<AuditEventRejectionListener> rejectionListener,
+      ObjectProvider<AuditEventFailureListener> failureListener) {
+    var chain =
+        new Chain(
+            new AuditEventJdbcAdapter(dataSource, jsonMapper, true),
+            isolatedWriter(dataSource, jsonMapper, transactionManager.getIfUnique()),
+            new Listeners(
+                rejectionListener.getIfUnique(() -> event -> {}),
+                failureListener.getIfUnique(() -> event -> {})),
+            executor);
+    return new JsonSnapshotAuditEventPublisher(chain.routed(properties), jsonMapper);
+  }
+
+  private static AuditEventPublisherPort isolatedWriter(
+      DataSource dataSource, JsonMapper jsonMapper, PlatformTransactionManager transactionManager) {
+    if (transactionManager != null) {
+      return new RequiresNewAuditEventPublisher(
+          new AuditEventJdbcAdapter(dataSource, jsonMapper, true), transactionManager);
     }
-    return new AsyncAuditEventPublisher(
-        jdbc, executor, rejectionListener.getIfUnique(() -> event -> {}));
+    return new AuditEventJdbcAdapter(new AutoCommitDataSource(dataSource), jsonMapper, true);
+  }
+
+  private record Listeners(
+      AuditEventRejectionListener rejected, AuditEventFailureListener failed) {}
+
+  /** The writers an event can be routed to, depending on the configured mode. */
+  private record Chain(
+      AuditEventJdbcAdapter joined,
+      AuditEventPublisherPort isolated,
+      Listeners listeners,
+      Executor executor) {
+
+    AuditEventPublisherPort routed(AuditProperties properties) {
+      if (properties.failOnError()) {
+        return TransactionAwareAuditEventPublisher.atomic(joined, isolated);
+      }
+      if (!properties.async().enabled()) {
+        return TransactionAwareAuditEventPublisher.deferred(failSafe(isolated));
+      }
+      return TransactionAwareAuditEventPublisher.deferred(
+          new AsyncAuditEventPublisher(failSafe(joined), executor, listeners.rejected()));
+    }
+
+    private AuditEventPublisherPort failSafe(AuditEventPublisherPort writer) {
+      return new FailSafeAuditEventPublisher(writer, listeners.failed());
+    }
   }
 
   /** Counts rejected events when Micrometer is on the classpath. */

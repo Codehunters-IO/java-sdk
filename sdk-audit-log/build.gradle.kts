@@ -15,6 +15,7 @@ dependencies {
     implementation("org.aspectj:aspectjrt")
     runtimeOnly("org.aspectj:aspectjweaver")
     compileOnly("org.springframework:spring-jdbc")
+    compileOnly("org.springframework:spring-tx")
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly("io.micrometer:micrometer-core")
 

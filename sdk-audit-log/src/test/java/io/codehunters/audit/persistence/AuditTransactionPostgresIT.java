@@ -99,7 +99,8 @@ class AuditTransactionPostgresIT {
                         () -> ctx.getBean(LedgerService.class).recordThenBreakTheTransaction("L-3"))
                     .hasNoSuppressedExceptions());
 
-    assertThat(auditOutcomes()).containsExactly("false:org.springframework.jdbc.BadSqlGrammarException");
+    assertThat(auditOutcomes())
+        .containsExactly("false:org.springframework.jdbc.BadSqlGrammarException");
   }
 
   @Test
@@ -125,13 +126,13 @@ class AuditTransactionPostgresIT {
   }
 
   @Test
-  void should_record_rolled_back_not_success_when_commit_fails_and_publishing_asynchronously() {
+  void should_record_unknown_not_success_when_commit_fails_and_publishing_asynchronously() {
     runner.run(
         ctx ->
             assertThatThrownBy(
                 () -> ctx.getBean(LedgerService.class).recordTwiceFailingAtCommit("L-6")));
 
-    assertThat(auditOutcomes()).containsExactly("false:ROLLED_BACK");
+    assertThat(auditOutcomes()).containsExactly("?:UNKNOWN");
   }
 
   @Test
@@ -149,7 +150,9 @@ class AuditTransactionPostgresIT {
 
   private static List<String> auditOutcomes() {
     return JdbcClient.create(dataSource)
-        .sql("SELECT success || ':' || COALESCE(error_message, '-') FROM audit_event")
+        .sql(
+            "SELECT COALESCE(CAST(success AS VARCHAR), '?') || ':' || COALESCE(error_message, '-')"
+                + " FROM audit_event")
         .query(String.class)
         .list();
   }
