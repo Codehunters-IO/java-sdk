@@ -1,46 +1,63 @@
 package io.codehunters.fileshare.domain.model;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.net.URI;
-import java.time.LocalDateTime;
-import java.util.Map;
-import java.util.UUID;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class PresignedTicketsTest {
 
+  private static final URI SIGNED_URL =
+      URI.create("https://bucket.s3.amazonaws.com/key.pdf?X-Amz-Signature=secret");
+  private static final Instant EXPIRES_AT = Instant.parse("2030-01-01T00:00:00Z");
+
   @Test
-  void upload_ticket_uses_PUT() {
-    var ref =
-        new FileRef(
-            UUID.randomUUID(),
-            "r",
-            UUID.randomUUID(),
-            "f",
-            "ct",
-            1,
-            FileStatus.PENDING_UPLOAD,
-            Map.of());
-    var ticket =
-        new PresignedUploadTicket(ref, URI.create("https://s3/example"), LocalDateTime.now());
-    assertEquals("PUT", ticket.httpMethod());
+  void should_use_put_when_uploading() {
+    var ticket = new PresignedUploadTicket(FileRefFixtures.fileRef(), SIGNED_URL, EXPIRES_AT);
+
+    assertThat(ticket.httpMethod()).isEqualTo("PUT");
+    assertThat(ticket.expiresAt()).isEqualTo(EXPIRES_AT);
   }
 
   @Test
-  void download_ticket_uses_GET() {
-    var ref =
-        new FileRef(
-            UUID.randomUUID(),
-            "r",
-            UUID.randomUUID(),
-            "f",
-            "ct",
-            1,
-            FileStatus.COMPLETED,
-            Map.of());
-    var ticket =
-        new PresignedDownloadTicket(ref, URI.create("https://s3/example"), LocalDateTime.now());
-    assertEquals("GET", ticket.httpMethod());
+  void should_use_get_when_downloading() {
+    var ticket = new PresignedDownloadTicket(FileRefFixtures.fileRef(), SIGNED_URL, EXPIRES_AT);
+
+    assertThat(ticket.httpMethod()).isEqualTo("GET");
+    assertThat(ticket.expiresAt()).isEqualTo(EXPIRES_AT);
+  }
+
+  @Test
+  void should_hide_signature_when_upload_ticket_is_printed() {
+    var ticket = new PresignedUploadTicket(FileRefFixtures.fileRef(), SIGNED_URL, EXPIRES_AT);
+
+    assertThat(ticket.toString())
+        .doesNotContain("secret")
+        .contains("https://bucket.s3.amazonaws.com/key.pdf")
+        .contains(EXPIRES_AT.toString());
+  }
+
+  @Test
+  void should_hide_signature_when_download_ticket_is_printed() {
+    var ticket = new PresignedDownloadTicket(FileRefFixtures.fileRef(), SIGNED_URL, EXPIRES_AT);
+
+    assertThat(ticket.toString())
+        .doesNotContain("secret")
+        .contains("https://bucket.s3.amazonaws.com/key.pdf");
+  }
+
+  @Test
+  void should_reject_upload_ticket_without_url() {
+    assertThatNullPointerException()
+        .isThrownBy(() -> new PresignedUploadTicket(FileRefFixtures.fileRef(), null, EXPIRES_AT));
+  }
+
+  @Test
+  void should_reject_download_ticket_without_expiry() {
+    assertThatNullPointerException()
+        .isThrownBy(
+            () -> new PresignedDownloadTicket(FileRefFixtures.fileRef(), SIGNED_URL, null));
   }
 }
