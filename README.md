@@ -24,7 +24,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-audit-log` | `io.codehunters.audit` | 3.0.0 — [README](sdk-audit-log/README.md) |
 | `sdk-user-security` | `io.codehunters.security` | 3.0.0 — [README](security/sdk-user-security/README.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 — [README](security/sdk-user-security-authz/README.md) |
-| `sdk-file-share` | `io.codehunters.fileshare` | pending |
+| `sdk-file-share` | `io.codehunters.fileshare` | 2.0.0 — [README](sdk-file-share/README.md) |
 | `sdk-event-messaging-core` | `io.codehunters.messaging` | 6.0.0 — [README](messaging/sdk-event-messaging-core/README.md) |
 | `sdk-event-messaging-jdbc` | `io.codehunters.messaging` | 6.0.0 — [README](messaging/sdk-event-messaging-jdbc/README.md) |
 | `sdk-event-messaging-rabbit` | `io.codehunters.messaging` | 6.0.0 — [README](messaging/sdk-event-messaging-rabbit/README.md) |

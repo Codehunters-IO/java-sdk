@@ -9,6 +9,10 @@
 - The JDBC publisher bean is `auditEventPublisher` (was `auditEventJdbcAdapter`).
   `AuditEventJdbcAdapter` is synchronous, without `@Async` or `@Transactional`.
 - The auto-configuration no longer applies `@EnableAsync` to the application.
+- The JDBC publisher needs a single `DataSource` candidate; with several and no primary it is not
+  created (2.x failed startup).
+- Without `fail-on-error`, the success event of a transactional call is written after the
+  transaction completes, in its own transaction, instead of inside it.
 - `auditTaskExecutor` and `auditJsonMapper` are not autowiring candidates.
 - The SQL Server reference script moved from `db/migration/V1__create_audit_event_table.sql` to
   `db/migration/audit/sqlserver/audit_event_create.sql`; Flyway no longer runs it.
@@ -17,15 +21,31 @@
 - `AsyncAuditEventPublisher` and `AuditEventRejectionListener`; the `audit.events.rejected`
   counter.
 - `codehunters.audit.async.*` executor settings, validated at startup.
+- `codehunters.audit.order` and `AuditAspect.Options`; the aspect implements `Ordered`.
+- Transaction-aware publishing: error rows survive the rollback, success rows follow the commit,
+  and `ROLLED_BACK` / `UNKNOWN` record calls whose transaction did not commit.
+- `FailSafeAuditEventPublisher`, `AuditEventFailureListener` and the `audit.events.failed`
+  counter. Both counters are registered at startup.
+- `JsonSnapshotAuditEventPublisher`: payloads are copied to JSON on the caller's thread.
 - PostgreSQL reference DDL.
 - `AuditAspect(publisher, contextProvider, Clock)`; the application's `Clock` bean is used.
+- `AuditEvent.withOutcome(status, success, errorMessage)`.
 
 ### Fixed
 - `fail-on-error=true` never failed the audited call: the insert ran on another thread and the
   aspect swallowed the exception.
 - The SDK's executor suppressed Boot's `applicationTaskExecutor`, and its mapper could replace the
   application's `JsonMapper`.
-- A non-UUID correlation id or a SpEL syntax error dropped the whole event.
+- A non-UUID correlation id or a SpEL syntax error dropped the whole event, and so did an
+  expression or context provider that threw.
+- The `ERROR` event of a transactional call was rolled back with it; on Postgres it failed after
+  a SQL error had aborted the transaction.
+- An asynchronous `SUCCESS` could be written for a transaction that then failed to commit.
+- Payload objects were serialized later on the worker thread, racing with the caller and failing
+  on closed persistence sessions; a failed serialization stored `toString()`.
+- A failed insert logged the database message, which can contain the row's personal data.
+- An `Error` from the publisher replaced the method's own exception.
+- `#result` resolved to a parameter named `result` when the method threw.
 - On SQL Server, `event_created_at` was shifted by the JVM's UTC offset.
 - Durations used the wall clock; timestamps used the system default zone.
 - Every event re-parsed its SpEL expressions.

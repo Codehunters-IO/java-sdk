@@ -22,49 +22,88 @@ public Order createOrder(CreateOrderCommand command) { ... }
 ```
 
 SpEL expressions see the parameters by name (`#command`, needs `-parameters`), by position (`#p0`,
-`#a0`, `#arg0`) and the return value (`#result`, `null` when the method throws). An expression
-that fails to parse or evaluate leaves its field `null`; the event is still published. A
+`#a0`, `#arg0`) and the return value (`#result`). `#result` is reserved: it is `null` when the
+method throws, even if a parameter is called `result`. An expression that fails to parse, fails to
+evaluate, or calls a method that throws leaves its field `null`; the event is still published. A
 `correlationId` that is not a UUID is recorded as `null`.
 
 Declare an `AuditContextProvider` bean to fill the actor, IP, user agent, HTTP method, resource
-and source service from the security context or the request. Values set on the annotation win.
+and source service from the security context or the request. Values set on the annotation win. A
+provider method that throws leaves its field `null`.
+
+The event is recorded when the method returns. For a method returning `CompletableFuture`, `Mono`
+or another asynchronous type, that is when the work was started, not finished: it is recorded as
+`SUCCESS` with the time it took to start, even if the work fails later. Audit the code that
+completes the work instead.
 
 ### What is recorded
 
-- `status` is `SUCCESS` or `ERROR`, `success` the same as a boolean.
+- `status` is `SUCCESS` or `ERROR`, `success` the same as a boolean. An event whose transaction
+  did not commit is `ROLLED_BACK` (`success=false`) or `UNKNOWN` (`success` null); see
+  [Transactions](#transactions).
 - `errorMessage` holds the **class name** of the exception, never its message: messages often
-  carry personal data or secrets.
+  carry personal data or secrets. For `ROLLED_BACK` and `UNKNOWN` it holds that status.
 - `durationMs` is measured with a monotonic clock. `createdAt` comes from the application's
   `Clock` bean when it defines exactly one, UTC otherwise.
 - `payload` holds only the expressions listed in `payload`. Arguments are never captured whole.
-  Do not list passwords, tokens or card numbers there.
+  Do not list passwords, tokens or card numbers there. The values are copied to JSON when the
+  method returns, on the caller's thread, so later changes to the objects and closed persistence
+  sessions do not affect the record. A map that cannot be serialized is stored as `null` and a
+  warning is logged; its `toString()` is never stored.
 
 ## Publishing
 
 | Setup | Behaviour |
 |---|---|
 | Your own `AuditEventPublisherPort` bean | Used as is; the SDK's JDBC publisher backs off |
-| `DataSource`, default settings | Written to `audit_event` on `auditTaskExecutor`; the call does not wait |
+| One `DataSource`, default settings | Written to `audit_event` on `auditTaskExecutor`; the call does not wait |
 | `codehunters.audit.async.enabled=false` | Written on the caller's thread |
-| `codehunters.audit.fail-on-error=true` | Written on the caller's thread; a failed insert throws `AuditPersistenceException` |
+| `codehunters.audit.fail-on-error=true` | Written on the caller's thread; a failure throws `AuditPersistenceException` |
 
-Asynchronous publishing never fails the caller. The executor is bounded: when its queue is full,
-or the application is shutting down, the event is rejected, logged at `WARN` and counted in the
-`audit.events.rejected` Micrometer counter (when Micrometer is present). Declare an
-`AuditEventRejectionListener` bean to handle rejections yourself. On shutdown the executor waits
-up to `async.await-termination` for queued events, and is closed before the data source.
+The JDBC publisher needs a single `DataSource` candidate: one bean, or one marked `@Primary`. With
+several and no primary, the SDK stays off and the application starts without it.
+
+Without `fail-on-error`, publishing never fails the caller. The executor is bounded: when its
+queue is full, or the application is shutting down, the event is rejected, logged at `WARN` and
+counted in `audit.events.rejected`. An insert that fails is logged at `ERROR`, with the entity
+type, action, SQLState and exception class but not the database message, which can echo the row,
+and counted in `audit.events.failed`. Both counters are registered at startup when Micrometer and
+a single `MeterRegistry` are present. Declare an `AuditEventRejectionListener` or
+`AuditEventFailureListener` bean to handle these yourself. On shutdown the executor waits up to
+`async.await-termination` for queued events, and is closed before the data source.
 
 The worker runs with the caller's MDC, so `traceId` and the rest reach the audit log lines.
 
-With `fail-on-error=true`, the insert joins the caller's Spring transaction on the same data
-source, if there is one: the audit row commits or rolls back with the business write, including
-the `ERROR` event of a call whose transaction rolls back. A failure to insert throws
-`AuditPersistenceException` from the audited call; when the call itself failed, the original
+With `fail-on-error=true`, a failure to build or insert the event throws
+`AuditPersistenceException` from the audited call. When the call itself failed, the original
 exception is thrown with the audit failure attached as suppressed.
 
 The `auditTaskExecutor` and `auditJsonMapper` beans are not autowiring candidates: they never
 replace Boot's `applicationTaskExecutor` or your `JsonMapper`. Inject them with `@Qualifier` if you
 need them. Define a bean with either name to replace it.
+
+### Transactions
+
+When the audited method runs in a Spring transaction, the audit row follows what was committed:
+
+| Event | `fail-on-error=true` | Otherwise |
+|---|---|---|
+| The method threw | Written at once in a transaction of its own; survives the rollback | Same, on the executor when async |
+| The method returned | Written inside the caller's transaction; commits or rolls back with it | Written after the transaction completes; `ROLLED_BACK` or `UNKNOWN` if it did not commit |
+
+A transaction of its own means `REQUIRES_NEW` on the application's transaction manager when it has
+exactly one (or a primary one). Otherwise the row is written on a separate auto-commit connection
+from the same data source; that works for `DataSourceTransactionManager` and JPA, but a JTA
+transaction would still enlist it.
+
+When a commit fails, Spring reports the outcome as unknown, so such a call is recorded as
+`UNKNOWN`, never as `SUCCESS`.
+
+This relies on the aspect running inside the transaction advice. Both default to the lowest
+precedence, and Spring then applies the transaction advice first, which the Postgres tests check.
+Keep `codehunters.audit.order` at its default, or higher than the order of
+`@EnableTransactionManagement`. With `fail-on-error=true` and the aspect outside the transaction, a
+call whose commit succeeded could still fail on the audit insert, and a client might retry it.
 
 ## Database
 
@@ -81,7 +120,8 @@ The scripts have no Flyway version prefix, so the SDK never runs them.
 
 | Property | Default | Meaning |
 |---|---|---|
-| `codehunters.audit.fail-on-error` | `false` | Publish synchronously and propagate insert failures |
+| `codehunters.audit.fail-on-error` | `false` | Publish synchronously, inside the caller's transaction, and propagate failures |
+| `codehunters.audit.order` | `2147483647` | Precedence of the audit aspect; the lowest runs it inside `@Transactional` |
 | `codehunters.audit.async.enabled` | `true` | Publish off the caller's thread |
 | `codehunters.audit.async.core-pool-size` | `2` | Threads kept alive |
 | `codehunters.audit.async.max-pool-size` | `4` | Thread ceiling once the queue is full |
@@ -95,5 +135,6 @@ a deprecation warning.
 
 - Events still in the queue when the process is killed, or when `await-termination` runs out,
   are lost. Use `fail-on-error=true` where every event must be durable.
-- The aspect has no explicit order: whether it runs inside or outside a `@Transactional` boundary
-  on the same method follows Spring's default advisor ordering.
+- An event held until its transaction completes is lost if the process dies before the
+  transaction ends.
+- Asynchronous return types are recorded when the work starts, not when it finishes.
