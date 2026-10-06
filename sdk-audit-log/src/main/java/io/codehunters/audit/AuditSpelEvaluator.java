@@ -21,9 +21,11 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * Evaluates SpEL expressions against method parameters and return values.
  *
  * <p>Parameters resolve by declared name ({@code #name}, needs {@code -parameters}), by position
- * ({@code #p0}, {@code #a0}, {@code #arg0}) and the return value as {@code #result}. Parsed
- * expressions are cached up to a fixed bound; once full, new expressions are parsed on every call.
- * Syntax and evaluation errors resolve to {@code null}.
+ * ({@code #p0}, {@code #a0}, {@code #arg0}) and the return value as {@code #result}. {@code
+ * #result} is reserved: it is {@code null} when the method failed, even if a parameter is named
+ * {@code result}. Parsed expressions are cached up to a fixed bound; once full, new expressions are
+ * parsed on every call. Syntax errors, evaluation errors and exceptions thrown by methods the
+ * expression calls resolve to {@code null}.
  *
  * @since 1.0.0
  */
@@ -47,11 +49,10 @@ final class AuditSpelEvaluator {
   }
 
   EvaluationContext buildContext(Method method, Object[] args, Object result) {
-    var ctx = new MethodBasedEvaluationContext(null, method, args, nameDiscoverer);
+    var ctx = new AuditEvaluationContext(method, args, result, nameDiscoverer);
     for (int i = 0; i < args.length; i++) {
       ctx.setVariable("arg" + i, args[i]);
     }
-    ctx.setVariable("result", result);
     return ctx;
   }
 
@@ -84,6 +85,9 @@ final class AuditSpelEvaluator {
     } catch (ExpressionException ex) {
       log.debug("SpEL expression '{}' could not be resolved: {}", expression, ex.getMessage());
       return Optional.empty();
+    } catch (RuntimeException ex) {
+      log.debug("SpEL expression '{}' threw {}", expression, ex.getClass().getName());
+      return Optional.empty();
     }
   }
 
@@ -97,5 +101,27 @@ final class AuditSpelEvaluator {
       cache.putIfAbsent(expression, parsed);
     }
     return parsed;
+  }
+
+  /** Keeps {@code #result} bound to the method's return value, never to a parameter. */
+  private static final class AuditEvaluationContext extends MethodBasedEvaluationContext {
+
+    private static final String RESULT = "result";
+
+    private final Object result;
+
+    AuditEvaluationContext(
+        Method method, Object[] args, Object result, ParameterNameDiscoverer nameDiscoverer) {
+      super(null, method, args, nameDiscoverer);
+      this.result = result;
+    }
+
+    @Override
+    public Object lookupVariable(String name) {
+      if (RESULT.equals(name)) {
+        return result;
+      }
+      return super.lookupVariable(name);
+    }
   }
 }

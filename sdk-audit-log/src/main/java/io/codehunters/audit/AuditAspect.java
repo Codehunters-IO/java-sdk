@@ -5,14 +5,17 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.Ordered;
 import org.springframework.expression.EvaluationContext;
 
 /**
@@ -21,13 +24,22 @@ import org.springframework.expression.EvaluationContext;
  *
  * <p>A failing method is recorded with the class name of its exception, never its message, which
  * may carry personal data. An {@link AuditPersistenceException} from the publisher (fail-on-error
- * mode) is propagated: on success it replaces the result, on failure it is added as suppressed to
- * the method's exception. Any other publisher failure is logged and the call continues.
+ * mode) is propagated: on success it replaces the result. When the method itself failed, anything
+ * the publisher throws is added as suppressed to the method's exception, which is rethrown
+ * unchanged. Any other publisher failure on success is logged and the call continues.
+ *
+ * <p>An expression or {@link AuditContextProvider} call that fails leaves only its own field {@code
+ * null}. If the event cannot be built at all, the call fails with an {@link
+ * AuditPersistenceException} in fail-on-error mode; otherwise the failure is logged.
+ *
+ * <p>The aspect is {@link Ordered}. With the default {@link Ordered#LOWEST_PRECEDENCE} it runs
+ * inside the transaction of a {@code @Transactional} method, so a synchronous write of a success
+ * event commits or rolls back with the business write.
  *
  * @since 1.0.0
  */
 @Aspect
-public class AuditAspect {
+public class AuditAspect implements Ordered {
 
   private static final String STATUS_SUCCESS = "SUCCESS";
   private static final String STATUS_ERROR = "ERROR";
@@ -37,10 +49,26 @@ public class AuditAspect {
   private final AuditEventPublisherPort publisher;
   private final AuditContextProvider contextProvider;
   private final AuditSpelEvaluator spelEvaluator;
-  private final Clock clock;
+  private final Options options;
 
   /**
    * Creates the aspect.
+   *
+   * @param publisher the port used to publish audit events
+   * @param contextProvider the provider of cross-cutting audit context
+   * @param options the clock, failure mode and order of the aspect
+   * @since 3.0.0
+   */
+  public AuditAspect(
+      AuditEventPublisherPort publisher, AuditContextProvider contextProvider, Options options) {
+    this.publisher = publisher;
+    this.contextProvider = contextProvider;
+    this.options = options;
+    this.spelEvaluator = new AuditSpelEvaluator();
+  }
+
+  /**
+   * Creates the aspect with the given clock, without fail-on-error and with the lowest precedence.
    *
    * @param publisher the port used to publish audit events
    * @param contextProvider the provider of cross-cutting audit context
@@ -49,10 +77,7 @@ public class AuditAspect {
    */
   public AuditAspect(
       AuditEventPublisherPort publisher, AuditContextProvider contextProvider, Clock clock) {
-    this.publisher = publisher;
-    this.contextProvider = contextProvider;
-    this.clock = clock;
-    this.spelEvaluator = new AuditSpelEvaluator();
+    this(publisher, contextProvider, new Options(clock, false, Ordered.LOWEST_PRECEDENCE));
   }
 
   /**
@@ -72,6 +97,11 @@ public class AuditAspect {
    */
   public AuditAspect(AuditEventPublisherPort publisher) {
     this(publisher, new NoOpAuditContextProvider());
+  }
+
+  @Override
+  public int getOrder() {
+    return options.order();
   }
 
   /**
@@ -105,7 +135,7 @@ public class AuditAspect {
   private static void publishAfterFailure(Throwable methodFailure, Runnable publish) {
     try {
       publish.run();
-    } catch (AuditPersistenceException ex) {
+    } catch (Throwable ex) {
       methodFailure.addSuppressed(ex);
     }
   }
@@ -117,6 +147,9 @@ public class AuditAspect {
     try {
       event = buildEvent(auditable, method, args, outcome, durationMs);
     } catch (RuntimeException ex) {
+      if (options.failOnError()) {
+        throw new AuditPersistenceException("Failed to build audit event", ex);
+      }
       log.error("Failed to build audit event for {}", method.getName(), ex);
       return;
     }
@@ -142,17 +175,17 @@ public class AuditAspect {
         auditable.action(),
         resolveActorId(auditable, ctx),
         resolveActorType(auditable),
-        contextProvider.getIpAddress().orElse(null),
+        fromProvider(contextProvider::getIpAddress),
         resolvePayload(auditable, ctx),
         outcome.status(),
         resolveCorrelationId(auditable, ctx),
         resolveSourceService(auditable),
-        OffsetDateTime.now(clock),
-        contextProvider.getResource().orElse(null),
+        OffsetDateTime.now(options.clock()),
+        fromProvider(contextProvider::getResource),
         null,
-        contextProvider.getHttpMethod().orElse(null),
+        fromProvider(contextProvider::getHttpMethod),
         null,
-        contextProvider.getUserAgent().orElse(null),
+        fromProvider(contextProvider::getUserAgent),
         null,
         outcome.success(),
         outcome.error(),
@@ -174,14 +207,14 @@ public class AuditAspect {
     if (fromAnnotation != null && !fromAnnotation.isBlank()) {
       return fromAnnotation;
     }
-    return contextProvider.getActorId().orElse(null);
+    return fromProvider(contextProvider::getActorId);
   }
 
   private String resolveActorType(Auditable auditable) {
     if (!auditable.actorType().isBlank()) {
       return auditable.actorType();
     }
-    return contextProvider.getActorType().orElse(null);
+    return fromProvider(contextProvider::getActorType);
   }
 
   private Map<String, Object> resolvePayload(Auditable auditable, EvaluationContext ctx) {
@@ -208,8 +241,27 @@ public class AuditAspect {
     if (!auditable.sourceService().isBlank()) {
       return auditable.sourceService();
     }
-    return contextProvider.getSourceService().orElse(null);
+    return fromProvider(contextProvider::getSourceService);
   }
+
+  private String fromProvider(Supplier<Optional<String>> field) {
+    try {
+      return field.get().orElse(null);
+    } catch (RuntimeException ex) {
+      log.debug("Audit context provider threw {}", ex.getClass().getName());
+      return null;
+    }
+  }
+
+  /**
+   * Settings of the aspect.
+   *
+   * @param clock the clock that stamps {@link AuditEvent#createdAt()}
+   * @param failOnError whether an event that cannot be built fails the audited call
+   * @param order the aspect's precedence among other advice; see {@link Ordered}
+   * @since 3.0.0
+   */
+  public record Options(Clock clock, boolean failOnError, int order) {}
 
   private record Outcome(Object result, String status, boolean success, String error) {}
 }

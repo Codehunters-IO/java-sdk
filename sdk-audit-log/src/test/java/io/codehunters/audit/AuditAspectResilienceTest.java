@@ -61,8 +61,7 @@ class AuditAspectResilienceTest {
 
   @Test
   void should_expose_the_configured_order() {
-    var aspect =
-        new AuditAspect(published, new NoOpAuditContextProvider(), options(FIXED, false));
+    var aspect = new AuditAspect(published, new NoOpAuditContextProvider(), options(FIXED, false));
 
     assertThat(aspect.getOrder()).isEqualTo(7);
   }
