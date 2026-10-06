@@ -10,14 +10,14 @@ import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 class AuditAspectPublishFailureTest {
 
-  private static final AuditPersistenceException PERSISTENCE_FAILURE =
+  private final AuditPersistenceException persistenceFailure =
       new AuditPersistenceException("Failed to persist audit event", new IllegalStateException());
 
   @Test
   void should_propagate_persistence_failure_when_method_succeeds() {
     OrderService orders = proxied(event -> throwPersistenceFailure());
 
-    assertThatThrownBy(() -> orders.findOrder("ORD-1")).isSameAs(PERSISTENCE_FAILURE);
+    assertThatThrownBy(() -> orders.findOrder("ORD-1")).isSameAs(persistenceFailure);
   }
 
   @Test
@@ -26,7 +26,7 @@ class AuditAspectPublishFailureTest {
 
     assertThatThrownBy(() -> orders.deleteOrder("ORD-2"))
         .isInstanceOf(IllegalStateException.class)
-        .hasSuppressedException(PERSISTENCE_FAILURE);
+        .hasSuppressedException(persistenceFailure);
   }
 
   @Test
@@ -40,8 +40,8 @@ class AuditAspectPublishFailureTest {
     assertThat(orders.findOrder("ORD-3")).isEqualTo(Map.of("id", "ORD-3", "status", "ACTIVE"));
   }
 
-  private static void throwPersistenceFailure() {
-    throw PERSISTENCE_FAILURE;
+  private void throwPersistenceFailure() {
+    throw persistenceFailure;
   }
 
   private static OrderService proxied(AuditEventPublisherPort publisher) {

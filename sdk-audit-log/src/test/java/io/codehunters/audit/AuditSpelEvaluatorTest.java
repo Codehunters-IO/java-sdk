@@ -16,6 +16,10 @@ class AuditSpelEvaluatorTest {
     public String greet(String name, Integer age) {
       return "hi " + name + " " + age;
     }
+
+    public String echo(String result) {
+      return result;
+    }
   }
 
   private Method greetMethod() throws NoSuchMethodException {
@@ -137,5 +141,31 @@ class AuditSpelEvaluatorTest {
 
     assertThat(bounded.evaluate("#p1", ctx)).isEqualTo("1");
     assertThat(bounded.cachedExpressions()).isEqualTo(1);
+  }
+
+  @Test
+  void should_return_null_when_expression_throws_a_non_spel_exception() throws Exception {
+    EvaluationContext ctx = evaluator.buildContext(greetMethod(), new Object[] {"x", 1}, null);
+
+    assertThat(evaluator.evaluate("#p0.substring(5)", ctx)).isNull();
+  }
+
+  @Test
+  void should_skip_payload_entry_when_expression_throws_a_non_spel_exception() throws Exception {
+    EvaluationContext ctx = evaluator.buildContext(greetMethod(), new Object[] {"x", 1}, null);
+
+    Map<String, Object> payload =
+        evaluator.evaluatePayload(new String[] {"bad=#p0.substring(5)", "ok=#p0"}, ctx);
+
+    assertThat(payload).containsOnlyKeys("ok");
+  }
+
+  @Test
+  void should_not_resolve_result_to_a_parameter_named_result_when_there_is_no_result()
+      throws Exception {
+    Method echo = Sample.class.getMethod("echo", String.class);
+    EvaluationContext ctx = evaluator.buildContext(echo, new Object[] {"argument"}, null);
+
+    assertThat(evaluator.evaluate("#result", ctx)).isNull();
   }
 }
