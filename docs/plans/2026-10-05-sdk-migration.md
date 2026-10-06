@@ -354,9 +354,42 @@ Verificación: 163 tests, cobertura 96,2 % líneas / 93,1 % ramas, `./gradlew cl
    reemplaza).
 8. Prefijo: `vitxo.file-share.*` → `codehunters.file-share.*`.
 
-## Fase 6 — `sdk-audit-log` 3.0.0
+## Fase 6 — `sdk-audit-log` 3.0.0 ✅ (rama `feature/sdk-audit-log-v3`, sobre `feature/sdk-file-share-v2`)
 
-Rama: `feature/sdk-audit-log-v3`.
+Detalle en `sdk-audit-log/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.md`.
+
+- `5cb5813` → `2bedaf5`: el aspecto guarda la clase de la excepción; `correlationId` que no es UUID
+  queda en `null`; `Clock` inyectado (el bean único de la app o UTC) y duración con `nanoTime`; una
+  `AuditPersistenceException` se propaga (suprimida en la excepción original si el método falló).
+- `55e3f42` → `1d22699`: `MethodBasedEvaluationContext`, caché de expresiones acotada a 1024, errores
+  de sintaxis SpEL → campo `null` en vez de perder el evento.
+- `38203dd` → `38fe497`: `codehunters.audit.*` con alias `vitxo.audit.*` hasta 4.0 y metadatos de
+  deprecación; `codehunters.audit.async.*` validado al arrancar.
+- `91137c4` → `8617444`: `AuditEventJdbcAdapter` síncrono; `AsyncAuditEventPublisher` +
+  `AuditEventRejectionListener` (contador `audit.events.rejected`); executor acotado, con MDC,
+  drenado al cerrar y destruido antes del `DataSource`; `auditTaskExecutor`/`auditJsonMapper` con
+  `defaultCandidate = false`; fuera `@EnableAsync`.
+- `fecbfe8` → `1f93b9f` → `cb0fd96`: DDL de referencia Postgres y SQL Server en
+  `db/migration/audit/<db>/audit_event_create.sql`, probados con Testcontainers; `event_created_at`
+  se enlaza como `OffsetDateTime`.
+- `9cb6fe5`: README, CHANGELOG, MIGRATION-3.0.
+
+**Cambios respecto al plan:**
+- El script de SQL Server se publicaba como `db/migration/V1__create_audit_event_table.sql`, así que
+  Flyway lo ejecutaba en cualquier servicio con la ubicación por defecto. Se mueve fuera del patrón
+  versionado; `MIGRATION-3.0.md` explica qué hacer si ya está en el historial.
+- El IT de SQL Server destapó un bug no listado: `Timestamp` sobre `DATETIMEOFFSET` desplazaba la
+  hora según la zona de la JVM. Corregido.
+- `fail-on-error=true` nunca fallaba la llamada (hilo aparte y el aspecto tragaba la excepción).
+  Ahora sí: síncrono y dentro de la transacción del llamador si la hay.
+- El bean publicador se llama `auditEventPublisher`.
+
+**Límites documentados:** eventos en cola se pierden si el proceso muere o vence
+`await-termination`; el aspecto no declara orden frente a `@Transactional`.
+
+Verificación: 76 tests (incluye ITs Postgres 17 y azure-sql-edge), cobertura 95,8 % líneas /
+95,0 % ramas, `./gradlew clean build` y `./gradlew -p build-logic test` en verde. Sin revisión
+independiente todavía.
 
 1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
    `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
@@ -462,7 +495,8 @@ Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
 
 Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
-`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2`. Se integran
+`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
+`feature/sdk-audit-log-v3`. Se integran
 en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
