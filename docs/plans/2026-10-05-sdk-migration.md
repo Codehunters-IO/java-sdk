@@ -290,9 +290,33 @@ Verificación: 64 tests, mutaciones detectadas, `./gradlew clean build` en verde
 Para la Fase 3: `event-messaging` debe usar `TraceContextPort.currentTraceParent()` para guardar el
 `traceparent` en el outbox y quitar su propio post-processor de traza (este módulo es el dueño).
 
-## Fase 5 — `sdk-file-share` 2.0.0
+## Fase 5 — `sdk-file-share` 2.0.0 ✅ (rama `feature/sdk-file-share-v2`, sobre `feature/sdk-event-messaging-v6`)
 
-Desbloqueada por D10 (A4). Rama: `feature/sdk-file-share-v2`.
+Desbloqueada por D10 (A4). Detalle en `sdk-file-share/CHANGELOG.md`, `README.md` y `MIGRATION-2.0.md`.
+
+- `d44e634` → `535a598`: `FileConstraints`; `FileRef` y `UploadRequest` validados con `Map.copyOf`;
+  `FileStatus.UNKNOWN`; tickets con `Instant` y `toString()` sin query string.
+- `2c86d6d` → `38618e8`: mapeo dentro de `execute`, `PresignedUrlPolicy` (https + hosts permitidos con
+  comodín `*.`), body de error a 512 caracteres, `FileShareException.status()`, `download` acotado por
+  `max-download-size` y sobrecargas en streaming.
+- `8bba2a7` → `a9561bf`: `codehunters.file-share.*` con alias `vitxo.file-share.*` hasta 3.0, connect
+  timeout real, `RestClient` desde el builder de la app con `defaultCandidate = false`, client credentials
+  y hook `FileShareRequestInterceptor`; fuera Lombok.
+- `3631070`: ADR 0009, README, CHANGELOG, MIGRATION-2.0.
+- Revisión → `3b1e1f4`, `d9f7a47`, `9f5a2ad`: base URL que no es URI nombra la propiedad; límites
+  documentados; javadoc.
+
+**Cambios respecto al plan:**
+- El SDK construye su propio `AuthorizedClientServiceOAuth2AuthorizedClientManager` (no usa el
+  `OAuth2AuthorizedClientManager` de la app, que en servlet depende del request) a partir del
+  `ClientRegistrationRepository` y, si existe, del `OAuth2AuthorizedClientService` de la app.
+- `allowed-hosts` vacío acepta cualquier host https (no rompe a quien sube de versión); se recomienda
+  configurarlo en producción.
+- `download(String, UUID, OutputStream)` además de `download(FileRef, OutputStream)`.
+- La revisión fue propia, no con un agente independiente.
+
+Verificación: 133 tests, cobertura 96,3 % líneas / 91,7 % ramas, `./gradlew clean build` y
+`./gradlew -p build-logic test` en verde.
 
 1. `connectTimeout` real (`JdkClientHttpRequestFactory` + `HttpClient.connectTimeout`); `RestClient`
    construido desde `ObjectProvider<RestClient.Builder>`; `defaultCandidate = false`.
@@ -417,7 +441,8 @@ Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
 
 Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
-`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6`. Se integran en ese orden.
+`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2`. Se integran
+en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
