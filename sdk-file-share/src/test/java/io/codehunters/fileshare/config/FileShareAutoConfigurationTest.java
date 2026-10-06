@@ -69,6 +69,18 @@ class FileShareAutoConfigurationTest {
   }
 
   @Test
+  void should_fail_when_base_url_is_not_a_uri() {
+    runner
+        .withPropertyValues("codehunters.file-share.base-url=http://files host")
+        .run(
+            context ->
+                assertThat(context)
+                    .hasFailed()
+                    .getFailure()
+                    .hasMessageContaining("codehunters.file-share.base-url"));
+  }
+
+  @Test
   void should_create_nothing_when_disabled() {
     runner
         .withPropertyValues("codehunters.file-share.enabled=false")

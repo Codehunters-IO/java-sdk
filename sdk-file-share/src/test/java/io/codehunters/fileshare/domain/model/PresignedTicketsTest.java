@@ -49,6 +49,15 @@ class PresignedTicketsTest {
   }
 
   @Test
+  void should_print_whole_url_when_it_has_no_query() {
+    var ticket =
+        new PresignedUploadTicket(
+            FileRefFixtures.fileRef(), URI.create("https://files.example.com/key"), EXPIRES_AT);
+
+    assertThat(ticket.toString()).contains("uploadUrl=https://files.example.com/key,");
+  }
+
+  @Test
   void should_reject_upload_ticket_without_url() {
     assertThatNullPointerException()
         .isThrownBy(() -> new PresignedUploadTicket(FileRefFixtures.fileRef(), null, EXPIRES_AT));
