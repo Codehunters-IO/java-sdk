@@ -145,14 +145,13 @@ class AuditEventJdbcAdapterTest {
   }
 
   @Test
-  void should_log_sql_state_but_not_the_database_message_when_insert_fails(
-      CapturedOutput output) {
+  void should_log_sql_state_but_not_the_database_message_when_insert_fails(CapturedOutput output) {
     var silentAdapter = new AuditEventJdbcAdapter(brokenDataSource(), jsonMapper, false);
 
     silentAdapter.publish(fullEvent(UUID.randomUUID()));
 
     assertThat(output)
-        .contains("entityType=ORDER", "action=CREATE", "sqlState=42S02")
+        .contains("entityType=ORDER", "action=CREATE", "sqlState=42S04")
         .doesNotContain("AUDIT_EVENT");
   }
 
