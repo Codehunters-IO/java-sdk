@@ -3,7 +3,9 @@ package io.codehunters.audit;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.math.BigDecimal;
+import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -119,7 +121,7 @@ class AuditAspectTest {
     assertEquals("ERROR", event.status());
     assertFalse(event.success());
     assertNull(event.entityId(), "entityId should be null when #result is unavailable");
-    assertEquals("DB connection failed", event.errorMessage());
+    assertEquals("java.lang.RuntimeException", event.errorMessage());
   }
 
   @Test
@@ -154,5 +156,37 @@ class AuditAspectTest {
     assertEquals("ORD-600", event.entityId());
     assertEquals("SUCCESS", event.status());
     assertTrue(event.success());
+  }
+
+  @Test
+  void should_record_exception_class_not_message_when_method_throws() {
+    assertThrows(IllegalStateException.class, () -> orderService.deleteOrder("ORD-999"));
+
+    assertEquals("java.lang.IllegalStateException", inMemory().getLastEvent().errorMessage());
+  }
+
+  @Test
+  void should_resolve_correlation_id_when_expression_is_a_uuid() {
+    var ref = UUID.fromString("4bf92f35-77b3-4da6-a3ce-929d0e0e4736");
+
+    orderService.shipOrder("ORD-700", ref.toString());
+
+    assertEquals(ref, inMemory().getLastEvent().correlationId());
+  }
+
+  @Test
+  void should_publish_event_with_null_correlation_id_when_expression_is_not_a_uuid() {
+    orderService.shipOrder("ORD-701", "not-a-uuid");
+
+    AuditEvent event = inMemory().getLastEvent();
+    assertEquals("ORD-701", event.entityId());
+    assertNull(event.correlationId());
+  }
+
+  @Test
+  void should_stamp_created_at_from_the_injected_clock() {
+    orderService.findOrder("ORD-800");
+
+    assertEquals(TestConfig.NOW.atOffset(ZoneOffset.UTC), inMemory().getLastEvent().createdAt());
   }
 }

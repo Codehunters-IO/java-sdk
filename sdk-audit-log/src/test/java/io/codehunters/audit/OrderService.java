@@ -43,6 +43,11 @@ class OrderService {
     throw new RuntimeException("DB connection failed");
   }
 
+  @Auditable(entityType = "ORDER", action = "SHIP", entityId = "#orderId", correlationId = "#ref")
+  void shipOrder(String orderId, String ref) {
+    // no-op
+  }
+
   @Auditable(entityType = "ORDER", action = "ARCHIVE", entityId = "#orderId")
   void archiveOrder(String orderId) {
     // void method — no result
