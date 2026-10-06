@@ -99,6 +99,7 @@ public class FileShareAutoConfiguration {
    * Builds the default {@link FileShareClient}.
    *
    * @param fileShareRestClient the REST client to call the file-share service
+   * @param fileShareContentRestClient the REST client for content downloads
    * @param properties the file-share configuration
    * @return the REST-backed {@link FileShareClient}
    */
