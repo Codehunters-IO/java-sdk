@@ -21,7 +21,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-i18n` | `io.codehunters.i18n` | pending |
 | `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 — [README](sdk-tracing/README.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | pending |
-| `sdk-audit-log` | `io.codehunters.audit` | pending |
+| `sdk-audit-log` | `io.codehunters.audit` | 3.0.0 — [README](sdk-audit-log/README.md) |
 | `sdk-user-security` | `io.codehunters.security` | 3.0.0 — [README](security/sdk-user-security/README.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 — [README](security/sdk-user-security-authz/README.md) |
 | `sdk-file-share` | `io.codehunters.fileshare` | pending |

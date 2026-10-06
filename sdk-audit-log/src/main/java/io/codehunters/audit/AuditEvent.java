@@ -25,7 +25,7 @@ import java.util.UUID;
  * @param userAgent the caller user agent
  * @param responseSummary a summary of the response
  * @param success whether the action succeeded
- * @param errorMessage the error message when the action failed
+ * @param errorMessage the class name of the exception when the action failed; never its message
  * @param durationMs the execution duration in milliseconds
  * @param metadata arbitrary additional metadata
  * @since 1.0.0
