@@ -1,0 +1,40 @@
+{
+  "properties": [
+    {
+      "name": "vitxo.file-share.enabled",
+      "type": "java.lang.Boolean",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.file-share.enabled",
+        "reason": "Renamed in 2.0.0; the old key is honoured until 3.0.0."
+      }
+    },
+    {
+      "name": "vitxo.file-share.base-url",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.file-share.base-url",
+        "reason": "Renamed in 2.0.0; the old key is honoured until 3.0.0."
+      }
+    },
+    {
+      "name": "vitxo.file-share.connect-timeout",
+      "type": "java.time.Duration",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.file-share.connect-timeout",
+        "reason": "Renamed in 2.0.0; the old key is honoured until 3.0.0."
+      }
+    },
+    {
+      "name": "vitxo.file-share.read-timeout",
+      "type": "java.time.Duration",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.file-share.read-timeout",
+        "reason": "Renamed in 2.0.0; the old key is honoured until 3.0.0."
+      }
+    }
+  ]
+}
