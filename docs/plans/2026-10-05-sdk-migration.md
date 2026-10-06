@@ -30,12 +30,12 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D7 | Solo Spring Boot 4. Los `afterName` apuntan solo a paquetes de Boot 4 y el README lo declara (2026-10-05) | `docs/adr/0007-boot4-only.md` |
 | D9 | `user-security` 3.0 verifica el JWT localmente (JWKS); los headers del gateway solo se aceptan si coinciden (2026-10-05) | (en el CHANGELOG del módulo) |
 | D8 | Mantener `@Measured` y su aspecto propio; no se reemplaza por `@Timed`/`@Counted` de Micrometer (2026-10-05) | `docs/adr/0008-keep-measured.md` |
+| D10 (A4) | `file-share` se autentica con client credentials por defecto; un bean `FileShareRequestInterceptor` lo reemplaza (2026-10-06) | `docs/adr/0009-file-share-outbound-client-credentials.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
 | # | Pregunta | Recomendación | Bloquea |
 |---|---|---|---|
-| A4 | `file-share`: auth saliente, ¿reenviar el token del usuario o usar client credentials? | Hook `ClientHttpRequestInterceptor`; client credentials por defecto | Fase 5 |
 | A5 | Modelo mutable de `event-messaging` (`@Setter` en `OutboxMessage` y `EventMessage`) | Fuera de este plan; se aborda en la 7.0 | — |
 
 ---
@@ -292,7 +292,7 @@ Para la Fase 3: `event-messaging` debe usar `TraceContextPort.currentTraceParent
 
 ## Fase 5 — `sdk-file-share` 2.0.0
 
-Bloqueada por A4. Rama: `feature/sdk-file-share-v2`.
+Desbloqueada por D10 (A4). Rama: `feature/sdk-file-share-v2`.
 
 1. `connectTimeout` real (`JdkClientHttpRequestFactory` + `HttpClient.connectTimeout`); `RestClient`
    construido desde `ObjectProvider<RestClient.Builder>`; `defaultCandidate = false`.
@@ -306,7 +306,7 @@ Bloqueada por A4. Rama: `feature/sdk-file-share-v2`.
    host de `allowedPresignedHosts`.
 5. `download(FileRef, OutputStream)` en streaming, y `maxDownloadSize` para el `byte[]`.
 6. `FileStatus.UNKNOWN`; se elimina el código muerto y Lombok.
-7. Hook de auth saliente según A4.
+7. Auth saliente según D10: client credentials + hook `FileShareRequestInterceptor`.
 8. Prefijo: `vitxo.file-share.*` → `codehunters.file-share.*`.
 
 ## Fase 6 — `sdk-audit-log` 3.0.0
@@ -406,7 +406,7 @@ Rama: `feature/sdk-totp-v2`.
 ```
 Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
          ├─> Fase 4 (tracing) ──> Fase 3 (event-messaging)
-         ├─> Fase 5 (file-share, bloqueada por A4)
+         ├─> Fase 5 (file-share)
          ├─> Fase 6 (audit)
          ├─> Fase 7 (measure)
          ├─> Fase 8 (parameter)
