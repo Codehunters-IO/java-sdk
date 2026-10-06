@@ -57,7 +57,6 @@ class PresignedTicketsTest {
   @Test
   void should_reject_download_ticket_without_expiry() {
     assertThatNullPointerException()
-        .isThrownBy(
-            () -> new PresignedDownloadTicket(FileRefFixtures.fileRef(), SIGNED_URL, null));
+        .isThrownBy(() -> new PresignedDownloadTicket(FileRefFixtures.fileRef(), SIGNED_URL, null));
   }
 }

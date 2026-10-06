@@ -63,7 +63,9 @@ public class RestClientFileShareAdapter implements FileShareClient {
             "requestUpload");
     var ref = toFileRef(response);
     return new PresignedUploadTicket(
-        ref, URI.create(response.presignedUrl()), response.presignedUrlExpiresAt());
+        ref,
+        URI.create(response.presignedUrl()),
+        response.presignedUrlExpiresAt().toInstant(java.time.ZoneOffset.UTC));
   }
 
   @Override
@@ -75,7 +77,9 @@ public class RestClientFileShareAdapter implements FileShareClient {
     }
     var ref = toFileRef(response);
     return new PresignedDownloadTicket(
-        ref, URI.create(response.presignedUrl()), response.presignedUrlExpiresAt());
+        ref,
+        URI.create(response.presignedUrl()),
+        response.presignedUrlExpiresAt().toInstant(java.time.ZoneOffset.UTC));
   }
 
   @Override
