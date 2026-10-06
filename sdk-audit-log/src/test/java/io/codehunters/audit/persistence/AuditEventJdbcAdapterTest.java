@@ -14,6 +14,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -23,7 +25,7 @@ import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
 import tools.jackson.databind.json.JsonMapper;
 
-@ExtendWith(SpringExtension.class)
+@ExtendWith({SpringExtension.class, OutputCaptureExtension.class})
 @ContextConfiguration(classes = AuditEventJdbcAdapterTest.JdbcTestConfig.class)
 class AuditEventJdbcAdapterTest {
 
@@ -129,6 +131,51 @@ class AuditEventJdbcAdapterTest {
         .isInstanceOf(AuditPersistenceException.class)
         .hasMessageContaining("Failed to persist audit event")
         .hasCauseInstanceOf(Exception.class);
+  }
+
+  @Test
+  void should_store_null_when_payload_cannot_be_serialized() {
+    var event = eventWithPayload(Map.of("bad", new Unserializable()));
+
+    adapter.publish(event);
+
+    assertThat(
+            jdbcClient.sql("SELECT request_body FROM audit_event").query(String.class).optional())
+        .isEmpty();
+  }
+
+  @Test
+  void should_log_sql_state_but_not_the_database_message_when_insert_fails(
+      CapturedOutput output) {
+    var silentAdapter = new AuditEventJdbcAdapter(brokenDataSource(), jsonMapper, false);
+
+    silentAdapter.publish(fullEvent(UUID.randomUUID()));
+
+    assertThat(output)
+        .contains("entityType=ORDER", "action=CREATE", "sqlState=42S02")
+        .doesNotContain("AUDIT_EVENT");
+  }
+
+  private static AuditEvent eventWithPayload(Map<String, Object> payload) {
+    return new AuditEvent(
+        "ORDER",
+        "ORD-002",
+        "CREATE",
+        "user-1",
+        "USER",
+        null,
+        payload,
+        "SUCCESS",
+        null,
+        "order-service",
+        OffsetDateTime.parse("2026-10-06T12:00:00Z"));
+  }
+
+  /** A value whose only property cannot be read. */
+  static final class Unserializable {
+    public String getValue() {
+      throw new IllegalStateException("lazy association outside its session");
+    }
   }
 
   private DataSource brokenDataSource() {
