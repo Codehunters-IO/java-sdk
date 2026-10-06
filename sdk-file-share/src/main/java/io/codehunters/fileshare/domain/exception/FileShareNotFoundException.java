@@ -11,4 +11,14 @@ public class FileShareNotFoundException extends FileShareException {
   public FileShareNotFoundException(String message) {
     super(message);
   }
+
+  /**
+   * Creates an exception for an HTTP error response.
+   *
+   * @param message the detail message
+   * @param status the HTTP status the file-share service answered with
+   */
+  public FileShareNotFoundException(String message, int status) {
+    super(message, status);
+  }
 }

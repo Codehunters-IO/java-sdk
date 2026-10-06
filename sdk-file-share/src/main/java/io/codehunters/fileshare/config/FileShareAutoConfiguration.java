@@ -61,7 +61,10 @@ public class FileShareAutoConfiguration {
   @Bean
   @ConditionalOnMissingBean(FileShareClient.class)
   public FileShareClient fileShareClient(RestClient fileShareRestClient) {
-    return new RestClientFileShareAdapter(fileShareRestClient);
+    return new RestClientFileShareAdapter(
+        fileShareRestClient,
+        new io.codehunters.fileshare.infrastructure.PresignedUrlPolicy(java.util.List.of()),
+        52_428_800L);
   }
 
   private ClientHttpRequestFactory buildRequestFactory(
