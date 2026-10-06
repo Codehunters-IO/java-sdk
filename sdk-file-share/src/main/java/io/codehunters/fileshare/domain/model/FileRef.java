@@ -15,7 +15,6 @@ import java.util.UUID;
  * @param size the content size in bytes
  * @param status the lifecycle status; {@link FileStatus#UNKNOWN} when the service sent none
  * @param metadata arbitrary key/value metadata stored alongside the file; never {@code null}
- * @throws IllegalArgumentException if a value breaks a {@link FileConstraints} rule
  */
 public record FileRef(
     UUID id,
@@ -27,7 +26,11 @@ public record FileRef(
     FileStatus status,
     Map<String, String> metadata) {
 
-  /** Validates every field and takes an unmodifiable copy of the metadata. */
+  /**
+   * Validates every field and takes an unmodifiable copy of the metadata.
+   *
+   * @throws IllegalArgumentException if a value breaks a {@link FileConstraints} rule
+   */
   public FileRef {
     Objects.requireNonNull(id, "id");
     Objects.requireNonNull(workflowId, "workflowId");

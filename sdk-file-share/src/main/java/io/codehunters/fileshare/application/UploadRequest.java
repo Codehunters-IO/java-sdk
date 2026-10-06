@@ -14,7 +14,6 @@ import java.util.UUID;
  * @param contentType the MIME type of the content
  * @param size the content size in bytes
  * @param metadata arbitrary key/value metadata stored alongside the file; never {@code null}
- * @throws IllegalArgumentException if a value breaks a {@link FileConstraints} rule
  */
 public record UploadRequest(
     String referenceId,
@@ -24,7 +23,11 @@ public record UploadRequest(
     long size,
     Map<String, String> metadata) {
 
-  /** Validates every field and takes an unmodifiable copy of the metadata. */
+  /**
+   * Validates every field and takes an unmodifiable copy of the metadata.
+   *
+   * @throws IllegalArgumentException if a value breaks a {@link FileConstraints} rule
+   */
   public UploadRequest {
     Objects.requireNonNull(workflowId, "workflowId");
     FileConstraints.requireReferenceId(referenceId);

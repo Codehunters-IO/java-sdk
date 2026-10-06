@@ -9,6 +9,7 @@ import java.util.OptionalInt;
  */
 public class FileShareException extends RuntimeException {
 
+  /** The HTTP status of the error response, or 0 when there was none. */
   private final int status;
 
   /**
