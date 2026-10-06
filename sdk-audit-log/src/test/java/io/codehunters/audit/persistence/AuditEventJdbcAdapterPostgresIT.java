@@ -1,7 +1,11 @@
 package io.codehunters.audit.persistence;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.codehunters.audit.AuditPersistenceException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -20,6 +24,9 @@ import tools.jackson.databind.json.JsonMapper;
 class AuditEventJdbcAdapterPostgresIT {
 
   @Container static final PostgreSQLContainer DB = new PostgreSQLContainer("postgres:17-alpine");
+
+  private static final String ROW_VALUE = "alice@example.com";
+  private static final String NOT_NULL_VIOLATION = "23502";
 
   private static DataSource dataSource;
 
@@ -53,5 +60,24 @@ class AuditEventJdbcAdapterPostgresIT {
                 .query(OffsetDateTime.class)
                 .single())
         .isEqualTo(ReferenceDdlFixtures.CREATED_AT);
+  }
+
+  @Test
+  void should_not_expose_row_values_when_the_insert_violates_a_constraint() {
+    var adapter = new AuditEventJdbcAdapter(dataSource, JsonMapper.builder().build(), true);
+
+    assertThatThrownBy(() -> adapter.publish(ReferenceDdlFixtures.eventWithoutType(ROW_VALUE)))
+        .isInstanceOfSatisfying(
+            AuditPersistenceException.class,
+            failure -> {
+              assertThat(failure.sqlState()).contains(NOT_NULL_VIOLATION);
+              assertThat(stackTraceOf(failure)).doesNotContain(ROW_VALUE);
+            });
+  }
+
+  private static String stackTraceOf(Throwable throwable) {
+    var out = new StringWriter();
+    throwable.printStackTrace(new PrintWriter(out));
+    return out.toString();
   }
 }

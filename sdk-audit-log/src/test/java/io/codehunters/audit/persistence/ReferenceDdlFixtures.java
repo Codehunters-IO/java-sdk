@@ -46,4 +46,29 @@ final class ReferenceDdlFixtures {
         150,
         Map.of("env", "prod"));
   }
+
+  static AuditEvent eventWithoutType(String actorId) {
+    return new AuditEvent(
+        null,
+        "ORD-002",
+        "CREATE",
+        actorId,
+        "ADMIN",
+        null,
+        Map.of(),
+        "SUCCESS",
+        null,
+        null,
+        CREATED_AT,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        true,
+        null,
+        1,
+        null);
+  }
 }
