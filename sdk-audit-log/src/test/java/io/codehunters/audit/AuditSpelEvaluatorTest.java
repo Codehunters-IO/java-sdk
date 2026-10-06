@@ -94,12 +94,48 @@ class AuditSpelEvaluatorTest {
   }
 
   @Test
-  @DisplayName("should_fall_back_to_argN_names_when_parameter_names_unavailable")
-  void should_use_argN_fallback() throws Exception {
-    Method m = AuditSpelEvaluator.class.getDeclaredMethod("defaultParamNames", int.class);
-    m.setAccessible(true);
-    String[] names = (String[]) m.invoke(evaluator, 3);
+  void should_resolve_variable_by_declared_parameter_name() throws Exception {
+    EvaluationContext ctx = evaluator.buildContext(greetMethod(), new Object[] {"Ada", 36}, "ok");
 
-    assertThat(names).containsExactly("arg0", "arg1", "arg2");
+    assertThat(evaluator.evaluate("#name", ctx)).isEqualTo("Ada");
+    assertThat(evaluator.evaluate("#a1", ctx)).isEqualTo("36");
+  }
+
+  @Test
+  void should_return_null_when_expression_has_invalid_syntax() throws Exception {
+    EvaluationContext ctx = evaluator.buildContext(greetMethod(), new Object[] {"x", 1}, null);
+
+    assertThat(evaluator.evaluate("#p0 +", ctx)).isNull();
+  }
+
+  @Test
+  void should_skip_payload_entry_when_expression_has_invalid_syntax() throws Exception {
+    EvaluationContext ctx = evaluator.buildContext(greetMethod(), new Object[] {"a", 1}, null);
+
+    Map<String, Object> payload =
+        evaluator.evaluatePayload(new String[] {"bad=#p0 +", "ok=#p0"}, ctx);
+
+    assertThat(payload).containsOnlyKeys("ok");
+  }
+
+  @Test
+  void should_parse_each_expression_once_when_evaluated_repeatedly() throws Exception {
+    EvaluationContext ctx = evaluator.buildContext(greetMethod(), new Object[] {"a", 1}, null);
+
+    evaluator.evaluate("#p0", ctx);
+    evaluator.evaluate("#p0", ctx);
+
+    assertThat(evaluator.cachedExpressions()).isEqualTo(1);
+  }
+
+  @Test
+  void should_stop_caching_but_keep_evaluating_when_cache_is_full() throws Exception {
+    var bounded = new AuditSpelEvaluator(1);
+    EvaluationContext ctx = bounded.buildContext(greetMethod(), new Object[] {"a", 1}, null);
+
+    bounded.evaluate("#p0", ctx);
+
+    assertThat(bounded.evaluate("#p1", ctx)).isEqualTo("1");
+    assertThat(bounded.cachedExpressions()).isEqualTo(1);
   }
 }
