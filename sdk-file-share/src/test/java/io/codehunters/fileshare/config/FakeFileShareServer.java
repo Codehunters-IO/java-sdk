@@ -37,6 +37,8 @@ final class FakeFileShareServer implements AutoCloseable {
   private final List<String> customHeaders = new CopyOnWriteArrayList<>();
   private final AtomicInteger tokenRequests = new AtomicInteger();
   private volatile Duration documentDelay = Duration.ZERO;
+  private volatile Duration tokenDelay = Duration.ZERO;
+  private final AtomicInteger documentRejections = new AtomicInteger();
   private volatile int tokenStatus = 200;
   private volatile Duration contentChunkGap = Duration.ZERO;
   private volatile boolean redirectContent;
@@ -88,6 +90,14 @@ final class FakeFileShareServer implements AutoCloseable {
     this.redirectContent = true;
   }
 
+  void delayToken(Duration delay) {
+    this.tokenDelay = delay;
+  }
+
+  void rejectNextDocumentRequest() {
+    documentRejections.incrementAndGet();
+  }
+
   void failTokenRequests() {
     this.tokenStatus = 401;
   }
@@ -99,6 +109,7 @@ final class FakeFileShareServer implements AutoCloseable {
 
   private void token(HttpExchange exchange) throws IOException {
     tokenRequests.incrementAndGet();
+    sleep(tokenDelay);
     respond(exchange, tokenStatus, tokenStatus == 200 ? TOKEN : "{\"error\":\"invalid_client\"}");
   }
 
@@ -106,7 +117,8 @@ final class FakeFileShareServer implements AutoCloseable {
     authorizations.add(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")));
     customHeaders.add(String.valueOf(exchange.getRequestHeaders().getFirst("X-Custom")));
     sleep(documentDelay);
-    respond(exchange, 200, DOCUMENT);
+    boolean rejected = documentRejections.getAndUpdate(n -> Math.max(0, n - 1)) > 0;
+    respond(exchange, rejected ? 401 : 200, rejected ? "{}" : DOCUMENT);
   }
 
   // Sends CONTENT_CHUNKS chunks, pausing before each one, so the whole body takes CONTENT_CHUNKS

@@ -5,7 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.fileshare.application.FileShareClient;
 import io.codehunters.fileshare.domain.exception.FileShareUnauthorizedException;
+import io.codehunters.fileshare.domain.exception.FileShareUnavailableException;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -86,15 +88,97 @@ class FileShareClientCredentialsTest {
   }
 
   @Test
-  void should_let_application_interceptor_replace_client_credentials() {
+  void should_keep_client_credentials_when_application_declares_interceptor() {
     withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
         .withBean(
             FileShareRequestInterceptor.class,
-            () -> (request, body, execution) -> execution.execute(request, body))
+            () ->
+                (request, body, execution) -> {
+                  request.getHeaders().add("X-Custom", "app");
+                  return execution.execute(request, body);
+                })
         .run(
             context -> {
               context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
-              assertThat(server.tokenRequests()).isZero();
+              assertThat(server.authorizations())
+                  .containsExactly("Bearer " + FakeFileShareServer.ACCESS_TOKEN);
+              assertThat(server.customHeaders()).containsExactly("app");
+            });
+  }
+
+  @Test
+  void should_fetch_new_token_after_service_rejects_cached_one() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .run(
+            context -> {
+              FileShareClient client = context.getBean(FileShareClient.class);
+              client.getMetadata("REF-1", FILE_ID);
+              server.rejectNextDocumentRequest();
+              assertThatThrownBy(() -> client.getMetadata("REF-1", FILE_ID))
+                  .isInstanceOf(FileShareUnauthorizedException.class);
+              client.getMetadata("REF-1", FILE_ID);
+              assertThat(server.tokenRequests()).isEqualTo(2);
+            });
+  }
+
+  @Test
+  void should_fail_as_unavailable_when_token_endpoint_hangs() {
+    server.delayToken(Duration.ofSeconds(2));
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withPropertyValues("codehunters.file-share.read-timeout=200ms")
+        .run(
+            context ->
+                assertThatThrownBy(
+                        () -> context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID))
+                    .isInstanceOf(FileShareUnavailableException.class));
+  }
+
+  @Test
+  void should_fail_as_unavailable_when_token_endpoint_is_unreachable() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS, "http://127.0.0.1:1/token")
+        .run(
+            context ->
+                assertThatThrownBy(
+                        () -> context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID))
+                    .isInstanceOf(FileShareUnavailableException.class));
+  }
+
+  @Test
+  void should_fail_startup_when_auth_targets_plain_http_base_url() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withPropertyValues("codehunters.file-share.auth.allow-insecure-http=false")
+        .run(
+            context ->
+                assertThat(context)
+                    .hasFailed()
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("https")
+                    .hasMessageContaining("allow-insecure-http"));
+  }
+
+  @Test
+  void should_send_no_token_when_registration_id_is_blank() {
+    runner
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.auth.client-registration-id=")
+        .run(
+            context -> {
+              context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
+              assertThat(server.authorizations()).containsExactly("null");
+            });
+  }
+
+  @Test
+  void should_work_without_spring_security_on_classpath() {
+    runner
+        .withClassLoader(new FilteredClassLoader("org.springframework.security"))
+        .withPropertyValues("codehunters.file-share.base-url=" + server.url())
+        .run(
+            context -> {
+              context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
+              assertThat(server.authorizations()).containsExactly("null");
             });
   }
 
@@ -146,6 +230,11 @@ class FileShareClientCredentialsTest {
   }
 
   private ApplicationContextRunner withRegistration(AuthorizationGrantType grantType) {
+    return withRegistration(grantType, server.url() + "/token");
+  }
+
+  private ApplicationContextRunner withRegistration(
+      AuthorizationGrantType grantType, String tokenUri) {
     ClientRegistration registration =
         ClientRegistration.withRegistrationId("file-share")
             .clientId("sdk")
@@ -153,12 +242,13 @@ class FileShareClientCredentialsTest {
             .authorizationGrantType(grantType)
             .redirectUri("http://localhost/callback")
             .authorizationUri(server.url() + "/authorize")
-            .tokenUri(server.url() + "/token")
+            .tokenUri(tokenUri)
             .build();
     return runner
         .withPropertyValues(
             "codehunters.file-share.base-url=" + server.url(),
-            "codehunters.file-share.auth.client-registration-id=file-share")
+            "codehunters.file-share.auth.client-registration-id=file-share",
+            "codehunters.file-share.auth.allow-insecure-http=true")
         .withBean(
             ClientRegistrationRepository.class,
             () -> new InMemoryClientRegistrationRepository(registration));
