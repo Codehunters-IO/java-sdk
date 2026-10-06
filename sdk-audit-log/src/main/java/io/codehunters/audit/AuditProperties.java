@@ -8,13 +8,18 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * Configuration for the audit SDK, bound from the {@code codehunters.audit} prefix. The 2.x {@code
  * vitxo.audit.*} keys are honoured until 4.0.0.
  *
- * @param failOnError whether audit persistence failures propagate to the audited call; when {@code
- *     true} the JDBC adapter publishes synchronously, on the caller's thread
+ * @param failOnError whether audit failures propagate to the audited call; when {@code true} the
+ *     JDBC adapter publishes synchronously, on the caller's thread, and the event of a successful
+ *     call commits or rolls back with the caller's transaction
+ * @param order the precedence of the audit aspect among other advice; the default, the lowest
+ *     precedence, runs it inside the transaction advice of {@code @Transactional} methods
  * @param async the executor that publishes audit events off the caller's thread
  */
 @ConfigurationProperties(prefix = "codehunters.audit")
 public record AuditProperties(
-    @DefaultValue("false") boolean failOnError, @DefaultValue Async async) {
+    @DefaultValue("false") boolean failOnError,
+    @DefaultValue("2147483647") int order,
+    @DefaultValue Async async) {
 
   /**
    * Settings of the {@code auditTaskExecutor}.

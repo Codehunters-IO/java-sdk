@@ -5,15 +5,16 @@ import io.codehunters.audit.persistence.AutoCommitDataSource;
 import io.codehunters.audit.persistence.JsonSnapshotAuditEventPublisher;
 import io.codehunters.audit.persistence.RequiresNewAuditEventPublisher;
 import io.codehunters.audit.persistence.TransactionAwareAuditEventPublisher;
+import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.Executor;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,7 +24,8 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Spring Boot auto-configuration that persists audit events to a relational database. Active when a
- * {@link DataSource} bean, Spring JDBC and Jackson are present.
+ * single {@link DataSource} candidate (one bean, or a primary one), Spring JDBC and Jackson are
+ * present.
  *
  * <p>Its {@code auditTaskExecutor} and {@code auditJsonMapper} beans are not autowiring candidates,
  * so they never replace or collide with the application's own executor and mapper. Events are
@@ -45,7 +47,7 @@ import tools.jackson.databind.json.JsonMapper;
       "org.springframework.transaction.PlatformTransactionManager",
       "tools.jackson.databind.json.JsonMapper"
     })
-@ConditionalOnBean(DataSource.class)
+@ConditionalOnSingleCandidate(DataSource.class)
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditJdbcAutoConfiguration {
 
@@ -161,13 +163,14 @@ public class AuditJdbcAutoConfiguration {
     }
   }
 
-  /** Counts rejected events when Micrometer is on the classpath. */
+  /** Counts lost events when Micrometer is on the classpath. */
   @Configuration(proxyBeanMethods = false)
   @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
   static class AuditMetricsConfiguration {
 
     /**
-     * Increments {@code audit.events.rejected} on the application's {@link MeterRegistry}.
+     * Increments {@code audit.events.rejected}, registered at startup on the application's {@link
+     * MeterRegistry}.
      *
      * @param registry the meter registry, if the application defines exactly one
      * @return the listener
@@ -176,8 +179,34 @@ public class AuditJdbcAutoConfiguration {
     @ConditionalOnMissingBean
     AuditEventRejectionListener auditEventRejectionListener(
         ObjectProvider<MeterRegistry> registry) {
-      return event ->
-          registry.ifUnique(meters -> meters.counter("audit.events.rejected").increment());
+      Runnable rejected =
+          increment(registry, "audit.events.rejected", "Audit events the executor refused");
+      return event -> rejected.run();
+    }
+
+    /**
+     * Increments {@code audit.events.failed}, registered at startup on the application's {@link
+     * MeterRegistry}.
+     *
+     * @param registry the meter registry, if the application defines exactly one
+     * @return the listener
+     */
+    @Bean
+    @ConditionalOnMissingBean
+    AuditEventFailureListener auditEventFailureListener(ObjectProvider<MeterRegistry> registry) {
+      Runnable failed =
+          increment(registry, "audit.events.failed", "Audit events that were not written");
+      return event -> failed.run();
+    }
+
+    private static Runnable increment(
+        ObjectProvider<MeterRegistry> registry, String name, String description) {
+      MeterRegistry meters = registry.getIfUnique();
+      if (meters == null) {
+        return () -> {};
+      }
+      Counter counter = Counter.builder(name).description(description).register(meters);
+      return counter::increment;
     }
   }
 }
