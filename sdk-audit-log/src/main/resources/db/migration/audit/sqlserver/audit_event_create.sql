@@ -1,6 +1,6 @@
--- Reference migration for audit_event table.
--- Copy this file to your application's migration directory and adapt column types to your database.
--- SQL Server variant shown below; adjust NVARCHAR(MAX) → TEXT for PostgreSQL/MySQL.
+-- Reference DDL for the audit_event table, SQL Server.
+-- Copy it into the application's own migrations; the SDK never runs it. The file name has no
+-- Flyway version prefix on purpose, so a classpath:db/migration scan ignores it.
 
 CREATE TABLE audit_event (
     id               UNIQUEIDENTIFIER NOT NULL DEFAULT NEWID(),
