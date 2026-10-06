@@ -385,11 +385,40 @@ Detalle en `sdk-audit-log/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.md`.
 - El bean publicador se llama `auditEventPublisher`.
 
 **Límites documentados:** eventos en cola se pierden si el proceso muere o vence
-`await-termination`; el aspecto no declara orden frente a `@Transactional`.
+`await-termination`; un evento diferido hasta el fin de la transacción se pierde si el proceso muere
+antes; los tipos de retorno asíncronos se registran al arrancar el trabajo, no al terminarlo.
 
-Verificación: 76 tests (incluye ITs Postgres 17 y azure-sql-edge), cobertura 95,8 % líneas /
-95,0 % ramas, `./gradlew clean build` y `./gradlew -p build-logic test` en verde. Sin revisión
-independiente todavía.
+**Revisión independiente** (3 HIGH/MEDIUM de transacción, 3 MEDIUM, 6 LOW). Arreglos, cada uno con
+su commit de test en rojo:
+- `3debccd` → `14b4e49`: una expresión o un `AuditContextProvider` que lanzan dejan nulo solo su
+  campo; `#result` reservado; en el camino de error todo lo que lanza el publicador (incluido un
+  `Error`) queda como suprimido; un evento que no se puede construir falla la llamada con
+  `fail-on-error`. `AuditAspect.Options(clock, failOnError, order)`, el aspecto es `Ordered`.
+- `55dbde3` → `4d0abea`: `JsonSnapshotAuditEventPublisher` copia los mapas a JSON en el hilo del
+  llamador; un mapa no serializable queda `null` (nunca `toString()`); un insert fallido se loguea
+  con tipo, acción, SQLState y clase, sin el mensaje de la base.
+- `20897ba` → `9d90e42`: `TransactionAwareAuditEventPublisher`. El evento de error se escribe al
+  momento en transacción propia (`REQUIRES_NEW` con el único `PlatformTransactionManager`, o
+  conexión auto-commit `AutoCommitDataSource` si no hay uno) y sobrevive al rollback, también tras
+  un error SQL que aborta la transacción en Postgres. Con `fail-on-error` el éxito se une a la
+  transacción del llamador; sin él se difiere a `afterCompletion` y se marca `ROLLED_BACK` o
+  `UNKNOWN`. `FailSafeAuditEventPublisher` + `AuditEventFailureListener`. IT en Postgres con
+  `@Transactional` real que prueba que, con el orden por defecto, el aspecto queda dentro de la
+  transacción.
+- `ec52376` → `f0db51b`: `@ConditionalOnSingleCandidate(DataSource)`; contadores
+  `audit.events.rejected` y `audit.events.failed` registrados al arrancar;
+  `codehunters.audit.order`; `fail-on-error` llega al aspecto. Test de executor saturado a través
+  de la auto-config.
+- `82eb0ae`: test con proxy JDK de interfaz.
+- `d1e7d6f`: README (sección Transacciones), CHANGELOG, MIGRATION-3.0; fila de `sdk-file-share` en
+  el README raíz.
+
+Desvíos: un commit fallido se registra `UNKNOWN`, no `ROLLED_BACK`, porque Spring informa
+`STATUS_UNKNOWN` cuando falla el commit. La tabla no tiene columna de estado: `ROLLED_BACK` y
+`UNKNOWN` se guardan en `error_message` con `success=false`/`null`.
+
+Verificación: 119 tests (incluye ITs Postgres 17 y azure-sql-edge), cobertura 98,4 % líneas /
+95,8 % ramas, `./gradlew clean build` y `./gradlew -p build-logic test` en verde.
 
 1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
    `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
