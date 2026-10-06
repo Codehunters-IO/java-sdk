@@ -9,16 +9,16 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * JDBC-backed {@link AuditEventPublisherPort} that inserts audit events into the {@code
- * audit_event} table asynchronously, in a new transaction.
+ * audit_event} table on the calling thread. Wrap it in {@link
+ * io.codehunters.audit.AsyncAuditEventPublisher} to write off the caller's thread.
+ *
+ * <p>The insert takes part in the caller's Spring-managed transaction on the same data source, if
+ * there is one: the row commits or rolls back with the business write. Without one it auto-commits.
  */
 public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
 
@@ -51,16 +51,12 @@ public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
    * @param failOnError whether persistence failures should be rethrown
    */
   public AuditEventJdbcAdapter(
-      DataSource dataSource,
-      @Qualifier("auditJsonMapper") JsonMapper auditJsonMapper,
-      boolean failOnError) {
+      DataSource dataSource, JsonMapper auditJsonMapper, boolean failOnError) {
     this.jdbcClient = JdbcClient.create(dataSource);
     this.auditJsonMapper = auditJsonMapper;
     this.failOnError = failOnError;
   }
 
-  @Async("auditTaskExecutor")
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
   @Override
   public void publish(AuditEvent event) {
     log.debug("[START] persist audit event: {} {}", event.action(), event.entityType());

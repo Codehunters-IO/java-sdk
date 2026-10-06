@@ -114,8 +114,7 @@ class AuditJdbcAutoConfigurationTest {
         .run(
             ctx -> {
               assertThat(ctx).hasBean("auditJsonMapper");
-              assertThat(ctx.getBean(JsonMapper.class))
-                  .isNotSameAs(ctx.getBean("auditJsonMapper"));
+              assertThat(ctx.getBean(JsonMapper.class)).isNotSameAs(ctx.getBean("auditJsonMapper"));
             });
   }
 
