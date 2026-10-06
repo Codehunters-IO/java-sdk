@@ -81,5 +81,9 @@ authentication (for example to relay a user token); several run in `@Order`.
 - `http` presigned URLs (for example a local MinIO without TLS) are rejected; front it with TLS or
   provide your own `FileShareClient`.
 - Expiry timestamps without an offset are read as UTC.
+- The SDK sets its own JDK request factory to apply the timeouts, so a request factory or SSL
+  bundle configured on the application's `RestClient.Builder` does not reach file-share calls.
+- Interceptors already registered on the application's `RestClient.Builder` also run for
+  file-share calls.
 
 Upgrading from 1.x: see [MIGRATION-2.0.md](MIGRATION-2.0.md).

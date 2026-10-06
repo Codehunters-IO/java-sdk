@@ -4,6 +4,7 @@ import io.codehunters.fileshare.application.FileShareClient;
 import io.codehunters.fileshare.infrastructure.PresignedUrlPolicy;
 import io.codehunters.fileshare.infrastructure.RestClientFileShareAdapter;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.util.List;
@@ -96,12 +97,20 @@ public class FileShareAutoConfiguration {
     if (baseUrl == null || baseUrl.isBlank()) {
       throw new IllegalStateException(BASE_URL + " must be configured when the SDK is enabled");
     }
-    URI uri = URI.create(baseUrl);
-    if (!"http".equals(uri.getScheme()) && !"https".equals(uri.getScheme())
-        || uri.getHost() == null) {
+    if (!isAbsoluteHttp(baseUrl)) {
       throw new IllegalStateException(BASE_URL + " must be an absolute http or https URL");
     }
     return baseUrl;
+  }
+
+  private static boolean isAbsoluteHttp(String baseUrl) {
+    try {
+      URI uri = new URI(baseUrl);
+      boolean isHttp = "http".equals(uri.getScheme()) || "https".equals(uri.getScheme());
+      return isHttp && uri.getHost() != null;
+    } catch (URISyntaxException e) {
+      return false;
+    }
   }
 
   private static void requireAuthApplied(
