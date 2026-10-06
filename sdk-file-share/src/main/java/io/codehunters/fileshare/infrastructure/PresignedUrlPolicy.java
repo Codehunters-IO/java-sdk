@@ -8,10 +8,13 @@ import java.util.Locale;
 
 /**
  * Decides whether a presigned URL handed out by the file-share service may reach the caller: it
- * must be an absolute {@code https} URL and, when hosts are configured, point at one of them. An
- * entry such as {@code *.s3.amazonaws.com} matches any subdomain, not the domain itself.
+ * must be an absolute {@code https} URL and, when hosts are configured, point at one of them on the
+ * default port. An entry such as {@code *.s3.amazonaws.com} matches any subdomain, not the domain
+ * itself.
  */
 public final class PresignedUrlPolicy {
+
+  private static final int HTTPS_PORT = 443;
 
   private final List<String> allowedHosts;
 
@@ -40,6 +43,9 @@ public final class PresignedUrlPolicy {
     if (url.getHost() == null || !isAllowed(url.getHost().toLowerCase(Locale.ROOT))) {
       throw new FileShareException("presignedUrl host is not allowed: " + url.getHost());
     }
+    if (!allowedHosts.isEmpty() && !isDefaultHttpsPort(url.getPort())) {
+      throw new FileShareException("presignedUrl port is not allowed: " + url.getPort());
+    }
     return url;
   }
 
@@ -52,6 +58,19 @@ public final class PresignedUrlPolicy {
     } catch (URISyntaxException e) {
       throw new FileShareException("presignedUrl is not a valid URI");
     }
+  }
+
+  /**
+   * Tells whether any https host is accepted.
+   *
+   * @return {@code true} when no hosts are configured
+   */
+  public boolean allowsAnyHost() {
+    return allowedHosts.isEmpty();
+  }
+
+  private static boolean isDefaultHttpsPort(int port) {
+    return port == -1 || port == HTTPS_PORT;
   }
 
   private boolean isAllowed(String host) {

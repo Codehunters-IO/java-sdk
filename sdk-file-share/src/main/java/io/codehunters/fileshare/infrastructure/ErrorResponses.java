@@ -8,12 +8,15 @@ import io.codehunters.fileshare.domain.exception.FileShareUnavailableException;
 import io.codehunters.fileshare.domain.exception.FileShareValidationException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 import org.springframework.http.client.ClientHttpResponse;
 
 final class ErrorResponses {
 
   private static final int MAX_BODY_CHARACTERS = 512;
   private static final int MAX_UTF8_BYTES_PER_CHARACTER = 4;
+  // Line breaks and bidi controls in a reflected body would forge or garble log lines.
+  private static final Pattern UNPRINTABLE = Pattern.compile("[\\p{Cc}\\p{Cf}\\p{Zl}\\p{Zp}]");
 
   private ErrorResponses() {}
 
@@ -39,9 +42,11 @@ final class ErrorResponses {
   }
 
   private static String readBody(ClientHttpResponse response) throws IOException {
-    byte[] head = response.getBody().readNBytes(MAX_BODY_CHARACTERS * MAX_UTF8_BYTES_PER_CHARACTER);
-    String text = new String(head, StandardCharsets.UTF_8);
+    byte[] bytes =
+        response.getBody().readNBytes(MAX_BODY_CHARACTERS * MAX_UTF8_BYTES_PER_CHARACTER);
+    String text = new String(bytes, StandardCharsets.UTF_8);
     int characters = Math.min(MAX_BODY_CHARACTERS, text.codePointCount(0, text.length()));
-    return text.substring(0, text.offsetByCodePoints(0, characters));
+    String head = text.substring(0, text.offsetByCodePoints(0, characters));
+    return UNPRINTABLE.matcher(head).replaceAll(" ");
   }
 }
