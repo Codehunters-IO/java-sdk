@@ -58,6 +58,21 @@ class PresignedTicketsTest {
   }
 
   @Test
+  void should_hide_user_info_and_fragment_when_ticket_is_printed() {
+    var ticket =
+        new PresignedDownloadTicket(
+            FileRefFixtures.fileRef(),
+            URI.create("https://user:pass@files.example.com:8443/key?sig=secret#frag"),
+            EXPIRES_AT);
+
+    assertThat(ticket.toString())
+        .doesNotContain("user")
+        .doesNotContain("pass")
+        .doesNotContain("frag")
+        .contains("downloadUrl=https://files.example.com:8443/key?<redacted>,");
+  }
+
+  @Test
   void should_reject_upload_ticket_without_url() {
     assertThatNullPointerException()
         .isThrownBy(() -> new PresignedUploadTicket(FileRefFixtures.fileRef(), null, EXPIRES_AT));

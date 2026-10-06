@@ -47,6 +47,25 @@ class PresignedUrlPolicyTest {
   }
 
   @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "https://files.example.com@evil.com/key",
+        "https://files.example.com./key",
+        "https://169.254.169.254/key",
+        "https://files.example.com:8443/key",
+        "https://bucket.s3.amazonaws.com:80/key"
+      })
+  void should_reject_url_when_restricted_and_host_or_port_differs(String url) {
+    assertThatThrownBy(() -> restricted.requireAllowed(url)).isInstanceOf(FileShareException.class);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"HTTPS://files.example.com/key", "https://files.example.com:443/key"})
+  void should_accept_url_when_scheme_case_or_default_port_differs(String url) {
+    assertThat(restricted.requireAllowed(url)).isNotNull();
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"http://files.example.com/key", "ftp://files.example.com/key"})
   void should_reject_url_when_not_https(String url) {
     assertThatThrownBy(() -> anyHost.requireAllowed(url))

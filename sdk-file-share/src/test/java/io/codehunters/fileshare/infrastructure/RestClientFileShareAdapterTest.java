@@ -316,6 +316,17 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
+  void should_strip_control_characters_from_error_body() {
+    server
+        .expect(requestTo(DOCUMENT_URL))
+        .andRespond(withStatus(HttpStatus.BAD_REQUEST).body("bad\r\nINJECTED\u2028line\u202Eend"));
+
+    assertThatThrownBy(() -> adapter.getMetadata(REFERENCE_ID, FILE_ID))
+        .hasMessageContaining("bad  INJECTED line end")
+        .hasMessageNotContaining("\n");
+  }
+
+  @Test
   void should_return_content_when_within_max_download_size() {
     server
         .expect(requestTo(CONTENT_URL))
