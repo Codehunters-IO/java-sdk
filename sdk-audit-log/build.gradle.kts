@@ -18,6 +18,7 @@ dependencies {
     compileOnly("org.springframework:spring-tx")
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly("io.micrometer:micrometer-core")
+    compileOnly("io.projectreactor:reactor-core")
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework:spring-jdbc")
@@ -25,6 +26,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-jdbc")
     testImplementation("org.springframework.boot:spring-boot-jackson")
     testImplementation("io.micrometer:micrometer-core")
+    testImplementation("io.projectreactor:reactor-core")
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
