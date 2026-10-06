@@ -22,6 +22,9 @@ import io.codehunters.fileshare.domain.exception.FileShareValidationException;
 import io.codehunters.fileshare.domain.model.FileRefFixtures;
 import io.codehunters.fileshare.domain.model.FileStatus;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -29,6 +32,8 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -389,6 +394,52 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
+  void should_fail_when_content_response_is_a_redirect() {
+    server
+        .expect(requestTo(CONTENT_URL))
+        .andRespond(withStatus(HttpStatus.FOUND).location(URI.create("https://elsewhere/f.pdf")));
+
+    assertThatThrownBy(() -> adapter.download(REFERENCE_ID, FILE_ID))
+        .isInstanceOfSatisfying(
+            FileShareException.class, e -> assertThat(e.status()).hasValue(302));
+  }
+
+  @Test
+  void should_write_nothing_when_streamed_content_response_is_a_redirect() {
+    var target = new ByteArrayOutputStream();
+    server
+        .expect(requestTo(CONTENT_URL))
+        .andRespond(withStatus(HttpStatus.TEMPORARY_REDIRECT).body("<html>moved</html>"));
+
+    assertThatThrownBy(() -> adapter.download(REFERENCE_ID, FILE_ID, target))
+        .isInstanceOf(FileShareException.class);
+    assertThat(target.size()).isZero();
+  }
+
+  @Test
+  void should_report_target_write_failure_as_caller_io_error() {
+    server
+        .expect(requestTo(CONTENT_URL))
+        .andRespond(withSuccess(new byte[] {1}, MediaType.APPLICATION_OCTET_STREAM));
+
+    assertThatThrownBy(() -> adapter.download(REFERENCE_ID, FILE_ID, new FailingOutputStream()))
+        .isExactlyInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("target")
+        .hasRootCauseMessage("disk full");
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {0, -1, Integer.MAX_VALUE})
+  void should_reject_max_download_size_outside_array_bounds(long maxDownloadSize) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                new RestClientFileShareAdapter(
+                    RestClient.create(), new PresignedUrlPolicy(List.of()), maxDownloadSize))
+        .withMessageContaining("max-download-size");
+  }
+
+  @Test
   void should_reject_unsafe_reference_id_before_calling_service() {
     assertThatIllegalArgumentException().isThrownBy(() -> adapter.getMetadata("..", FILE_ID));
     server.verify();
@@ -405,6 +456,13 @@ class RestClientFileShareAdapterTest {
     assertThatThrownBy(() -> offline.getMetadata(REFERENCE_ID, FILE_ID))
         .isInstanceOf(FileShareUnavailableException.class)
         .hasMessageContaining("getMetadata");
+  }
+
+  private static final class FailingOutputStream extends OutputStream {
+    @Override
+    public void write(int b) throws IOException {
+      throw new IOException("disk full");
+    }
   }
 
   private static UploadRequest uploadRequest() {
