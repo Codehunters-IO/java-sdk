@@ -1,5 +1,6 @@
 package io.codehunters.fileshare.config;
 
+import io.codehunters.fileshare.infrastructure.RestClientFileShareAdapter;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -13,9 +14,12 @@ import org.springframework.util.unit.DataSize;
  * @param baseUrl the file-share service base URL, absolute {@code http} or {@code https}; required
  *     when {@code enabled}
  * @param connectTimeout how long to wait for the TCP connection
- * @param readTimeout how long to wait for the response
+ * @param readTimeout the deadline for a whole metadata or upload call, from sending the request to
+ *     reading the last byte of the response
+ * @param downloadIdleTimeout how long a content download may go without receiving a byte; there is
+ *     no deadline for the whole download
  * @param maxDownloadSize the largest content {@code download(referenceId, fileId)} loads into
- *     memory
+ *     memory, at most {@link RestClientFileShareAdapter#MAX_DOWNLOAD_SIZE_LIMIT} bytes
  * @param presigned rules for the presigned URLs handed to callers
  * @param auth how calls to the service authenticate
  */
@@ -25,9 +29,26 @@ public record FileShareProperties(
     String baseUrl,
     @DefaultValue("5s") Duration connectTimeout,
     @DefaultValue("30s") Duration readTimeout,
+    @DefaultValue("30s") Duration downloadIdleTimeout,
     @DefaultValue("50MB") DataSize maxDownloadSize,
     @DefaultValue Presigned presigned,
     @DefaultValue Auth auth) {
+
+  /**
+   * Rejects a {@code maxDownloadSize} that cannot be buffered.
+   *
+   * @throws IllegalArgumentException if {@code maxDownloadSize} is not positive or too large
+   */
+  public FileShareProperties {
+    long bytes = maxDownloadSize.toBytes();
+    if (bytes <= 0 || bytes > RestClientFileShareAdapter.MAX_DOWNLOAD_SIZE_LIMIT) {
+      throw new IllegalArgumentException(
+          "codehunters.file-share.max-download-size must be between 1B and "
+              + RestClientFileShareAdapter.MAX_DOWNLOAD_SIZE_LIMIT
+              + "B, was "
+              + maxDownloadSize);
+    }
+  }
 
   /**
    * Rules for presigned URLs.

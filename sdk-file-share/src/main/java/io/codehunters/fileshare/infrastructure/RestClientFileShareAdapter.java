@@ -41,6 +41,7 @@ public class RestClientFileShareAdapter implements FileShareClient {
   public static final long MAX_DOWNLOAD_SIZE_LIMIT = Integer.MAX_VALUE - 9;
 
   private final RestClient restClient;
+  private final RestClient contentRestClient;
   private final PresignedUrlPolicy presignedUrlPolicy;
   private final long maxDownloadSize;
 
@@ -60,8 +61,28 @@ public class RestClientFileShareAdapter implements FileShareClient {
           "max-download-size must be between 1 byte and " + MAX_DOWNLOAD_SIZE_LIMIT + " bytes");
     }
     this.restClient = restClient;
+    this.contentRestClient = restClient;
     this.presignedUrlPolicy = presignedUrlPolicy;
     this.maxDownloadSize = maxDownloadSize;
+  }
+
+  private RestClientFileShareAdapter(
+      RestClientFileShareAdapter base, RestClient contentRestClient) {
+    this.restClient = base.restClient;
+    this.contentRestClient = contentRestClient;
+    this.presignedUrlPolicy = base.presignedUrlPolicy;
+    this.maxDownloadSize = base.maxDownloadSize;
+  }
+
+  /**
+   * Returns a copy that downloads content through another client, typically one whose timeouts suit
+   * long transfers.
+   *
+   * @param contentRestClient the client for the content endpoint, targeting the same base URL
+   * @return a new adapter; this one is unchanged
+   */
+  public RestClientFileShareAdapter withContentClient(RestClient contentRestClient) {
+    return new RestClientFileShareAdapter(this, contentRestClient);
   }
 
   @Override
@@ -147,7 +168,7 @@ public class RestClientFileShareAdapter implements FileShareClient {
   }
 
   private <T> T exchangeContent(String referenceId, UUID fileId, BodyReader<T> reader) {
-    return restClient
+    return contentRestClient
         .get()
         .uri(DOCUMENT_CONTENT_PATH, referenceId, fileId)
         .exchange(
