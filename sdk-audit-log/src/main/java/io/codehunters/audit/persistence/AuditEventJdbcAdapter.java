@@ -93,7 +93,7 @@ public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
       log.debug("[END] persist audit event: {}", id);
     } catch (Exception e) {
       if (failOnError) {
-        throw new AuditPersistenceException("Failed to persist audit event", e);
+        throw AuditPersistenceException.redacted("Failed to persist audit event", e);
       }
       log.error(
           "Failed to persist audit event: entityType={} action={} sqlState={} exception={}",

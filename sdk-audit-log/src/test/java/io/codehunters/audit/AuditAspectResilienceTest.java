@@ -32,8 +32,11 @@ class AuditAspectResilienceTest {
         proxied(published, new NoOpAuditContextProvider(), options(new BrokenClock(), true));
 
     assertThatThrownBy(() -> orders.findOrder("ORD-2"))
-        .isInstanceOf(AuditPersistenceException.class)
-        .hasCauseInstanceOf(IllegalStateException.class);
+        .isInstanceOfSatisfying(
+            AuditPersistenceException.class,
+            failure ->
+                assertThat(failure.failureClass())
+                    .isEqualTo(IllegalStateException.class.getName()));
   }
 
   @Test

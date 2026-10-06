@@ -148,7 +148,7 @@ public class AuditAspect implements Ordered {
       event = buildEvent(auditable, method, args, outcome, durationMs);
     } catch (RuntimeException ex) {
       if (options.failOnError()) {
-        throw new AuditPersistenceException("Failed to build audit event", ex);
+        throw AuditPersistenceException.redacted("Failed to build audit event", ex);
       }
       log.error("Failed to build audit event for {}", method.getName(), ex);
       return;
