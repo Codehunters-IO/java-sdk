@@ -16,7 +16,7 @@ the SDK authenticate its outbound calls?
 ## Considered Options
 
 - Option A — Client credentials by default, through Spring Security's OAuth2 client, with a hook
-  that lets the application replace it.
+  for application interceptors.
 - Option B — Relay the bearer token of the current user request.
 - Option C — Only a hook (`ClientHttpRequestInterceptor`); every application brings its own auth.
 - Option D — Both A and B, selected by a `mode` property.
@@ -25,16 +25,23 @@ the SDK authenticate its outbound calls?
 
 Chosen option: **Option A**, because it works in every execution context (with or without a user
 request), keeps token handling in Spring Security instead of the SDK, and still lets a service that
-needs something else replace it.
+needs something else leave it off and set its own header.
 
 - `codehunters.file-share.auth.client-registration-id` names a
   `spring.security.oauth2.client.registration.*` entry with the `client_credentials` grant. The SDK
   builds its own `AuthorizedClientServiceOAuth2AuthorizedClientManager`, which does not depend on a
   servlet request, and caches the token under a fixed principal
   (`codehunters.file-share.auth.principal`).
-- Any `FileShareRequestInterceptor` bean replaces the built-in interceptor.
-- Startup fails if the registration is missing, uses another grant type, or
-  `spring-security-oauth2-client` is not on the classpath.
+- `FileShareRequestInterceptor` beans run before the client-credentials step, which always sets
+  the `Authorization` header when a registration id is configured. An application interceptor can
+  add to authentication but never silently removes it; the only way to turn it off is to leave the
+  registration id unset.
+- A 401 or 403 from the service evicts the cached token. The token request uses the SDK's connect
+  and read timeouts, and token-endpoint outages are reported as unavailability, not as a rejected
+  client.
+- Startup fails if the registration is missing, uses another grant type,
+  `spring-security-oauth2-client` is not on the classpath, or the base URL is plain `http` without
+  `codehunters.file-share.auth.allow-insecure-http=true`.
 
 ### Consequences
 
@@ -50,7 +57,9 @@ needs something else replace it.
 - An end-to-end test against a local token endpoint proves the bearer token is sent, reused until it
   expires, and that a rejected client fails with `FileShareUnauthorizedException` without the token
   in the message.
-- Context tests prove each startup failure and that an application interceptor replaces the default.
+- Context tests prove each startup failure, that an application interceptor runs alongside the
+  token, that a 401 leads to a new token, and that a hung or unreachable token endpoint fails as
+  `FileShareUnavailableException` within the configured timeout.
 
 ## More Information
 
