@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
@@ -99,23 +97,6 @@ class AuditAspectResilienceTest {
     @Override
     public Optional<String> getSourceService() {
       return Optional.empty();
-    }
-  }
-
-  private static final class BrokenClock extends Clock {
-    @Override
-    public ZoneId getZone() {
-      return ZoneOffset.UTC;
-    }
-
-    @Override
-    public Clock withZone(ZoneId zone) {
-      return this;
-    }
-
-    @Override
-    public Instant instant() {
-      throw new IllegalStateException("clock unavailable");
     }
   }
 }

@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -16,6 +18,7 @@ import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.ApplicationContext;
+import org.springframework.core.Ordered;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -209,6 +212,102 @@ class AuditJdbcAutoConfigurationTest {
               ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
               assertThat(scheduledTasks(ctx)).isEqualTo(1);
             });
+  }
+
+  @Test
+  void should_not_configure_jdbc_publisher_when_data_source_is_ambiguous() {
+    runner
+        .withBean(
+            "secondDataSource", DataSource.class, AuditJdbcAutoConfigurationTest::emptyDatabase)
+        .run(
+            ctx -> {
+              assertThat(ctx).hasNotFailed();
+              assertThat(ctx).doesNotHaveBean(AuditEventPublisherPort.class);
+            });
+  }
+
+  @Test
+  void should_register_audit_counters_before_any_event_is_lost() {
+    runner
+        .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+        .run(
+            ctx -> {
+              assertThat(counter(ctx, "audit.events.rejected")).isZero();
+              assertThat(counter(ctx, "audit.events.failed")).isZero();
+            });
+  }
+
+  @Test
+  void should_count_events_that_could_not_be_written() {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(AuditJdbcAutoConfiguration.class, AuditAutoConfiguration.class))
+        .withBean("dataSource", DataSource.class, AuditJdbcAutoConfigurationTest::emptyDatabase)
+        .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+        .withPropertyValues("codehunters.audit.async.enabled=false")
+        .run(
+            ctx -> {
+              ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+              assertThat(counter(ctx, "audit.events.failed")).isEqualTo(1.0);
+            });
+  }
+
+  @Test
+  void should_count_events_the_saturated_executor_rejects() {
+    runner
+        .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
+        .withPropertyValues(
+            "codehunters.audit.async.core-pool-size=1",
+            "codehunters.audit.async.max-pool-size=1",
+            "codehunters.audit.async.queue-capacity=0")
+        .run(
+            ctx -> {
+              var worker = new CountDownLatch(1);
+              ctx.getBean("auditTaskExecutor", ThreadPoolTaskExecutor.class)
+                  .execute(() -> awaitQuietly(worker));
+              ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+              worker.countDown();
+              assertThat(counter(ctx, "audit.events.rejected")).isEqualTo(1.0);
+            });
+  }
+
+  @Test
+  void should_order_the_aspect_from_properties() {
+    runner
+        .withPropertyValues("codehunters.audit.order=5")
+        .run(ctx -> assertThat(ctx.getBean(AuditAspect.class).getOrder()).isEqualTo(5));
+  }
+
+  @Test
+  void should_give_the_aspect_the_lowest_precedence_by_default() {
+    runner.run(
+        ctx ->
+            assertThat(ctx.getBean(AuditAspect.class).getOrder())
+                .isEqualTo(Ordered.LOWEST_PRECEDENCE));
+  }
+
+  @Test
+  void should_fail_audited_call_when_fail_on_error_and_event_cannot_be_built() {
+    runner
+        .withBean(Clock.class, BrokenClock::new)
+        .withBean(OrderService.class)
+        .withPropertyValues("codehunters.audit.fail-on-error=true")
+        .run(
+            ctx ->
+                assertThatThrownBy(() -> ctx.getBean(OrderService.class).findOrder("ORD-1"))
+                    .isInstanceOf(AuditPersistenceException.class));
+  }
+
+  private static double counter(ApplicationContext ctx, String name) {
+    return ctx.getBean(MeterRegistry.class).get(name).counter().count();
+  }
+
+  private static void awaitQuietly(CountDownLatch latch) {
+    try {
+      latch.await();
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+    }
   }
 
   private static long scheduledTasks(ApplicationContext ctx) {
