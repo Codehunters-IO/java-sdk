@@ -1,5 +1,7 @@
 package io.codehunters.audit;
 
+import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -34,12 +36,15 @@ public class AuditAutoConfiguration {
    *
    * @param publisher the audit event publisher
    * @param contextProvider the audit context provider
+   * @param clock the application's {@link Clock}, if it defines exactly one; UTC otherwise
    * @return the {@link AuditAspect}
    */
   @Bean
   @ConditionalOnBean(AuditEventPublisherPort.class)
   public AuditAspect auditAspect(
-      AuditEventPublisherPort publisher, AuditContextProvider contextProvider) {
-    return new AuditAspect(publisher, contextProvider);
+      AuditEventPublisherPort publisher,
+      AuditContextProvider contextProvider,
+      ObjectProvider<Clock> clock) {
+    return new AuditAspect(publisher, contextProvider, clock.getIfUnique(Clock::systemUTC));
   }
 }

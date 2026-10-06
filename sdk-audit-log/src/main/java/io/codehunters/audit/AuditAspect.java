@@ -1,9 +1,12 @@
 package io.codehunters.audit;
 
 import java.lang.reflect.Method;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -15,6 +18,11 @@ import org.springframework.expression.EvaluationContext;
 /**
  * Intercepts methods annotated with {@link Auditable} and publishes an {@link AuditEvent} via the
  * configured {@link AuditEventPublisherPort}.
+ *
+ * <p>A failing method is recorded with the class name of its exception, never its message, which
+ * may carry personal data. An {@link AuditPersistenceException} from the publisher (fail-on-error
+ * mode) is propagated: on success it replaces the result, on failure it is added as suppressed to
+ * the method's exception. Any other publisher failure is logged and the call continues.
  *
  * @since 1.0.0
  */
@@ -29,17 +37,32 @@ public class AuditAspect {
   private final AuditEventPublisherPort publisher;
   private final AuditContextProvider contextProvider;
   private final AuditSpelEvaluator spelEvaluator;
+  private final Clock clock;
 
   /**
-   * Creates the aspect with an explicit context provider.
+   * Creates the aspect.
+   *
+   * @param publisher the port used to publish audit events
+   * @param contextProvider the provider of cross-cutting audit context
+   * @param clock the clock that stamps {@link AuditEvent#createdAt()}
+   * @since 3.0.0
+   */
+  public AuditAspect(
+      AuditEventPublisherPort publisher, AuditContextProvider contextProvider, Clock clock) {
+    this.publisher = publisher;
+    this.contextProvider = contextProvider;
+    this.clock = clock;
+    this.spelEvaluator = new AuditSpelEvaluator();
+  }
+
+  /**
+   * Creates the aspect with the system UTC clock.
    *
    * @param publisher the port used to publish audit events
    * @param contextProvider the provider of cross-cutting audit context
    */
   public AuditAspect(AuditEventPublisherPort publisher, AuditContextProvider contextProvider) {
-    this.publisher = publisher;
-    this.contextProvider = contextProvider;
-    this.spelEvaluator = new AuditSpelEvaluator();
+    this(publisher, contextProvider, Clock.systemUTC());
   }
 
   /**
@@ -64,63 +87,82 @@ public class AuditAspect {
   public Object around(ProceedingJoinPoint pjp, Auditable auditable) throws Throwable {
     log.debug("Auditing method: {}", pjp.getSignature().toShortString());
 
-    MethodSignature signature = (MethodSignature) pjp.getSignature();
-    Method method = signature.getMethod();
+    Method method = ((MethodSignature) pjp.getSignature()).getMethod();
     Object[] args = pjp.getArgs();
-
-    long startTime = System.currentTimeMillis();
+    long start = System.nanoTime();
+    Object result;
     try {
-      Object result = pjp.proceed();
-      int durationMs = (int) (System.currentTimeMillis() - startTime);
-      publishEvent(auditable, method, args, result, STATUS_SUCCESS, true, null, durationMs);
-      return result;
+      result = pjp.proceed();
     } catch (Throwable ex) {
-      int durationMs = (int) (System.currentTimeMillis() - startTime);
-      publishEvent(auditable, method, args, null, STATUS_ERROR, false, ex.getMessage(), durationMs);
+      Outcome failure = new Outcome(null, STATUS_ERROR, false, ex.getClass().getName());
+      publishAfterFailure(ex, () -> publishEvent(auditable, method, args, failure, start));
       throw ex;
+    }
+    publishEvent(auditable, method, args, new Outcome(result, STATUS_SUCCESS, true, null), start);
+    return result;
+  }
+
+  private static void publishAfterFailure(Throwable methodFailure, Runnable publish) {
+    try {
+      publish.run();
+    } catch (AuditPersistenceException ex) {
+      methodFailure.addSuppressed(ex);
     }
   }
 
   private void publishEvent(
-      Auditable auditable,
-      Method method,
-      Object[] args,
-      Object result,
-      String status,
-      boolean success,
-      String errorMessage,
-      int durationMs) {
+      Auditable auditable, Method method, Object[] args, Outcome outcome, long startNanos) {
+    int durationMs = elapsedMillis(startNanos);
+    AuditEvent event;
     try {
-      EvaluationContext ctx = spelEvaluator.buildContext(method, args, result);
-
-      AuditEvent event =
-          new AuditEvent(
-              auditable.entityType(),
-              resolveEntityId(auditable, ctx),
-              auditable.action(),
-              resolveActorId(auditable, ctx),
-              resolveActorType(auditable),
-              contextProvider.getIpAddress().orElse(null),
-              resolvePayload(auditable, ctx),
-              status,
-              resolveCorrelationId(auditable, ctx),
-              resolveSourceService(auditable),
-              OffsetDateTime.now(),
-              contextProvider.getResource().orElse(null),
-              null,
-              contextProvider.getHttpMethod().orElse(null),
-              null,
-              contextProvider.getUserAgent().orElse(null),
-              null,
-              success,
-              errorMessage,
-              durationMs,
-              null);
-
-      publisher.publish(event);
-    } catch (Exception ex) {
-      log.error("Failed to publish audit event for {}: {}", method.getName(), ex.getMessage(), ex);
+      event = buildEvent(auditable, method, args, outcome, durationMs);
+    } catch (RuntimeException ex) {
+      log.error("Failed to build audit event for {}", method.getName(), ex);
+      return;
     }
+    publish(event, method);
+  }
+
+  private void publish(AuditEvent event, Method method) {
+    try {
+      publisher.publish(event);
+    } catch (AuditPersistenceException ex) {
+      throw ex;
+    } catch (RuntimeException ex) {
+      log.error("Failed to publish audit event for {}", method.getName(), ex);
+    }
+  }
+
+  private AuditEvent buildEvent(
+      Auditable auditable, Method method, Object[] args, Outcome outcome, int durationMs) {
+    EvaluationContext ctx = spelEvaluator.buildContext(method, args, outcome.result());
+    return new AuditEvent(
+        auditable.entityType(),
+        resolveEntityId(auditable, ctx),
+        auditable.action(),
+        resolveActorId(auditable, ctx),
+        resolveActorType(auditable),
+        contextProvider.getIpAddress().orElse(null),
+        resolvePayload(auditable, ctx),
+        outcome.status(),
+        resolveCorrelationId(auditable, ctx),
+        resolveSourceService(auditable),
+        OffsetDateTime.now(clock),
+        contextProvider.getResource().orElse(null),
+        null,
+        contextProvider.getHttpMethod().orElse(null),
+        null,
+        contextProvider.getUserAgent().orElse(null),
+        null,
+        outcome.success(),
+        outcome.error(),
+        durationMs,
+        null);
+  }
+
+  private static int elapsedMillis(long startNanos) {
+    long millis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+    return (int) Math.min(millis, Integer.MAX_VALUE);
   }
 
   private String resolveEntityId(Auditable auditable, EvaluationContext ctx) {
@@ -142,7 +184,7 @@ public class AuditAspect {
     return contextProvider.getActorType().orElse(null);
   }
 
-  private java.util.Map<String, Object> resolvePayload(Auditable auditable, EvaluationContext ctx) {
+  private Map<String, Object> resolvePayload(Auditable auditable, EvaluationContext ctx) {
     if (auditable.payload().length == 0) {
       return Collections.emptyMap();
     }
@@ -154,7 +196,12 @@ public class AuditAspect {
     if (value == null || value.isBlank()) {
       return null;
     }
-    return UUID.fromString(value);
+    try {
+      return UUID.fromString(value);
+    } catch (IllegalArgumentException ex) {
+      log.debug("Correlation id is not a UUID; recording the event without it");
+      return null;
+    }
   }
 
   private String resolveSourceService(Auditable auditable) {
@@ -163,4 +210,6 @@ public class AuditAspect {
     }
     return contextProvider.getSourceService().orElse(null);
   }
+
+  private record Outcome(Object result, String status, boolean success, String error) {}
 }
