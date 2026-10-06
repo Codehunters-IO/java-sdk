@@ -7,6 +7,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,11 +17,12 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.ClientHttpRequestFactory;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
@@ -52,6 +54,7 @@ public class FileShareAutoConfiguration {
    * @param properties the file-share configuration
    * @param builders the application's builder, if any
    * @param interceptors interceptors applied to every call, in order
+   * @param auth the SDK's authentication step, applied after {@code interceptors}, if configured
    * @return a configured {@link RestClient}
    * @throws IllegalStateException if the base URL is missing or invalid, or authentication is
    *     configured but cannot be applied
@@ -61,10 +64,11 @@ public class FileShareAutoConfiguration {
   public RestClient fileShareRestClient(
       FileShareProperties properties,
       ObjectProvider<RestClient.Builder> builders,
-      ObjectProvider<FileShareRequestInterceptor> interceptors) {
+      ObjectProvider<FileShareRequestInterceptor> interceptors,
+      ObjectProvider<FileShareAuthInterceptor> auth) {
     var factory = new JdkClientHttpRequestFactory(httpClient(properties.connectTimeout()));
     factory.setReadTimeout(properties.readTimeout());
-    return restClient(properties, builders, interceptors, factory);
+    return restClient(properties, builders, interceptors(interceptors, auth, properties), factory);
   }
 
   /**
@@ -74,6 +78,7 @@ public class FileShareAutoConfiguration {
    * @param properties the file-share configuration
    * @param builders the application's builder, if any
    * @param interceptors interceptors applied to every call, in order
+   * @param auth the SDK's authentication step, applied after {@code interceptors}, if configured
    * @return a configured {@link RestClient}
    * @throws IllegalStateException if the base URL is missing or invalid, or authentication is
    *     configured but cannot be applied
@@ -83,10 +88,11 @@ public class FileShareAutoConfiguration {
   public RestClient fileShareContentRestClient(
       FileShareProperties properties,
       ObjectProvider<RestClient.Builder> builders,
-      ObjectProvider<FileShareRequestInterceptor> interceptors) {
+      ObjectProvider<FileShareRequestInterceptor> interceptors,
+      ObjectProvider<FileShareAuthInterceptor> auth) {
     var factory =
         new NoRedirectRequestFactory(properties.connectTimeout(), properties.downloadIdleTimeout());
-    return restClient(properties, builders, interceptors, factory);
+    return restClient(properties, builders, interceptors(interceptors, auth, properties), factory);
   }
 
   /**
@@ -116,65 +122,77 @@ public class FileShareAutoConfiguration {
   private static RestClient restClient(
       FileShareProperties properties,
       ObjectProvider<RestClient.Builder> builders,
-      ObjectProvider<FileShareRequestInterceptor> interceptors,
+      List<ClientHttpRequestInterceptor> interceptors,
       ClientHttpRequestFactory factory) {
-    List<FileShareRequestInterceptor> ordered = interceptors.orderedStream().toList();
-    requireAuthApplied(properties, ordered);
     return builders
         .getIfAvailable(RestClient::builder)
         .clone()
-        .baseUrl(requireBaseUrl(properties.baseUrl()))
+        .baseUrl(requireBaseUrl(properties))
         .requestFactory(factory)
-        .requestInterceptors(list -> list.addAll(ordered))
+        .requestInterceptors(list -> list.addAll(interceptors))
         .build();
+  }
+
+  private static List<ClientHttpRequestInterceptor> interceptors(
+      ObjectProvider<FileShareRequestInterceptor> interceptors,
+      ObjectProvider<FileShareAuthInterceptor> auth,
+      FileShareProperties properties) {
+    FileShareAuthInterceptor authInterceptor = auth.getIfAvailable();
+    if (properties.auth().clientRegistrationId() != null && authInterceptor == null) {
+      throw new IllegalStateException(
+          ClientRegistrationIdCondition.PROPERTY
+              + " needs spring-security-oauth2-client on the classpath");
+    }
+    var all = new ArrayList<ClientHttpRequestInterceptor>(interceptors.orderedStream().toList());
+    if (authInterceptor != null) {
+      all.add(authInterceptor);
+    }
+    return all;
   }
 
   static HttpClient httpClient(Duration connectTimeout) {
     return HttpClient.newBuilder().connectTimeout(connectTimeout).build();
   }
 
-  private static String requireBaseUrl(String baseUrl) {
+  private static String requireBaseUrl(FileShareProperties properties) {
+    String baseUrl = properties.baseUrl();
     if (baseUrl == null || baseUrl.isBlank()) {
       throw new IllegalStateException(BASE_URL + " must be configured when the SDK is enabled");
     }
-    if (!isAbsoluteHttp(baseUrl)) {
-      throw new IllegalStateException(BASE_URL + " must be an absolute http or https URL");
+    URI uri = parseHttp(baseUrl);
+    if (properties.auth().clientRegistrationId() != null
+        && !"https".equalsIgnoreCase(uri.getScheme())
+        && !properties.auth().allowInsecureHttp()) {
+      throw new IllegalStateException(
+          BASE_URL
+              + " must use https when authentication is configured, or the token travels in clear;"
+              + " set codehunters.file-share.auth.allow-insecure-http=true to accept that");
     }
     return baseUrl;
   }
 
-  private static boolean isAbsoluteHttp(String baseUrl) {
+  private static URI parseHttp(String baseUrl) {
     try {
       URI uri = new URI(baseUrl);
-      boolean isHttp = "http".equalsIgnoreCase(uri.getScheme()) || isHttps(uri);
-      return isHttp && uri.getHost() != null;
+      boolean isHttp =
+          "http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme());
+      if (isHttp && uri.getHost() != null) {
+        return uri;
+      }
     } catch (URISyntaxException e) {
-      return false;
+      // reported below with the property name
     }
-  }
-
-  private static boolean isHttps(URI uri) {
-    return "https".equalsIgnoreCase(uri.getScheme());
-  }
-
-  private static void requireAuthApplied(
-      FileShareProperties properties, List<FileShareRequestInterceptor> interceptors) {
-    if (properties.auth().clientRegistrationId() != null && interceptors.isEmpty()) {
-      throw new IllegalStateException(
-          "codehunters.file-share.auth.client-registration-id needs"
-              + " spring-security-oauth2-client on the classpath");
-    }
+    throw new IllegalStateException(BASE_URL + " must be an absolute http or https URL");
   }
 
   /** Client-credentials authentication, when Spring Security's OAuth2 client is present. */
   @Configuration(proxyBeanMethods = false)
   @ConditionalOnClass(OAuth2AuthorizedClientManager.class)
-  @ConditionalOnProperty("codehunters.file-share.auth.client-registration-id")
+  @Conditional(ClientRegistrationIdCondition.class)
   static class ClientCredentialsConfiguration {
 
     @Bean
-    @ConditionalOnMissingBean(FileShareRequestInterceptor.class)
-    FileShareRequestInterceptor fileShareClientCredentialsInterceptor(
+    FileShareAuthInterceptor fileShareClientCredentialsInterceptor(
         FileShareProperties properties,
         ObjectProvider<ClientRegistrationRepository> repositories,
         ObjectProvider<OAuth2AuthorizedClientService> clientServices) {
@@ -188,7 +206,7 @@ public class FileShareAutoConfiguration {
           repository,
           clientServices.getIfAvailable(
               () -> new InMemoryOAuth2AuthorizedClientService(repository)),
-          properties.auth());
+          properties);
     }
   }
 }

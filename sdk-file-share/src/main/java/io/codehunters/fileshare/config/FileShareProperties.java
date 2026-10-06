@@ -62,9 +62,21 @@ public record FileShareProperties(
    * Outbound authentication.
    *
    * @param clientRegistrationId the Spring Security OAuth2 client registration whose
-   *     client-credentials token is sent as a bearer token; none when unset
+   *     client-credentials token is sent as a bearer token; none when unset or blank
    * @param principal the principal name the token is cached under
+   * @param allowInsecureHttp whether the token may be sent to a plain {@code http} base URL
    */
   public record Auth(
-      String clientRegistrationId, @DefaultValue("codehunters-file-share") String principal) {}
+      String clientRegistrationId,
+      @DefaultValue("codehunters-file-share") String principal,
+      @DefaultValue("false") boolean allowInsecureHttp) {
+
+    /** Treats a blank registration id as unset. */
+    public Auth {
+      clientRegistrationId =
+          clientRegistrationId == null || clientRegistrationId.isBlank()
+              ? null
+              : clientRegistrationId;
+    }
+  }
 }
