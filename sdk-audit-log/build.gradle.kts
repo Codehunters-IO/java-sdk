@@ -15,13 +15,15 @@ dependencies {
     implementation("org.aspectj:aspectjrt")
     runtimeOnly("org.aspectj:aspectjweaver")
     compileOnly("org.springframework:spring-jdbc")
-    compileOnly("org.springframework:spring-tx")
     compileOnly("tools.jackson.core:jackson-databind")
+    compileOnly("io.micrometer:micrometer-core")
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.springframework:spring-tx")
     testImplementation("org.springframework.boot:spring-boot-jdbc")
+    testImplementation("org.springframework.boot:spring-boot-jackson")
+    testImplementation("io.micrometer:micrometer-core")
     testImplementation("tools.jackson.core:jackson-databind")
     testRuntimeOnly("com.h2database:h2")
 }
