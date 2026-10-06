@@ -4,20 +4,30 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.fileshare.application.FileShareClient;
+import io.codehunters.fileshare.domain.exception.FileShareException;
 import io.codehunters.fileshare.domain.exception.FileShareUnavailableException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.web.client.RestClient;
 
+@ExtendWith(OutputCaptureExtension.class)
 class FileShareAutoConfigurationTest {
 
   private static final UUID FILE_ID = UUID.fromString(FakeFileShareServer.FILE_ID);
+  private static final long CONTENT_SIZE =
+      (long) FakeFileShareServer.CONTENT_CHUNKS * FakeFileShareServer.CONTENT_CHUNK_SIZE;
 
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
@@ -145,6 +155,96 @@ class FileShareAutoConfigurationTest {
   }
 
   @Test
+  void should_stream_content_slower_than_read_timeout_while_bytes_keep_flowing() {
+    server.pauseBetweenContentChunks(Duration.ofMillis(150));
+    var target = new ByteArrayOutputStream();
+    runner
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.read-timeout=200ms",
+            "codehunters.file-share.download-idle-timeout=1s")
+        .run(
+            context ->
+                assertThat(
+                        context.getBean(FileShareClient.class).download("REF-1", FILE_ID, target))
+                    .isEqualTo(CONTENT_SIZE));
+  }
+
+  @Test
+  void should_fail_download_when_content_stalls_longer_than_idle_timeout() {
+    server.pauseBetweenContentChunks(Duration.ofSeconds(2));
+    runner
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.download-idle-timeout=200ms")
+        .run(
+            context ->
+                assertThatThrownBy(
+                        () ->
+                            context
+                                .getBean(FileShareClient.class)
+                                .download("REF-1", FILE_ID, new ByteArrayOutputStream()))
+                    .isInstanceOf(FileShareUnavailableException.class));
+  }
+
+  @Test
+  void should_not_follow_redirect_from_content_endpoint() {
+    server.redirectContent();
+    runner
+        .withPropertyValues("codehunters.file-share.base-url=" + server.url())
+        .run(
+            context -> {
+              assertThatThrownBy(
+                      () -> context.getBean(FileShareClient.class).download("REF-1", FILE_ID))
+                  .isInstanceOf(FileShareException.class);
+              assertThat(server.redirectTargetHits()).isZero();
+            });
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"0B", "-1B", "2GB"})
+  void should_fail_startup_when_max_download_size_cannot_be_buffered(String size) {
+    runner
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.max-download-size=" + size)
+        .run(
+            context ->
+                assertThat(context)
+                    .hasFailed()
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("max-download-size"));
+  }
+
+  @Test
+  void should_accept_base_url_with_upper_case_scheme() {
+    runner
+        .withPropertyValues("codehunters.file-share.base-url=" + server.url().toUpperCase())
+        .run(context -> assertThat(context).hasNotFailed());
+  }
+
+  @Test
+  void should_warn_when_presigned_hosts_are_not_restricted(CapturedOutput output) {
+    runner
+        .withPropertyValues("codehunters.file-share.base-url=" + server.url())
+        .run(context -> assertThat(context).hasSingleBean(FileShareClient.class));
+
+    assertThat(output).contains("codehunters.file-share.presigned.allowed-hosts");
+  }
+
+  @Test
+  void should_not_warn_when_presigned_hosts_are_restricted(CapturedOutput output) {
+    runner
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.presigned.allowed-hosts=files.example.com")
+        .run(context -> assertThat(context).hasSingleBean(FileShareClient.class));
+
+    assertThat(output).doesNotContain("codehunters.file-share.presigned.allowed-hosts");
+  }
+
+  @Test
   void should_configure_connect_timeout_on_http_client() {
     assertThat(FileShareAutoConfiguration.httpClient(Duration.ofMillis(1500)).connectTimeout())
         .contains(Duration.ofMillis(1500));
@@ -159,6 +259,7 @@ class FileShareAutoConfigurationTest {
               FileShareProperties properties = context.getBean(FileShareProperties.class);
               assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(5));
               assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(30));
+              assertThat(properties.downloadIdleTimeout()).isEqualTo(Duration.ofSeconds(30));
               assertThat(properties.maxDownloadSize().toMegabytes()).isEqualTo(50);
               assertThat(properties.presigned().allowedHosts()).isEmpty();
               assertThat(properties.auth().clientRegistrationId()).isNull();
