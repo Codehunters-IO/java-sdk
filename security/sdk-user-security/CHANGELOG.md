@@ -1,5 +1,17 @@
 # Changelog — sdk-user-security
 
+## 3.1.0
+
+### Added
+- 401 and 403 go through the application's single `AuthenticationEntryPoint` and
+  `AccessDeniedHandler` beans when present. With `sdk-web-errors` that means problem-detail bodies
+  that keep the bearer challenge. Without such beans nothing changes.
+
+### Fixed
+- Ordered before Spring Boot 4.1's resource-server auto-configurations
+  (`OAuth2ResourceServerAutoConfiguration` and `OAuth2ResourceServerWebSecurityAutoConfiguration`
+  moved packages); the old class name no longer exists.
+
 ## 3.0.0
 
 ### Breaking
