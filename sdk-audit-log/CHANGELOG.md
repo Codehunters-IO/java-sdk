@@ -33,7 +33,11 @@
 - Methods returning a `CompletionStage`, or a Reactor `Mono` or `Flux`, are audited when the work
   finishes, with its outcome and duration.
 - `AuditPersistenceException.redacted(...)`, `failureClass()`, `sqlState()` and `vendorCode()`.
-- A startup warning when one of several transaction managers is a `JtaTransactionManager`.
+- A startup warning when one of several transaction managers is a `JtaTransactionManager`, or when
+  the only one cannot suspend a transaction.
+- `AuditEventPublisherPort#publishDetached`, used for events of work that completes on another
+  thread.
+- `CANCELLED` status for cancelled futures and Reactor subscriptions.
 
 ### Fixed
 - `fail-on-error=true` never failed the audited call: the insert ran on another thread and the
@@ -51,6 +55,13 @@
   fail-on-error mode the `AuditPersistenceException` carried that message in its cause; it is now
   redacted.
 - Asynchronous return types were recorded as `SUCCESS` when the work started.
+- Completion events joined, or took the outcome of, an unrelated transaction on the completing
+  thread, and read the context provider and MDC of that thread.
+- With fail-on-error, publisher failures other than `AuditPersistenceException` were swallowed
+  and logged with their message.
+- Completion events were written on Netty event loops; a declared `ConnectableFlux` return type
+  failed with `ClassCastException`; an `Error` in the completion callback failed the caller's
+  `Mono`.
 - An `Error` from the publisher replaced the method's own exception.
 - `#result` resolved to a parameter named `result` when the method threw.
 - On SQL Server, `event_created_at` was shifted by the JVM's UTC offset.

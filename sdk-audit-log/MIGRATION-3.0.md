@@ -39,10 +39,16 @@
     cannot serialize.
 12. **Asynchronous return types.** Methods returning a `CompletionStage`, `Mono` or `Flux` are now
     recorded when the work finishes, with its real outcome: a failed future is `ERROR`, not
-    `SUCCESS`. Each subscription to a `Mono` or `Flux` records one event; a cancelled one records
-    none.
+    `SUCCESS`, and a cancelled one is `CANCELLED`. Each subscription to a `Mono` or `Flux` records
+    one event, retries included. The context provider and argument expressions are read on the
+    calling thread when the method returns.
 13. **`AuditPersistenceException`.** Its cause no longer carries the database message. Code that
     inspected `getCause()` for the SQL error should read `sqlState()`, `vendorCode()` and
     `failureClass()` instead.
 14. **JTA.** If the application has several transaction managers and one is a
-    `JtaTransactionManager`, mark that one as primary; the SDK warns at startup otherwise.
+    `JtaTransactionManager`, mark that one as primary; the SDK warns at startup otherwise. A lone
+    `JtaTransactionManager` needs a JTA `TransactionManager` to write failure events; the SDK warns
+    when it has none.
+15. **Custom `AuditEventPublisherPort` decorators.** The port gained
+    `publishDetached(AuditEvent)`, which defaults to `publish`. A decorator that routes by the
+    current transaction should override it and skip that routing.
