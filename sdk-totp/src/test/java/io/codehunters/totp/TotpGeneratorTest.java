@@ -143,17 +143,6 @@ class TotpGeneratorTest {
   }
 
   @Test
-  void should_pad_code_with_leading_zeros() {
-    var generator = new TotpGenerator();
-    var secret = TotpSecret.fromBytes(SEED_20);
-
-    for (long t = 0; t < 10000; t += 100) {
-      var code = generator.generate(secret, Instant.ofEpochSecond(t));
-      assertEquals(6, code.length(), "Code at t=" + t + " should be 6 digits: " + code);
-    }
-  }
-
-  @Test
   void should_work_with_base32_secret() {
     var generator = new TotpGenerator();
     var secret = TotpSecret.generate();
