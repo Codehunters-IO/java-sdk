@@ -1097,11 +1097,41 @@ Desvíos del plan:
 - No hay tarea de compilación en build; el README explica cómo precompilar con
   `JasperCompileManager` y por qué conviene (`.jrxml` necesita `jdk.compiler` en runtime).
 
-Abierto: sin review independiente todavía. La mutación de las propiedades XXE (permitir `DOCTYPE`)
-no rompe el test: Jasper 7 ya rechaza ese JRXML por su cuenta, así que las propiedades del SDK son
-defensa adicional. OpenPDF de Central puede no traer arreglos del build de Jaspersoft (los tests
-cubren texto, imágenes y varias páginas). Las advisories de Spring Boot 4.0.2, Spring, Logback y
-Micrometer que reporta OSV son de todo el repo, no de este módulo.
+Review independiente (2 HIGH, 3 MEDIUM, 7 LOW) corregida con TDD (`67147cb` → `13152e6`,
+`d9ebe3c` + `8a9f113` → `2863c04`, `d7c33d2` → `f631df7`, docs `0fd88c2`):
+- **H1:** sin compilador JDT, Jasper caía en `javac`, que solo ve `java.class.path` (en un fat jar de
+  Boot, el jar exterior). Se agrega `jasperreports-jdt` 7.0.8 (Maven Central, ecj 3.21.0 sin
+  advisories en OSV), que lee las clases por el class loader. Test: `JasperCompileManager` elige
+  `JRJdtCompiler`.
+- **H2:** OpenPDF 1.3.43 de Central no tiene el API de structure tree con que Jasper etiqueta PDFs.
+  Un reporte que pide `pdf.tagged=true` o PDF/A nivel A (`pdfa1a/2a/3a`) falla antes del export con
+  un `ReportException` claro; un `LinkageError` de un exporter también se envuelve. ADR 0014
+  corregido ("same release" era falso). No se agrega el repositorio de Jaspersoft.
+- **M1/L3:** `virtualizer.files.delete.on.exit=false` (el `DeleteOnExitHook` crecía por render). El
+  swap va a una carpeta propia del renderer creada al primer uso (`jasper-swap-*`, 0700 con POSIX),
+  una subcarpeta por render. `ReportRenderer` es `AutoCloseable` (default no-op); cerrar borra la
+  carpeta y Spring cierra el bean con el contexto. No se limpian al arrancar carpetas de procesos
+  caídos: con un tmp compartido podrían ser de otra instancia viva (documentado).
+- **M2:** `FillLimits` (`max-pages` 2000, `timeout` 2m por defecto) sobre los governors de Jasper,
+  así que `render(out)` también queda acotado; el error nombra el límite.
+- **M3:** `ReportRequest` rechaza valores `URL`, `URI`, `File`, `Path`, `InputStream` y `Reader`
+  (directos o dentro de colección, mapa o array): Jasper los carga sin pasar por el repositorio. Las
+  docs dicen "solo ubicaciones `String`".
+- **L1:** fallo al crear el swap → `ReportException`; `VirtualMachineError` se propaga. **L2:** se
+  quitan las propiedades muertas (`allow.doctype`, `load.unknown.entities`, files enabled); la
+  protección XXE real es el `XmlMapper` de Jackson, que no procesa DTDs. Tests: la causa muestra
+  "Undeclared general entity" en JRXML y en un `.jrtx`. **L4:** el relleno usa una fuente nombrada
+  con la plantilla y el repositorio busca primero junto a ella, después en la base. **L5:** README
+  explica la alineación de Jackson 2 en Gradle. **L6:** una fuente `AutoCloseable` se cierra tras el
+  fill. **L7:** README documenta el pico de `toBytes` (~2× el límite).
+- Tests nuevos: subreporte por ubicación `String` junto a su master, estilos `.jrtx`, render
+  concurrente de una plantilla, límites, carpeta de swap, parámetros con tipos de ubicación.
+
+Abierto: el catch de `LinkageError` en el export no tiene test (el chequeo previo ataja los casos
+conocidos). Los recursos de un subreporte resuelven desde su nombre tal como se escribió, no desde
+la carpeta donde se encontró. OpenPDF de Central puede no traer otros arreglos del build de
+Jaspersoft. Las advisories de Spring Boot 4.0.2, Spring, Logback y Micrometer que reporta OSV son de
+todo el repo, no de este módulo.
 
 ## Orden y dependencias
 
