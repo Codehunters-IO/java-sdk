@@ -27,6 +27,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-jackson")
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("io.projectreactor:reactor-core")
+    testImplementation("jakarta.transaction:jakarta.transaction-api")
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
