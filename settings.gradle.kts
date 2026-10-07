@@ -25,6 +25,7 @@ include("sdk-event-messaging-rabbit")
 include("sdk-event-messaging-kafka")
 include("sdk-commons")
 include("sdk-web-errors")
+include("sdk-device")
 include("sdk-support")
 include("sdk-bom")
 
