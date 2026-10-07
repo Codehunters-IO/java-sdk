@@ -41,7 +41,11 @@ public class Order extends AuditableEntity {
   }
 
   public Order(
-      String reference, OrderStatus status, BigDecimal amount, Instant placedAt, Customer customer) {
+      String reference,
+      OrderStatus status,
+      BigDecimal amount,
+      Instant placedAt,
+      Customer customer) {
     this.reference = reference;
     this.status = status;
     this.amount = amount;

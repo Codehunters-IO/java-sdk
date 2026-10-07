@@ -45,7 +45,9 @@ class JpaAuditingAutoConfigurationTest {
     runner.run(
         context -> {
           assertThat(context).hasBean("jpaAuditingHandler");
-          assertThat(context).getBean(DateTimeProvider.class).isInstanceOf(ClockDateTimeProvider.class);
+          assertThat(context)
+              .getBean(DateTimeProvider.class)
+              .isInstanceOf(ClockDateTimeProvider.class);
           assertThat(context)
               .getBean(AuditorAware.class)
               .isInstanceOf(SecurityContextAuditorAware.class);
