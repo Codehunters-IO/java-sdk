@@ -27,6 +27,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.context.support.StaticMessageSource;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.LocaleResolver;
 
@@ -114,7 +115,7 @@ class I18nAutoConfigurationTest {
         .run(
             context -> {
               var resolver = context.getBean(XLocaleAwareLocaleResolver.class);
-              assertThat(resolver.getDefaultLocale()).isEqualTo(ENGLISH);
+              assertThat(resolver.resolveLocale(new MockHttpServletRequest())).isEqualTo(ENGLISH);
               assertThat(resolver.getSupportedLocales()).containsExactly(ENGLISH, SPANISH);
             });
   }
