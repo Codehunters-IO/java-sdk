@@ -1,5 +1,7 @@
 package io.codehunters.totp;
 
+import java.util.Locale;
+
 final class Base32 {
 
   private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -7,7 +9,7 @@ final class Base32 {
   private Base32() {}
 
   static byte[] decode(String encoded) {
-    String input = encoded.toUpperCase().replaceAll("[=\\s]", "");
+    String input = encoded.toUpperCase(Locale.ROOT).replaceAll("[=\\s]", "");
     int totalBits = input.length() * 5;
     byte[] result = new byte[totalBits / 8];
     int buffer = 0;
@@ -17,7 +19,7 @@ final class Base32 {
     for (char c : input.toCharArray()) {
       int val = ALPHABET.indexOf(c);
       if (val < 0) {
-        throw new TotpException("Invalid Base32 character: " + c);
+        throw new TotpException("Invalid Base32 character in secret");
       }
       buffer = (buffer << 5) | val;
       bitsLeft += 5;

@@ -1,20 +1,30 @@
 package io.codehunters.totp;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.Locale;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
 /**
  * Generates and verifies RFC 6238 TOTP codes. Instances are immutable and thread-safe; a fresh
  * {@link javax.crypto.Mac} is created per call.
+ *
+ * <p>Verification compares every candidate in the window in constant time and does not stop at the
+ * first match. It does not prevent a code from being reused inside its window: callers that need
+ * one-time use must remember the last accepted time step per secret.
  */
 public final class TotpGenerator {
 
   private static final int[] DIGITS_POWER = {
     1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000
   };
+
+  /** The largest number of steps of drift {@link #verify} accepts on each side. */
+  public static final int MAX_VARIANCE = 10;
 
   private final TotpConfig config;
 
@@ -70,8 +80,11 @@ public final class TotpGenerator {
    *
    * @param secret the shared secret
    * @param code the code to verify
-   * @param variance the number of steps of drift tolerated on each side
+   * @param variance the number of steps of drift tolerated on each side, {@code 0} to {@value
+   *     #MAX_VARIANCE}
    * @return {@code true} if the code is valid
+   * @throws IllegalArgumentException if {@code variance} is outside {@code 0..}{@value
+   *     #MAX_VARIANCE}
    */
   public boolean verify(TotpSecret secret, String code, int variance) {
     return verify(secret, code, variance, Instant.now());
@@ -82,24 +95,36 @@ public final class TotpGenerator {
    *
    * @param secret the shared secret
    * @param code the code to verify
-   * @param variance the number of steps of drift tolerated on each side
+   * @param variance the number of steps of drift tolerated on each side, {@code 0} to {@value
+   *     #MAX_VARIANCE}
    * @param at the instant to verify against
-   * @return {@code true} if the code is valid within the variance window
+   * @return {@code true} if the code is valid within the variance window; {@code false} for a
+   *     {@code null} code
+   * @throws IllegalArgumentException if {@code variance} is outside {@code 0..}{@value
+   *     #MAX_VARIANCE}
    */
   public boolean verify(TotpSecret secret, String code, int variance, Instant at) {
-    long counter = computeCounter(at);
-    int window = Math.max(variance, 0);
-    for (int i = -window; i <= window; i++) {
-      String candidate = generateCode(secret, counter + i);
-      if (candidate.equals(code)) {
-        return true;
-      }
+    if (variance < 0 || variance > MAX_VARIANCE) {
+      throw new IllegalArgumentException("variance must be between 0 and " + MAX_VARIANCE);
     }
-    return false;
+    if (code == null) {
+      return false;
+    }
+    byte[] expected = code.getBytes(StandardCharsets.US_ASCII);
+    long counter = computeCounter(at);
+    boolean matched = false;
+    for (int i = -variance; i <= variance; i++) {
+      matched |= MessageDigest.isEqual(codeBytes(secret, counter + i), expected);
+    }
+    return matched;
   }
 
   private long computeCounter(Instant at) {
-    return at.getEpochSecond() / config.timeStep().toSeconds();
+    return Math.floorDiv(at.getEpochSecond(), config.timeStep().getSeconds());
+  }
+
+  private byte[] codeBytes(TotpSecret secret, long counter) {
+    return generateCode(secret, counter).getBytes(StandardCharsets.US_ASCII);
   }
 
   private String generateCode(TotpSecret secret, long counter) {
@@ -113,7 +138,7 @@ public final class TotpGenerator {
 
     int codeDigits = config.digits().value();
     int otp = binary % DIGITS_POWER[codeDigits];
-    return String.format("%0" + codeDigits + "d", otp);
+    return String.format(Locale.ROOT, "%0" + codeDigits + "d", otp);
   }
 
   private byte[] hmac(byte[] key, long counter) {

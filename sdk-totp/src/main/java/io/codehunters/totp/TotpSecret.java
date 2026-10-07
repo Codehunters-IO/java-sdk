@@ -2,6 +2,7 @@ package io.codehunters.totp;
 
 import java.security.SecureRandom;
 import java.util.Arrays;
+import java.util.HexFormat;
 import java.util.Objects;
 
 /**
@@ -11,6 +12,7 @@ import java.util.Objects;
 public final class TotpSecret {
 
   private static final int DEFAULT_KEY_LENGTH = 20;
+  private static final SecureRandom RANDOM = new SecureRandom();
 
   private final byte[] key;
 
@@ -44,6 +46,25 @@ public final class TotpSecret {
   }
 
   /**
+   * Creates a secret from a hexadecimal string, as used by the RFC 6238 test vectors. Upper and
+   * lower case digits are accepted.
+   *
+   * @param hex the hex-encoded secret; an even number of hex digits
+   * @return the secret
+   * @throws TotpException if {@code hex} is not valid hex; the message never repeats the input
+   */
+  public static TotpSecret fromHex(String hex) {
+    Objects.requireNonNull(hex, "hex encoded secret must not be null");
+    byte[] key;
+    try {
+      key = HexFormat.of().parseHex(hex);
+    } catch (IllegalArgumentException e) {
+      throw new TotpException("Invalid hex secret");
+    }
+    return new TotpSecret(key);
+  }
+
+  /**
    * Generates a random secret of the default length (20 bytes).
    *
    * @return a randomly generated secret
@@ -60,7 +81,7 @@ public final class TotpSecret {
    */
   public static TotpSecret generate(int keyLength) {
     byte[] key = new byte[keyLength];
-    new SecureRandom().nextBytes(key);
+    RANDOM.nextBytes(key);
     return new TotpSecret(key);
   }
 
