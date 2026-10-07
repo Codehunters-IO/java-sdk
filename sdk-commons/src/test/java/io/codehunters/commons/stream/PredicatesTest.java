@@ -3,6 +3,7 @@ package io.codehunters.commons.stream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
@@ -28,6 +29,19 @@ class PredicatesTest {
     var distinct = Stream.of(first, second).filter(Predicates.distinctByKey(Item::group)).toList();
 
     assertThat(distinct).containsExactly(first);
+  }
+
+  @Test
+  void should_keep_exactly_one_element_per_key_in_a_parallel_stream() {
+    var keys =
+        IntStream.range(0, 10_000)
+            .boxed()
+            .parallel()
+            .filter(Predicates.distinctByKey(number -> number % 10))
+            .map(number -> number % 10)
+            .toList();
+
+    assertThat(keys).containsExactlyInAnyOrder(0, 1, 2, 3, 4, 5, 6, 7, 8, 9);
   }
 
   @Test
