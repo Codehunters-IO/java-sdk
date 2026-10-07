@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "0.2.0"
+version = "0.2.1-SNAPSHOT"
 description = "Raffle purchase geo validation backed by a SQL Server stored procedure."
 
 dependencies {

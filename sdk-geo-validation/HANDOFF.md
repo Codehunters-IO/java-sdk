@@ -22,7 +22,9 @@ raffle service's database.
 
 ## Fixed before the handoff
 
-These fixes are on the source here but were not published (the version stays `0.2.0`):
+These fixes are on the source here but were not published. The module's version is
+`0.2.1-SNAPSHOT`, and the publish task never uploads a snapshot, so the fixed code cannot reach
+GitHub Packages as `0.2.0` by mistake (for example if the check for an existing version fails):
 
 - `Latitude` and `Longitude` accepted `NaN`, because `NaN` fails both `<` comparisons of the range
   check. They now reject `NaN` and infinities, and the message no longer contains the coordinate
@@ -43,4 +45,5 @@ These fixes are on the source here but were not published (the version stays `0.
 
 Once the raffle service builds with its own copy, delete `sdk-geo-validation/`, remove it from
 `settings.gradle.kts` and from the constraints in `platform/sdk-bom`, and mark it retired in the
-root `README.md`.
+root `README.md`. Until then the BOM constraint points at `0.2.1-SNAPSHOT`, so the module must be
+out of `platform/sdk-bom` before the BOM is released.
