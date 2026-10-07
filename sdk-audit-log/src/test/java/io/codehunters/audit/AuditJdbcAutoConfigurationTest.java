@@ -2,10 +2,12 @@ package io.codehunters.audit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +46,10 @@ class AuditJdbcAutoConfigurationTest {
           "order-service",
           OffsetDateTime.parse("2026-10-06T12:00:00Z"));
 
+  private static final String[] SINGLE_WORKER = {
+    "codehunters.audit.async.core-pool-size=1", "codehunters.audit.async.max-pool-size=1"
+  };
+
   private final DataSource dataSource = auditDatabase();
 
   private final ApplicationContextRunner runner =
@@ -57,11 +63,7 @@ class AuditJdbcAutoConfigurationTest {
 
   @Test
   void should_publish_asynchronously_by_default() {
-    runner.run(
-        ctx -> {
-          ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
-          assertThat(scheduledTasks(ctx)).isEqualTo(1);
-        });
+    runner.withPropertyValues(SINGLE_WORKER).run(this::assertWrittenOnlyByTheWorker);
   }
 
   @Test
@@ -217,11 +219,8 @@ class AuditJdbcAutoConfigurationTest {
   void should_publish_asynchronously_without_micrometer() {
     runner
         .withClassLoader(new FilteredClassLoader("io.micrometer"))
-        .run(
-            ctx -> {
-              ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
-              assertThat(scheduledTasks(ctx)).isEqualTo(1);
-            });
+        .withPropertyValues(SINGLE_WORKER)
+        .run(this::assertWrittenOnlyByTheWorker);
   }
 
   @Test
@@ -321,6 +320,21 @@ class AuditJdbcAutoConfigurationTest {
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();
     }
+  }
+
+  /**
+   * Holds the only audit worker on a latch while the event is published: the row cannot exist until
+   * the worker is released, so a synchronous write fails the first assertion deterministically, and
+   * the asynchronous one is awaited instead of sampled.
+   */
+  private void assertWrittenOnlyByTheWorker(ApplicationContext ctx) {
+    var worker = new CountDownLatch(1);
+    ctx.getBean("auditTaskExecutor", ThreadPoolTaskExecutor.class)
+        .execute(() -> awaitQuietly(worker));
+    ctx.getBean(AuditEventPublisherPort.class).publish(EVENT);
+    assertThat(countRows()).isZero();
+    worker.countDown();
+    await().atMost(Duration.ofSeconds(5)).until(() -> countRows() == 1);
   }
 
   private static long scheduledTasks(ApplicationContext ctx) {

@@ -23,6 +23,7 @@ dependencies {
     compileOnly(project(":sdk-device"))
 
     testImplementation("org.springframework:spring-test")
+    testImplementation("org.awaitility:awaitility")
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.springframework:spring-tx")
     testImplementation("org.springframework.boot:spring-boot-jdbc")
