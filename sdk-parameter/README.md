@@ -22,7 +22,14 @@ Map<String, String> settings = parameters.asMap(ParameterModule.of("LOYALTY"), "
 
 - `ParameterModule` is a record. The constants (`GENERAL`, `AUTH`, `CONFIG_SERVER`, `FILE_SHARE`,
   `MANAGEMENT`, `NOTIFICATIONS`, `PAYMENT`, `RAFFLES`) cover the modules known at release;
-  `ParameterModule.of(code)` reads any other.
+  `ParameterModule.of(code)` reads any other. For a known code it returns the constant itself,
+  so `==` against a constant holds for rows read by the SDK; prefer `equals`, since an unknown
+  code is a new instance each time. Codes are trimmed and case-sensitive: `of("auth")` is not
+  `AUTH`. On a database whose collation ignores case, a query for `of("auth")` can return rows
+  whose module is `AUTH`.
+- Jackson writes a `ParameterModule` as `{"code":"AUTH"}`, not as the 1.x string `"AUTH"`.
+- A `null` element in the collections given to `findByModules` or `findByModuleAndSubmodules`
+  throws `IllegalArgumentException`.
 - A `null` submodule in `lookup` and a blank one anywhere mean the empty submodule. A `null`
   submodule in `findByModule`, `asMap` and `asMapByName` means every submodule.
 - `asMap` and `asMapByName` keep the name order and may hold `null` values. When two submodules
@@ -48,14 +55,24 @@ which may be a secret.
 | Property | Default | Meaning |
 |---|---|---|
 | `codehunters.parameter.enabled` | `true` | Turn the auto-configuration off |
-| `codehunters.parameter.table-name` | `parameters` | Table to read, optionally `schema.table` |
+| `codehunters.parameter.table-name` | `parameters` | Table to read: `table`, `schema.table` or `database.schema.table` |
 | `codehunters.parameter.cache-ttl` | `0s` | How long answers are cached; `0s` disables the cache |
 
-An invalid table name or a negative TTL fails at startup.
+An invalid table name or a negative TTL fails at startup. The table name is an unquoted
+identifier, so the database's rules for unquoted names apply: a reserved word such as `user`
+fails at query time, and Postgres folds the name to lower case (a table created with a quoted
+mixed-case name is not found).
 
 With a positive `cache-ttl`, `CachingParameterClient` keeps each answer (absent parameters
-included) for that long, per method and arguments. Failures are not cached. It holds at most
-1024 answers; when full it drops expired ones, and if none has expired it answers without caching.
+included) for that long, per method and arguments:
+
+- A blank submodule counts as the empty submodule, and module or submodule collections are
+  compared as sorted sets, so order and repeats do not create new entries.
+- It holds at most 1024 answers and evicts the least recently used one when full.
+- Concurrent misses for the same arguments share one database query. A failure reaches every
+  waiting caller and is not cached.
+- `asMap` and `asMapByName` are built from the cached `findByModule` answer, so the three agree.
+
 A change in the table is seen once the TTL runs out.
 
 ## Beans
