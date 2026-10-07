@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.codehunters.i18n.LocaleMdcFilter;
 import io.codehunters.i18n.XLocaleAwareLocaleResolver;
+import jakarta.servlet.DispatcherType;
 import jakarta.validation.Validator;
 import jakarta.validation.constraints.NotNull;
 import java.util.Locale;
@@ -168,7 +169,26 @@ class I18nAutoConfigurationTest {
               .isEqualTo(I18nAutoConfiguration.LOCALE_MDC_FILTER_ORDER);
           assertThat(registration.getFilter()).isInstanceOf(LocaleMdcFilter.class);
           assertThat(registration.getUrlPatterns()).contains("/*");
+          assertThat(registration.determineDispatcherTypes())
+              .containsExactlyInAnyOrder(
+                  DispatcherType.REQUEST, DispatcherType.ASYNC, DispatcherType.ERROR);
         });
+  }
+
+  @Test
+  void should_warn_when_spring_web_locale_is_set(CapturedOutput output) {
+    webRunner
+        .withPropertyValues("spring.web.locale=en")
+        .run(
+            context ->
+                assertThat(output).contains("spring.web.locale").contains("codehunters.i18n"));
+  }
+
+  @Test
+  void should_warn_when_spring_web_locale_resolver_is_set(CapturedOutput output) {
+    webRunner
+        .withPropertyValues("spring.web.locale-resolver=fixed")
+        .run(context -> assertThat(output).contains("spring.web.locale-resolver"));
   }
 
   @Test
