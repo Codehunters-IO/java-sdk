@@ -15,8 +15,18 @@ class SearchCriteriaTest {
 
   @ParameterizedTest(name = "{0} with {1} values")
   @CsvSource({
-    "EQUAL,1", "NOT_EQUAL,1", "LIKE,1", "GT,1", "GTE,1", "LT,1", "LTE,1",
-    "BETWEEN,2", "IN,1", "IN,3", "IS_NULL,0", "IS_NOT_NULL,0"
+    "EQUAL,1",
+    "NOT_EQUAL,1",
+    "LIKE,1",
+    "GT,1",
+    "GTE,1",
+    "LT,1",
+    "LTE,1",
+    "BETWEEN,2",
+    "IN,1",
+    "IN,3",
+    "IS_NULL,0",
+    "IS_NOT_NULL,0"
   })
   void should_accept_the_number_of_values_an_operation_takes(SearchOperation operation, int count) {
     var values = Collections.nCopies(count, (Object) "x");
@@ -26,7 +36,14 @@ class SearchCriteriaTest {
 
   @ParameterizedTest(name = "{0} with {1} values")
   @CsvSource({
-    "EQUAL,0", "EQUAL,2", "LIKE,2", "GT,0", "BETWEEN,1", "BETWEEN,3", "IN,0", "IS_NULL,1",
+    "EQUAL,0",
+    "EQUAL,2",
+    "LIKE,2",
+    "GT,0",
+    "BETWEEN,1",
+    "BETWEEN,3",
+    "IN,0",
+    "IS_NULL,1",
     "IS_NOT_NULL,1"
   })
   void should_reject_a_number_of_values_the_operation_does_not_take(

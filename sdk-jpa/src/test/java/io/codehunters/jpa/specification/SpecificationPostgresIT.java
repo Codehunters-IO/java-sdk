@@ -52,10 +52,7 @@ class SpecificationPostgresIT {
   @Test
   void should_exclude_a_value() {
     assertFound(
-        search.where(SearchCriteria.of("status", NOT_EQUAL, "OPEN")),
-        "A-Ann",
-        "Promo 50%",
-        "a_b");
+        search.where(SearchCriteria.of("status", NOT_EQUAL, "OPEN")), "A-Ann", "Promo 50%", "a_b");
   }
 
   @Test
@@ -142,9 +139,19 @@ class SpecificationPostgresIT {
   }
 
   @Test
-  void should_not_restrict_when_there_are_no_criteria() {
+  void should_keep_rows_without_the_association_when_or_combining_a_nested_path() {
     assertFound(
-        search.allOf(List.of()), "A-Ann", "A-Max", "Promo 50%", "Promo 500", "a_b", "axb");
+        search.anyOf(
+            List.of(
+                SearchCriteria.of("customerName", EQUAL, "Max"),
+                SearchCriteria.of("ref", EQUAL, "axb"))),
+        "A-Max",
+        "axb");
+  }
+
+  @Test
+  void should_not_restrict_when_there_are_no_criteria() {
+    assertFound(search.allOf(List.of()), "A-Ann", "A-Max", "Promo 50%", "Promo 500", "a_b", "axb");
   }
 
   @Test
@@ -191,10 +198,7 @@ class SpecificationPostgresIT {
           seed(context);
 
           var found =
-              context
-                  .getBean(OrderRepository.class)
-                  .findAll(specification)
-                  .stream()
+              context.getBean(OrderRepository.class).findAll(specification).stream()
                   .map(Order::getReference)
                   .toList();
 
@@ -218,7 +222,6 @@ class SpecificationPostgresIT {
 
   private static Order order(
       String reference, OrderStatus status, String amount, String placedAt, Customer customer) {
-    return new Order(
-        reference, status, new BigDecimal(amount), Instant.parse(placedAt), customer);
+    return new Order(reference, status, new BigDecimal(amount), Instant.parse(placedAt), customer);
   }
 }

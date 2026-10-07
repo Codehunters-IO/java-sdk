@@ -1,15 +1,10 @@
 package io.codehunters.jpa.pagination;
 
-import java.util.Arrays;
-import java.util.Collections;
+import io.codehunters.jpa.internal.PropertyWhitelist;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -28,15 +23,10 @@ import org.springframework.data.domain.Sort;
  */
 public final class SortWhitelist {
 
-  private static final Pattern PROPERTY_PATH =
-      Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*");
-
   private final NavigableMap<String, String> properties;
 
   private SortWhitelist(Map<String, String> properties) {
-    require(!properties.isEmpty(), "the sort whitelist must not be empty");
-    properties.forEach(SortWhitelist::requireEntry);
-    this.properties = new TreeMap<>(properties);
+    this.properties = PropertyWhitelist.of(properties, "sort");
   }
 
   /**
@@ -47,9 +37,7 @@ public final class SortWhitelist {
    * @throws IllegalArgumentException if a property is not a property path
    */
   public static SortWhitelist of(String... properties) {
-    return of(
-        Arrays.stream(properties)
-            .collect(Collectors.toMap(Function.identity(), p -> p, (a, b) -> a)));
+    return of(PropertyWhitelist.identity(properties));
   }
 
   /**
@@ -69,7 +57,7 @@ public final class SortWhitelist {
    * @return the API names, sorted
    */
   public Set<String> allowed() {
-    return Collections.unmodifiableNavigableSet(properties.navigableKeySet());
+    return properties.navigableKeySet();
   }
 
   /**
@@ -104,15 +92,6 @@ public final class SortWhitelist {
         property != null, "sort property is not allowed; allowed: " + String.join(", ", allowed()));
     require(seen.add(property), "a sort property may appear only once");
     return order.withProperty(property);
-  }
-
-  private static void requireEntry(String name, String property) {
-    require(
-        name != null
-            && property != null
-            && PROPERTY_PATH.matcher(name).matches()
-            && PROPERTY_PATH.matcher(property).matches(),
-        "sort whitelist entries must be property paths such as customer.name");
   }
 
   private static void require(boolean condition, String message) {
