@@ -96,4 +96,10 @@ class SearchCriteriaTest {
     assertThat(SearchCriteria.of("amount", SearchOperation.BETWEEN, 10, 20).values())
         .isEqualTo(Arrays.asList(10, 20));
   }
+
+  @Test
+  void should_reject_a_missing_values_array() {
+    assertThatThrownBy(() -> SearchCriteria.of("status", SearchOperation.IS_NULL, (Object[]) null))
+        .isInstanceOf(InvalidSearchException.class);
+  }
 }

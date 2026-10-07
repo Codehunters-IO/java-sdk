@@ -92,4 +92,15 @@ class SortWhitelistTest {
     assertThatThrownBy(() -> SortWhitelist.of(Map.of()))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void should_reject_a_missing_whitelist_or_a_missing_property() {
+    var missingProperty = new java.util.HashMap<String, String>();
+    missingProperty.put("created", null);
+
+    assertThatThrownBy(() -> SortWhitelist.of((Map<String, String>) null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> SortWhitelist.of(missingProperty))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 }

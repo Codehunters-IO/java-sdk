@@ -100,6 +100,8 @@ class PageResponseTest {
   void should_reject_a_sort_order_without_property_or_direction() {
     assertThatThrownBy(() -> new SortOrder(" ", Direction.ASC))
         .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new SortOrder(null, Direction.ASC))
+        .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> new SortOrder("reference", null))
         .isInstanceOf(IllegalArgumentException.class);
   }
