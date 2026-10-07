@@ -83,6 +83,42 @@ class ClientContextResolverTest {
   }
 
   @Test
+  void should_answer_unknown_and_keep_the_ip_when_the_parser_throws() {
+    var failing =
+        new ClientContextResolver(
+            ipResolver(),
+            header -> {
+              throw new IllegalStateException("boom");
+            },
+            16);
+    var request = request("198.51.100.4");
+    request.addHeader("User-Agent", "Mozilla/5.0");
+
+    var context = failing.resolve(request);
+
+    assertThat(context.userAgent()).isEqualTo(UserAgentInfo.UNKNOWN);
+    assertThat(context.ipAddress()).contains("198.51.100.4");
+  }
+
+  @Test
+  void should_answer_unknown_when_the_parser_returns_null() {
+    var nullParser = new ClientContextResolver(ipResolver(), header -> null, 16);
+    var request = request("198.51.100.4");
+    request.addHeader("User-Agent", "Mozilla/5.0");
+
+    assertThat(nullParser.resolve(request).userAgent()).isEqualTo(UserAgentInfo.UNKNOWN);
+  }
+
+  @Test
+  void should_resolve_nothing_when_the_bound_request_has_completed() {
+    var attributes = new ServletRequestAttributes(request("198.51.100.4"));
+    attributes.requestCompleted();
+    RequestContextHolder.setRequestAttributes(attributes);
+
+    assertThat(resolver.current()).isEmpty();
+  }
+
+  @Test
   void should_resolve_nothing_when_no_request_is_bound_to_the_thread() {
     assertThat(resolver.current()).isEmpty();
   }
@@ -105,6 +141,10 @@ class ClientContextResolverTest {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new ClientContextResolver(null, header -> CHROME, 16))
         .withMessage("ip resolver and user agent parser must not be null");
+  }
+
+  private static ClientIpResolver ipResolver() {
+    return new ClientIpResolver(TrustedProxies.of(List.of()), ForwardingHeader.X_FORWARDED_FOR);
   }
 
   private static MockHttpServletRequest request(String remoteAddress) {

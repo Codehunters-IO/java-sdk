@@ -16,4 +16,5 @@ dependencies {
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation(libs.uap.java)
     testImplementation(libs.archunit.junit5)
+    testImplementation("org.awaitility:awaitility")
 }
