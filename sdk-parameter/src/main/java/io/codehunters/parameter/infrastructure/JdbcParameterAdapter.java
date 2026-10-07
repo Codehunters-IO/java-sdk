@@ -87,7 +87,8 @@ public class JdbcParameterAdapter implements ParameterClient {
     String sql =
         select + " WHERE module = :module" + submoduleFilter + ENABLED_FILTER + " ORDER BY name";
     return execute(
-        () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list(), "findByModule");
+        () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list().stream().toList(),
+        "findByModule");
   }
 
   @Override
@@ -100,7 +101,8 @@ public class JdbcParameterAdapter implements ParameterClient {
     params.put("modules", modules.stream().map(ParameterModule::code).toList());
     params.put("enabled", Boolean.TRUE);
     return execute(
-        () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list(), "findByModules");
+        () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list().stream().toList(),
+        "findByModules");
   }
 
   @Override
@@ -117,7 +119,7 @@ public class JdbcParameterAdapter implements ParameterClient {
     Map<String, Object> params = baseParams(module);
     params.put("submodules", submodules.stream().map(JdbcParameterAdapter::normalize).toList());
     return execute(
-        () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list(),
+        () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list().stream().toList(),
         "findByModuleAndSubmodules");
   }
 
