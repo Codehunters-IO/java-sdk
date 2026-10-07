@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import net.sf.jasperreports.engine.JREmptyDataSource;
-import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
+import net.sf.jasperreports.engine.JRRewindableDataSource;
 import org.junit.jupiter.api.Test;
 
 class ReportDataTest {
@@ -19,9 +19,13 @@ class ReportDataTest {
   }
 
   @Test
-  void should_open_a_bean_source_over_the_rows() {
-    assertThat(ReportData.beans(List.of("a")).open())
-        .isInstanceOf(JRBeanCollectionDataSource.class);
+  void should_open_a_rewindable_source_over_the_rows() throws Exception {
+    var source = (JRRewindableDataSource) ReportData.beans(List.of("a")).open();
+
+    assertThat(source.next()).isTrue();
+    assertThat(source.next()).isFalse();
+    source.moveFirst();
+    assertThat(source.next()).isTrue();
   }
 
   @Test

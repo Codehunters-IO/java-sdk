@@ -53,6 +53,41 @@ class JasperReportRendererTest {
     assertThat(csv).contains("Begoña", "7");
   }
 
+  record Customer(String name) {}
+
+  record OrderRecord(String name, Integer amount, Customer customer) {}
+
+  @Test
+  void should_read_fields_from_record_components() {
+    var request =
+        orders(ReportFormat.PDF)
+            .withData(ReportData.beans(List.of(new OrderRecord("Eva", 3, new Customer("ACME")))));
+
+    assertThat(Documents.pdfText(renderer.toBytes(request))).contains("Eva", "3");
+  }
+
+  @Test
+  void should_read_nested_record_components_through_a_dotted_field() {
+    var request =
+        ReportRequest.of("customers.jrxml", ReportFormat.CSV)
+            .withData(ReportData.beans(List.of(new OrderRecord("Eva", 3, new Customer("ACME")))));
+
+    assertThat(new String(renderer.toBytes(request), StandardCharsets.UTF_8)).contains("ACME");
+  }
+
+  @Test
+  void should_fail_without_values_when_a_record_lacks_a_field() {
+    var request =
+        ReportRequest.of("orders.jrxml", ReportFormat.PDF)
+            .withData(ReportData.beans(List.of(new Customer("SECRET-CO"))));
+
+    assertThatThrownBy(() -> renderer.toBytes(request))
+        .isInstanceOf(ReportException.class)
+        .hasMessage("report orders.jrxml could not be filled")
+        .rootCause()
+        .hasMessageNotContaining("SECRET-CO");
+  }
+
   @Test
   void should_fill_from_a_supplied_data_source() {
     var request =
