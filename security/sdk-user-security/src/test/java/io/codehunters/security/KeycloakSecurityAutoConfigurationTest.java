@@ -8,7 +8,8 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.ManagementWebSecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
-import org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration;
+import org.springframework.boot.security.oauth2.server.resource.autoconfigure.web.OAuth2ResourceServerWebSecurityAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -153,7 +154,8 @@ class KeycloakSecurityAutoConfigurationTest {
             AutoConfigurations.of(
                 SecurityAutoConfiguration.class,
                 ServletWebSecurityAutoConfiguration.class,
-                OAuth2ResourceServerAutoConfiguration.class))
+                OAuth2ResourceServerAutoConfiguration.class,
+                OAuth2ResourceServerWebSecurityAutoConfiguration.class))
         .run(
             context -> {
               assertThat(context).hasNotFailed();
