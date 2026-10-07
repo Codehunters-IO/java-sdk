@@ -26,7 +26,10 @@ class RelativeTimeTest {
     "-604800, 1 week ago",
     "-2591999, 4 weeks ago",
     "-2592000, 1 month ago",
-    "-31535999, 12 months ago",
+    "-28511999, 10 months ago",
+    "-28512000, 11 months ago",
+    "-31104000, 11 months ago",
+    "-31535999, 11 months ago",
     "-31536000, 1 year ago",
     "-94608000, 3 years ago",
     "7200, in 2 hours",
@@ -62,6 +65,20 @@ class RelativeTimeTest {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () -> new RelativeTime(-1, RelativeTime.Unit.DAYS, RelativeTime.Direction.PAST));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"0, MINUTES", "5, NOW"})
+  void should_reject_amount_inconsistent_with_unit(long amount, RelativeTime.Unit unit) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new RelativeTime(amount, unit, RelativeTime.Direction.PAST))
+        .withMessage("amount must be zero exactly when unit is NOW");
+  }
+
+  @Test
+  void should_accept_zero_amount_for_now() {
+    assertThat(new RelativeTime(0, RelativeTime.Unit.NOW, RelativeTime.Direction.PAST).toEnglish())
+        .isEqualTo("just now");
   }
 
   @Test
