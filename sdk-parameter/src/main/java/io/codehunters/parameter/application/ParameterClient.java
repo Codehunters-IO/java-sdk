@@ -8,10 +8,11 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Read-only client for the parameters table owned by {@code vitxo-ms-managment}. Implementations
- * query the database directly through JDBC; consumers must supply a {@link javax.sql.DataSource}.
+ * Read-only client for the shared parameters table. Implementations query the database directly
+ * through JDBC; consumers must supply a {@link javax.sql.DataSource}.
  *
- * <p>All operations return only enabled, non-deleted rows.
+ * <p>All operations return only enabled, non-deleted rows. A blank submodule is treated as the
+ * empty submodule.
  */
 public interface ParameterClient {
 
@@ -56,7 +57,9 @@ public interface ParameterClient {
    *
    * @param module the owning module
    * @param submodule the submodule filter; {@code null} returns all submodules
-   * @return an immutable map keyed by parameter name
+   * @return an unmodifiable map keyed by parameter name, in name order; values may be {@code null}
+   * @throws io.codehunters.parameter.domain.exception.ParameterException if two rows share a name,
+   *     which happens when {@code submodule} is {@code null} and a name exists in two submodules
    */
   Map<String, String> asMap(ParameterModule module, String submodule);
 
@@ -65,7 +68,9 @@ public interface ParameterClient {
    *
    * @param module the owning module
    * @param submodule the submodule filter; {@code null} returns all submodules
-   * @return an immutable map keyed by parameter name
+   * @return an unmodifiable map keyed by parameter name, in name order
+   * @throws io.codehunters.parameter.domain.exception.ParameterException if two rows share a name,
+   *     which happens when {@code submodule} is {@code null} and a name exists in two submodules
    */
   Map<String, Parameter> asMapByName(ParameterModule module, String submodule);
 }

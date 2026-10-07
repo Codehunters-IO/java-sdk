@@ -7,15 +7,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.RowMapper;
 
 /**
  * Maps a {@code parameters} table row into a {@link Parameter}. Any module code is accepted; an
  * unknown {@code type} is logged and surfaced as {@code null} rather than failing the query.
  */
-@Slf4j
 final class ParameterRowMapper implements RowMapper<Parameter> {
+
+  private static final Logger log = LoggerFactory.getLogger(ParameterRowMapper.class);
 
   @Override
   public Parameter mapRow(ResultSet rs, int rowNum) throws SQLException {
