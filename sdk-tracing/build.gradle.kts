@@ -1,4 +1,8 @@
-version = "0.2.3"
+plugins {
+    id("codehunters.java-library")
+}
+
+version = "1.0.0"
 description = "Trace id propagation across HTTP, async tasks and RabbitMQ through the MDC."
 
 dependencies {
@@ -6,7 +10,6 @@ dependencies {
     compileOnly("org.springframework:spring-web")
     compileOnly("org.springframework:spring-context")
     compileOnly("org.springframework.amqp:spring-rabbit")
-    compileOnly("org.aspectj:aspectjweaver")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
     compileOnly("org.slf4j:slf4j-api")
     compileOnly("tools.jackson.core:jackson-databind")
@@ -17,4 +20,6 @@ dependencies {
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation("org.mockito:mockito-core")
     testImplementation("tools.jackson.core:jackson-databind")
+    testImplementation("org.springframework:spring-test")
+    testImplementation("org.springframework.boot:spring-boot-test")
 }

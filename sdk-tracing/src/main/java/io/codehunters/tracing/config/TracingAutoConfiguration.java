@@ -4,11 +4,13 @@ import io.codehunters.tracing.MdcTaskDecorator;
 import io.codehunters.tracing.MdcTraceContextAdapter;
 import io.codehunters.tracing.TraceContextPort;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
-/** Core tracing auto-configuration: the MDC-backed trace context port and task decorator. */
+/** Core tracing beans: the MDC-backed {@link TraceContextPort} and the MDC task decorator. */
 @AutoConfiguration
+@ConditionalOnBooleanProperty(name = "codehunters.tracing.enabled", matchIfMissing = true)
 public class TracingAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
@@ -26,7 +28,8 @@ public class TracingAutoConfiguration {
   }
 
   /**
-   * Provides a task decorator that propagates MDC across threads.
+   * Provides a task decorator that propagates the MDC to async tasks; Spring Boot applies a single
+   * {@code TaskDecorator} bean to its task executors.
    *
    * @return an {@link MdcTaskDecorator}
    */

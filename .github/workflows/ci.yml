@@ -4,12 +4,17 @@ on:
   push:
     branches:
       - 'feature/**'
+      - 'fix/**'
+      - 'refactor/**'
       - 'bugfix/**'
       - 'hotfix/**'
+      - 'chore/**'
+      - 'docs/**'
   pull_request:
     branches:
-      - develop
+      - master
       - main
+      - develop
 
 permissions:
   contents: read
@@ -31,7 +36,10 @@ jobs:
           java-version: '21'
 
       - name: Build, test, coverage, format check
-        run: ./gradlew build --scan
+        run: ./gradlew build
+
+      - name: Build-logic plugin tests
+        run: ./gradlew -p build-logic test
 
       - name: SonarCloud scan
         if: ${{ env.SONAR_TOKEN != '' }}

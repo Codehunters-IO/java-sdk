@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport name="orders" language="java" pageWidth="595" pageHeight="842" columnWidth="555"
+    leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+  <parameter name="title" class="java.lang.String"/>
+  <field name="name" class="java.lang.String"/>
+  <field name="amount" class="java.lang.Integer"/>
+  <title height="30">
+    <element kind="textField" x="0" y="0" width="555" height="30">
+      <expression><![CDATA[$P{title}]]></expression>
+    </element>
+  </title>
+  <detail>
+    <band height="20">
+      <element kind="textField" x="0" y="0" width="300" height="20">
+        <expression><![CDATA[$F{name}]]></expression>
+      </element>
+      <element kind="textField" x="300" y="0" width="255" height="20">
+        <expression><![CDATA[$F{amount}]]></expression>
+      </element>
+    </band>
+  </detail>
+</jasperReport>

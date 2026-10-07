@@ -1,5 +1,8 @@
 package io.codehunters.audit;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -8,6 +11,8 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 @Configuration
 @EnableAspectJAutoProxy(proxyTargetClass = true)
 class TestConfig {
+
+  static final Instant NOW = Instant.parse("2026-10-06T12:00:00Z");
 
   @Bean
   AuditEventPublisherPort auditEventPublisher() {
@@ -56,7 +61,7 @@ class TestConfig {
 
   @Bean
   AuditAspect auditAspect(AuditEventPublisherPort publisher, AuditContextProvider contextProvider) {
-    return new AuditAspect(publisher, contextProvider);
+    return new AuditAspect(publisher, contextProvider, Clock.fixed(NOW, ZoneOffset.UTC));
   }
 
   @Bean

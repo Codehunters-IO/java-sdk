@@ -2,30 +2,50 @@ package io.codehunters.i18n.config;
 
 import io.codehunters.i18n.LocaleMdcFilter;
 import io.codehunters.i18n.XLocaleAwareLocaleResolver;
-import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.DispatcherType;
+import java.util.stream.Stream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
+import org.springframework.boot.autoconfigure.condition.SearchStrategy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.core.Ordered;
-import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
+import org.springframework.core.env.Environment;
+import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.LocaleResolver;
 
 /**
- * Spring Boot auto-configuration for internationalization: message source, locale resolver, the
- * locale-to-MDC filter and a message-aware bean validator.
+ * Spring Boot auto-configuration for internationalization, in two independent parts: the message
+ * source and the servlet locale resolver with its locale-to-MDC filter. Bean validation needs no
+ * part of its own: Boot's validator resolves {@code {key}} messages through this message source.
+ * Runs before Boot's message source and Web MVC auto-configurations, so the {@code
+ * codehunters.i18n.*} settings take precedence: while this SDK provides the {@code messageSource}
+ * bean, {@code spring.messages.*} is ignored. Set {@code codehunters.i18n.enabled=false} or declare
+ * a bean named {@code messageSource} to use Boot's.
  */
-@AutoConfiguration(before = WebMvcAutoConfiguration.class)
+@AutoConfiguration(
+    beforeName = {
+      "org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration",
+      "org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration"
+    })
+@ConditionalOnBooleanProperty(name = "codehunters.i18n.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(I18nProperties.class)
 public class I18nAutoConfiguration {
 
   /**
-   * Filter order: just after {@code TraceIdFilter} (which uses {@link Ordered#HIGHEST_PRECEDENCE}).
+   * Filter order: after the tracing filter, which runs near {@link Ordered#HIGHEST_PRECEDENCE}.
    * Both filters write to MDC; locale piggybacks on the same async-propagation mechanism.
    */
   public static final int LOCALE_MDC_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
@@ -33,67 +53,70 @@ public class I18nAutoConfiguration {
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public I18nAutoConfiguration() {}
 
-  /**
-   * Provides the reloadable resource-bundle message source.
-   *
-   * @param properties the i18n configuration
-   * @return a {@link MessageSource}
-   */
-  @Bean
-  @ConditionalOnMissingBean
-  public MessageSource messageSource(I18nProperties properties) {
-    var bean = new ReloadableResourceBundleMessageSource();
-    bean.setBasename(properties.getBasename());
-    bean.setDefaultEncoding(properties.getEncoding());
-    bean.setDefaultLocale(properties.getDefaultLocale());
-    bean.setFallbackToSystemLocale(properties.isFallbackToSystemLocale());
-    return bean;
+  @Configuration(proxyBeanMethods = false)
+  static class MessageSourceConfiguration {
+
+    private static final Logger LOG = LoggerFactory.getLogger(I18nAutoConfiguration.class);
+
+    @Bean
+    @ConditionalOnMissingBean(
+        name = AbstractApplicationContext.MESSAGE_SOURCE_BEAN_NAME,
+        search = SearchStrategy.CURRENT)
+    MessageSource messageSource(I18nProperties properties, Environment environment) {
+      warnWhenBootMessagesAreConfigured(environment);
+      var bean = new ReloadableResourceBundleMessageSource();
+      bean.setBasenames(properties.basename().toArray(String[]::new));
+      bean.setDefaultEncoding(properties.encoding().name());
+      bean.setDefaultLocale(properties.defaultLocale());
+      bean.setFallbackToSystemLocale(properties.fallbackToSystemLocale());
+      return bean;
+    }
+
+    private static void warnWhenBootMessagesAreConfigured(Environment environment) {
+      if (environment.containsProperty("spring.messages.basename")) {
+        LOG.warn(
+            "spring.messages.* is ignored: the message source is configured by codehunters.i18n.*");
+      }
+    }
   }
 
-  /**
-   * Provides the header-aware locale resolver.
-   *
-   * @param properties the i18n configuration
-   * @return a {@link LocaleResolver}
-   */
-  @Bean
-  @ConditionalOnClass(HttpServletRequest.class)
-  @ConditionalOnMissingBean
-  public LocaleResolver localeResolver(I18nProperties properties) {
-    return new XLocaleAwareLocaleResolver(
-        properties.getDefaultLocale(), properties.getHeaderName());
-  }
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnWebApplication(type = Type.SERVLET)
+  @ConditionalOnClass({LocaleResolver.class, FilterRegistrationBean.class})
+  static class ServletConfiguration {
 
-  /**
-   * Registers the filter that copies the resolved locale into the MDC.
-   *
-   * @param localeResolver the locale resolver
-   * @return the filter registration
-   */
-  @Bean
-  @ConditionalOnClass(HttpServletRequest.class)
-  @ConditionalOnMissingBean(name = "localeMdcFilterRegistration")
-  public FilterRegistrationBean<LocaleMdcFilter> localeMdcFilterRegistration(
-      LocaleResolver localeResolver) {
-    FilterRegistrationBean<LocaleMdcFilter> registration =
-        new FilterRegistrationBean<>(new LocaleMdcFilter(localeResolver));
-    registration.addUrlPatterns("/*");
-    registration.setOrder(LOCALE_MDC_FILTER_ORDER);
-    registration.setName("localeMdcFilter");
-    return registration;
-  }
+    private static final Logger LOG = LoggerFactory.getLogger(I18nAutoConfiguration.class);
 
-  /**
-   * Provides a bean validator that resolves constraint messages from the message source.
-   *
-   * @param messageSource the message source
-   * @return a {@link LocalValidatorFactoryBean}
-   */
-  @Bean
-  @ConditionalOnMissingBean
-  public LocalValidatorFactoryBean validatorFactoryBean(MessageSource messageSource) {
-    var validator = new LocalValidatorFactoryBean();
-    validator.setValidationMessageSource(messageSource);
-    return validator;
+    @Bean
+    @ConditionalOnMissingBean(name = DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME)
+    LocaleResolver localeResolver(I18nProperties properties, Environment environment) {
+      warnWhenBootLocaleIsConfigured(environment);
+      return new XLocaleAwareLocaleResolver(
+          properties.defaultLocale(), properties.headerName(), properties.supportedLocales());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(name = "localeMdcFilterRegistration")
+    FilterRegistrationBean<LocaleMdcFilter> localeMdcFilterRegistration(
+        @Qualifier(DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME) LocaleResolver localeResolver) {
+      var registration = new FilterRegistrationBean<>(new LocaleMdcFilter(localeResolver));
+      registration.addUrlPatterns("/*");
+      registration.setOrder(LOCALE_MDC_FILTER_ORDER);
+      registration.setName("localeMdcFilter");
+      registration.setDispatcherTypes(
+          DispatcherType.REQUEST, DispatcherType.ASYNC, DispatcherType.ERROR);
+      return registration;
+    }
+
+    private static void warnWhenBootLocaleIsConfigured(Environment environment) {
+      Stream.of("spring.web.locale", "spring.web.locale-resolver")
+          .filter(environment::containsProperty)
+          .forEach(
+              key ->
+                  LOG.warn(
+                      "{} is ignored: the locale is resolved by codehunters.i18n.* from request"
+                          + " headers",
+                      key));
+    }
   }
 }

@@ -81,6 +81,56 @@ class ParameterTest {
   }
 
   @Test
+  void should_reject_a_boolean_that_is_neither_true_nor_false() {
+    Parameter p = build("yes", ParameterType.BOOLEAN);
+    assertThatThrownBy(p::asBoolean).isInstanceOf(ParameterTypeMismatchException.class);
+  }
+
+  @Test
+  void should_read_a_boolean_ignoring_case_and_surrounding_spaces() {
+    assertThat(build(" False ", ParameterType.BOOLEAN).asBoolean()).isFalse();
+  }
+
+  @Test
+  void should_report_a_mismatch_when_a_long_value_is_null() {
+    Parameter p = build(null, ParameterType.INTEGER);
+    assertThatThrownBy(p::asLong).isInstanceOf(ParameterTypeMismatchException.class);
+  }
+
+  @Test
+  void should_report_a_mismatch_when_a_decimal_value_is_null() {
+    Parameter p = build(null, ParameterType.DECIMAL);
+    assertThatThrownBy(p::asBigDecimal).isInstanceOf(ParameterTypeMismatchException.class);
+  }
+
+  @Test
+  void should_report_a_mismatch_when_a_boolean_value_is_null() {
+    Parameter p = build(null, ParameterType.BOOLEAN);
+    assertThatThrownBy(p::asBoolean).isInstanceOf(ParameterTypeMismatchException.class);
+  }
+
+  @Test
+  void should_report_a_mismatch_when_the_declared_type_is_unknown() {
+    Parameter p = build("hello", null);
+    assertThatThrownBy(p::asString).isInstanceOf(ParameterTypeMismatchException.class);
+  }
+
+  @Test
+  void should_report_a_mismatch_when_an_integer_overflows() {
+    Parameter p = build("3000000000", ParameterType.INTEGER);
+    assertThatThrownBy(p::asInteger).isInstanceOf(ParameterTypeMismatchException.class);
+  }
+
+  @Test
+  void should_name_the_parameter_without_its_value_when_parsing_fails() {
+    Parameter p = build("secret-42x", ParameterType.INTEGER);
+    assertThatThrownBy(p::asLong)
+        .hasMessageContaining("MAX")
+        .hasMessageNotContaining("secret-42x")
+        .hasNoCause();
+  }
+
+  @Test
   void value_returns_raw_JSON_string_for_consumer_parsing() {
     Parameter p = build("{\"k\":\"v\"}", ParameterType.JSON);
     assertThat(p.value()).isEqualTo("{\"k\":\"v\"}");

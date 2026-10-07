@@ -1,0 +1,46 @@
+[versions]
+spring-boot = "4.1.1"
+keycloak = "26.0.12"
+lombok = "1.18.38"
+shedlock = "7.2.0"
+google-java-format = "1.28.0"
+spotless = "8.1.0"
+sonarqube = "7.1.0.6387"
+junit = "6.0.3"
+archunit = "1.5.1"
+uap-java = "1.6.1"
+zxing = "3.5.4"
+jasperreports = "7.0.8"
+pdfbox = "3.0.8"
+openpdf = "1.3.43"
+jackson2 = "2.21.7"
+jackson3 = "3.1.7"
+tomcat = "11.0.26"
+
+[libraries]
+spring-boot-dependencies = { module = "org.springframework.boot:spring-boot-dependencies", version.ref = "spring-boot" }
+keycloak-authz-client = { module = "org.keycloak:keycloak-authz-client", version.ref = "keycloak" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
+shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
+shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+jasperreports = { module = "net.sf.jasperreports:jasperreports", version.ref = "jasperreports" }
+jasperreports-pdf = { module = "net.sf.jasperreports:jasperreports-pdf", version.ref = "jasperreports" }
+jasperreports-jdt = { module = "net.sf.jasperreports:jasperreports-jdt", version.ref = "jasperreports" }
+jackson2-bom = { module = "com.fasterxml.jackson:jackson-bom", version.ref = "jackson2" }
+jackson3-bom = { module = "tools.jackson:jackson-bom", version.ref = "jackson3" }
+tomcat-embed-core = { module = "org.apache.tomcat.embed:tomcat-embed-core", version.ref = "tomcat" }
+jackson2-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson2" }
+jackson2-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson2" }
+jackson2-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-xml", version.ref = "jackson2" }
+openpdf = { module = "com.github.librepdf:openpdf", version.ref = "openpdf" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+uap-java = { module = "com.github.ua-parser:uap-java", version.ref = "uap-java" }
+archunit-junit5 = { module = "com.tngtech.archunit:archunit-junit5", version.ref = "archunit" }
+spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
+
+[plugins]
+sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }

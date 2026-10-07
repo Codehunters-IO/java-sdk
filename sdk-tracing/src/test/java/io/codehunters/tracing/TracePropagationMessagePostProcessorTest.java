@@ -2,95 +2,107 @@ package io.codehunters.tracing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
-import tools.jackson.databind.json.JsonMapper;
 
 class TracePropagationMessagePostProcessorTest {
 
-  private static final String MDC_TRACE_ID = "traceId";
-  private static final String MDC_SPAN_ID = "spanId";
+  private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+  private static final String SPAN_ID = "00f067aa0ba902b7";
 
-  private final JsonMapper jsonMapper = JsonMapper.builder().build();
-  private TracePropagationMessagePostProcessor processor;
+  private final TracePropagationMessagePostProcessor processor =
+      new TracePropagationMessagePostProcessor();
 
   @BeforeEach
-  void setUp() {
-    processor = new TracePropagationMessagePostProcessor(jsonMapper);
-    MDC.clear();
-  }
-
   @AfterEach
-  void tearDown() {
+  void clearMdc() {
     MDC.clear();
   }
 
-  private Message message(String body) {
-    return new Message(body == null ? new byte[0] : body.getBytes(), new MessageProperties());
+  @Test
+  void should_write_w3c_and_legacy_headers_from_mdc() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+    MDC.put(TraceHeaders.MDC_SPAN_ID, SPAN_ID);
+    MDC.put(TraceHeaders.MDC_TRACE_FLAGS, "00");
+
+    MessageProperties headers = process(message("{}")).getMessageProperties();
+
+    String expected = "00-" + TRACE_ID + "-" + SPAN_ID + "-00";
+    assertThat((String) headers.getHeader(TraceHeaders.TRACEPARENT)).isEqualTo(expected);
+    assertThat((String) headers.getHeader(TraceHeaders.LEGACY_TRACEPARENT)).isEqualTo(expected);
+    assertThat((String) headers.getHeader(TraceHeaders.TRACE_ID)).isEqualTo(TRACE_ID);
+    assertThat((String) headers.getHeader(TraceHeaders.SPAN_ID)).isEqualTo(SPAN_ID);
   }
 
   @Test
-  @DisplayName("should_propagate_mdc_traceId_when_present")
-  void should_propagate_mdc_traceId() {
-    MDC.put(MDC_TRACE_ID, "11111111111111111111111111111111");
-    MDC.put(MDC_SPAN_ID, "2222222222222222");
-    Message msg = message("{}");
+  void should_keep_traceparent_already_on_message() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, "a".repeat(32));
+    MDC.put(TraceHeaders.MDC_SPAN_ID, SPAN_ID);
+    Message message = message("{}");
+    String existing = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
+    message.getMessageProperties().setHeader(TraceHeaders.TRACEPARENT, existing);
 
-    Message out = processor.postProcessMessage(msg);
+    MessageProperties headers = process(message).getMessageProperties();
 
-    assertThat((String) out.getMessageProperties().getHeader("x-trace-id"))
-        .isEqualTo("11111111111111111111111111111111");
-    assertThat((String) out.getMessageProperties().getHeader("x-span-id"))
-        .isEqualTo("2222222222222222");
-    assertThat((String) out.getMessageProperties().getHeader("x-traceparent"))
-        .isEqualTo("00-11111111111111111111111111111111-2222222222222222-01");
+    assertThat((String) headers.getHeader(TraceHeaders.TRACEPARENT)).isEqualTo(existing);
   }
 
   @Test
-  @DisplayName("should_extract_traceId_from_body_when_mdc_empty")
-  void should_extract_traceId_from_body() {
-    Message msg = message("{\"header\":{\"traceId\":\"body-trace-id\"}}");
+  void should_use_trace_id_from_event_envelope_when_mdc_empty() {
+    MessageProperties headers =
+        process(message("{\"header\":{\"traceId\":\"" + TRACE_ID + "\"}}")).getMessageProperties();
 
-    Message out = processor.postProcessMessage(msg);
-
-    assertThat((String) out.getMessageProperties().getHeader("x-trace-id"))
-        .isEqualTo("body-trace-id");
-    assertThat((String) out.getMessageProperties().getHeader("x-span-id")).hasSize(16);
+    assertThat((String) headers.getHeader(TraceHeaders.TRACE_ID)).isEqualTo(TRACE_ID);
   }
 
   @Test
-  @DisplayName("should_generate_traceId_when_mdc_and_body_missing")
-  void should_generate_traceId_when_nothing_known() {
-    Message msg = message("{}");
+  void should_generate_trace_when_envelope_trace_id_is_not_w3c() {
+    MessageProperties headers =
+        process(message("{\"header\":{\"traceId\":\"4bf92f35-77b3-4da6-a3ce-929d0e0e4736\"}}"))
+            .getMessageProperties();
 
-    Message out = processor.postProcessMessage(msg);
-
-    assertThat((String) out.getMessageProperties().getHeader("x-trace-id")).hasSize(32);
-    assertThat((String) out.getMessageProperties().getHeader("x-span-id")).hasSize(16);
+    assertThat((String) headers.getHeader(TraceHeaders.TRACE_ID)).matches("[0-9a-f]{32}");
   }
 
   @Test
-  @DisplayName("should_generate_traceId_when_body_parse_fails")
-  void should_generate_traceId_when_body_invalid_json() {
-    Message msg = message("not-json");
+  void should_generate_trace_when_body_is_not_json() {
+    MessageProperties headers = process(message("not json")).getMessageProperties();
 
-    Message out = processor.postProcessMessage(msg);
-
-    assertThat((String) out.getMessageProperties().getHeader("x-trace-id")).hasSize(32);
+    assertThat(TraceParent.parse(headers.getHeader(TraceHeaders.TRACEPARENT))).isPresent();
   }
 
   @Test
-  @DisplayName("should_generate_traceId_when_body_has_null_traceId")
-  void should_generate_when_body_traceId_null() {
-    Message msg = message("{\"header\":{\"traceId\":null}}");
+  void should_keep_mdc_trace_id_when_span_id_is_missing() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
 
-    Message out = processor.postProcessMessage(msg);
+    MessageProperties headers = process(message("{}")).getMessageProperties();
 
-    assertThat((String) out.getMessageProperties().getHeader("x-trace-id")).hasSize(32);
+    assertThat((String) headers.getHeader(TraceHeaders.TRACE_ID)).isEqualTo(TRACE_ID);
+  }
+
+  @Test
+  void should_keep_traceparent_sent_with_different_case_or_as_bytes() {
+    Message message = message("{}");
+    String existing = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
+    message
+        .getMessageProperties()
+        .setHeader("Traceparent", existing.getBytes(StandardCharsets.UTF_8));
+
+    MessageProperties headers = process(message).getMessageProperties();
+
+    assertThat((String) headers.getHeader(TraceHeaders.TRACEPARENT)).isEqualTo(existing);
+  }
+
+  private Message process(Message message) {
+    return processor.postProcessMessage(message);
+  }
+
+  private static Message message(String body) {
+    return new Message(body.getBytes(StandardCharsets.UTF_8), new MessageProperties());
   }
 }

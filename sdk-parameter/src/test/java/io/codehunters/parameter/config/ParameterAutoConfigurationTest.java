@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.codehunters.parameter.application.ParameterClient;
 import io.codehunters.parameter.domain.model.Parameter;
 import io.codehunters.parameter.domain.model.ParameterModule;
+import io.codehunters.parameter.infrastructure.CachingParameterClient;
+import io.codehunters.parameter.infrastructure.JdbcParameterAdapter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +16,7 @@ import javax.sql.DataSource;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -65,6 +68,83 @@ class ParameterAutoConfigurationTest {
                   .isSameAs(CustomJdbcClientConfig.CUSTOM_INSTANCE);
             });
   }
+
+  @Test
+  void should_keep_the_application_jdbc_client_as_the_only_autowire_candidate() {
+    JdbcClient appClient = JdbcClient.create(new EmbeddedDataSourceConfig().dataSource());
+    runner
+        .withBean("appJdbcClient", JdbcClient.class, () -> appClient)
+        .withBean(JdbcClientConsumer.class)
+        .run(ctx -> assertThat(ctx.getBean(JdbcClientConsumer.class).client()).isSameAs(appClient));
+  }
+
+  @Test
+  void should_back_off_when_disabled() {
+    runner
+        .withPropertyValues("codehunters.parameter.enabled=false")
+        .run(ctx -> assertThat(ctx).doesNotHaveBean(ParameterClient.class));
+  }
+
+  @Test
+  void should_back_off_when_two_data_sources_have_no_primary() {
+    runner
+        .withBean("second", DataSource.class, () -> new EmbeddedDataSourceConfig().dataSource())
+        .run(ctx -> assertThat(ctx).hasNotFailed().doesNotHaveBean(ParameterClient.class));
+  }
+
+  @Test
+  void should_read_without_cache_by_default() {
+    runner.run(
+        ctx ->
+            assertThat(ctx.getBean(ParameterClient.class))
+                .isInstanceOf(JdbcParameterAdapter.class));
+  }
+
+  @Test
+  void should_cache_when_a_ttl_is_configured() {
+    runner
+        .withPropertyValues("codehunters.parameter.cache-ttl=5m")
+        .run(
+            ctx ->
+                assertThat(ctx.getBean(ParameterClient.class))
+                    .isInstanceOf(CachingParameterClient.class));
+  }
+
+  @Test
+  void should_read_without_cache_when_the_cache_ttl_is_empty() {
+    runner
+        .withPropertyValues("codehunters.parameter.cache-ttl=")
+        .run(
+            ctx ->
+                assertThat(ctx.getBean(ParameterClient.class))
+                    .isInstanceOf(JdbcParameterAdapter.class));
+  }
+
+  @Test
+  void should_fail_startup_on_a_negative_cache_ttl() {
+    runner
+        .withPropertyValues("codehunters.parameter.cache-ttl=-1s")
+        .run(ctx -> assertThat(ctx).hasFailed());
+  }
+
+  @Test
+  void should_fail_startup_on_a_table_name_that_is_not_an_identifier() {
+    runner
+        .withPropertyValues("codehunters.parameter.table-name=parameters;drop")
+        .run(ctx -> assertThat(ctx).hasFailed());
+  }
+
+  @Test
+  void should_start_with_boot_data_source_auto_configuration() {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                DataSourceAutoConfiguration.class, ParameterAutoConfiguration.class))
+        .withPropertyValues("spring.datasource.url=jdbc:h2:mem:boot-" + UUID.randomUUID())
+        .run(ctx -> assertThat(ctx).hasSingleBean(ParameterClient.class));
+  }
+
+  record JdbcClientConsumer(JdbcClient client) {}
 
   @Configuration
   static class EmbeddedDataSourceConfig {

@@ -10,11 +10,12 @@ public record Longitude(double value) {
   /**
    * Validates the longitude is within the WGS84 range.
    *
-   * @throws IllegalArgumentException if {@code value} is outside {@code [-180, 180]}
+   * @throws IllegalArgumentException if {@code value} is NaN, infinite or outside {@code [-180,
+   *     180]}; the message never repeats the value, which is the caller's location
    */
   public Longitude {
-    if (value < -180.0 || value > 180.0) {
-      throw new IllegalArgumentException("Longitude out of range: " + value);
+    if (!(value >= -180.0 && value <= 180.0)) {
+      throw new IllegalArgumentException("Longitude must be a number in [-180, 180]");
     }
   }
 }

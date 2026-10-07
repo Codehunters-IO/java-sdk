@@ -1,4 +1,8 @@
-version = "2.1.2"
+plugins {
+    id("codehunters.java-library")
+}
+
+version = "3.0.0"
 description = "@Measured annotation that records Micrometer timers and counters."
 
 dependencies {
@@ -13,5 +17,7 @@ dependencies {
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-test")
+    testImplementation("org.springframework.boot:spring-boot-micrometer-metrics")
     testImplementation("org.assertj:assertj-core")
+    testRuntimeOnly("ch.qos.logback:logback-classic")
 }

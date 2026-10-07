@@ -6,61 +6,74 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Annotation for measure methods
+ * Measures a method, or every method of a class, with Micrometer.
+ *
+ * <p>Each call records the timer {@link #name()} tagged {@code class}, {@code method}, {@code
+ * exception} ({@code none} on success) and {@code outcome} ({@code SUCCESS} or {@code ERROR}), plus
+ * the {@link #tags()} and {@link #expressions()} tags. Every call of a method records the same tag
+ * keys. On a class, the annotation applies to each method without its own {@code @Measured}.
  *
  * @since 1.0.0
- * @author anresmontoyat@gmail.com
  */
 @Target({ElementType.METHOD, ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Measured {
 
   /**
-   * Metric name. When blank, defaults to {@code SimpleClassName.methodName}.
+   * Timer name. When blank, the timer is {@code method.measured} and the {@code class} and {@code
+   * method} tags tell the methods apart.
    *
-   * @return the metric name
+   * @return the timer name
    */
   String name() default "";
 
   /**
-   * Static tags as alternating key/value entries.
+   * Static tags as alternating key/value entries. A blank value is recorded as {@code none}. An odd
+   * number of entries, or a blank, reserved ({@code class}, {@code method}, {@code exception},
+   * {@code outcome}) or repeated key, fails application startup.
    *
    * @return the static tags
    */
   String[] tags() default {};
 
   /**
-   * Whether to record an error counter when the method throws.
+   * Whether the {@code exception} tag names the exception a failed call threw. When {@code false}
+   * it is {@code none}; the {@code outcome} tag is still {@code ERROR}.
    *
-   * @return {@code true} to record exceptions
+   * @return {@code true} to tag the exception's simple class name
    */
   boolean recordExceptions() default true;
 
   /**
-   * Whether to use a {@code LongTaskTimer} instead of a regular {@code Timer}.
+   * Whether to track calls in progress with the long-task timer {@code <name>.active} instead of
+   * the timer.
    *
    * @return {@code true} to use a long-task timer
    */
   boolean longTask() default false;
 
   /**
-   * SpEL expressions extracting dynamic tags from parameters. Format: {@code {"key1=#param1.prop",
-   * "key2=#param2.other"}}.
+   * Tags whose values come from SpEL expressions over the arguments, as {@code key=expression},
+   * e.g. {@code "customer=#command.customerId"}. A {@code null} or blank value is recorded as
+   * {@code none}, and an expression that fails as {@code unknown}. Each tag takes at most {@code
+   * codehunters.measure.max-tag-values} distinct values per timer; further values are recorded as
+   * {@code other}.
    *
    * @return the SpEL tag expressions
    */
   String[] expressions() default {};
 
   /**
-   * Enables a counter incremented after successful execution.
+   * Whether to increment the counter {@code <name>.counted} after each successful call.
    *
    * @return {@code true} to enable the counter
    */
   boolean count() default false;
 
   /**
-   * SpEL expression that must evaluate to {@code true} for the counter to increment. Has access to
-   * {@code #result} and the method parameters; always increments when blank.
+   * SpEL condition that must evaluate to {@code true} for the counter to increment. It sees the
+   * arguments and {@code #result}. When blank the counter always increments; when it fails to
+   * evaluate, the counter does not.
    *
    * @return the count-condition SpEL expression
    */

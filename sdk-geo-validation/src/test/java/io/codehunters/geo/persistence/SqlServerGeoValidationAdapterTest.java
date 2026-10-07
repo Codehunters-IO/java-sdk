@@ -76,6 +76,27 @@ class SqlServerGeoValidationAdapterTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
+  void should_suppress_row_counts_before_calling_the_procedure() {
+    JdbcClient jdbcClient = mock(JdbcClient.class);
+    JdbcClient.StatementSpec spec = mock(JdbcClient.StatementSpec.class);
+    JdbcClient.MappedQuerySpec<GeoValidationDecision> query =
+        mock(JdbcClient.MappedQuerySpec.class);
+    when(jdbcClient.sql(anyString())).thenReturn(spec);
+    when(spec.param(anyString(), any())).thenReturn(spec);
+    when(spec.query(any(RowMapper.class))).thenReturn(query);
+    when(query.single()).thenReturn(GeoValidationDecision.denied());
+    GeoPoint point = new GeoPoint(new Latitude(6.2518), new Longitude(-75.5636));
+
+    new SqlServerGeoValidationAdapter(jdbcClient)
+        .canPurchase(UUID.randomUUID(), point, CoverageType.DEPARTMENTAL);
+
+    ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+    verify(jdbcClient).sql(sql.capture());
+    assertTrue(sql.getValue().startsWith("SET NOCOUNT ON;"));
+  }
+
+  @Test
   void allowed_row_maps_to_allowing_decision() throws SQLException {
     ResultSet rs = mock(ResultSet.class);
     when(rs.getBoolean("allowed")).thenReturn(true);

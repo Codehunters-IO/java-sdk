@@ -1,0 +1,2 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+io.codehunters.i18n.config.I18nLegacyProperties

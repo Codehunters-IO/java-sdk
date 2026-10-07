@@ -1,123 +1,167 @@
 package io.codehunters.tracing;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import jakarta.servlet.FilterChain;
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.slf4j.MDC;
+import org.springframework.mock.web.MockFilterChain;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 
 class TraceIdFilterTest {
 
-  private static final String VALID_TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
-  private static final String VALID_SPAN_ID = "b7ad6b7169203331";
-  private static final String VALID_TRACEPARENT =
-      "00-" + VALID_TRACE_ID + "-" + VALID_SPAN_ID + "-01";
+  private static final String TRACE_ID = "4bf92f3577b34da6a3ce929d0e0e4736";
+  private static final String CALLER_SPAN = "00f067aa0ba902b7";
 
   private final TraceIdFilter filter = new TraceIdFilter();
+  private final MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api");
+  private final Map<String, String> seen = new HashMap<>();
+  private final MockFilterChain chain =
+      new MockFilterChain() {
+        @Override
+        public void doFilter(
+            jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+          seen.put(TraceHeaders.MDC_TRACE_ID, MDC.get(TraceHeaders.MDC_TRACE_ID));
+          seen.put(TraceHeaders.MDC_SPAN_ID, MDC.get(TraceHeaders.MDC_SPAN_ID));
+          seen.put(TraceHeaders.MDC_TRACE_FLAGS, MDC.get(TraceHeaders.MDC_TRACE_FLAGS));
+        }
+      };
 
+  @BeforeEach
   @AfterEach
   void clearMdc() {
     MDC.clear();
   }
 
   @Test
-  void shouldExtractTraceAndSpanFromValidTraceparent() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACEPARENT)).thenReturn(VALID_TRACEPARENT);
-    runFilterAssertingMdc(request, VALID_TRACE_ID, VALID_SPAN_ID);
-  }
-
-  @Test
-  void shouldGenerateBothWhenAllHeadersAbsent() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    String[] captured = runFilter(request);
-    assertTrue(captured[0] != null && captured[0].matches("[0-9a-f]{32}"));
-    assertTrue(captured[1] != null && captured[1].matches("[0-9a-f]{16}"));
-  }
-
-  @Test
-  void shouldNotOverwritePreExistingMdc() throws ServletException, IOException {
-    MDC.put(TraceIdFilter.MDC_TRACE_ID, "preexisting-trace");
-    MDC.put(TraceIdFilter.MDC_SPAN_ID, "preexisting-span");
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACEPARENT)).thenReturn(VALID_TRACEPARENT);
-    String[] captured = runFilter(request);
-    assertEquals("preexisting-trace", captured[0]);
-    assertEquals("preexisting-span", captured[1]);
-  }
-
-  @Test
-  void shouldClearMdcAfterFilterChain() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACEPARENT)).thenReturn(VALID_TRACEPARENT);
-    filter.doFilter(request, Mockito.mock(HttpServletResponse.class), (req, res) -> {});
-    assertNull(MDC.get(TraceIdFilter.MDC_TRACE_ID));
-    assertNull(MDC.get(TraceIdFilter.MDC_SPAN_ID));
-  }
-
-  @Test
-  void shouldUseTraceAndSpanHeadersWhenTraceparentAbsent() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACE_ID)).thenReturn(VALID_TRACE_ID);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_SPAN_ID)).thenReturn(VALID_SPAN_ID);
-    runFilterAssertingMdc(request, VALID_TRACE_ID, VALID_SPAN_ID);
-  }
-
-  @Test
-  void shouldGenerateSpanWhenSpanHeaderHasInvalidHex() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACE_ID)).thenReturn(VALID_TRACE_ID);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_SPAN_ID)).thenReturn("zzzzzzzzzzzzzzzz");
-    String[] captured = runFilter(request);
-    assertEquals(VALID_TRACE_ID, captured[0]);
-    assertTrue(captured[1].matches("[0-9a-f]{16}"));
-  }
-
-  @Test
-  void shouldGenerateWhenTraceparentHasWrongPartCount() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACEPARENT)).thenReturn("00-abc");
-    String[] captured = runFilter(request);
-    assertTrue(captured[0].matches("[0-9a-f]{32}"));
-    assertTrue(captured[1].matches("[0-9a-f]{16}"));
-  }
-
-  @Test
-  void shouldGenerateWhenTraceparentHasInvalidHex() throws ServletException, IOException {
-    HttpServletRequest request = Mockito.mock(HttpServletRequest.class);
-    String invalidTraceparent = "00-" + "z".repeat(32) + "-" + "z".repeat(16) + "-01";
-    Mockito.when(request.getHeader(TraceIdFilter.HEADER_TRACEPARENT))
-        .thenReturn(invalidTraceparent);
-    String[] captured = runFilter(request);
-    assertTrue(captured[0].matches("[0-9a-f]{32}"));
-  }
-
-  private void runFilterAssertingMdc(
-      HttpServletRequest request, String expectedTraceId, String expectedSpanId)
+  void should_continue_w3c_trace_with_own_span_when_traceparent_present()
       throws ServletException, IOException {
-    String[] captured = runFilter(request);
-    assertEquals(expectedTraceId, captured[0]);
-    assertEquals(expectedSpanId, captured[1]);
+    request.addHeader(TraceHeaders.TRACEPARENT, "00-" + TRACE_ID + "-" + CALLER_SPAN + "-00");
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+    assertThat(seen.get(TraceHeaders.MDC_SPAN_ID)).isNotEqualTo(CALLER_SPAN).hasSize(16);
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_FLAGS)).isEqualTo("00");
   }
 
-  private String[] runFilter(HttpServletRequest request) throws ServletException, IOException {
-    String[] captured = new String[2];
-    filter.doFilter(request, Mockito.mock(HttpServletResponse.class), capturingChain(captured));
-    return captured;
+  @Test
+  void should_use_legacy_x_traceparent_when_traceparent_absent()
+      throws ServletException, IOException {
+    request.addHeader(
+        TraceHeaders.LEGACY_TRACEPARENT, "00-" + TRACE_ID + "-" + CALLER_SPAN + "-01");
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
   }
 
-  private FilterChain capturingChain(String[] captured) {
-    return (req, res) -> {
-      captured[0] = MDC.get(TraceIdFilter.MDC_TRACE_ID);
-      captured[1] = MDC.get(TraceIdFilter.MDC_SPAN_ID);
-    };
+  @Test
+  void should_prefer_traceparent_over_legacy_header() throws ServletException, IOException {
+    request.addHeader(TraceHeaders.TRACEPARENT, "00-" + TRACE_ID + "-" + CALLER_SPAN + "-01");
+    request.addHeader(
+        TraceHeaders.LEGACY_TRACEPARENT, "00-" + "a".repeat(32) + "-" + CALLER_SPAN + "-01");
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+  }
+
+  @Test
+  void should_use_trace_id_header_when_no_traceparent() throws ServletException, IOException {
+    request.addHeader(TraceHeaders.TRACE_ID, TRACE_ID);
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_FLAGS)).isEqualTo("01");
+  }
+
+  @Test
+  void should_generate_new_trace_when_header_has_all_zero_trace_id()
+      throws ServletException, IOException {
+    request.addHeader(TraceHeaders.TRACEPARENT, "00-" + "0".repeat(32) + "-" + CALLER_SPAN + "-01");
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID))
+        .matches("[0-9a-f]{32}")
+        .isNotEqualTo("0".repeat(32));
+  }
+
+  @Test
+  void should_clear_mdc_when_request_completes() throws ServletException, IOException {
+    run();
+
+    assertThat(MDC.get(TraceHeaders.MDC_TRACE_ID)).isNull();
+    assertThat(MDC.get(TraceHeaders.MDC_SPAN_ID)).isNull();
+    assertThat(MDC.get(TraceHeaders.MDC_TRACE_FLAGS)).isNull();
+  }
+
+  @Test
+  void should_keep_context_set_by_upstream_instrumentation() throws ServletException, IOException {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+    MDC.put(TraceHeaders.MDC_SPAN_ID, CALLER_SPAN);
+    request.addHeader(TraceHeaders.TRACEPARENT, "00-" + "a".repeat(32) + "-" + CALLER_SPAN + "-01");
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+    assertThat(MDC.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+  }
+
+  @Test
+  void should_reuse_request_trace_on_error_dispatch() throws ServletException, IOException {
+    request.addHeader(TraceHeaders.TRACEPARENT, "00-" + TRACE_ID + "-" + CALLER_SPAN + "-01");
+    run();
+    String requestSpan = seen.get(TraceHeaders.MDC_SPAN_ID);
+    seen.clear();
+    request.setDispatcherType(DispatcherType.ERROR);
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+    assertThat(seen.get(TraceHeaders.MDC_SPAN_ID)).isEqualTo(requestSpan);
+  }
+
+  @Test
+  void should_reuse_request_trace_on_async_dispatch() throws ServletException, IOException {
+    request.addHeader(TraceHeaders.TRACEPARENT, "00-" + TRACE_ID + "-" + CALLER_SPAN + "-01");
+    run();
+    seen.clear();
+    request.setDispatcherType(DispatcherType.ASYNC);
+
+    run();
+
+    assertThat(seen.get(TraceHeaders.MDC_TRACE_ID)).isEqualTo(TRACE_ID);
+  }
+
+  @Test
+  void should_clear_mdc_when_chain_throws() {
+    var failing =
+        new MockFilterChain() {
+          @Override
+          public void doFilter(
+              jakarta.servlet.ServletRequest req, jakarta.servlet.ServletResponse res) {
+            throw new IllegalStateException("boom");
+          }
+        };
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> filter.doFilter(request, new MockHttpServletResponse(), failing))
+        .isInstanceOf(IllegalStateException.class);
+
+    assertThat(MDC.get(TraceHeaders.MDC_TRACE_ID)).isNull();
+  }
+
+  private void run() throws ServletException, IOException {
+    filter.doFilter(request, new MockHttpServletResponse(), chain);
   }
 }

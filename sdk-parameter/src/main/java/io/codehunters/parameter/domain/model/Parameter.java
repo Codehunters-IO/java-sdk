@@ -42,7 +42,7 @@ public record Parameter(
   /**
    * Returns the value as a string.
    *
-   * @return the raw value
+   * @return the raw value, {@code null} when the row holds none
    * @throws ParameterTypeMismatchException if the declared type is not {@link ParameterType#STRING}
    */
   public String asString() {
@@ -55,14 +55,14 @@ public record Parameter(
    *
    * @return the parsed long value
    * @throws ParameterTypeMismatchException if the declared type is not {@link
-   *     ParameterType#INTEGER} or the value cannot be parsed
+   *     ParameterType#INTEGER}, or the value is missing, unparseable or out of range
    */
   public long asLong() {
-    ensureType(ParameterType.INTEGER);
+    String raw = requiredValue(ParameterType.INTEGER);
     try {
-      return Long.parseLong(value.trim());
+      return Long.parseLong(raw);
     } catch (NumberFormatException ex) {
-      throw new ParameterTypeMismatchException(ParameterType.INTEGER, value, ex);
+      throw unreadable(ParameterType.INTEGER);
     }
   }
 
@@ -71,11 +71,14 @@ public record Parameter(
    *
    * @return the parsed int value
    * @throws ParameterTypeMismatchException if the declared type is not {@link
-   *     ParameterType#INTEGER} or the value cannot be parsed
-   * @throws ArithmeticException if the value overflows {@code int}
+   *     ParameterType#INTEGER}, or the value is missing, unparseable or out of {@code int} range
    */
   public int asInteger() {
-    return Math.toIntExact(asLong());
+    long parsed = asLong();
+    if (parsed < Integer.MIN_VALUE || parsed > Integer.MAX_VALUE) {
+      throw unreadable(ParameterType.INTEGER);
+    }
+    return (int) parsed;
   }
 
   /**
@@ -83,27 +86,46 @@ public record Parameter(
    *
    * @return the parsed decimal value
    * @throws ParameterTypeMismatchException if the declared type is not {@link
-   *     ParameterType#DECIMAL} or the value cannot be parsed
+   *     ParameterType#DECIMAL}, or the value is missing or unparseable
    */
   public BigDecimal asBigDecimal() {
-    ensureType(ParameterType.DECIMAL);
+    String raw = requiredValue(ParameterType.DECIMAL);
     try {
-      return new BigDecimal(value.trim());
+      return new BigDecimal(raw);
     } catch (NumberFormatException ex) {
-      throw new ParameterTypeMismatchException(ParameterType.DECIMAL, value, ex);
+      throw unreadable(ParameterType.DECIMAL);
     }
   }
 
   /**
-   * Returns the value as a boolean.
+   * Returns the value as a boolean. Only {@code true} and {@code false} are accepted, ignoring case
+   * and surrounding spaces.
    *
    * @return the parsed boolean value
    * @throws ParameterTypeMismatchException if the declared type is not {@link
-   *     ParameterType#BOOLEAN}
+   *     ParameterType#BOOLEAN}, or the value is missing or neither {@code true} nor {@code false}
    */
   public boolean asBoolean() {
-    ensureType(ParameterType.BOOLEAN);
-    return Boolean.parseBoolean(value.trim());
+    String raw = requiredValue(ParameterType.BOOLEAN);
+    if (raw.equalsIgnoreCase("true")) {
+      return true;
+    }
+    if (raw.equalsIgnoreCase("false")) {
+      return false;
+    }
+    throw unreadable(ParameterType.BOOLEAN);
+  }
+
+  private String requiredValue(ParameterType expected) {
+    ensureType(expected);
+    if (value == null) {
+      throw unreadable(expected);
+    }
+    return value.trim();
+  }
+
+  private ParameterTypeMismatchException unreadable(ParameterType type) {
+    return new ParameterTypeMismatchException(type, name);
   }
 
   private void ensureType(ParameterType expected) {

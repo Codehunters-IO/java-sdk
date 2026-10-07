@@ -4,10 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.parameter.domain.exception.ParameterAccessException;
+import io.codehunters.parameter.domain.exception.ParameterException;
 import io.codehunters.parameter.domain.model.Parameter;
 import io.codehunters.parameter.domain.model.ParameterModule;
 import io.codehunters.parameter.domain.model.ParameterType;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,6 +20,9 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 class JdbcParameterAdapterTest {
@@ -36,23 +41,7 @@ class JdbcParameterAdapterTest {
         "jdbc:h2:mem:paramdb-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1;NON_KEYWORDS=VALUE");
     dataSource.setUser("sa");
     jdbcClient = JdbcClient.create((DataSource) dataSource);
-    jdbcClient
-        .sql(
-            "CREATE TABLE parameters ("
-                + "id UUID PRIMARY KEY,"
-                + "module VARCHAR(64) NOT NULL,"
-                + "submodule VARCHAR(64) NOT NULL,"
-                + "name VARCHAR(128) NOT NULL,"
-                + "value CLOB NOT NULL,"
-                + "type VARCHAR(16) NOT NULL,"
-                + "enabled BOOLEAN NOT NULL,"
-                + "description VARCHAR(500),"
-                + "created_by UUID NOT NULL,"
-                + "created_at TIMESTAMP WITH TIME ZONE NOT NULL,"
-                + "updated_by UUID,"
-                + "updated_at TIMESTAMP WITH TIME ZONE NOT NULL,"
-                + "deleted_at TIMESTAMP WITH TIME ZONE)")
-        .update();
+    createTable("parameters");
     adapter = new JdbcParameterAdapter(jdbcClient);
   }
 
@@ -208,6 +197,170 @@ class JdbcParameterAdapterTest {
   }
 
   @Test
+  void should_keep_a_null_value_in_asMap() {
+    seed("RAFFLES", "TICKETS", "EMPTY", null, ParameterType.STRING, true, null);
+    assertThat(adapter.asMap(ParameterModule.RAFFLES, "TICKETS")).containsEntry("EMPTY", null);
+  }
+
+  @Test
+  void should_keep_the_name_order_in_asMap() {
+    seed("RAFFLES", "TICKETS", "B", "2", ParameterType.INTEGER, true, null);
+    seed("RAFFLES", "TICKETS", "C", "3", ParameterType.INTEGER, true, null);
+    seed("RAFFLES", "TICKETS", "A", "1", ParameterType.INTEGER, true, null);
+    assertThat(adapter.asMap(ParameterModule.RAFFLES, "TICKETS").keySet())
+        .containsExactly("A", "B", "C");
+  }
+
+  @Test
+  void should_keep_the_name_order_in_asMapByName() {
+    seed("RAFFLES", "TICKETS", "B", "2", ParameterType.INTEGER, true, null);
+    seed("RAFFLES", "TICKETS", "A", "1", ParameterType.INTEGER, true, null);
+    assertThat(adapter.asMapByName(ParameterModule.RAFFLES, "TICKETS").keySet())
+        .containsExactly("A", "B");
+  }
+
+  @Test
+  void should_reject_a_name_shared_by_two_submodules_in_asMap() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    seed("RAFFLES", "PAYMENT", "MAX", "5", ParameterType.INTEGER, true, null);
+    assertThatThrownBy(() -> adapter.asMap(ParameterModule.RAFFLES, null))
+        .isInstanceOf(ParameterException.class)
+        .hasMessageContaining("MAX");
+  }
+
+  @Test
+  void should_reject_a_name_shared_by_two_submodules_in_asMapByName() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    seed("RAFFLES", "PAYMENT", "MAX", "5", ParameterType.INTEGER, true, null);
+    assertThatThrownBy(() -> adapter.asMapByName(ParameterModule.RAFFLES, null))
+        .isInstanceOf(ParameterException.class);
+  }
+
+  @Test
+  void should_treat_a_blank_submodule_as_empty_in_lookup() {
+    seed("GENERAL", "", "VERSION", "1", ParameterType.STRING, true, null);
+    assertThat(adapter.lookup(ParameterModule.GENERAL, "  ", "VERSION")).isPresent();
+  }
+
+  @Test
+  void should_treat_a_blank_submodule_as_empty_in_findByModule() {
+    seed("GENERAL", "", "VERSION", "1", ParameterType.STRING, true, null);
+    seed("GENERAL", "UI", "THEME", "dark", ParameterType.STRING, true, null);
+    assertThat(adapter.findByModule(ParameterModule.GENERAL, " "))
+        .extracting(Parameter::name)
+        .containsExactly("VERSION");
+  }
+
+  @Test
+  void should_read_the_configured_table() {
+    createTable("app_parameters");
+    jdbcClient
+        .sql(
+            "INSERT INTO app_parameters (id, module, submodule, name, value, type, enabled,"
+                + " created_by, created_at, updated_at) VALUES"
+                + " (:id, 'GENERAL', '', 'VERSION', '2', 'STRING', TRUE, :op, :now, :now)")
+        .param("id", UUID.randomUUID())
+        .param("op", OP)
+        .param("now", NOW)
+        .update();
+    var custom = new JdbcParameterAdapter(jdbcClient, "app_parameters");
+    assertThat(custom.lookup(ParameterModule.GENERAL, null, "VERSION")).isPresent();
+  }
+
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(
+      strings = {
+        "parameters; DROP TABLE x",
+        "\"parameters\"",
+        "parameters--",
+        "1parameters",
+        "a.b.c.d",
+        "parameters\n",
+        "parámetros",
+        "parameters x",
+        ".parameters",
+        "parameters."
+      })
+  void should_reject_a_table_name_that_is_not_an_identifier(String tableName) {
+    assertThatThrownBy(() -> new JdbcParameterAdapter(jdbcClient, tableName))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void should_accept_a_database_and_schema_qualified_table_name() {
+    assertThat(new JdbcParameterAdapter(jdbcClient, "app.dbo.parameters")).isNotNull();
+  }
+
+  @Test
+  void should_query_a_schema_qualified_table() {
+    jdbcClient.sql("CREATE SCHEMA app").update();
+    createTable("app.parameters");
+    jdbcClient
+        .sql(
+            "INSERT INTO app.parameters (id, module, submodule, name, value, type, enabled,"
+                + " created_by, created_at, updated_at) VALUES"
+                + " (:id, 'GENERAL', '', 'VERSION', '2', 'STRING', TRUE, :op, :now, :now)")
+        .param("id", UUID.randomUUID())
+        .param("op", OP)
+        .param("now", NOW)
+        .update();
+    var qualified = new JdbcParameterAdapter(jdbcClient, "app.parameters");
+    assertThat(qualified.lookup(ParameterModule.GENERAL, null, "VERSION")).isPresent();
+  }
+
+  @Test
+  void should_map_a_known_module_to_its_constant_instance() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    assertThat(adapter.findByModule(ParameterModule.RAFFLES, null).get(0).module())
+        .isSameAs(ParameterModule.RAFFLES);
+  }
+
+  @Test
+  void should_reject_a_null_module_in_findByModules() {
+    assertThatThrownBy(() -> adapter.findByModules(Arrays.asList(ParameterModule.RAFFLES, null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("modules");
+  }
+
+  @Test
+  void should_reject_a_null_submodule_in_findByModuleAndSubmodules() {
+    assertThatThrownBy(
+            () ->
+                adapter.findByModuleAndSubmodules(
+                    ParameterModule.RAFFLES, Arrays.asList("TICKETS", null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("submodules");
+  }
+
+  @Test
+  void should_accept_a_schema_qualified_table_name() {
+    assertThat(new JdbcParameterAdapter(jdbcClient, "dbo.parameters")).isNotNull();
+  }
+
+  @Test
+  void should_return_an_unmodifiable_list_from_findByModule() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    List<Parameter> result = adapter.findByModule(ParameterModule.RAFFLES, null);
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void should_return_an_unmodifiable_list_from_findByModules() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    List<Parameter> result = adapter.findByModules(List.of(ParameterModule.RAFFLES));
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void should_return_an_unmodifiable_list_from_findByModuleAndSubmodules() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    List<Parameter> result =
+        adapter.findByModuleAndSubmodules(ParameterModule.RAFFLES, List.of("TICKETS"));
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
   void wraps_DataAccessException_into_ParameterAccessException() {
     jdbcClient.sql("DROP TABLE parameters").update();
     assertThatThrownBy(() -> adapter.lookup(ParameterModule.RAFFLES, "TICKETS", "MAX"))
@@ -215,7 +368,7 @@ class JdbcParameterAdapterTest {
   }
 
   @Test
-  void rowMapper_tolerates_unknown_module_and_type() {
+  void should_map_a_module_unknown_to_the_sdk_and_tolerate_an_unknown_type() {
     UUID id = UUID.randomUUID();
     jdbcClient
         .sql(
@@ -230,7 +383,7 @@ class JdbcParameterAdapterTest {
     List<Parameter> all =
         jdbcClient.sql("SELECT * FROM parameters").query(new ParameterRowMapper()).list();
     assertThat(all).hasSize(1);
-    assertThat(all.get(0).module()).isNull();
+    assertThat(all.get(0).module()).isEqualTo(ParameterModule.of("UNKNOWN_MOD"));
     assertThat(all.get(0).type()).isNull();
   }
 
@@ -259,6 +412,28 @@ class JdbcParameterAdapterTest {
         .param("op", OP)
         .param("now", NOW)
         .param("deletedAt", deletedAt)
+        .update();
+  }
+
+  private void createTable(String table) {
+    jdbcClient
+        .sql(
+            "CREATE TABLE "
+                + table
+                + " ("
+                + "id UUID PRIMARY KEY,"
+                + "module VARCHAR(64) NOT NULL,"
+                + "submodule VARCHAR(64) NOT NULL,"
+                + "name VARCHAR(128) NOT NULL,"
+                + "value CLOB,"
+                + "type VARCHAR(16) NOT NULL,"
+                + "enabled BOOLEAN NOT NULL,"
+                + "description VARCHAR(500),"
+                + "created_by UUID NOT NULL,"
+                + "created_at TIMESTAMP WITH TIME ZONE NOT NULL,"
+                + "updated_by UUID,"
+                + "updated_at TIMESTAMP WITH TIME ZONE NOT NULL,"
+                + "deleted_at TIMESTAMP WITH TIME ZONE)")
         .update();
   }
 }

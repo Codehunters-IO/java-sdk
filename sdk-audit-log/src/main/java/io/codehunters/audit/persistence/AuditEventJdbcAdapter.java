@@ -3,22 +3,26 @@ package io.codehunters.audit.persistence;
 import io.codehunters.audit.AuditEvent;
 import io.codehunters.audit.AuditEventPublisherPort;
 import io.codehunters.audit.AuditPersistenceException;
-import java.sql.Timestamp;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.scheduling.annotation.Async;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * JDBC-backed {@link AuditEventPublisherPort} that inserts audit events into the {@code
- * audit_event} table asynchronously, in a new transaction.
+ * audit_event} table on the calling thread. Wrap it in {@link
+ * io.codehunters.audit.AsyncAuditEventPublisher} to write off the caller's thread.
+ *
+ * <p>The insert takes part in the caller's Spring-managed transaction on the same data source, if
+ * there is one: the row commits or rolls back with the business write. Without one it auto-commits.
+ *
+ * <p>A failed insert is logged with the event's entity type and action and the SQLState, never with
+ * the database message, which can echo the row's values. A map that cannot be serialized is stored
+ * as {@code null}.
  */
 public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
 
@@ -51,16 +55,12 @@ public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
    * @param failOnError whether persistence failures should be rethrown
    */
   public AuditEventJdbcAdapter(
-      DataSource dataSource,
-      @Qualifier("auditJsonMapper") JsonMapper auditJsonMapper,
-      boolean failOnError) {
+      DataSource dataSource, JsonMapper auditJsonMapper, boolean failOnError) {
     this.jdbcClient = JdbcClient.create(dataSource);
     this.auditJsonMapper = auditJsonMapper;
     this.failOnError = failOnError;
   }
 
-  @Async("auditTaskExecutor")
-  @Transactional(propagation = Propagation.REQUIRES_NEW)
   @Override
   public void publish(AuditEvent event) {
     log.debug("[START] persist audit event: {} {}", event.action(), event.entityType());
@@ -88,17 +88,29 @@ public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
           .param("metadata", serializeMap(event.metadata()))
           .param("sourceService", event.sourceService())
           .param("correlationId", event.correlationId())
-          .param(
-              "eventCreatedAt",
-              event.createdAt() != null ? Timestamp.from(event.createdAt().toInstant()) : null)
+          .param("eventCreatedAt", event.createdAt())
           .update();
       log.debug("[END] persist audit event: {}", id);
     } catch (Exception e) {
       if (failOnError) {
-        throw new AuditPersistenceException("Failed to persist audit event", e);
+        throw AuditPersistenceException.redacted("Failed to persist audit event", e);
       }
-      log.error("Failed to persist audit event: {}", e.getMessage(), e);
+      log.error(
+          "Failed to persist audit event: entityType={} action={} sqlState={} exception={}",
+          event.entityType(),
+          event.action(),
+          sqlState(e),
+          e.getClass().getName());
     }
+  }
+
+  private static String sqlState(Throwable failure) {
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause instanceof SQLException sql) {
+        return sql.getSQLState();
+      }
+    }
+    return null;
   }
 
   private String serializeMap(Map<String, Object> map) {
@@ -107,9 +119,10 @@ public class AuditEventJdbcAdapter implements AuditEventPublisherPort {
     }
     try {
       return auditJsonMapper.writeValueAsString(map);
-    } catch (Exception e) {
-      log.warn("Failed to serialize audit map: {}", e.getMessage());
-      return map.toString();
+    } catch (RuntimeException e) {
+      log.warn(
+          "Audit map could not be serialized and is stored as null: {}", e.getClass().getName());
+      return null;
     }
   }
 }

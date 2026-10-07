@@ -1,19 +1,28 @@
 package io.codehunters.tracing;
 
-/** Read access to the current request/message trace context. */
+import java.util.Optional;
+
+/** Read access to the trace context of the current thread. */
 public interface TraceContextPort {
 
   /**
    * Current trace identifier.
    *
-   * @return the current trace ID, or {@code null} if none is set
+   * @return the trace id, or empty when no trace is active
    */
-  String currentTraceId();
+  Optional<String> currentTraceId();
 
   /**
    * Current span identifier.
    *
-   * @return the current span ID, or {@code null} if none is set
+   * @return the span id, or empty when no trace is active
    */
-  String currentSpanId();
+  Optional<String> currentSpanId();
+
+  /**
+   * Current W3C trace context, for propagating to outbound calls or stored events.
+   *
+   * @return the context, or empty when no trace is active or its ids are not W3C ids
+   */
+  Optional<TraceParent> currentTraceParent();
 }

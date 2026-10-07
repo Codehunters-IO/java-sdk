@@ -1,0 +1,13 @@
+{
+  "properties": [
+    {
+      "name": "vitxo.audit.fail-on-error",
+      "type": "java.lang.Boolean",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.audit.fail-on-error",
+        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+      }
+    }
+  ]
+}

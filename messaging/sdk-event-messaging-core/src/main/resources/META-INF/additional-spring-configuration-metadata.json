@@ -1,0 +1,184 @@
+{
+  "properties": [
+    {
+      "name": "outbox.enabled",
+      "type": "java.lang.Boolean",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.enabled",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.batch-size",
+      "type": "java.lang.Integer",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.batch-size",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.max-attempts",
+      "type": "java.lang.Integer",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.max-attempts",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.task.fixed-delay",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.task.fixed-delay",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.task.lock-at-most",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.task.lock-at-most",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.task.lock-at-least",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.task.lock-at-least",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.task.lock-name",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.task.lock-name",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.claim.ttl-ms",
+      "type": "java.lang.Long",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.claim.ttl-ms",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.claim.dialect",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.claim.dialect",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.backoff.base-delay-ms",
+      "type": "java.lang.Long",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.backoff.base-delay-ms",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.backoff.max-delay-ms",
+      "type": "java.lang.Long",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.backoff.max-delay-ms",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.publisher.type",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.publisher.type",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.publisher.kafka.send-timeout",
+      "type": "java.time.Duration",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.publisher.kafka.send-timeout",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.retention",
+      "type": "java.time.Duration",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.retention",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.batch-size",
+      "type": "java.lang.Integer",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.batch-size",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.fixed-delay",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.fixed-delay",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.initial-delay",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.initial-delay",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.lock-name",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.lock-name",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.lock-at-most",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.lock-at-most",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    },
+    {
+      "name": "outbox.purge.lock-at-least",
+      "type": "java.lang.String",
+      "deprecation": {
+        "level": "warning",
+        "replacement": "codehunters.outbox.purge.lock-at-least",
+        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+      }
+    }
+  ]
+}

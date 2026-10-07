@@ -3,6 +3,7 @@ package io.codehunters.fileshare.application;
 import io.codehunters.fileshare.domain.model.FileRef;
 import io.codehunters.fileshare.domain.model.PresignedDownloadTicket;
 import io.codehunters.fileshare.domain.model.PresignedUploadTicket;
+import java.io.OutputStream;
 import java.util.UUID;
 
 /**
@@ -10,7 +11,9 @@ import java.util.UUID;
  * REST-backed implementation through auto-configuration.
  *
  * <p>All operations translate non-2xx responses and transport failures into the {@link
- * io.codehunters.fileshare.domain.exception.FileShareException} hierarchy.
+ * io.codehunters.fileshare.domain.exception.FileShareException} hierarchy, including responses the
+ * client cannot read. A {@code referenceId} that is not a safe path segment is rejected with an
+ * {@link IllegalArgumentException} before any call is made.
  */
 public interface FileShareClient {
 
@@ -43,11 +46,35 @@ public interface FileShareClient {
   FileRef getMetadata(String referenceId, UUID fileId);
 
   /**
-   * Downloads the file content through the server-side content endpoint, bypassing presigned URLs.
+   * Downloads the file content into memory through the server-side content endpoint, bypassing
+   * presigned URLs. Content larger than {@code codehunters.file-share.max-download-size} fails;
+   * stream large files with {@link #download(String, UUID, OutputStream)}.
    *
    * @param referenceId the business reference the file belongs to
    * @param fileId the file identifier
    * @return the raw file bytes
    */
   byte[] download(String referenceId, UUID fileId);
+
+  /**
+   * Streams the file content into {@code target} through the server-side content endpoint. The
+   * target is neither flushed nor closed.
+   *
+   * @param referenceId the business reference the file belongs to
+   * @param fileId the file identifier
+   * @param target where the bytes are written
+   * @return the number of bytes written
+   */
+  long download(String referenceId, UUID fileId, OutputStream target);
+
+  /**
+   * Streams the content of {@code file} into {@code target}.
+   *
+   * @param file the file to download
+   * @param target where the bytes are written
+   * @return the number of bytes written
+   */
+  default long download(FileRef file, OutputStream target) {
+    return download(file.referenceId(), file.id(), target);
+  }
 }

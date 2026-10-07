@@ -1,73 +1,88 @@
 package io.codehunters.tracing;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 
 import org.aopalliance.aop.Advice;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import tools.jackson.databind.json.JsonMapper;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 
 class RabbitTracingBeanPostProcessorTest {
 
-  private TracePropagationMessagePostProcessor outbound;
-  private InboundTraceMethodInterceptor inbound;
-  private RabbitTracingBeanPostProcessor processor;
+  private final TracePropagationMessagePostProcessor outbound =
+      new TracePropagationMessagePostProcessor();
+  private final InboundTraceMethodInterceptor inbound = new InboundTraceMethodInterceptor();
+  private final RabbitTracingBeanPostProcessor processor = processorFor(outbound, inbound);
 
-  @BeforeEach
-  void setUp() {
-    outbound = new TracePropagationMessagePostProcessor(JsonMapper.builder().build());
-    inbound = new InboundTraceMethodInterceptor();
-    processor = new RabbitTracingBeanPostProcessor(outbound, inbound);
+  @Test
+  void should_add_outbound_post_processor_to_rabbit_template() {
+    RabbitTemplate template = new RabbitTemplate(mock(ConnectionFactory.class));
+
+    processor.postProcessAfterInitialization(template, "rabbitTemplate");
+
+    assertThat(template.getBeforePublishPostProcessors()).containsExactly(outbound);
   }
 
   @Test
-  @DisplayName("should_add_outbound_post_processor_when_bean_is_RabbitTemplate")
-  void should_add_outbound_to_rabbit_template() {
-    RabbitTemplate template = mock(RabbitTemplate.class);
+  void should_not_add_outbound_post_processor_twice() {
+    RabbitTemplate template = new RabbitTemplate(mock(ConnectionFactory.class));
+    template.addBeforePublishPostProcessors(outbound);
 
-    Object result = processor.postProcessAfterInitialization(template, "rabbitTemplate");
+    processor.postProcessAfterInitialization(template, "rabbitTemplate");
 
-    assertThat(result).isSameAs(template);
-    verify(template).addBeforePublishPostProcessors(any());
+    assertThat(template.getBeforePublishPostProcessors()).containsExactly(outbound);
   }
 
   @Test
-  @DisplayName("should_install_inbound_interceptor_when_listener_factory_has_no_advice")
-  void should_install_inbound_when_no_existing_advice() {
-    SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
-
-    processor.postProcessAfterInitialization(factory, "factory");
-
-    Advice[] chain = factory.getAdviceChain();
-    assertThat(chain).containsExactly(inbound);
-  }
-
-  @Test
-  @DisplayName("should_append_inbound_interceptor_when_existing_advice_present")
-  void should_append_inbound_when_existing_advice() {
+  void should_append_inbound_interceptor_to_listener_factory_advice() {
     SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
     Advice existing = mock(Advice.class);
     factory.setAdviceChain(existing);
 
     processor.postProcessAfterInitialization(factory, "factory");
 
-    Advice[] chain = factory.getAdviceChain();
-    assertThat(chain).containsExactly(existing, inbound);
+    assertThat(factory.getAdviceChain()).containsExactly(existing, inbound);
   }
 
   @Test
-  @DisplayName("should_return_bean_unchanged_when_neither_template_nor_factory")
-  void should_passthrough_other_beans() {
+  void should_not_resolve_tracing_beans_until_a_rabbit_bean_is_processed() {
+    var beans = new StaticListableBeanFactory();
+    var lazy =
+        new RabbitTracingBeanPostProcessor(
+            beans.getBeanProvider(TracePropagationMessagePostProcessor.class),
+            beans.getBeanProvider(InboundTraceMethodInterceptor.class));
+
     Object bean = new Object();
 
-    Object result = processor.postProcessAfterInitialization(bean, "x");
+    assertThat(lazy.postProcessAfterInitialization(bean, "other")).isSameAs(bean);
+  }
 
-    assertThat(result).isSameAs(bean);
+  @Test
+  void should_leave_template_alone_when_post_processor_bean_is_ambiguous() {
+    var beans = new StaticListableBeanFactory();
+    beans.addBean("first", new TracePropagationMessagePostProcessor());
+    beans.addBean("second", new TracePropagationMessagePostProcessor());
+    var ambiguous =
+        new RabbitTracingBeanPostProcessor(
+            beans.getBeanProvider(TracePropagationMessagePostProcessor.class),
+            beans.getBeanProvider(InboundTraceMethodInterceptor.class));
+    RabbitTemplate template = new RabbitTemplate(mock(ConnectionFactory.class));
+
+    ambiguous.postProcessAfterInitialization(template, "rabbitTemplate");
+
+    assertThat(template.getBeforePublishPostProcessors()).isNullOrEmpty();
+  }
+
+  private static RabbitTracingBeanPostProcessor processorFor(
+      TracePropagationMessagePostProcessor outbound, InboundTraceMethodInterceptor inbound) {
+    var beans = new StaticListableBeanFactory();
+    beans.addBean("outbound", outbound);
+    beans.addBean("inbound", inbound);
+    return new RabbitTracingBeanPostProcessor(
+        beans.getBeanProvider(TracePropagationMessagePostProcessor.class),
+        beans.getBeanProvider(InboundTraceMethodInterceptor.class));
   }
 }
