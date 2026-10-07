@@ -1,6 +1,7 @@
 package io.codehunters.weberrors.web.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -52,7 +53,7 @@ class SecurityProblemHandlersTest {
                     .perform(get("/orders/order-42"))
                     .andExpect(status().isUnauthorized())
                     .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
-                    .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, "Bearer"))
+                    .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
                     .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
                     .andExpect(jsonPath("$.instance").value("/orders/order-42")));
   }

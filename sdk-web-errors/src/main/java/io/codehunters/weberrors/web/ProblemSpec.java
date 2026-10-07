@@ -20,4 +20,14 @@ record ProblemSpec(
     String messageKey,
     List<Object> arguments,
     String defaultDetail,
-    List<FieldViolation> violations) {}
+    List<FieldViolation> violations) {
+
+  /**
+   * A problem named after its status, e.g. {@code FORBIDDEN} with key {@code web-errors.FORBIDDEN}.
+   */
+  static ProblemSpec ofStatus(HttpStatusCode status) {
+    String code = StatusCodes.code(status);
+    return new ProblemSpec(
+        status, code, "web-errors." + code, List.of(), StatusCodes.reasonPhrase(status), List.of());
+  }
+}
