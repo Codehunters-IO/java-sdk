@@ -28,6 +28,7 @@ include("sdk-web-errors")
 include("sdk-device")
 include("sdk-barcode")
 include("sdk-jasper")
+include("sdk-jpa")
 include("sdk-support")
 include("sdk-bom")
 
