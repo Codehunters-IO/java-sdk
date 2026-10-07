@@ -92,6 +92,23 @@ class DeviceAutoConfigurationTest {
   }
 
   @Test
+  void should_read_forwarded_instead_when_configured() {
+    web.withPropertyValues(
+            "codehunters.device.trusted-proxies=10.0.0.0/8",
+            "codehunters.device.forwarding-header=forwarded")
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(ClientIpResolver.class)
+                            .resolve(
+                                new ProxyChain(
+                                    "10.0.0.2", List.of("for=198.51.100.4"), List.of("6.6.6.6"))))
+                    .map(InetAddress::getHostAddress)
+                    .contains("198.51.100.4"));
+  }
+
+  @Test
   void should_keep_the_application_parser_when_it_defines_one() {
     web.withUserConfiguration(OwnParser.class)
         .run(

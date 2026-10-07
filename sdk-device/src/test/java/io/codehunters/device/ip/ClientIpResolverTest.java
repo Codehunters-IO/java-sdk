@@ -11,8 +11,12 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class ClientIpResolverTest {
 
+  private static final TrustedProxies PRIVATE_PROXIES =
+      TrustedProxies.of(List.of("10.0.0.0/8", "2001:db8::/32"));
   private static final ClientIpResolver BEHIND_PRIVATE_PROXIES =
-      new ClientIpResolver(TrustedProxies.of(List.of("10.0.0.0/8", "2001:db8::/32")));
+      new ClientIpResolver(PRIVATE_PROXIES, ForwardingHeader.X_FORWARDED_FOR);
+  private static final ClientIpResolver BEHIND_RFC_7239_PROXIES =
+      new ClientIpResolver(PRIVATE_PROXIES, ForwardingHeader.FORWARDED);
 
   @ParameterizedTest
   @CsvSource(
@@ -64,16 +68,25 @@ class ClientIpResolverTest {
   void should_resolve_the_client_from_forwarded(String remote, String forwarded, String expected) {
     var chain = new ProxyChain(remote, List.of(forwarded), List.of());
 
-    assertThat(BEHIND_PRIVATE_PROXIES.resolve(chain))
+    assertThat(BEHIND_RFC_7239_PROXIES.resolve(chain))
         .map(InetAddress::getHostAddress)
         .contains(expected);
   }
 
   @Test
-  void should_prefer_forwarded_over_x_forwarded_for_when_both_are_present() {
-    var chain = new ProxyChain("10.0.0.2", List.of("for=198.51.100.4"), List.of("6.6.6.6"));
+  void should_ignore_a_forwarded_header_sent_by_the_client_when_proxies_write_x_forwarded_for() {
+    var chain = new ProxyChain("10.0.0.2", List.of("for=6.6.6.6"), List.of("198.51.100.4"));
 
     assertThat(BEHIND_PRIVATE_PROXIES.resolve(chain))
+        .map(InetAddress::getHostAddress)
+        .contains("198.51.100.4");
+  }
+
+  @Test
+  void should_ignore_x_forwarded_for_sent_by_the_client_when_proxies_write_forwarded() {
+    var chain = new ProxyChain("10.0.0.2", List.of("for=198.51.100.4"), List.of("6.6.6.6"));
+
+    assertThat(BEHIND_RFC_7239_PROXIES.resolve(chain))
         .map(InetAddress::getHostAddress)
         .contains("198.51.100.4");
   }
@@ -89,7 +102,8 @@ class ClientIpResolverTest {
 
   @Test
   void should_use_the_remote_address_only_when_no_proxy_is_trusted() {
-    var resolver = new ClientIpResolver(TrustedProxies.of(List.of()));
+    var resolver =
+        new ClientIpResolver(TrustedProxies.of(List.of()), ForwardingHeader.X_FORWARDED_FOR);
     var chain = new ProxyChain("10.0.0.2", List.of("for=1.1.1.1"), List.of("1.1.1.1"));
 
     assertThat(resolver.resolve(chain)).map(InetAddress::getHostAddress).contains("10.0.0.2");
@@ -110,10 +124,10 @@ class ClientIpResolverTest {
   }
 
   @Test
-  void should_reject_a_null_trusted_proxy_list() {
+  void should_reject_null_settings() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new ClientIpResolver(null))
-        .withMessage("trusted proxies must not be null");
+        .isThrownBy(() -> new ClientIpResolver(null, ForwardingHeader.FORWARDED))
+        .withMessage("trusted proxies and forwarding header must not be null");
   }
 
   @Test

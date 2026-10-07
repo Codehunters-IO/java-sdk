@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import io.codehunters.device.ip.ClientIpResolver;
+import io.codehunters.device.ip.ForwardingHeader;
 import io.codehunters.device.ip.TrustedProxies;
 import io.codehunters.device.useragent.UserAgentInfo;
 import java.util.List;
@@ -20,7 +21,16 @@ class ClientContextResolverTest {
 
   private final ClientContextResolver resolver =
       new ClientContextResolver(
-          new ClientIpResolver(TrustedProxies.of(List.of("10.0.0.0/8"))), header -> CHROME, 16);
+          new ClientIpResolver(
+              TrustedProxies.of(List.of("10.0.0.0/8")), ForwardingHeader.X_FORWARDED_FOR),
+          header -> CHROME,
+          16);
+  private final ClientContextResolver rfc7239Resolver =
+      new ClientContextResolver(
+          new ClientIpResolver(
+              TrustedProxies.of(List.of("10.0.0.0/8")), ForwardingHeader.FORWARDED),
+          header -> CHROME,
+          16);
 
   @AfterEach
   void clearRequest() {
@@ -46,7 +56,7 @@ class ClientContextResolverTest {
     request.addHeader("Forwarded", "for=6.6.6.6");
     request.addHeader("Forwarded", "for=198.51.100.4");
 
-    assertThat(resolver.resolve(request).ipAddress()).contains("198.51.100.4");
+    assertThat(rfc7239Resolver.resolve(request).ipAddress()).contains("198.51.100.4");
   }
 
   @Test
@@ -83,7 +93,10 @@ class ClientContextResolverTest {
         .isThrownBy(
             () ->
                 new ClientContextResolver(
-                    new ClientIpResolver(TrustedProxies.of(List.of())), header -> CHROME, 0))
+                    new ClientIpResolver(
+                        TrustedProxies.of(List.of()), ForwardingHeader.X_FORWARDED_FOR),
+                    header -> CHROME,
+                    0))
         .withMessage("max user agent length must be at least 1");
   }
 
