@@ -1,11 +1,12 @@
 plugins {
-    `java-platform`
-    id("codehunters.publishing")
+    id("codehunters.bom")
 }
 
-version = "1.0.0-SNAPSHOT"
+version = "1.0.0"
 description = "Bill of materials aligning the versions of every io.codehunters SDK module."
 
+// Every released library, and nothing else: `verifyBomConstraints` (part of `check`) fails when a
+// module is missing or a SNAPSHOT one is listed. sdk-geo-validation is leaving the SDK (ADR 0003).
 dependencies {
     constraints {
         api(project(":sdk-audit-log"))
@@ -14,22 +15,13 @@ dependencies {
         api(project(":sdk-event-messaging-kafka"))
         api(project(":sdk-event-messaging-rabbit"))
         api(project(":sdk-file-share"))
-        api(project(":sdk-geo-validation"))
         api(project(":sdk-i18n"))
         api(project(":sdk-measure-micrometer"))
         api(project(":sdk-parameter"))
         api(project(":sdk-support"))
+        api(project(":sdk-totp"))
         api(project(":sdk-tracing"))
         api(project(":sdk-user-security"))
         api(project(":sdk-user-security-authz"))
-        api(project(":sdk-totp"))
-    }
-}
-
-publishing {
-    publications {
-        create<MavenPublication>("mavenBom") {
-            from(components["javaPlatform"])
-        }
     }
 }

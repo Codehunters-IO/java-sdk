@@ -92,18 +92,34 @@ tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
                 counter = "LINE"
                 minimum = "0.90".toBigDecimal()
             }
-            // A module below the bar sets coverage.branch.minimum in its own gradle.properties
-            // until its next release raises it.
             limit {
                 counter = "BRANCH"
-                minimum = (findProperty("coverage.branch.minimum") as String? ?: "0.80").toBigDecimal()
+                minimum = "0.80".toBigDecimal()
             }
         }
     }
 }
 
+// The gates are the same for every module. The old per-module override is rejected rather than
+// silently ignored, so nobody believes a lowered bar is still in effect.
+val coverageOverride = providers.gradleProperty("coverage.branch.minimum")
+val verifyCoverageGates = tasks.register("verifyCoverageGates") {
+    description = "Fails when a module tries to override the shared JaCoCo coverage gates."
+    group = JavaBasePlugin.VERIFICATION_GROUP
+    val override = coverageOverride.orNull
+    val projectPath = path
+    doLast {
+        if (override != null) {
+            throw GradleException(
+                "$projectPath sets coverage.branch.minimum=$override, but the coverage gates are fixed " +
+                    "(LINE 0.90, BRANCH 0.80). Remove the property and add the missing tests."
+            )
+        }
+    }
+}
+
 tasks.named("check") {
-    dependsOn(tasks.named("jacocoTestCoverageVerification"))
+    dependsOn(tasks.named("jacocoTestCoverageVerification"), verifyCoverageGates)
 }
 
 tasks.register("jacocoLogCodeCoverage") {
