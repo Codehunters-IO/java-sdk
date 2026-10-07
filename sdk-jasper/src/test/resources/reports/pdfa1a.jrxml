@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport name="pdfa1a" language="java" pageWidth="595" pageHeight="842" columnWidth="555"
+    leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+  <property name="net.sf.jasperreports.export.pdfa.conformance" value="pdfa1a"/>
+  <title height="30">
+    <element kind="staticText" x="0" y="0" width="555" height="30">
+      <text><![CDATA[Tagged]]></text>
+    </element>
+  </title>
+</jasperReport>

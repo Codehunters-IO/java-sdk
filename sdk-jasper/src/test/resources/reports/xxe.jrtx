@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE jasperTemplate [<!ENTITY secret SYSTEM "file:///etc/hosts">]>
+<jasperTemplate>
+  <style name="heading" fontName="&secret;"/>
+</jasperTemplate>
