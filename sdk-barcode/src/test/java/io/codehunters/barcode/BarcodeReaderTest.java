@@ -21,12 +21,16 @@ class BarcodeReaderTest {
   @CsvSource({
     "QR_CODE, https://codehunters.io/ticket/42 — Ñandú, 300, 300",
     "DATA_MATRIX, LOT-2026-0042, 200, 200",
+    "DATA_MATRIX, price 5€ — Ωμέγα, 300, 300",
     "PDF_417, Ticket 42, 600, 200",
+    "PDF_417, Ticket 42 — Ñandú, 600, 200",
     "CODE_128, ORDER-42/a, 400, 120",
     "CODE_39, ORDER 42, 400, 120",
     "EAN_13, 4006381333931, 400, 120",
     "UPC_A, 036000291452, 400, 120",
     "ITF, 12345678901231, 400, 120",
+    "ITF, 12, 400, 120",
+    "ITF, 1234, 400, 120",
   })
   void should_decode_what_the_renderer_wrote(
       BarcodeFormat format, String content, int width, int height) {
@@ -42,6 +46,14 @@ class BarcodeReaderTest {
 
     assertThat(reader.read(new ByteArrayInputStream(png)))
         .contains(new DecodedBarcode(BarcodeFormat.EAN_13, "4006381333931"));
+  }
+
+  @Test
+  void should_report_a_leading_zero_ean13_as_the_upc_a_it_also_is() {
+    byte[] png = renderer.toPng(BarcodeRequest.of(BarcodeFormat.EAN_13, "0123456789012", 400, 120));
+
+    assertThat(reader.read(new ByteArrayInputStream(png)))
+        .contains(new DecodedBarcode(BarcodeFormat.UPC_A, "123456789012"));
   }
 
   @Test

@@ -42,6 +42,24 @@ class BarcodeRendererTest {
     assertThat(image.getHeight()).isEqualTo(height);
   }
 
+  @ParameterizedTest
+  @CsvSource({"DATA_MATRIX, 3112, 600, 600", "PDF_417, 2686, 1200, 600"})
+  void should_render_the_longest_numeric_content_each_2d_format_accepts(
+      BarcodeFormat format, int digits, int width, int height) {
+    byte[] png = renderer.toPng(BarcodeRequest.of(format, "1".repeat(digits), width, height));
+
+    assertThat(png).startsWith(PNG_SIGNATURE);
+  }
+
+  @Test
+  void should_render_the_longest_numeric_qr_code_at_low_error_correction() {
+    BarcodeRequest request =
+        BarcodeRequest.of(BarcodeFormat.QR_CODE, "1".repeat(7089), 600, 600)
+            .withErrorCorrection(ErrorCorrection.L);
+
+    assertThat(renderer.toPng(request)).startsWith(PNG_SIGNATURE);
+  }
+
   @Test
   void should_render_without_a_display() {
     byte[] png = renderer.toPng(BarcodeRequest.of(BarcodeFormat.QR_CODE, "42", 100, 100));

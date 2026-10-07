@@ -50,7 +50,7 @@ class BarcodeRequestTest {
   }
 
   @ParameterizedTest
-  @CsvSource({"CODE_128, 81", "CODE_39, 81", "ITF, 82", "QR_CODE, 7090", "DATA_MATRIX, 3117"})
+  @CsvSource({"CODE_128, 81", "CODE_39, 81", "ITF, 82", "QR_CODE, 7090", "DATA_MATRIX, 3113"})
   void should_reject_content_when_it_is_longer_than_the_format_allows(
       BarcodeFormat format, int length) {
     String content = "1".repeat(length);
@@ -62,11 +62,11 @@ class BarcodeRequestTest {
 
   @Test
   void should_reject_pdf417_content_when_it_is_longer_than_the_format_allows() {
-    String content = "1".repeat(2711);
+    String content = "1".repeat(2687);
 
     assertThatIllegalArgumentException()
         .isThrownBy(() -> BarcodeRequest.of(BarcodeFormat.PDF_417, content, 300, 150))
-        .withMessageContaining("at most 2710");
+        .withMessageContaining("at most 2686");
   }
 
   @Test
