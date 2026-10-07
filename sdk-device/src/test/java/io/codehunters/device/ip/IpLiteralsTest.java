@@ -55,6 +55,9 @@ class IpLiteralsTest {
         "fe80::zz",
         "1:2:3:4:5:6:7:8:9",
         "+1.2.3.4",
+        "..::",
+        ".::1",
+        ".1::",
         "١.٢.٣.٤"
       })
   void should_reject_text_when_it_is_not_an_ip_literal(String text) {

@@ -35,6 +35,9 @@ class ClientIpResolverTest {
           10.0.0.2     | 6.6.6.6,, 198.51.100.4      | 198.51.100.4
           2001:db8::1  | 198.51.100.4                | 198.51.100.4
           2001:db8::1  | 2001:db8::9, 2001:db8::8    | 2001:db8:0:0:0:0:0:9
+          10.0.0.2     | ", 198.51.100.4             | 198.51.100.4
+          10.0.0.2     | "a, b", 198.51.100.4        | 198.51.100.4
+          10.0.0.2     | fe80::1%en0                 | 10.0.0.2
           """)
   void should_resolve_the_client_from_x_forwarded_for(
       String remote, String forwardedFor, String expected) {
@@ -63,6 +66,8 @@ class ClientIpResolverTest {
           10.0.0.2  | for="\\"x", for=198.51.100.4                  | 198.51.100.4
           10.0.0.2  | for=198.51.100.4, for=10.0.0.9                | 198.51.100.4
           10.0.0.2  | for="unterminated                             | 10.0.0.2
+          10.0.0.2  | for="x, for=198.51.100.4                      | 198.51.100.4
+          10.0.0.2  | for="x;y, for=198.51.100.4;proto=https        | 198.51.100.4
           203.0.113.9 | for=198.51.100.4                            | 203.0.113.9
           """)
   void should_resolve_the_client_from_forwarded(String remote, String forwarded, String expected) {
@@ -107,6 +112,17 @@ class ClientIpResolverTest {
     var chain = new ProxyChain("10.0.0.2", List.of("for=1.1.1.1"), List.of("1.1.1.1"));
 
     assertThat(resolver.resolve(chain)).map(InetAddress::getHostAddress).contains("10.0.0.2");
+  }
+
+  @Test
+  void should_drop_the_zone_id_of_a_link_local_remote_address() {
+    var resolver =
+        new ClientIpResolver(TrustedProxies.of(List.of()), ForwardingHeader.X_FORWARDED_FOR);
+    var chain = new ProxyChain("fe80:0:0:0:0:0:0:1%en0", List.of(), List.of());
+
+    assertThat(resolver.resolve(chain))
+        .map(InetAddress::getHostAddress)
+        .contains("fe80:0:0:0:0:0:0:1");
   }
 
   @Test
