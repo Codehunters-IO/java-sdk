@@ -1,31 +1,85 @@
 # Contributing
-==============
 
-[fork]: https://github.com/codehunters/java-sdk/fork
-[pr]: https://github.com/codehunters/java-sdk/compare
+Discuss a change with the repository owners (issue or message) before starting on it.
 
-When contributing to this repository, please first discuss the change you wish to make via issue,
-email, or any other method with the owners of this repository before making a change.
+## Branches and pull requests
 
-Please note we have a code of conduct, please follow it in all your interactions with the project.
+- Branch from the target branch with a prefix: `feature/`, `fix/`, `refactor/`, `docs/` or `chore/`.
+  CI builds every push to those branches and every pull request to `develop` and `main`.
+- One concern per pull request. A change that needs another one first is stacked on that branch and
+  merged after it, in order.
+- Merging to `main` publishes (see [README](README.md#publish)); `main` only receives reviewed pull
+  requests.
 
-## Pull Request Process
+## Commits
 
-1. Check the issues or open a new one
-2. Fork this repository
-3. Create your feature branch: `git checkout -b feature/my-new-feature`
-4. Commit your changes: `git commit -am 'Add some feature'`
-5. Push to the branch: `git push origin feature/my-new-feature`
-6. Submit a pull request linked to the issue 1. :D
+[Conventional Commits](https://www.conventionalcommits.org/) with the module as scope:
+`feat(file-share): ...`, `fix(audit-log): ...`, `test(totp): ...`, `docs(plan): ...`,
+`chore(build): ...`. Each commit is atomic and builds on its own, except the failing-test commit
+described below.
 
-## Our Pledge
+## Test-driven changes
+
+Every behaviour change starts with a test that fails for the right reason:
+
+1. Commit the failing test (`test(<module>): ...`).
+2. Commit the smallest change that makes it pass (`feat`/`fix`), then refactor while green.
+
+Tests describe one behaviour each, are named `should_<expected>_when_<condition>`, and contain no
+branching or loops; put repeated setup in fixtures. Adapters are tested against real infrastructure
+with Testcontainers (`*IT`), so the build needs Docker. Mocks are for outbound ports only; prefer
+fakes when behaviour matters.
+
+## Definition of done
+
+A change is done when, on its branch:
+
+- `./gradlew build` passes: tests, Spotless (`spotlessApply` fixes formatting), and the JaCoCo gates
+  of LINE ≥ 90% and BRANCH ≥ 80% for the module. The gates are fixed; add tests rather than lower
+  them (`verifyCoverageGates` rejects `coverage.branch.minimum`).
+- `./gradlew -p build-logic test` passes when `build-logic/` changed.
+- The module's `README.md` describes the new behaviour and its `CHANGELOG.md` lists it under the
+  next version. A breaking change also gets a step in the module's `MIGRATION-<major>.md` and a new
+  major version.
+- A new module is added to `settings.gradle.kts`, to `platform/sdk-bom` (`verifyBomConstraints`
+  fails otherwise) and to the module table in the root `README.md` and `CHANGELOG.md`.
+- No secrets, tokens or personal data in code, tests, logs or exception messages.
+- Local assistant or editor configuration files stay out of the repository.
+
+## Versions and releases
+
+- Semantic versioning per module; the version lives in the module's `build.gradle.kts`.
+- A version is published once. Bump it in the same pull request as the change; work in progress
+  may use `-SNAPSHOT`, which is never published and must not be listed in the BOM.
+- After publishing, CI tags each module's first publication `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z`).
+
+## Configuration properties
+
+- Properties live under `codehunters.<sdk>.*` and bind to a validated `@ConfigurationProperties`
+  record; invalid values fail at startup.
+- When a key is renamed, the old one keeps working until the next major version: declare it in the
+  module's `*LegacyProperties` (using `LegacyPropertyAliases` from `sdk-support`) and mark it
+  deprecated in `additional-spring-configuration-metadata.json`
+  ([ADR 0004](docs/adr/0004-single-codehunters-property-prefix.md)).
+
+## Architecture decisions
+
+A decision that changes a module's public API, artifacts, dependencies, transaction or messaging
+semantics, or the build gets an ADR in [`docs/adr`](docs/adr/README.md) (MADR format) in the same
+pull request. An accepted ADR is not edited; write a new one that supersedes it.
+
+## Code of conduct
+
+Please follow it in all your interactions with the project.
+
+### Our Pledge
 
 We pledge to make our community welcoming, safe, and equitable for all.
 
 We are committed to fostering an environment that respects and promotes the dignity, rights, and contributions of all individuals, regardless of characteristics including race, ethnicity, caste, color, age, physical characteristics, neurodiversity, disability, sex or gender, gender identity or expression, sexual orientation, language, philosophy or religion, national or social origin, socio-economic position, level of education, or other status. The same privileges of participation are extended to everyone who participates in good faith and in accordance with this Covenant.
 
 
-## Encouraged Behaviors
+### Encouraged Behaviors
 
 While acknowledging differences in social norms, we all strive to meet our community's expectations for positive behavior. We also understand that our words and actions may be interpreted differently than we intend based on culture, background, or native language.
 
@@ -40,7 +94,7 @@ With these considerations in mind, we agree to behave mindfully toward each othe
 7. Behaving in other ways that promote and sustain the **well-being of our community**.
 
 
-## Restricted Behaviors
+### Restricted Behaviors
 
 We agree to restrict the following behaviors in our community. Instances, threats, and promotion of these behaviors are violations of this Code of Conduct.
 
@@ -52,7 +106,7 @@ We agree to restrict the following behaviors in our community. Instances, threat
 6. **Endangerment.** Causing, encouraging, or threatening violence or other harm toward any person or group.
 7. Behaving in other ways that **threaten the well-being** of our community.
 
-### Other Restrictions
+#### Other Restrictions
 
 1. **Misleading identity.** Impersonating someone else for any reason, or pretending to be someone else to evade enforcement actions.
 2. **Failing to credit sources.** Not properly crediting the sources of content you contribute.
@@ -60,7 +114,7 @@ We agree to restrict the following behaviors in our community. Instances, threat
 4. **Irresponsible communication.** Failing to responsibly present content which includes, links or describes any other restricted behaviors.
 
 
-## Reporting an Issue
+### Reporting an Issue
 
 Tensions can occur between community members even when they are trying their best to collaborate. Not every conflict represents a code of conduct violation, and this Code of Conduct reinforces encouraged behaviors and norms that can help avoid conflicts and minimize harm.
 
@@ -69,7 +123,7 @@ When an incident does occur, it is important to report it promptly. To report a 
 Community Moderators take reports of violations seriously and will make every effort to respond in a timely manner. They will investigate all reports of code of conduct violations, reviewing messages, logs, and recordings, or interviewing witnesses and other participants. Community Moderators will keep investigation and enforcement actions as transparent as possible while prioritizing safety and confidentiality. In order to honor these values, enforcement actions are carried out in private with the involved parties, but communicating to the whole community may be part of a mutually agreed upon resolution.
 
 
-## Addressing and Repairing Harm
+### Addressing and Repairing Harm
 
 If an investigation by the Community Moderators finds that this Code of Conduct has been violated, the following enforcement ladder may be used to determine how best to repair harm, based on the incident's impact on the individuals involved and the community as a whole. Depending on the severity of a violation, lower rungs on the ladder may be skipped.
 
@@ -93,12 +147,12 @@ If an investigation by the Community Moderators finds that this Code of Conduct 
 This enforcement ladder is intended as a guideline. It does not limit the ability of Community Managers to use their discretion and judgment, in keeping with the best interests of our community.
 
 
-## Scope
+### Scope
 
 This Code of Conduct applies within all community spaces, and also applies when an individual is officially representing the community in public or other spaces. Examples of representing our community include using an official email address, posting via an official social media account, or acting as an appointed representative at an online or offline event.
 
 
-## Attribution
+### Attribution
 
 This Code of Conduct is adapted from the Contributor Covenant, version 3.0, permanently available at [https://www.contributor-covenant.org/version/3/0/](https://www.contributor-covenant.org/version/3/0/).
 

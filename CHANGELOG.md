@@ -1,6 +1,41 @@
 # Changelog
 
-## [Unreleased]
+Each module keeps its own changelog; this file indexes them and records changes to the build itself.
+Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) when they are first published.
 
-### Added
-- Repo bootstrap: monorepo skeleton for the codehunters Java SDK collection, migrating the 10 `vitxo-sdk-*` libraries from `com.soldife.vitxo` (group) to `io.codehunters` under a single Gradle multi-module build.
+## Modules
+
+| Module | Current | Changelog | Migration |
+|---|---|---|---|
+| `sdk-bom` | 1.0.0 | [below](#sdk-bom-100) | — |
+| `sdk-user-security` | 3.0.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
+| `sdk-user-security-authz` | 3.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
+| `sdk-tracing` | 1.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | in the changelog |
+| `sdk-event-messaging-core` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
+| `sdk-event-messaging-jdbc` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-jdbc/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
+| `sdk-event-messaging-rabbit` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
+| `sdk-event-messaging-kafka` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
+| `sdk-file-share` | 2.0.0 | [CHANGELOG](sdk-file-share/CHANGELOG.md) | [2.0](sdk-file-share/MIGRATION-2.0.md) |
+| `sdk-audit-log` | 3.0.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) |
+| `sdk-measure-micrometer` | 3.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) |
+| `sdk-parameter` | 2.0.0 | [CHANGELOG](sdk-parameter/CHANGELOG.md) | [2.0](sdk-parameter/MIGRATION-2.0.md) |
+| `sdk-i18n` | 1.0.0 | [CHANGELOG](sdk-i18n/CHANGELOG.md) | [1.0](sdk-i18n/MIGRATION-1.0.md) |
+| `sdk-totp` | 2.0.0 | [CHANGELOG](sdk-totp/CHANGELOG.md) | [2.0](sdk-totp/MIGRATION-2.0.md) |
+| `sdk-support` | 1.0.0 | internal; no public API | — |
+| `sdk-geo-validation` | 0.2.0 | leaving the SDK, see [HANDOFF](sdk-geo-validation/HANDOFF.md) | — |
+
+## sdk-bom 1.0.0
+
+- First release. Constrains every released SDK module, `sdk-support` included, to the versions
+  above. Does not export Spring Boot's BOM ([ADR 0006](docs/adr/0006-sdk-bom-and-no-exported-boot-bom.md)).
+- `sdk-geo-validation` is not part of it ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)).
+
+## Build
+
+- Monorepo: the ten `vitxo-sdk-*` libraries move from `com.soldife.vitxo` to `io.codehunters` under
+  one Gradle build, with conventions in `build-logic/` and versions in `gradle/libs.versions.toml`.
+- JaCoCo gates are fixed for every module (LINE 0.90, BRANCH 0.80); `verifyCoverageGates` rejects
+  per-module overrides.
+- `verifyBomConstraints` keeps `sdk-bom` in step with the released modules.
+- Publishing skips versions already in GitHub Packages and `-SNAPSHOT`s, then tags first
+  publications.
