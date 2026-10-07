@@ -6,7 +6,7 @@ public enum PasswordViolation {
   TOO_SHORT,
   /** More code points than the policy maximum. */
   TOO_LONG,
-  /** Contains a whitespace character. */
+  /** Contains a whitespace or space separator character, such as a no-break space. */
   CONTAINS_WHITESPACE,
   /** Contains a control, format, unpaired surrogate, private-use or unassigned character. */
   CONTAINS_INVISIBLE,
@@ -16,6 +16,6 @@ public enum PasswordViolation {
   MISSING_UPPER,
   /** No digit. */
   MISSING_DIGIT,
-  /** No character that is neither a letter, a digit nor whitespace. */
+  /** No visible punctuation mark or symbol. */
   MISSING_SPECIAL
 }

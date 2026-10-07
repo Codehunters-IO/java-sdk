@@ -5,8 +5,9 @@ import java.util.EnumSet;
 import java.util.Set;
 
 /**
- * Length and composition rules for passwords. Whitespace is never allowed. Lengths are counted in
- * code points.
+ * Length and composition rules for passwords. Whitespace (including no-break spaces) and invisible
+ * characters (control, format, unpaired surrogate, private-use, unassigned) are never allowed.
+ * Lengths are counted in code points.
  *
  * @param minLength the minimum length, at least 1
  * @param maxLength the maximum length, at least {@code minLength}
@@ -38,7 +39,9 @@ public record PasswordPolicy(int minLength, int maxLength, Set<CharacterClass> r
   }
 
   /**
-   * Checks a password against every rule and reports all the broken ones.
+   * Checks a password against every rule and reports all the broken ones. Input longer than twice
+   * {@code maxLength} in UTF-16 units is necessarily too long, so it is reported as {@link
+   * PasswordViolation#TOO_LONG} alone without scanning it.
    *
    * @param password the password; a {@code char[]} can be passed through {@code CharBuffer.wrap}
    * @return the result, which never contains the password
@@ -48,15 +51,41 @@ public record PasswordPolicy(int minLength, int maxLength, Set<CharacterClass> r
     if (password == null) {
       throw new IllegalArgumentException("password must not be null");
     }
+    if (password.length() > 2L * maxLength) {
+      return new PasswordCheck(EnumSet.of(PasswordViolation.TOO_LONG));
+    }
     var violations = EnumSet.noneOf(PasswordViolation.class);
     addLengthViolations(password, violations);
-    if (password.codePoints().anyMatch(Character::isWhitespace)) {
-      violations.add(PasswordViolation.CONTAINS_WHITESPACE);
-    }
+    addCharacterViolations(password, violations);
     required.stream()
         .filter(c -> !c.isPresentIn(password))
         .forEach(c -> violations.add(c.whenMissing()));
     return new PasswordCheck(violations);
+  }
+
+  private static void addCharacterViolations(
+      CharSequence password, Set<PasswordViolation> violations) {
+    if (password.codePoints().anyMatch(PasswordPolicy::isSpace)) {
+      violations.add(PasswordViolation.CONTAINS_WHITESPACE);
+    }
+    if (password.codePoints().anyMatch(PasswordPolicy::isInvisible)) {
+      violations.add(PasswordViolation.CONTAINS_INVISIBLE);
+    }
+  }
+
+  private static boolean isSpace(int codePoint) {
+    return Character.isWhitespace(codePoint) || Character.isSpaceChar(codePoint);
+  }
+
+  private static boolean isInvisible(int codePoint) {
+    int type = Character.getType(codePoint);
+    boolean invisible =
+        type == Character.CONTROL
+            || type == Character.FORMAT
+            || type == Character.SURROGATE
+            || type == Character.PRIVATE_USE
+            || type == Character.UNASSIGNED;
+    return invisible && !isSpace(codePoint);
   }
 
   private void addLengthViolations(CharSequence password, Set<PasswordViolation> violations) {

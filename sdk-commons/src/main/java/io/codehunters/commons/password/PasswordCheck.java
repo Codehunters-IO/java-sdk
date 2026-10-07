@@ -16,8 +16,12 @@ public record PasswordCheck(Set<PasswordViolation> violations) {
    * Copies the violations into an unmodifiable, ordered set.
    *
    * @param violations the broken rules
+   * @throws IllegalArgumentException if {@code violations} is null
    */
   public PasswordCheck {
+    if (violations == null) {
+      throw new IllegalArgumentException("violations must not be null");
+    }
     var ordered = EnumSet.noneOf(PasswordViolation.class);
     ordered.addAll(violations);
     violations = Collections.unmodifiableSet(ordered);
