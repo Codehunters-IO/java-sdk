@@ -6,14 +6,14 @@ import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Configuration for the TOTP SDK, bound from the {@code vitxo.totp} prefix. Missing values fall
- * back to 30s step, six digits and HMAC-SHA512.
+ * Configuration for the TOTP SDK, bound from the {@code codehunters.totp} prefix. Missing values
+ * fall back to 30s step, six digits and HMAC-SHA512.
  *
  * @param timeStep the duration of one time window
  * @param digits the number of digits in generated codes
  * @param algorithm the HMAC algorithm
  */
-@ConfigurationProperties(prefix = "vitxo.totp")
+@ConfigurationProperties(prefix = "codehunters.totp")
 public record TotpProperties(Duration timeStep, TotpDigits digits, TotpAlgorithm algorithm) {
 
   /** Applies default values for any unset property. */
