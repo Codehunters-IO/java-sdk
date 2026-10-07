@@ -1067,8 +1067,8 @@ en un worktree aparte; falta rebasarla sobre `feature/sdk-barcode-v1`.
 Hecho con TDD (cada `feat` con su `test` en rojo antes: `88ca9c8` → `69332be`, `cbe9df7` →
 `bc96bda`, `b87e1af` → `6732a21`, `1370cf8` → `ac4aee7`; cobertura y bordes en `8f95081`):
 - `domain`: `BaseEntity` (UUID v7 con `@UuidGenerator(style = VERSION_7)`, `@Version`, `equals` por
-  clase e id que lee los proxies de Hibernate sin inicializarlos, `hashCode` por clase; getters
-  `Optional` porque Hibernate mapea campos) y `AuditableEntity` (`created_at`, `created_by`,
+  clase e id que lee los proxies de Hibernate sin inicializarlos, `hashCode` por clase; accessors
+  estilo record y `Persistable` tras la review) y `AuditableEntity` (`created_at`, `created_by`,
   `updated_at`, `updated_by`, `Instant`).
 - `auditing` + `config`: `JpaAuditingAutoConfiguration` activa el auditing de Spring Data con un
   `DateTimeProvider` sobre el `Clock` de la app (cortado a microsegundos) y, con Spring Security, el
@@ -1083,7 +1083,8 @@ Hecho con TDD (cada `feat` con su `test` en rojo antes: `88ca9c8` → `69332be`,
 - `specification`: `SearchCriteria` (aridad por operación, `IN` ≤ 1000), `SpecificationBuilder<T>`
   (lista blanca, ≤ 32 criterios, valores convertidos con `ApplicationConversionService`, `LIKE`
   contains sin distinguir mayúsculas con `%` y `_` escapados, `BETWEEN` inclusivo, left joins
-  compartidos por query, `distinct` al unir colecciones), `InvalidSearchException` sin el input.
+  compartidos por query; `EXISTS` correlacionado por condición para colecciones, tras la review),
+  `InvalidSearchException` sin el input.
 - Postgres 17 con Testcontainers para entidades, auditing, paginación, converters y
   specifications; H2 para la auto-configuración. ArchUnit: el wiring de Spring solo en `config`,
   `domain` sin web, seguridad ni JSON.
@@ -1092,11 +1093,33 @@ Hecho con TDD (cada `feat` con su `test` en rojo antes: `88ca9c8` → `69332be`,
   CHANGELOG raíz (`b467df5`).
 
 Mutaciones comprobadas: un `INNER` join en vez de `LEFT`, quitar el escape del `LIKE` y quitar el
-`distinct` hacen fallar los tests.
+`distinct` hacían fallar los tests (el `distinct` desapareció después, con los subqueries `EXISTS`).
 
-Abierto: sin review independiente todavía. `BaseEntity` solo admite ids UUID; las tablas con ids
-numéricos se quedan con su mapeo. Los errores de conversión salen al ejecutar la query, envueltos
-por Spring en `InvalidDataAccessApiUsageException`.
+**Review independiente y correcciones** (cada fix con su test en rojo antes):
+- `bfec9b0` → `1d9cf7a` (H1, M1, LOW 3): Spring 7 lee los accessors que devuelven `Optional` como
+  propiedades de bean, así que `getVersion()` hacía que toda entidad nueva pareciera persistida y
+  `save` hacía `merge` de una copia. `BaseEntity` pasa a ser `Persistable` (nueva mientras no tiene
+  id), los accessors pasan a estilo record (`id()`, `version()`, `createdAt()`…) y `getId()` queda
+  solo por el contrato, `null` mientras es nueva. `equals`, `hashCode`, `id()` e `isNew()` son
+  `final`: en un proxy sin inicializar, o desconectado, leen su identificador sin cargar la fila.
+- `7559f76` → `0aa490a` (M2, LOW 4–8): un path por una colección pasa a ser un `EXISTS` correlacionado
+  por condición en vez de join + `distinct`. Cada condición matchea su propio elemento ("sku A y sku B"
+  encuentra el pedido con una línea de cada) y la query se puede ordenar por una asociación en
+  PostgreSQL. `IS_NULL`/`IS_NOT_NULL` sobre una colección significan vacía o no. Además: las
+  comparaciones de orden rechazan enums, `LIKE` admite hasta 256 caracteres, los nombres `null` en las
+  listas blancas dan `IllegalArgumentException` y `SearchCriteria` es `Serializable` (una
+  especificación restaurada convierte con el `ApplicationConversionService` compartido).
+- `7a31e75` → `9082ecb` (LOW 1): `PageResponse.from(page, mapper, sorts)` reporta el orden con los
+  nombres de API de la lista blanca (`SortWhitelist.toApi`). Tests de guarda sin cambio de código: un
+  `DateTimeProvider` de la app reemplaza al del SDK, y cargar una entidad con columnas JSON sin
+  cambiarla no la escribe ni sube su versión (M3; el README exige `equals` por valor).
+- `edfc633`: README, CHANGELOG, MIGRATION, ADR 0013 y el javadoc de precisión de SQL Server (LOW 9).
+  La herencia (un proxy del tipo padre no es igual a la instancia del subtipo) queda documentada como
+  límite, sin test (LOW 2).
+
+Abierto: `BaseEntity` solo admite ids UUID; las tablas con ids numéricos se quedan con su mapeo. Los
+errores de conversión salen al ejecutar la query, envueltos por Spring en
+`InvalidDataAccessApiUsageException`.
 
 ## Fase 17 — `sdk-jasper` 1.0.0 ✅ (rama `feature/sdk-jasper-v1`, sobre `feature/sdk-barcode-v1`)
 
