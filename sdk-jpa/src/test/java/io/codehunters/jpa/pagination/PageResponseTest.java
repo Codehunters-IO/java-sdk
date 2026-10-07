@@ -8,9 +8,9 @@ import io.codehunters.jpa.pagination.PageResponse.SortOrder.Direction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -106,8 +106,7 @@ class PageResponseTest {
 
   @Test
   void should_reject_null_elements_in_the_content() {
-    assertThatThrownBy(
-            () -> new PageResponse<>(Arrays.asList("a", null), 0, 2, 2, 1, List.of()))
+    assertThatThrownBy(() -> new PageResponse<>(Arrays.asList("a", null), 0, 2, 2, 1, List.of()))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }
