@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - 'feature/**'
+      - 'fix/**'
+      - 'refactor/**'
       - 'bugfix/**'
       - 'hotfix/**'
       - 'chore/**'
