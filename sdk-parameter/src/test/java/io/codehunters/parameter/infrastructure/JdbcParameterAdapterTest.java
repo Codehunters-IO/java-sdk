@@ -215,7 +215,7 @@ class JdbcParameterAdapterTest {
   }
 
   @Test
-  void rowMapper_tolerates_unknown_module_and_type() {
+  void should_map_a_module_unknown_to_the_sdk_and_tolerate_an_unknown_type() {
     UUID id = UUID.randomUUID();
     jdbcClient
         .sql(
@@ -230,7 +230,7 @@ class JdbcParameterAdapterTest {
     List<Parameter> all =
         jdbcClient.sql("SELECT * FROM parameters").query(new ParameterRowMapper()).list();
     assertThat(all).hasSize(1);
-    assertThat(all.get(0).module()).isNull();
+    assertThat(all.get(0).module()).isEqualTo(ParameterModule.of("UNKNOWN_MOD"));
     assertThat(all.get(0).type()).isNull();
   }
 

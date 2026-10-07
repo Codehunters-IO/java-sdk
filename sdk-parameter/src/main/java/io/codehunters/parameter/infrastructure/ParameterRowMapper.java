@@ -11,8 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.RowMapper;
 
 /**
- * Maps a {@code parameters} table row into a {@link Parameter}. Unknown {@code module} or {@code
- * type} enum values are logged and surfaced as {@code null} rather than failing the query.
+ * Maps a {@code parameters} table row into a {@link Parameter}. Any module code is accepted; an
+ * unknown {@code type} is logged and surfaced as {@code null} rather than failing the query.
  */
 @Slf4j
 final class ParameterRowMapper implements RowMapper<Parameter> {
@@ -53,15 +53,11 @@ final class ParameterRowMapper implements RowMapper<Parameter> {
   }
 
   private ParameterModule parseModule(String value) {
-    if (value == null) {
+    if (value == null || value.isBlank()) {
+      log.warn("Parameter row without a module");
       return null;
     }
-    try {
-      return ParameterModule.valueOf(value);
-    } catch (IllegalArgumentException ex) {
-      log.warn("Unknown parameter module received: {}", value);
-      return null;
-    }
+    return ParameterModule.of(value);
   }
 
   private ParameterType parseType(String value) {

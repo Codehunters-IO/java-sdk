@@ -50,7 +50,7 @@ public class JdbcParameterAdapter implements ParameterClient {
             + " WHERE module = :module AND submodule = :submodule AND name = :name"
             + ENABLED_FILTER;
     Map<String, Object> params = new HashMap<>();
-    params.put("module", module.name());
+    params.put("module", module.code());
     params.put("submodule", submodule == null ? "" : submodule);
     params.put("name", name);
     params.put("enabled", Boolean.TRUE);
@@ -66,7 +66,7 @@ public class JdbcParameterAdapter implements ParameterClient {
             .append(TABLE)
             .append(" WHERE module = :module");
     Map<String, Object> params = new HashMap<>();
-    params.put("module", module.name());
+    params.put("module", module.code());
     if (submodule != null) {
       sql.append(" AND submodule = :submodule");
       params.put("submodule", submodule);
@@ -92,7 +92,7 @@ public class JdbcParameterAdapter implements ParameterClient {
             + ENABLED_FILTER
             + " ORDER BY module, name";
     Map<String, Object> params = new HashMap<>();
-    params.put("modules", modules.stream().map(ParameterModule::name).collect(Collectors.toList()));
+    params.put("modules", modules.stream().map(ParameterModule::code).collect(Collectors.toList()));
     params.put("enabled", Boolean.TRUE);
     return execute(
         () -> jdbcClient.sql(sql).params(params).query(ROW_MAPPER).list(), "findByModules");
@@ -113,7 +113,7 @@ public class JdbcParameterAdapter implements ParameterClient {
             + ENABLED_FILTER
             + " ORDER BY submodule, name";
     Map<String, Object> params = new HashMap<>();
-    params.put("module", module.name());
+    params.put("module", module.code());
     params.put("submodules", List.copyOf(submodules));
     params.put("enabled", Boolean.TRUE);
     return execute(
