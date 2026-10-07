@@ -8,6 +8,8 @@ public enum PasswordViolation {
   TOO_LONG,
   /** Contains a whitespace character. */
   CONTAINS_WHITESPACE,
+  /** Contains a control, format, unpaired surrogate, private-use or unassigned character. */
+  CONTAINS_INVISIBLE,
   /** No lower-case letter. */
   MISSING_LOWER,
   /** No upper-case letter. */

@@ -8,6 +8,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class PasswordPolicyTest {
 
@@ -46,6 +47,62 @@ class PasswordPolicyTest {
   void should_report_whitespace() {
     assertThat(PasswordPolicy.DEFAULT.check("Abcd efgh123!").violations())
         .containsExactly(PasswordViolation.CONTAINS_WHITESPACE);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Abcdefgh123! ", "Abcdefgh123! ", "Abcdefgh123! "})
+  void should_report_non_breaking_spaces_as_whitespace(String password) {
+    assertThat(PasswordPolicy.DEFAULT.check(password).violations())
+        .containsExactly(PasswordViolation.CONTAINS_WHITESPACE);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Abcdefgh123!​", "Abcdefgh123!﻿", "Abcdefgh123!\u0000"})
+  void should_report_invisible_characters(String password) {
+    assertThat(PasswordPolicy.DEFAULT.check(password).violations())
+        .containsExactly(PasswordViolation.CONTAINS_INVISIBLE);
+  }
+
+  @Test
+  void should_report_a_lone_surrogate_as_invisible() {
+    assertThat(PasswordPolicy.DEFAULT.check("Abcdefgh123!\uD800").violations())
+        .containsExactly(PasswordViolation.CONTAINS_INVISIBLE);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Abcdefgh1234 ", "Abcdefgh1234​", "Abcdefgh1234é"})
+  void should_not_count_spaces_invisible_characters_or_marks_as_symbols(String password) {
+    assertThat(PasswordPolicy.DEFAULT.check(password).violations())
+        .contains(PasswordViolation.MISSING_SPECIAL);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"Abcdefgh123€", "Abcdefgh123^", "Abcdefgh123«", "Abcdefgh123😀"})
+  void should_count_punctuation_and_symbols_of_any_kind_as_special(String password) {
+    assertThat(PasswordPolicy.DEFAULT.check(password).isValid()).isTrue();
+  }
+
+  @Test
+  void should_report_only_too_long_when_input_is_far_above_maximum() {
+    var policy = new PasswordPolicy(4, 6, EnumSet.allOf(CharacterClass.class));
+
+    assertThat(policy.check(" ".repeat(13)).violations())
+        .containsExactly(PasswordViolation.TOO_LONG);
+  }
+
+  @Test
+  void should_check_every_rule_when_input_is_at_most_twice_the_maximum() {
+    var policy = new PasswordPolicy(4, 6, EnumSet.allOf(CharacterClass.class));
+
+    assertThat(policy.check(" ".repeat(12)).violations())
+        .contains(PasswordViolation.TOO_LONG, PasswordViolation.CONTAINS_WHITESPACE);
+  }
+
+  @Test
+  void should_reject_null_violations_in_check_result() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new PasswordCheck(null))
+        .withMessage("violations must not be null");
   }
 
   @Test
