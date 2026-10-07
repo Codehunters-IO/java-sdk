@@ -19,4 +19,5 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-test")
     testImplementation("org.springframework.boot:spring-boot-micrometer-metrics")
     testImplementation("org.assertj:assertj-core")
+    testRuntimeOnly("ch.qos.logback:logback-classic")
 }
