@@ -30,12 +30,12 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D7 | Solo Spring Boot 4. Los `afterName` apuntan solo a paquetes de Boot 4 y el README lo declara (2026-10-05) | `docs/adr/0007-boot4-only.md` |
 | D9 | `user-security` 3.0 verifica el JWT localmente (JWKS); los headers del gateway solo se aceptan si coinciden (2026-10-05) | (en el CHANGELOG del módulo) |
 | D8 | Mantener `@Measured` y su aspecto propio; no se reemplaza por `@Timed`/`@Counted` de Micrometer (2026-10-05) | `docs/adr/0008-keep-measured.md` |
+| D10 (A4) | `file-share` se autentica con client credentials por defecto; un bean `FileShareRequestInterceptor` lo reemplaza (2026-10-06) | `docs/adr/0009-file-share-outbound-client-credentials.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
 | # | Pregunta | Recomendación | Bloquea |
 |---|---|---|---|
-| A4 | `file-share`: auth saliente, ¿reenviar el token del usuario o usar client credentials? | Hook `ClientHttpRequestInterceptor`; client credentials por defecto | Fase 5 |
 | A5 | Modelo mutable de `event-messaging` (`@Setter` en `OutboxMessage` y `EventMessage`) | Fuera de este plan; se aborda en la 7.0 | — |
 
 ---
@@ -290,9 +290,53 @@ Verificación: 64 tests, mutaciones detectadas, `./gradlew clean build` en verde
 Para la Fase 3: `event-messaging` debe usar `TraceContextPort.currentTraceParent()` para guardar el
 `traceparent` en el outbox y quitar su propio post-processor de traza (este módulo es el dueño).
 
-## Fase 5 — `sdk-file-share` 2.0.0
+## Fase 5 — `sdk-file-share` 2.0.0 ✅ (rama `feature/sdk-file-share-v2`, sobre `feature/sdk-event-messaging-v6`)
 
-Bloqueada por A4. Rama: `feature/sdk-file-share-v2`.
+Desbloqueada por D10 (A4). Detalle en `sdk-file-share/CHANGELOG.md`, `README.md` y `MIGRATION-2.0.md`.
+
+- `d44e634` → `535a598`: `FileConstraints`; `FileRef` y `UploadRequest` validados con `Map.copyOf`;
+  `FileStatus.UNKNOWN`; tickets con `Instant` y `toString()` sin query string.
+- `2c86d6d` → `38618e8`: mapeo dentro de `execute`, `PresignedUrlPolicy` (https + hosts permitidos con
+  comodín `*.`), body de error a 512 caracteres, `FileShareException.status()`, `download` acotado por
+  `max-download-size` y sobrecargas en streaming.
+- `8bba2a7` → `a9561bf`: `codehunters.file-share.*` con alias `vitxo.file-share.*` hasta 3.0, connect
+  timeout real, `RestClient` desde el builder de la app con `defaultCandidate = false`, client credentials
+  y hook `FileShareRequestInterceptor`; fuera Lombok.
+- `3631070`: ADR 0009, README, CHANGELOG, MIGRATION-2.0.
+- Revisión → `3b1e1f4`, `d9f7a47`, `9f5a2ad`: base URL que no es URI nombra la propiedad; límites
+  documentados; javadoc.
+
+**Cambios respecto al plan:**
+- El SDK construye su propio `AuthorizedClientServiceOAuth2AuthorizedClientManager` (no usa el
+  `OAuth2AuthorizedClientManager` de la app, que en servlet depende del request) a partir del
+  `ClientRegistrationRepository` y, si existe, del `OAuth2AuthorizedClientService` de la app.
+- `allowed-hosts` vacío acepta cualquier host https (no rompe a quien sube de versión); se recomienda
+  configurarlo en producción.
+- `download(String, UUID, OutputStream)` además de `download(FileRef, OutputStream)`.
+- El paso de client credentials corre **después** de los `FileShareRequestInterceptor` de la app y
+  ya no se puede reemplazar declarando uno: así ningún interceptor de la app ve el token ni lo quita
+  en silencio. Para usar otra auth se deja `client-registration-id` sin valor.
+- Las descargas de contenido usan su propio `RestClient` (`fileShareContentRestClient`, sobre
+  `HttpURLConnection`) con `download-idle-timeout` por lectura en vez de plazo total, y sin seguir
+  redirecciones.
+
+**Revisión independiente** (3 HIGH, 4 MEDIUM, varios LOW), corregida con TDD:
+- `9323951` → `6671d97`: puerto 443 obligatorio con `allowed-hosts`; `toString()` de tickets sin user
+  info ni fragmento; caracteres de control fuera del body de error.
+- `144f121` → `13d43a2`: `/content` solo acepta 2xx; fallo al escribir en el `OutputStream` del
+  llamador → `UncheckedIOException` (no `Unavailable`); límites de `max-download-size` en el adapter.
+- `65798d9` → `94dc7d0`: `download-idle-timeout` y cliente de contenido sin redirecciones;
+  `max-download-size` validado al arrancar; esquema del base URL sin distinguir mayúsculas; aviso al
+  arrancar si `allowed-hosts` está vacío.
+- `1139923` → `3de03b7`: interceptores compuestos (auth al final); 401/403 desalojan el token;
+  timeouts en el endpoint de token y caídas de ese endpoint → `FileShareUnavailableException`; https
+  obligatorio con auth salvo `auth.allow-insecure-http=true`; `client-registration-id` vacío = sin auth.
+- `a370e1c`, `c3e9c34`: README, ADR 0009, MIGRATION, CHANGELOG y javadoc.
+- Quedan como límites documentados: validación de nombre/tipo solo ASCII (controles Unicode,
+  bidi y barras parecidas pasan) y alias `vitxo.*` que no cubren claves de `@PropertySource`.
+
+Verificación: 163 tests, cobertura 96,2 % líneas / 93,1 % ramas, `./gradlew clean build` y
+`./gradlew -p build-logic test` en verde.
 
 1. `connectTimeout` real (`JdkClientHttpRequestFactory` + `HttpClient.connectTimeout`); `RestClient`
    construido desde `ObjectProvider<RestClient.Builder>`; `defaultCandidate = false`.
@@ -306,7 +350,8 @@ Bloqueada por A4. Rama: `feature/sdk-file-share-v2`.
    host de `allowedPresignedHosts`.
 5. `download(FileRef, OutputStream)` en streaming, y `maxDownloadSize` para el `byte[]`.
 6. `FileStatus.UNKNOWN`; se elimina el código muerto y Lombok.
-7. Hook de auth saliente según A4.
+7. Auth saliente según D10: client credentials + hook `FileShareRequestInterceptor` (se suma, no
+   reemplaza).
 8. Prefijo: `vitxo.file-share.*` → `codehunters.file-share.*`.
 
 ## Fase 6 — `sdk-audit-log` 3.0.0
@@ -406,7 +451,7 @@ Rama: `feature/sdk-totp-v2`.
 ```
 Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
          ├─> Fase 4 (tracing) ──> Fase 3 (event-messaging)
-         ├─> Fase 5 (file-share, bloqueada por A4)
+         ├─> Fase 5 (file-share)
          ├─> Fase 6 (audit)
          ├─> Fase 7 (measure)
          ├─> Fase 8 (parameter)
@@ -417,7 +462,8 @@ Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
 
 Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
-`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6`. Se integran en ese orden.
+`feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2`. Se integran
+en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.

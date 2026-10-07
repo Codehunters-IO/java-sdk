@@ -11,4 +11,14 @@ public class FileShareValidationException extends FileShareException {
   public FileShareValidationException(String message) {
     super(message);
   }
+
+  /**
+   * Creates an exception for an HTTP error response.
+   *
+   * @param message the detail message
+   * @param status the HTTP status the file-share service answered with
+   */
+  public FileShareValidationException(String message, int status) {
+    super(message, status);
+  }
 }

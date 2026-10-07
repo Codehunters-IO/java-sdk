@@ -13,5 +13,7 @@ public enum FileStatus {
   /** Upload or processing failed. */
   ERROR,
   /** File has been deleted. */
-  DELETED
+  DELETED,
+  /** The service sent no status, or one this SDK version does not know. */
+  UNKNOWN
 }

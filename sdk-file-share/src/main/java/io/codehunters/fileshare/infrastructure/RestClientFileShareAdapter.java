@@ -4,28 +4,28 @@ import io.codehunters.fileshare.application.FileShareClient;
 import io.codehunters.fileshare.application.UploadRequest;
 import io.codehunters.fileshare.domain.exception.FileShareConflictException;
 import io.codehunters.fileshare.domain.exception.FileShareException;
-import io.codehunters.fileshare.domain.exception.FileShareNotFoundException;
-import io.codehunters.fileshare.domain.exception.FileShareUnauthorizedException;
 import io.codehunters.fileshare.domain.exception.FileShareUnavailableException;
-import io.codehunters.fileshare.domain.exception.FileShareValidationException;
+import io.codehunters.fileshare.domain.model.FileConstraints;
 import io.codehunters.fileshare.domain.model.FileRef;
 import io.codehunters.fileshare.domain.model.FileStatus;
 import io.codehunters.fileshare.domain.model.PresignedDownloadTicket;
 import io.codehunters.fileshare.domain.model.PresignedUploadTicket;
-import java.net.URI;
-import java.util.Map;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.UUID;
-import lombok.extern.slf4j.Slf4j;
+import java.util.function.Supplier;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 /**
  * {@link FileShareClient} implementation backed by a Spring {@link RestClient}. Maps file-share
- * HTTP status codes and transport failures onto the {@link
- * io.codehunters.fileshare.domain.exception.FileShareException} hierarchy.
+ * HTTP status codes, transport failures and unreadable responses onto the {@link
+ * FileShareException} hierarchy.
  */
-@Slf4j
 public class RestClientFileShareAdapter implements FileShareClient {
 
   private static final String UPLOAD_PATH =
@@ -34,15 +34,55 @@ public class RestClientFileShareAdapter implements FileShareClient {
   private static final String DOCUMENT_CONTENT_PATH =
       "/api/v1/shared/{referenceId}/documents/{documentId}/content";
 
+  /**
+   * The largest {@code max-download-size}: one byte less than the biggest array the JVM reliably
+   * allocates, since one extra byte is read to detect oversized content.
+   */
+  public static final long MAX_DOWNLOAD_SIZE_LIMIT = Integer.MAX_VALUE - 9;
+
   private final RestClient restClient;
+  private final RestClient contentRestClient;
+  private final PresignedUrlPolicy presignedUrlPolicy;
+  private final long maxDownloadSize;
 
   /**
    * Creates an adapter that calls the file-share service through the given client.
    *
    * @param restClient the configured REST client targeting the file-share base URL
+   * @param presignedUrlPolicy decides which presigned URLs may reach the caller
+   * @param maxDownloadSize the largest content, in bytes, {@link #download(String, UUID)} buffers
+   * @throws IllegalArgumentException if {@code maxDownloadSize} is not positive or exceeds {@link
+   *     #MAX_DOWNLOAD_SIZE_LIMIT}
    */
-  public RestClientFileShareAdapter(RestClient restClient) {
+  public RestClientFileShareAdapter(
+      RestClient restClient, PresignedUrlPolicy presignedUrlPolicy, long maxDownloadSize) {
+    if (maxDownloadSize <= 0 || maxDownloadSize > MAX_DOWNLOAD_SIZE_LIMIT) {
+      throw new IllegalArgumentException(
+          "max-download-size must be between 1 byte and " + MAX_DOWNLOAD_SIZE_LIMIT + " bytes");
+    }
     this.restClient = restClient;
+    this.contentRestClient = restClient;
+    this.presignedUrlPolicy = presignedUrlPolicy;
+    this.maxDownloadSize = maxDownloadSize;
+  }
+
+  private RestClientFileShareAdapter(
+      RestClientFileShareAdapter base, RestClient contentRestClient) {
+    this.restClient = base.restClient;
+    this.contentRestClient = contentRestClient;
+    this.presignedUrlPolicy = base.presignedUrlPolicy;
+    this.maxDownloadSize = base.maxDownloadSize;
+  }
+
+  /**
+   * Returns a copy that downloads content through another client, typically one whose timeouts suit
+   * long transfers.
+   *
+   * @param contentRestClient the client for the content endpoint, targeting the same base URL
+   * @return a new adapter; this one is unchanged
+   */
+  public RestClientFileShareAdapter withContentClient(RestClient contentRestClient) {
+    return new RestClientFileShareAdapter(this, contentRestClient);
   }
 
   @Override
@@ -50,133 +90,137 @@ public class RestClientFileShareAdapter implements FileShareClient {
     var body =
         new PresignedUrlHttpRequest(
             request.filename(), request.contentType(), request.size(), request.metadata());
-    var response =
-        execute(
-            () ->
-                restClient
-                    .post()
-                    .uri(UPLOAD_PATH, request.referenceId(), request.workflowId())
-                    .body(body)
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, this::mapError)
-                    .body(DocumentHttpResponse.class),
-            "requestUpload");
-    var ref = toFileRef(response);
-    return new PresignedUploadTicket(
-        ref, URI.create(response.presignedUrl()), response.presignedUrlExpiresAt());
+    return execute(
+        "requestUpload",
+        () -> {
+          var response = post(request, body);
+          return new PresignedUploadTicket(
+              DocumentMapper.toFileRef(response),
+              presignedUrlPolicy.requireAllowed(response.presignedUrl()),
+              DocumentMapper.toExpiry(response.presignedUrlExpiresAt()));
+        });
   }
 
   @Override
   public PresignedDownloadTicket requestDownload(String referenceId, UUID fileId) {
-    var response = fetchDocument(referenceId, fileId);
-    if (response.presignedUrl() == null) {
-      throw new FileShareConflictException(
-          "Document is not in a downloadable state: status=" + response.status());
-    }
-    var ref = toFileRef(response);
-    return new PresignedDownloadTicket(
-        ref, URI.create(response.presignedUrl()), response.presignedUrlExpiresAt());
+    FileConstraints.requireReferenceId(referenceId);
+    return execute(
+        "requestDownload",
+        () -> {
+          var response = fetchDocument(referenceId, fileId);
+          var file = DocumentMapper.toFileRef(response);
+          requireDownloadable(response, file);
+          return new PresignedDownloadTicket(
+              file,
+              presignedUrlPolicy.requireAllowed(response.presignedUrl()),
+              DocumentMapper.toExpiry(response.presignedUrlExpiresAt()));
+        });
   }
 
   @Override
   public FileRef getMetadata(String referenceId, UUID fileId) {
-    return toFileRef(fetchDocument(referenceId, fileId));
+    FileConstraints.requireReferenceId(referenceId);
+    return execute(
+        "getMetadata", () -> DocumentMapper.toFileRef(fetchDocument(referenceId, fileId)));
   }
 
   /**
-   * Downloads the binary by calling the file-share server-side endpoint {@code GET
-   * /api/v1/shared/{referenceId}/documents/{fileId}/content}. The server reads the bytes from S3
-   * via the AWS SDK ({@code S3Client.getObject(...)}) and streams them back — no presigned URL or
-   * client-side SigV4 handshake is involved. Sidesteps S3 SignatureDoesNotMatch failures caused by
-   * HTTP-client header drift on presigned URLs.
+   * Downloads the binary through the server-side endpoint {@code GET
+   * /api/v1/shared/{referenceId}/documents/{fileId}/content}, which reads the object itself, so no
+   * presigned URL is involved.
    */
   @Override
   public byte[] download(String referenceId, UUID fileId) {
+    FileConstraints.requireReferenceId(referenceId);
+    return execute("download", () -> exchangeContent(referenceId, fileId, this::readBounded));
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * @throws UncheckedIOException if writing to {@code target} fails; the service is not at fault
+   */
+  @Override
+  public long download(String referenceId, UUID fileId, OutputStream target) {
+    FileConstraints.requireReferenceId(referenceId);
+    var guarded = new TargetOutputStream(target);
     return execute(
-        () ->
-            restClient
-                .get()
-                .uri(DOCUMENT_CONTENT_PATH, referenceId, fileId)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, this::mapError)
-                .body(byte[].class),
-        "download");
+        "download", () -> exchangeContent(referenceId, fileId, body -> body.transferTo(guarded)));
+  }
+
+  private DocumentHttpResponse post(UploadRequest request, PresignedUrlHttpRequest body) {
+    return restClient
+        .post()
+        .uri(UPLOAD_PATH, request.referenceId(), request.workflowId())
+        .body(body)
+        .retrieve()
+        .onStatus(HttpStatusCode::isError, (req, res) -> fail(res))
+        .body(DocumentHttpResponse.class);
   }
 
   private DocumentHttpResponse fetchDocument(String referenceId, UUID fileId) {
-    return execute(
-        () ->
-            restClient
-                .get()
-                .uri(DOCUMENT_PATH, referenceId, fileId)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, this::mapError)
-                .body(DocumentHttpResponse.class),
-        "getDocument");
+    return restClient
+        .get()
+        .uri(DOCUMENT_PATH, referenceId, fileId)
+        .retrieve()
+        .onStatus(HttpStatusCode::isError, (req, res) -> fail(res))
+        .body(DocumentHttpResponse.class);
   }
 
-  private FileRef toFileRef(DocumentHttpResponse response) {
-    if (response == null) {
-      throw new FileShareException("Empty response from file-share");
-    }
-    return new FileRef(
-        response.id() != null ? UUID.fromString(response.id()) : null,
-        response.referenceId(),
-        response.workflowId(),
-        response.filename(),
-        response.contentType(),
-        response.size(),
-        parseStatus(response.status()),
-        response.metadata() != null ? response.metadata() : Map.of());
+  private <T> T exchangeContent(String referenceId, UUID fileId, BodyReader<T> reader) {
+    return contentRestClient
+        .get()
+        .uri(DOCUMENT_CONTENT_PATH, referenceId, fileId)
+        .exchange(
+            (req, res) -> {
+              if (!res.getStatusCode().is2xxSuccessful()) {
+                fail(res);
+              }
+              return reader.read(res.getBody());
+            });
   }
 
-  private FileStatus parseStatus(String value) {
-    if (value == null) {
-      return null;
+  private byte[] readBounded(InputStream body) throws IOException {
+    byte[] content = body.readNBytes((int) (maxDownloadSize + 1));
+    if (content.length > maxDownloadSize) {
+      throw new FileShareException(
+          "Content is larger than max-download-size; use download(..., OutputStream)");
     }
-    try {
-      return FileStatus.valueOf(value);
-    } catch (IllegalArgumentException e) {
-      log.warn("Unknown file status received: {}", value);
-      return null;
+    return content;
+  }
+
+  private static void requireDownloadable(DocumentHttpResponse response, FileRef file) {
+    if (response.presignedUrl() == null) {
+      throw new FileShareConflictException(
+          "Document is not in a downloadable state: status="
+              + file.status()
+              + ", expected "
+              + FileStatus.COMPLETED);
     }
   }
 
-  private void mapError(
-      org.springframework.http.HttpRequest request,
-      org.springframework.http.client.ClientHttpResponse clientResponse)
-      throws java.io.IOException {
-    var status = clientResponse.getStatusCode();
-    var body = new String(clientResponse.getBody().readAllBytes());
-    String message = "file-share error status=" + status + " body=" + body;
-    if (status.value() == 404) {
-      throw new FileShareNotFoundException(message);
-    }
-    if (status.value() == 401 || status.value() == 403) {
-      throw new FileShareUnauthorizedException(message);
-    }
-    if (status.value() == 409) {
-      throw new FileShareConflictException(message);
-    }
-    if (status.is4xxClientError()) {
-      throw new FileShareValidationException(message);
-    }
-    if (status.is5xxServerError()) {
-      throw new FileShareUnavailableException(message);
-    }
-    throw new FileShareException(message);
+  private static void fail(ClientHttpResponse response) throws IOException {
+    throw ErrorResponses.toException(response);
   }
 
-  private <T> T execute(java.util.function.Supplier<T> call, String operation) {
+  private static <T> T execute(String operation, Supplier<T> call) {
     try {
       return call.get();
     } catch (FileShareException e) {
       throw e;
-    } catch (ResourceAccessException e) {
+    } catch (TargetOutputStream.WriteException e) {
+      throw new UncheckedIOException(
+          "Could not write file-share content to the target", e.getCause());
+    } catch (ResourceAccessException | UncheckedIOException e) {
       throw new FileShareUnavailableException(
           "I/O error calling file-share operation=" + operation, e);
     } catch (RuntimeException e) {
       throw new FileShareException("Unexpected error calling file-share operation=" + operation, e);
     }
+  }
+
+  @FunctionalInterface
+  private interface BodyReader<T> {
+    T read(InputStream body) throws IOException;
   }
 }

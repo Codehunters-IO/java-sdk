@@ -21,4 +21,14 @@ public class FileShareUnavailableException extends FileShareException {
   public FileShareUnavailableException(String message, Throwable cause) {
     super(message, cause);
   }
+
+  /**
+   * Creates an exception for an HTTP error response.
+   *
+   * @param message the detail message
+   * @param status the HTTP status the file-share service answered with
+   */
+  public FileShareUnavailableException(String message, int status) {
+    super(message, status);
+  }
 }

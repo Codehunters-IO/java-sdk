@@ -12,3 +12,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0006](0006-sdk-bom-and-no-exported-boot-bom.md) | Publish an sdk-bom and stop exporting the Spring Boot BOM | accepted |
 | [0007](0007-support-spring-boot-4-only.md) | Support Spring Boot 4 only | accepted |
 | [0008](0008-keep-measured-annotation.md) | Keep @Measured and its own aspect | accepted |
+| [0009](0009-file-share-outbound-client-credentials.md) | Authenticate sdk-file-share calls with client credentials | accepted |
