@@ -50,16 +50,16 @@ class PasswordPolicyTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"Abcdefgh123! ", "Abcdefgh123! ", "Abcdefgh123! "})
-  void should_report_non_breaking_spaces_as_whitespace(String password) {
-    assertThat(PasswordPolicy.DEFAULT.check(password).violations())
+  @ValueSource(ints = {0x00A0, 0x2007, 0x202F})
+  void should_report_non_breaking_spaces_as_whitespace(int space) {
+    assertThat(PasswordPolicy.DEFAULT.check(VALID + Character.toString(space)).violations())
         .containsExactly(PasswordViolation.CONTAINS_WHITESPACE);
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"Abcdefgh123!​", "Abcdefgh123!﻿", "Abcdefgh123!\u0000"})
-  void should_report_invisible_characters(String password) {
-    assertThat(PasswordPolicy.DEFAULT.check(password).violations())
+  @ValueSource(ints = {0x200B, 0xFEFF, 0x0000, 0x007F})
+  void should_report_invisible_characters(int invisible) {
+    assertThat(PasswordPolicy.DEFAULT.check(VALID + Character.toString(invisible)).violations())
         .containsExactly(PasswordViolation.CONTAINS_INVISIBLE);
   }
 
@@ -70,9 +70,12 @@ class PasswordPolicyTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"Abcdefgh1234 ", "Abcdefgh1234​", "Abcdefgh1234é"})
-  void should_not_count_spaces_invisible_characters_or_marks_as_symbols(String password) {
-    assertThat(PasswordPolicy.DEFAULT.check(password).violations())
+  @ValueSource(ints = {0x00A0, 0x200B, 0x0301})
+  void should_not_count_spaces_invisible_characters_or_marks_as_symbols(int codePoint) {
+    assertThat(
+            PasswordPolicy.DEFAULT
+                .check("Abcdefgh1234" + Character.toString(codePoint))
+                .violations())
         .contains(PasswordViolation.MISSING_SPECIAL);
   }
 
