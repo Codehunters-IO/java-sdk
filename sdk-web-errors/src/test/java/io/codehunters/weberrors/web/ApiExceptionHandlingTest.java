@@ -127,7 +127,7 @@ class ApiExceptionHandlingTest {
     runner.run(
         context -> mvc(context).perform(get("/orders/order-42")).andExpect(status().isNotFound()));
 
-    assertThat(output).doesNotContain("ORDER_NOT_FOUND");
+    assertThat(output).contains(" DEBUG ").doesNotContain(" ERROR ");
   }
 
   @Test

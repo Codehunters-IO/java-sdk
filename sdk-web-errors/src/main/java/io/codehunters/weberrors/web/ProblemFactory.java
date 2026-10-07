@@ -1,12 +1,15 @@
 package io.codehunters.weberrors.web;
 
 import io.codehunters.weberrors.FieldViolation;
+import jakarta.servlet.RequestDispatcher;
+import jakarta.servlet.http.HttpServletRequest;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.springframework.context.MessageSource;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.NoSuchMessageException;
@@ -30,6 +33,7 @@ final class ProblemFactory {
   private static final String INVALID_VALUE = "Invalid value";
   private static final String TYPE_MISMATCH_KEY = "web-errors.typeMismatch";
   private static final String INVALID_KEY = "web-errors.invalid";
+  private static final Pattern PATH_PARAMETERS = Pattern.compile(";[^/]*");
 
   private final MessageSource messages;
   private final TraceIdProvider traceIds;
@@ -66,7 +70,16 @@ final class ProblemFactory {
   }
 
   Optional<String> traceId() {
-    return settings.includeTraceId() ? traceIds.currentTraceId() : Optional.empty();
+    return settings.includeTraceId() ? currentTraceId() : Optional.empty();
+  }
+
+  /** The trace id for log lines, whether or not responses include it. */
+  String loggedTraceId() {
+    return currentTraceId().orElse("none");
+  }
+
+  private Optional<String> currentTraceId() {
+    return traceIds.currentTraceId().filter(id -> !id.isBlank());
   }
 
   private String detail(ProblemSpec spec) {
@@ -101,12 +114,19 @@ final class ProblemFactory {
         .map(base -> base.resolve(URLEncoder.encode(slug, StandardCharsets.UTF_8)));
   }
 
+  /**
+   * The path the client requested: the original one on an error dispatch, without path parameters
+   * such as {@code ;jsessionid=...}.
+   */
   private static Optional<URI> instanceOf(WebRequest request) {
     if (!(request instanceof ServletWebRequest servletRequest)) {
       return Optional.empty();
     }
+    HttpServletRequest servlet = servletRequest.getRequest();
+    Object original = servlet.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
+    String path = original instanceof String uri ? uri : servlet.getRequestURI();
     try {
-      return Optional.of(new URI(servletRequest.getRequest().getRequestURI()));
+      return Optional.of(new URI(PATH_PARAMETERS.matcher(path).replaceAll("")));
     } catch (URISyntaxException invalid) {
       return Optional.empty();
     }

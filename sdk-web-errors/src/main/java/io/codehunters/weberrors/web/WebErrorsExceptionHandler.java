@@ -29,10 +29,15 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.web.util.DisconnectedClientHelper;
+import org.springframework.web.util.WebUtils;
 
 /**
  * Answers every exception that reaches Spring MVC with an RFC 9457 problem detail carrying a stable
@@ -50,6 +55,8 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
   private static final Logger LOG = LoggerFactory.getLogger(WebErrorsExceptionHandler.class);
 
   private static final String FRAMEWORK_MESSAGE_PREFIX = "web-errors.";
+
+  private static final int MAX_CAUSE_DEPTH = 16;
 
   private static final Set<String> SECURITY_EXCEPTIONS =
       Set.of(
@@ -89,7 +96,6 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
   public ResponseEntity<Object> handleApiException(ApiException exception, WebRequest request) {
     ErrorCode code = exception.errorCode();
     HttpStatusCode status = StatusCodes.errorStatus(code.status());
-    log(status, code.code(), exception);
     var spec =
         new ProblemSpec(
             status,
@@ -115,6 +121,10 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       throws Exception {
     if (isSecurityException(exception)) {
       throw exception;
+    }
+    if (DisconnectedClientHelper.isClientDisconnectedException(exception)) {
+      LOG.debug("Client disconnected: traceId={}", problems.loggedTraceId());
+      return null;
     }
     if (BEAN_VALIDATION_PRESENT && ConstraintViolations.matches(exception)) {
       return constraintViolations(exception, request);
@@ -168,7 +178,6 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       HttpStatusCode statusCode,
       WebRequest request) {
     String code = StatusCodes.code(statusCode);
-    log(statusCode, code, exception);
     var spec =
         new ProblemSpec(
             statusCode,
@@ -214,7 +223,6 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       HttpStatusCode status,
       WebRequest request) {
     CommonErrorCode code = CommonErrorCode.VALIDATION_FAILED;
-    log(status, code.code(), exception);
     var sorted = violations.stream().sorted(BY_FIELD_AND_CODE).toList();
     var spec =
         new ProblemSpec(
@@ -231,7 +239,6 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       Exception exception, ResponseStatus annotated, WebRequest request) {
     HttpStatusCode status = annotated.code();
     String code = StatusCodes.code(status);
-    log(status, code, exception);
     String detail =
         StringUtils.hasText(annotated.reason())
             ? annotated.reason()
@@ -245,7 +252,6 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
   private ResponseEntity<Object> internalError(Exception exception, WebRequest request) {
     CommonErrorCode code = CommonErrorCode.INTERNAL_ERROR;
     HttpStatusCode status = HttpStatusCode.valueOf(code.status());
-    log(status, code.code(), exception);
     var spec =
         new ProblemSpec(
             status,
@@ -257,20 +263,49 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
     return respond(exception, spec, new HttpHeaders(), request);
   }
 
+  /**
+   * Logs and answers. A committed response cannot carry a problem detail: the failure is logged
+   * once, without the exception message, and left alone. Server errors are exposed to the
+   * observation filter, which otherwise sees a handled request.
+   */
   private ResponseEntity<Object> respond(
       Exception exception, ProblemSpec spec, HttpHeaders headers, WebRequest request) {
+    if (isCommitted(request)) {
+      LOG.warn(
+          "Could not answer, response already committed: status={} code={} exception={} traceId={}",
+          spec.status().value(),
+          spec.code(),
+          exception.getClass().getName(),
+          problems.loggedTraceId());
+      return null;
+    }
+    log(spec.status(), spec.code(), exception);
+    if (spec.status().is5xxServerError()) {
+      request.setAttribute(
+          WebUtils.ERROR_EXCEPTION_ATTRIBUTE, exception, RequestAttributes.SCOPE_REQUEST);
+    }
     var problem = problems.create(spec, request);
     return super.handleExceptionInternal(exception, problem, headers, spec.status(), request);
   }
 
   private void log(HttpStatusCode status, String code, Exception exception) {
-    String traceId = problems.traceId().orElse("none");
-    if (status.is5xxServerError()) {
-      LOG.error(
-          "Request failed: status={} code={} traceId={}", status.value(), code, traceId, exception);
+    String traceId = problems.loggedTraceId();
+    int value = status.value();
+    if (exception instanceof AsyncRequestTimeoutException) {
+      LOG.warn("Request timed out: status={} code={} traceId={}", value, code, traceId);
+    } else if (status.is5xxServerError()) {
+      LOG.error("Request failed: status={} code={} traceId={}", value, code, traceId, exception);
+    } else if (exception.getCause() != null) {
+      LOG.debug("Request rejected: status={} code={} traceId={}", value, code, traceId, exception);
     } else {
-      LOG.debug("Request rejected: status={} code={} traceId={}", status.value(), code, traceId);
+      LOG.debug("Request rejected: status={} code={} traceId={}", value, code, traceId);
     }
+  }
+
+  private static boolean isCommitted(WebRequest request) {
+    return request instanceof ServletWebRequest servlet
+        && servlet.getResponse() != null
+        && servlet.getResponse().isCommitted();
   }
 
   private static String frameworkDetail(Exception exception, HttpStatusCode status) {
@@ -298,8 +333,20 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
     return name != null ? name : "arg" + parameter.getParameterIndex();
   }
 
-  private static boolean isSecurityException(Exception exception) {
-    for (Class<?> type = exception.getClass(); type != null; type = type.getSuperclass()) {
+  /** Walks the cause chain too: proxies and futures wrap Spring Security's exceptions. */
+  private static boolean isSecurityException(Throwable exception) {
+    Throwable current = exception;
+    for (int depth = 0; current != null && depth < MAX_CAUSE_DEPTH; depth++) {
+      if (isSecurityType(current.getClass())) {
+        return true;
+      }
+      current = current.getCause();
+    }
+    return false;
+  }
+
+  private static boolean isSecurityType(Class<?> exceptionType) {
+    for (Class<?> type = exceptionType; type != null; type = type.getSuperclass()) {
       if (SECURITY_EXCEPTIONS.contains(type.getName())) {
         return true;
       }

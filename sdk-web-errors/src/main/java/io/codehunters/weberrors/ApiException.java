@@ -1,5 +1,8 @@
 package io.codehunters.weberrors;
 
+import java.io.IOException;
+import java.io.NotSerializableException;
+import java.io.ObjectOutputStream;
 import java.io.Serial;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +20,10 @@ public class ApiException extends RuntimeException {
 
   @Serial private static final long serialVersionUID = 1L;
 
-  /** Not serialized: error codes are usually enums, but nothing forces implementations to be. */
+  /**
+   * Transient because nothing forces error codes or arguments to be serializable. The exception
+   * refuses serialization instead of arriving with them missing.
+   */
   private final transient ErrorCode errorCode;
 
   private final transient List<Object> arguments;
@@ -72,9 +78,18 @@ public class ApiException extends RuntimeException {
     return arguments;
   }
 
+  @Serial
+  private void writeObject(ObjectOutputStream out) throws IOException {
+    throw new NotSerializableException(ApiException.class.getName());
+  }
+
   private static ErrorCode requireCode(ErrorCode errorCode) {
     if (errorCode == null) {
       throw new IllegalArgumentException("errorCode must not be null");
+    }
+    String code = errorCode.code();
+    if (code == null || code.isBlank()) {
+      throw new IllegalArgumentException("errorCode must have a code");
     }
     return errorCode;
   }
