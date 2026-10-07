@@ -981,6 +981,23 @@ Hecho con TDD (cada `feat`/`fix` con su `test` en rojo antes: `065b3c8` → `554
   3.0.0 (no publicada).
 - `sdk-bom` 1.0.0 incluye `sdk-device` (lock regenerado, BOM sin publicar).
 
+Review independiente: 2 HIGH, 3 MEDIUM, 7 LOW. Corregidos con TDD (`5576058` → `1875b5c`,
+`0e01b5e` → `e9d9b1a`, `b109271` → `493e85d`):
+- HIGH: una comilla enviada por el cliente se tragaba el hop que el proxy agrega a su línea y la IP
+  quedaba en la del proxy. `X-Forwarded-For` se parte en cada coma; una línea `Forwarded` con
+  comillas desbalanceadas, también.
+- HIGH (docs): `server.forward-headers-strategy=framework` toma el valor de la izquierda sin chequeo
+  de confianza. README y ADR 0012 dicen ahora que solo `native` con `internal-proxies` equivale.
+- MEDIUM: un `Error` en el parser dejaba el single-flight colgado para siempre; ahora libera a los que
+  esperan con `UNKNOWN` y no se cachea. Un IPv6 que empezaba con `.` llegaba al resolver del sistema;
+  ahora debe empezar con hex o `:`. Un parser propio que lanza o devuelve `null` ya no tumba el
+  request.
+- LOW: entradas de confianza sin puerto ni `/0`, CIDR IPv4-mapped aceptados, zone id quitado solo de
+  la dirección remota, `max-length x cache-size` ≤ 64 MB, `current()` ignora un request terminado,
+  Javadoc de `ClientIpResolver` corregido.
+- Tests: el de single-flight ya no depende del timing; el fake falla si el latch no se libera; tests
+  de arranque sin servlet ni spring-web para device y audit.
+
 Abierto: sin soporte WebFlux (solo el `ClientIpResolver` en Java plano). Las IPv6 salen en la forma
 larga del JDK.
 
