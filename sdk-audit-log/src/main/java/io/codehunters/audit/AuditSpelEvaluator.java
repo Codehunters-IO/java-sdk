@@ -63,6 +63,10 @@ final class AuditSpelEvaluator {
     return valueOf(expression, ctx, String.class).orElse(null);
   }
 
+  Object evaluateValue(String expression, EvaluationContext ctx) {
+    return valueOf(expression, ctx, Object.class).orElse(null);
+  }
+
   Map<String, Object> evaluatePayload(String[] expressions, EvaluationContext ctx) {
     Map<String, Object> payload = new LinkedHashMap<>();
     for (String entry : expressions) {

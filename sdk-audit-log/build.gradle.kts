@@ -19,6 +19,7 @@ dependencies {
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.projectreactor:reactor-core")
+    compileOnly("jakarta.transaction:jakarta.transaction-api")
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework:spring-jdbc")

@@ -24,7 +24,7 @@ final class AuditMdcTaskDecorator implements TaskDecorator {
     };
   }
 
-  private static void replaceMdc(Map<String, String> context) {
+  static void replaceMdc(Map<String, String> context) {
     if (context == null) {
       MDC.clear();
     } else {

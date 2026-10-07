@@ -3,41 +3,44 @@ package io.codehunters.audit;
 import java.lang.reflect.Method;
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.core.Ordered;
-import org.springframework.expression.EvaluationContext;
 
 /**
  * Intercepts methods annotated with {@link Auditable} and publishes an {@link AuditEvent} via the
  * configured {@link AuditEventPublisherPort}.
  *
  * <p>A failing method is recorded with the class name of its exception, never its message, which
- * may carry personal data. An {@link AuditPersistenceException} from the publisher (fail-on-error
- * mode) is propagated: on success it replaces the result. When the method itself failed, anything
- * the publisher throws is added as suppressed to the method's exception, which is rethrown
- * unchanged. Any other publisher failure on success is logged and the call continues.
+ * may carry personal data. In fail-on-error mode, an event that cannot be built or published fails
+ * the call with a {@linkplain AuditPersistenceException#redacted redacted} {@link
+ * AuditPersistenceException}; on success it replaces the result. When the method itself failed,
+ * anything the publisher throws is added as suppressed to the method's exception, which is rethrown
+ * unchanged. Without fail-on-error, a failure is logged with its exception class only.
  *
  * <p>An expression or {@link AuditContextProvider} call that fails leaves only its own field {@code
- * null}. If the event cannot be built at all, the call fails with an {@link
- * AuditPersistenceException} in fail-on-error mode; otherwise the failure is logged.
+ * null}. The provider fields, the MDC and every expression that does not name {@code #result} are
+ * taken on the calling thread when the method returns; see {@link CapturedCall}.
  *
  * <p>A method that returns a {@link java.util.concurrent.CompletionStage}, or a Reactor {@code
  * Mono} or {@code Flux}, is audited when that work finishes, with its outcome and the time it took.
- * The stage is returned unchanged; a {@code Mono} or {@code Flux} is returned decorated and audits
- * each subscription, and a cancelled subscription is not audited. That event is published on the
- * thread that completes the work, so it cannot fail the call: a failure to publish it is logged,
- * even in fail-on-error mode.
+ * A cancelled future or subscription is recorded with status {@code CANCELLED}. The stage is
+ * returned unchanged; a {@code Mono} or {@code Flux} is returned decorated and audits each
+ * subscription, so a retry or resubscription records one event per attempt. A method declared to
+ * return a subclass such as {@code ConnectableFlux} is audited when it returns. The completion
+ * event is published {@linkplain AuditEventPublisherPort#publishDetached detached} from any
+ * transaction on the completing thread, with the caller's MDC, and cannot fail the call: a failure
+ * to publish it is logged, even in fail-on-error mode.
  *
  * <p>The aspect is {@link Ordered}. With the default {@link Ordered#LOWEST_PRECEDENCE} it runs
  * inside the transaction of a {@code @Transactional} method, so a synchronous write of a success
@@ -50,6 +53,7 @@ public class AuditAspect implements Ordered {
 
   private static final String STATUS_SUCCESS = "SUCCESS";
   private static final String STATUS_ERROR = "ERROR";
+  private static final String STATUS_CANCELLED = "CANCELLED";
 
   private final Logger log = LoggerFactory.getLogger(AuditAspect.class);
 
@@ -131,29 +135,51 @@ public class AuditAspect implements Ordered {
     try {
       result = pjp.proceed();
     } catch (Throwable ex) {
-      publishAfterFailure(ex, () -> publishEvent(auditable, method, args, failure(ex), start));
+      publishAfterFailure(ex, () -> publish(capture(auditable, method, args, false), ex, start));
       throw ex;
     }
+    return observeOrPublish(capture(auditable, method, args, true), result, start);
+  }
+
+  private Object observeOrPublish(CapturedCall call, Object result, long start) {
     Optional<Object> pending =
-        AsyncResults.observe(result, start, completion(new Invocation(auditable, method, args)));
+        AsyncResults.observe(result, call.method().getReturnType(), start, completion(call));
     if (pending.isPresent()) {
       return pending.get();
     }
-    publishEvent(auditable, method, args, success(result), start);
+    publish(call, success(result), start, false);
     return result;
   }
 
-  private AsyncResults.Completion completion(Invocation invocation) {
+  private CapturedCall capture(
+      Auditable auditable, Method method, Object[] args, boolean mayComplete) {
+    return CapturedCall.of(
+        auditable,
+        method,
+        args,
+        new CapturedCall.Capture(spelEvaluator, contextProvider, mayComplete));
+  }
+
+  private void publish(CapturedCall call, Throwable failure, long startNanos) {
+    publish(call, failure(failure), startNanos, false);
+  }
+
+  private AsyncResults.Completion completion(CapturedCall call) {
     return (value, failure, startNanos) -> {
       Outcome outcome = failure == null ? success(value) : failure(failure);
+      Map<String, String> previous = MDC.getCopyOfContextMap();
+      AuditMdcTaskDecorator.replaceMdc(call.mdc());
       try {
-        publishEvent(
-            invocation.auditable(), invocation.method(), invocation.args(), outcome, startNanos);
-      } catch (RuntimeException ex) {
+        publish(call, outcome, startNanos, true);
+      } catch (VirtualMachineError ex) {
+        throw ex;
+      } catch (Throwable ex) {
         log.error(
             "Failed to audit the completion of {}: {}",
-            invocation.method().getName(),
+            call.method().getName(),
             ex.getClass().getName());
+      } finally {
+        AuditMdcTaskDecorator.replaceMdc(previous);
       }
     };
   }
@@ -163,7 +189,8 @@ public class AuditAspect implements Ordered {
   }
 
   private static Outcome failure(Throwable failure) {
-    return new Outcome(null, STATUS_ERROR, false, failure.getClass().getName());
+    String status = failure instanceof CancellationException ? STATUS_CANCELLED : STATUS_ERROR;
+    return new Outcome(null, status, false, failure.getClass().getName());
   }
 
   private static void publishAfterFailure(Throwable methodFailure, Runnable publish) {
@@ -174,52 +201,64 @@ public class AuditAspect implements Ordered {
     }
   }
 
-  private void publishEvent(
-      Auditable auditable, Method method, Object[] args, Outcome outcome, long startNanos) {
+  private void publish(CapturedCall call, Outcome outcome, long startNanos, boolean detached) {
     int durationMs = elapsedMillis(startNanos);
     AuditEvent event;
     try {
-      event = buildEvent(auditable, method, args, outcome, durationMs);
+      event = buildEvent(call, outcome, durationMs);
     } catch (RuntimeException ex) {
-      if (options.failOnError()) {
-        throw AuditPersistenceException.redacted("Failed to build audit event", ex);
-      }
-      log.error("Failed to build audit event for {}", method.getName(), ex);
+      onFailure("build", call, ex);
       return;
     }
-    publish(event, method);
-  }
-
-  private void publish(AuditEvent event, Method method) {
     try {
-      publisher.publish(event);
+      deliver(event, detached);
     } catch (AuditPersistenceException ex) {
       throw ex;
     } catch (RuntimeException ex) {
-      log.error("Failed to publish audit event for {}", method.getName(), ex);
+      onFailure("publish", call, ex);
     }
   }
 
-  private AuditEvent buildEvent(
-      Auditable auditable, Method method, Object[] args, Outcome outcome, int durationMs) {
-    EvaluationContext ctx = spelEvaluator.buildContext(method, args, outcome.result());
+  private void deliver(AuditEvent event, boolean detached) {
+    if (detached) {
+      publisher.publishDetached(event);
+    } else {
+      publisher.publish(event);
+    }
+  }
+
+  private void onFailure(String step, CapturedCall call, RuntimeException failure) {
+    if (options.failOnError()) {
+      throw AuditPersistenceException.redacted("Failed to " + step + " audit event", failure);
+    }
+    log.error(
+        "Failed to {} audit event for {}: {}",
+        step,
+        call.method().getName(),
+        failure.getClass().getName());
+  }
+
+  private AuditEvent buildEvent(CapturedCall call, Outcome outcome, int durationMs) {
+    Auditable auditable = call.auditable();
+    CapturedCall.ProviderFields provider = call.provider();
+    CapturedCall.Resolved resolved = call.resolve(outcome.result());
     return new AuditEvent(
         auditable.entityType(),
-        resolveEntityId(auditable, ctx),
+        resolved.entityId(),
         auditable.action(),
-        resolveActorId(auditable, ctx),
-        resolveActorType(auditable),
-        fromProvider(contextProvider::getIpAddress),
-        resolvePayload(auditable, ctx),
+        firstNonBlank(resolved.actorId(), provider.actorId()),
+        firstNonBlank(auditable.actorType(), provider.actorType()),
+        provider.ipAddress(),
+        resolved.payload(),
         outcome.status(),
-        resolveCorrelationId(auditable, ctx),
-        resolveSourceService(auditable),
+        toUuid(resolved.correlationId()),
+        firstNonBlank(auditable.sourceService(), provider.sourceService()),
         OffsetDateTime.now(options.clock()),
-        fromProvider(contextProvider::getResource),
+        provider.resource(),
         null,
-        fromProvider(contextProvider::getHttpMethod),
+        provider.httpMethod(),
         null,
-        fromProvider(contextProvider::getUserAgent),
+        provider.userAgent(),
         null,
         outcome.success(),
         outcome.error(),
@@ -232,34 +271,11 @@ public class AuditAspect implements Ordered {
     return (int) Math.min(millis, Integer.MAX_VALUE);
   }
 
-  private String resolveEntityId(Auditable auditable, EvaluationContext ctx) {
-    return spelEvaluator.evaluate(auditable.entityId(), ctx);
+  private static String firstNonBlank(String preferred, String fallback) {
+    return preferred != null && !preferred.isBlank() ? preferred : fallback;
   }
 
-  private String resolveActorId(Auditable auditable, EvaluationContext ctx) {
-    String fromAnnotation = spelEvaluator.evaluate(auditable.actorId(), ctx);
-    if (fromAnnotation != null && !fromAnnotation.isBlank()) {
-      return fromAnnotation;
-    }
-    return fromProvider(contextProvider::getActorId);
-  }
-
-  private String resolveActorType(Auditable auditable) {
-    if (!auditable.actorType().isBlank()) {
-      return auditable.actorType();
-    }
-    return fromProvider(contextProvider::getActorType);
-  }
-
-  private Map<String, Object> resolvePayload(Auditable auditable, EvaluationContext ctx) {
-    if (auditable.payload().length == 0) {
-      return Collections.emptyMap();
-    }
-    return spelEvaluator.evaluatePayload(auditable.payload(), ctx);
-  }
-
-  private UUID resolveCorrelationId(Auditable auditable, EvaluationContext ctx) {
-    String value = spelEvaluator.evaluate(auditable.correlationId(), ctx);
+  private UUID toUuid(String value) {
     if (value == null || value.isBlank()) {
       return null;
     }
@@ -267,22 +283,6 @@ public class AuditAspect implements Ordered {
       return UUID.fromString(value);
     } catch (IllegalArgumentException ex) {
       log.debug("Correlation id is not a UUID; recording the event without it");
-      return null;
-    }
-  }
-
-  private String resolveSourceService(Auditable auditable) {
-    if (!auditable.sourceService().isBlank()) {
-      return auditable.sourceService();
-    }
-    return fromProvider(contextProvider::getSourceService);
-  }
-
-  private String fromProvider(Supplier<Optional<String>> field) {
-    try {
-      return field.get().orElse(null);
-    } catch (RuntimeException ex) {
-      log.debug("Audit context provider threw {}", ex.getClass().getName());
       return null;
     }
   }
@@ -298,6 +298,4 @@ public class AuditAspect implements Ordered {
   public record Options(Clock clock, boolean failOnError, int order) {}
 
   private record Outcome(Object result, String status, boolean success, String error) {}
-
-  private record Invocation(Auditable auditable, Method method, Object[] args) {}
 }

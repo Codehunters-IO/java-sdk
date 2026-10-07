@@ -23,6 +23,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.jta.JtaTransactionManager;
+import org.springframework.util.ClassUtils;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -55,6 +56,11 @@ import tools.jackson.databind.json.JsonMapper;
 public class AuditJdbcAutoConfiguration {
 
   private static final Logger log = LoggerFactory.getLogger(AuditJdbcAutoConfiguration.class);
+
+  private static final boolean JTA_PRESENT =
+      ClassUtils.isPresent(
+          "jakarta.transaction.TransactionManager",
+          AuditJdbcAutoConfiguration.class.getClassLoader());
 
   private static final String EXECUTOR = "auditTaskExecutor";
   private static final String JSON_MAPPER = "auditJsonMapper";
@@ -139,6 +145,7 @@ public class AuditJdbcAutoConfiguration {
       ObjectProvider<PlatformTransactionManager> transactionManagers) {
     PlatformTransactionManager unique = transactionManagers.getIfUnique();
     if (unique != null) {
+      warnIfJtaCannotSuspend(unique);
       return new RequiresNewAuditEventPublisher(
           new AuditEventJdbcAdapter(dataSource, jsonMapper, true), unique);
     }
@@ -154,6 +161,26 @@ public class AuditJdbcAutoConfiguration {
               + " audit events of failed calls are written on an auto-commit connection, which a"
               + " JTA transaction still enlists, so they roll back with the caller. Mark the JTA"
               + " transaction manager as primary.");
+    }
+  }
+
+  private static void warnIfJtaCannotSuspend(PlatformTransactionManager unique) {
+    if (JTA_PRESENT && Jta.cannotSuspend(unique)) {
+      log.warn(
+          "The JTA transaction manager has no JTA TransactionManager, so it cannot suspend a"
+              + " transaction: audit events of failed calls inside a JTA transaction cannot be"
+              + " written in a transaction of their own and are lost. Configure the JTA"
+              + " TransactionManager on it.");
+    }
+  }
+
+  /** Touches JTA types only when the JTA API is on the classpath. */
+  private static final class Jta {
+
+    private Jta() {}
+
+    static boolean cannotSuspend(PlatformTransactionManager manager) {
+      return manager instanceof JtaTransactionManager jta && jta.getTransactionManager() == null;
     }
   }
 

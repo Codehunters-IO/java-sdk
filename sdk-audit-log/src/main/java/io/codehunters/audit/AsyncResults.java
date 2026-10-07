@@ -9,7 +9,10 @@ import org.springframework.util.ClassUtils;
  * Recognizes return values whose work finishes after the method returns, and reports their outcome
  * when it does. A {@link CompletionStage} is observed and returned unchanged, and its duration runs
  * from the method call. A Reactor {@code Mono} or {@code Flux} is returned decorated and reports
- * once per subscription, with its duration running from the subscription.
+ * once per subscription, with its duration running from the subscription; cancellation is reported
+ * as a {@link java.util.concurrent.CancellationException}. When Reactor is present, an outcome
+ * signalled on a non-blocking thread is reported on Reactor's bounded elastic scheduler instead, so
+ * a blocking write never stalls an event loop.
  */
 final class AsyncResults {
 
@@ -22,18 +25,22 @@ final class AsyncResults {
    * Observes the result if its work is still running.
    *
    * @param result the value the method returned
+   * @param declaredType the method's declared return type, which a decorated value must still fit
    * @param callStartNanos the {@link System#nanoTime()} at which the method was called
    * @param completion notified once the work finishes
    * @return the value to hand back to the caller, or empty if the work has already finished
    */
-  static Optional<Object> observe(Object result, long callStartNanos, Completion completion) {
+  static Optional<Object> observe(
+      Object result, Class<?> declaredType, long callStartNanos, Completion completion) {
+    Completion reported =
+        REACTOR_PRESENT ? ReactorResults.offBlockingThreads(completion) : completion;
     if (result instanceof CompletionStage<?> stage) {
       stage.whenComplete(
-          (value, failure) -> completion.completed(value, unwrap(failure), callStartNanos));
+          (value, failure) -> reported.completed(value, unwrap(failure), callStartNanos));
       return Optional.of(stage);
     }
     if (REACTOR_PRESENT) {
-      return ReactorResults.observe(result, completion);
+      return ReactorResults.observe(result, declaredType, reported);
     }
     return Optional.empty();
   }

@@ -41,29 +41,37 @@ public class JsonSnapshotAuditEventPublisher implements AuditEventPublisherPort 
 
   @Override
   public void publish(AuditEvent event) {
-    delegate.publish(
-        new AuditEvent(
-            event.entityType(),
-            event.entityId(),
-            event.action(),
-            event.actorId(),
-            event.actorType(),
-            event.ipAddress(),
-            snapshot("payload", event.payload()),
-            event.status(),
-            event.correlationId(),
-            event.sourceService(),
-            event.createdAt(),
-            event.resource(),
-            event.resourceId(),
-            event.httpMethod(),
-            event.httpStatus(),
-            event.userAgent(),
-            snapshot("responseSummary", event.responseSummary()),
-            event.success(),
-            event.errorMessage(),
-            event.durationMs(),
-            snapshot("metadata", event.metadata())));
+    delegate.publish(snapshot(event));
+  }
+
+  @Override
+  public void publishDetached(AuditEvent event) {
+    delegate.publishDetached(snapshot(event));
+  }
+
+  private AuditEvent snapshot(AuditEvent event) {
+    return new AuditEvent(
+        event.entityType(),
+        event.entityId(),
+        event.action(),
+        event.actorId(),
+        event.actorType(),
+        event.ipAddress(),
+        snapshot("payload", event.payload()),
+        event.status(),
+        event.correlationId(),
+        event.sourceService(),
+        event.createdAt(),
+        event.resource(),
+        event.resourceId(),
+        event.httpMethod(),
+        event.httpStatus(),
+        event.userAgent(),
+        snapshot("responseSummary", event.responseSummary()),
+        event.success(),
+        event.errorMessage(),
+        event.durationMs(),
+        snapshot("metadata", event.metadata()));
   }
 
   private Map<String, Object> snapshot(String field, Map<String, Object> values) {

@@ -72,7 +72,8 @@ public class AuditPersistenceException extends RuntimeException {
   /**
    * Returns the vendor error code of the first {@link SQLException} in the failure's cause chain.
    *
-   * @return the vendor code, or empty if the failure is not a database error
+   * @return the vendor code, or empty if the failure is not a database error or the driver reports
+   *     {@code 0} (Postgres always does)
    * @since 3.0.0
    */
   public Optional<Integer> vendorCode() {
@@ -87,7 +88,8 @@ public class AuditPersistenceException extends RuntimeException {
       if (sql == null) {
         return new Diagnostics(failureClass, null, null);
       }
-      return new Diagnostics(failureClass, sql.getSQLState(), sql.getErrorCode());
+      Integer vendorCode = sql.getErrorCode() == 0 ? null : sql.getErrorCode();
+      return new Diagnostics(failureClass, sql.getSQLState(), vendorCode);
     }
 
     private static SQLException firstSqlException(Throwable failure) {

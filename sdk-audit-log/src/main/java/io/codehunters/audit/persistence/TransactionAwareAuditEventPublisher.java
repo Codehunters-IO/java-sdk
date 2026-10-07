@@ -21,6 +21,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
  *       {@code UNKNOWN} unless the transaction committed.
  * </ul>
  *
+ * <p>A {@linkplain #publishDetached detached} event always goes to the outside publisher: the
+ * transaction on the current thread, if any, is not the audited call's.
+ *
  * <p>The outside publisher is called from {@code afterCompletion}, where the transaction's
  * resources may still be bound to the thread, so it must write in a transaction of its own or on
  * another thread.
@@ -72,6 +75,11 @@ public final class TransactionAwareAuditEventPublisher implements AuditEventPubl
     } else {
       TransactionSynchronizationManager.registerSynchronization(new AfterCompletion(event));
     }
+  }
+
+  @Override
+  public void publishDetached(AuditEvent event) {
+    outside.publish(event);
   }
 
   private static boolean inTransaction() {

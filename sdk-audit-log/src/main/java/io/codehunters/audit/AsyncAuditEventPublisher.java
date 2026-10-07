@@ -54,10 +54,10 @@ public class AsyncAuditEventPublisher implements AuditEventPublisherPort {
       delegate.publish(event);
     } catch (RuntimeException ex) {
       log.error(
-          "Failed to publish audit event: entityType={} action={}",
+          "Failed to publish audit event: entityType={} action={} exception={}",
           event.entityType(),
           event.action(),
-          ex);
+          ex.getClass().getName());
     }
   }
 }
