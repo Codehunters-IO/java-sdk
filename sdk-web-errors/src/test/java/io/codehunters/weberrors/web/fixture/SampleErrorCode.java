@@ -8,7 +8,8 @@ public enum SampleErrorCode implements ErrorCode {
   ORDER_ALREADY_PAID(409),
   OUT_OF_RANGE_STATUS(200),
   UNKNOWN_STATUS(799),
-  SERVER_SIDE_FAILURE(503);
+  SERVER_SIDE_FAILURE(503),
+  TEAPOT_ORDER(418);
 
   private final int status;
 

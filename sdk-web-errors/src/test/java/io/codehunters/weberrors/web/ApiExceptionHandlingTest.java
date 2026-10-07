@@ -81,6 +81,15 @@ class ApiExceptionHandlingTest {
   }
 
   @Test
+  void should_keep_apostrophes_of_the_reason_phrase_when_the_exception_has_arguments() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(get("/teapot-orders/order-42"))
+                .andExpect(jsonPath("$.detail").value("I'm a teapot")));
+  }
+
+  @Test
   void should_answer_500_when_the_code_declares_a_success_status() {
     runner.run(
         context ->

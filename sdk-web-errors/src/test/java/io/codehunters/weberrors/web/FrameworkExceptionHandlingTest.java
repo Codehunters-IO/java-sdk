@@ -27,6 +27,8 @@ import org.springframework.security.access.AccessDeniedException;
 class FrameworkExceptionHandlingTest {
 
   private static final String REJECTED_SEGMENT = "notanumber";
+  private static final String UNREADABLE =
+      "{\"name\":\"x\",\"quantity\":\"" + REJECTED_SEGMENT + "\"}";
 
   private final WebApplicationContextRunner runner = WebMvcFixture.runner();
 
@@ -81,6 +83,29 @@ class FrameworkExceptionHandlingTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
                 .andExpect(jsonPath("$.detail").value(not(containsString(REJECTED_SEGMENT)))));
+  }
+
+  @Test
+  void should_not_echo_the_parser_message_when_the_body_is_unreadable() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(
+                    post("/orders").contentType(MediaType.APPLICATION_JSON).content(UNREADABLE))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(content().string(not(containsString(REJECTED_SEGMENT))))
+                .andExpect(content().string(not(containsString("jackson")))));
+  }
+
+  @Test
+  void should_answer_400_when_a_required_parameter_is_missing() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(get("/search"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST")));
   }
 
   @Test

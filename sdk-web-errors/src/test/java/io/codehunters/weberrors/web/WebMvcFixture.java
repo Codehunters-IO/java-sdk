@@ -3,6 +3,7 @@ package io.codehunters.weberrors.web;
 import io.codehunters.weberrors.config.WebErrorsAutoConfiguration;
 import io.codehunters.weberrors.web.fixture.SampleController;
 import io.codehunters.weberrors.web.fixture.SampleMessages;
+import io.codehunters.weberrors.web.fixture.SampleService;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
@@ -27,7 +28,7 @@ final class WebMvcFixture {
                 HttpMessageConvertersAutoConfiguration.class,
                 JacksonAutoConfiguration.class,
                 ValidationAutoConfiguration.class))
-        .withUserConfiguration(SampleMessages.class, SampleController.class);
+        .withUserConfiguration(SampleMessages.class, SampleService.class, SampleController.class);
   }
 
   static MockMvc mvc(WebApplicationContext context) {

@@ -16,6 +16,7 @@ public class SampleMessages {
     messages.addMessage("error.ORDER_NOT_FOUND", Locale.ENGLISH, "Order {0} was not found");
     messages.addMessage("error.ORDER_NOT_FOUND", Locale.of("es"), "No existe el pedido {0}");
     messages.addMessage("web-errors.NOT_FOUND", Locale.of("es"), "Recurso inexistente");
+    messages.addMessage("typeMismatch", Locale.of("es"), "Valor con formato incorrecto");
     return messages;
   }
 }
