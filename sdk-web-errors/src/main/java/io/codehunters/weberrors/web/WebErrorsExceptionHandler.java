@@ -6,6 +6,7 @@ import io.codehunters.weberrors.ErrorCode;
 import io.codehunters.weberrors.FieldViolation;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -22,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.ClassUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.validation.method.ParameterValidationResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -115,8 +117,7 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       throw exception;
     }
     if (BEAN_VALIDATION_PRESENT && ConstraintViolations.matches(exception)) {
-      var status = HttpStatusCode.valueOf(CommonErrorCode.VALIDATION_FAILED.status());
-      return validationFailed(exception, ConstraintViolations.of(exception), status, request);
+      return constraintViolations(exception, request);
     }
     ResponseStatus annotated =
         AnnotatedElementUtils.findMergedAnnotation(exception.getClass(), ResponseStatus.class);
@@ -132,9 +133,12 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       HttpStatusCode status,
       WebRequest request) {
     var result = exception.getBindingResult();
-    var fields = result.getFieldErrors().stream().map(e -> problems.violation(e.getField(), e));
+    var fields =
+        result.getFieldErrors().stream()
+            .map(e -> problems.violation(e.getField(), e, safeMessage(e)));
     var objects =
-        result.getGlobalErrors().stream().map(e -> problems.violation(e.getObjectName(), e));
+        result.getGlobalErrors().stream()
+            .map(e -> problems.violation(e.getObjectName(), e, safeMessage(e)));
     return validationFailed(exception, Stream.concat(fields, objects).toList(), status, request);
   }
 
@@ -144,11 +148,14 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
       HttpHeaders headers,
       HttpStatusCode status,
       WebRequest request) {
+    if (status.is5xxServerError()) {
+      return internalError(exception, request);
+    }
     var parameters =
         exception.getParameterValidationResults().stream().flatMap(this::parameterViolations);
     var crossParameter =
         exception.getCrossParameterValidationResults().stream()
-            .map(error -> problems.violation("", error));
+            .map(error -> problems.violation("", error, Optional.empty()));
     var violations = Stream.concat(parameters, crossParameter).toList();
     return validationFailed(exception, violations, status, request);
   }
@@ -176,7 +183,29 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
   private Stream<FieldViolation> parameterViolations(ParameterValidationResult result) {
     String parameter = parameterName(result.getMethodParameter());
     return result.getResolvableErrors().stream()
-        .map(error -> problems.violation(fieldOf(error, parameter), error));
+        .map(
+            error ->
+                problems.violation(fieldOf(error, parameter), error, safeMessage(result, error)));
+  }
+
+  private ResponseEntity<Object> constraintViolations(Exception exception, WebRequest request) {
+    if (!ConstraintViolations.concernsArguments(exception)) {
+      return internalError(exception, request);
+    }
+    var status = HttpStatusCode.valueOf(CommonErrorCode.VALIDATION_FAILED.status());
+    return validationFailed(
+        exception, ConstraintViolations.of(exception, problems), status, request);
+  }
+
+  private static Optional<String> safeMessage(ObjectError error) {
+    return BEAN_VALIDATION_PRESENT ? ConstraintViolations.safeMessage(error) : Optional.empty();
+  }
+
+  private static Optional<String> safeMessage(
+      ParameterValidationResult result, MessageSourceResolvable error) {
+    return BEAN_VALIDATION_PRESENT
+        ? ConstraintViolations.safeMessage(result, error)
+        : Optional.empty();
   }
 
   private ResponseEntity<Object> validationFailed(

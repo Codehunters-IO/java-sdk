@@ -29,17 +29,26 @@ class ProblemFactoryTest {
           new StaticMessageSource(), Optional::empty, new ProblemSettings(null, true));
 
   @Test
-  void should_fall_back_to_the_most_general_code_when_a_violation_has_no_message() {
+  void should_fall_back_to_a_fixed_message_when_a_violation_has_no_message() {
     var error = new DefaultMessageSourceResolvable(new String[] {"Custom.order.name", "Custom"});
 
-    assertThat(factory.violation("name", error).message()).isEqualTo("Custom");
+    assertThat(factory.violation("name", error, Optional.empty()).message())
+        .isEqualTo("Invalid value");
+  }
+
+  @Test
+  void should_never_render_the_default_message_of_a_violation() {
+    var error = new DefaultMessageSourceResolvable(new String[] {"Custom"}, "client {0} input");
+
+    assertThat(factory.violation("name", error, Optional.empty()).message())
+        .isEqualTo("Invalid value");
   }
 
   @Test
   void should_use_an_empty_code_when_a_violation_has_no_codes() {
     var error = new DefaultMessageSourceResolvable(null, null, "must be valid");
 
-    assertThat(factory.violation("name", error).code()).isEmpty();
+    assertThat(factory.violation("name", error, Optional.empty()).code()).isEmpty();
   }
 
   @Test
@@ -60,6 +69,6 @@ class ProblemFactoryTest {
   void should_use_an_empty_code_when_a_violation_has_an_empty_code_list() {
     var error = new DefaultMessageSourceResolvable(new String[0], "must be valid");
 
-    assertThat(factory.violation("name", error).code()).isEmpty();
+    assertThat(factory.violation("name", error, Optional.empty()).code()).isEmpty();
   }
 }

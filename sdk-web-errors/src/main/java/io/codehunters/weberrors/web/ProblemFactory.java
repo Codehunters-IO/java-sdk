@@ -11,12 +11,25 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.MessageSourceResolvable;
 import org.springframework.context.NoSuchMessageException;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.support.DefaultMessageSourceResolvable;
 import org.springframework.http.ProblemDetail;
+import org.springframework.validation.FieldError;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
-/** Builds localized problem details with the SDK's extensions. */
+/**
+ * Builds localized problem details with the SDK's extensions.
+ *
+ * <p>Messages are resolved from the application's bundles only. A default message is never rendered
+ * through {@code MessageFormat}: Spring's defaults for binding failures, and Bean Validation
+ * messages that reference the validated value, carry client input, which would leak into the
+ * response and grow {@code MessageFormat} caches without bound.
+ */
 final class ProblemFactory {
+
+  private static final String INVALID_VALUE = "Invalid value";
+  private static final String TYPE_MISMATCH_KEY = "web-errors.typeMismatch";
+  private static final String INVALID_KEY = "web-errors.invalid";
 
   private final MessageSource messages;
   private final TraceIdProvider traceIds;
@@ -41,9 +54,15 @@ final class ProblemFactory {
     return problem;
   }
 
-  FieldViolation violation(String field, MessageSourceResolvable error) {
+  /**
+   * A violation whose message comes from the bundles, else from a default known to be free of
+   * client input, else from a fixed fallback.
+   */
+  FieldViolation violation(
+      String field, MessageSourceResolvable error, Optional<String> safeDefault) {
     String code = mostGeneralCode(error);
-    return new FieldViolation(field, code, message(error, code));
+    String message = bundleMessage(error).or(() -> safeDefault).orElseGet(() -> fallback(error));
+    return new FieldViolation(field, code, message);
   }
 
   Optional<String> traceId() {
@@ -53,15 +72,27 @@ final class ProblemFactory {
   private String detail(ProblemSpec spec) {
     Object[] arguments = spec.arguments().toArray();
     Locale locale = LocaleContextHolder.getLocale();
-    return messages.getMessage(spec.messageKey(), arguments, spec.defaultDetail(), locale);
+    try {
+      return messages.getMessage(spec.messageKey(), arguments, locale);
+    } catch (NoSuchMessageException missing) {
+      return spec.defaultDetail();
+    }
   }
 
-  private String message(MessageSourceResolvable error, String fallback) {
+  private Optional<String> bundleMessage(MessageSourceResolvable error) {
+    var codesOnly =
+        new DefaultMessageSourceResolvable(error.getCodes(), error.getArguments(), null);
     try {
-      return messages.getMessage(error, LocaleContextHolder.getLocale());
+      return Optional.of(messages.getMessage(codesOnly, LocaleContextHolder.getLocale()));
     } catch (NoSuchMessageException missing) {
-      return fallback;
+      return Optional.empty();
     }
+  }
+
+  private String fallback(MessageSourceResolvable error) {
+    boolean bindingFailure = error instanceof FieldError field && field.isBindingFailure();
+    String key = bindingFailure ? TYPE_MISMATCH_KEY : INVALID_KEY;
+    return messages.getMessage(key, null, INVALID_VALUE, LocaleContextHolder.getLocale());
   }
 
   private Optional<URI> typeOf(String code) {
