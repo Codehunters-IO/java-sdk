@@ -16,6 +16,7 @@ codehuntersBom {
 dependencies {
     constraints {
         api(project(":sdk-audit-log"))
+        api(project(":sdk-barcode"))
         api(project(":sdk-commons"))
         api(project(":sdk-device"))
         api(project(":sdk-event-messaging-core"))
