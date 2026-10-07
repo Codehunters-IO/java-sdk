@@ -58,6 +58,46 @@ class OrderService {
   void instanceMethod(String customerId) {}
 
   @Measured(
+      name = "orders.property",
+      expressions = {"customer=#order.customer"})
+  void byOrder(Order order) {}
+
+  @Measured(
+      name = "orders.assignment",
+      expressions = {"customer=#holder.value = 'changed'"})
+  void assignment(Holder holder) {}
+
+  @Measured(
+      name = "orders.bean.reference",
+      expressions = {"customer=@orderService"})
+  void beanReference() {}
+
+  @Measured(name = "orders.fail.with")
+  void failWith(RuntimeException failure) {
+    throw failure;
+  }
+
+  @Measured(name = "orders.fail.counted", count = true)
+  void failCounted() {
+    throw new IllegalStateException("not counted");
+  }
+
+  @Measured(
+      name = "orders.region",
+      expressions = {"region=#region"})
+  void inNorth(String region) {}
+
+  @Measured(
+      name = "orders.region",
+      expressions = {"region=#region"})
+  void inSouth(String region) {}
+
+  @Measured(name = "orders.derived")
+  CompletableFuture<String> derived(CompletableFuture<String> pending) {
+    return pending.thenApply(String::trim);
+  }
+
+  @Measured(
       name = "orders.blank.static",
       tags = {"region", ""})
   void blankStaticTag() {}
@@ -85,5 +125,22 @@ class OrderService {
   @Measured(name = "orders.async", count = true)
   CompletableFuture<String> async(CompletableFuture<String> pending) {
     return pending;
+  }
+
+  /** An argument whose properties expressions read. */
+  record Order(String customer) {}
+
+  /** A mutable argument that expressions must not be able to change. */
+  static final class Holder {
+
+    private String value = "original";
+
+    public String getValue() {
+      return value;
+    }
+
+    public void setValue(String value) {
+      this.value = value;
+    }
   }
 }

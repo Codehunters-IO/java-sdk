@@ -45,6 +45,34 @@ class MeasureWarningsTest {
     assertThat(output.getOut()).containsOnlyOnce("Could not start @Measured meters");
   }
 
+  @Test
+  void should_warn_once_per_method_when_methods_share_a_rejected_name(CapturedOutput output) {
+    registry.counter(
+        "orders.region",
+        Tags.of(
+            "class", OrderService.class.getName(),
+            "method", "inNorth",
+            "exception", "none",
+            "outcome", "SUCCESS",
+            "region", "R1"));
+    registry.counter(
+        "orders.region",
+        Tags.of(
+            "class", OrderService.class.getName(),
+            "method", "inSouth",
+            "exception", "none",
+            "outcome", "SUCCESS",
+            "region", "R1"));
+    OrderService orders = proxied(new OrderService());
+
+    orders.inNorth("R1");
+    orders.inSouth("R1");
+
+    assertThat(output.getOut())
+        .containsPattern("WARN.*OrderService\\.inNorth")
+        .containsPattern("WARN.*OrderService\\.inSouth");
+  }
+
   private <T> T proxied(T target) {
     var factory = new AspectJProxyFactory(target);
     factory.setProxyTargetClass(true);

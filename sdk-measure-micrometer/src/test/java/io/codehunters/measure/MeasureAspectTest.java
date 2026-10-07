@@ -129,11 +129,63 @@ class MeasureAspectTest {
   }
 
   @Test
-  void should_allow_instance_methods_in_expressions() {
+  void should_tag_unknown_when_the_expression_calls_an_instance_method() {
     orders.instanceMethod("cust-5");
 
-    assertThat(registry.get("orders.instance.method").tag("customer", "CUST-5").timer().count())
+    assertThat(registry.get("orders.instance.method").tag("customer", "unknown").timer().count())
         .isEqualTo(1);
+  }
+
+  @Test
+  void should_tag_a_property_of_an_argument() {
+    orders.byOrder(new OrderService.Order("CUST-6"));
+
+    assertThat(registry.get("orders.property").tag("customer", "CUST-6").timer().count())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void should_tag_unknown_and_leave_the_argument_alone_when_the_expression_assigns() {
+    var holder = new OrderService.Holder();
+
+    orders.assignment(holder);
+
+    assertThat(holder.getValue()).isEqualTo("original");
+    assertThat(registry.get("orders.assignment").tag("customer", "unknown").timer().count())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void should_tag_unknown_when_the_expression_references_a_bean() {
+    orders.beanReference();
+
+    assertThat(registry.get("orders.bean.reference").tag("customer", "unknown").timer().count())
+        .isEqualTo(1);
+  }
+
+  @Test
+  void should_rethrow_the_methods_own_exception_instance() {
+    var failure = new IllegalStateException("declined");
+
+    assertThatThrownBy(() -> orders.failWith(failure)).isSameAs(failure);
+  }
+
+  @Test
+  void should_not_count_a_call_that_throws() {
+    assertThatThrownBy(orders::failCounted).isInstanceOf(IllegalStateException.class);
+
+    assertThat(registry.find("orders.fail.counted.counted").counter()).isNull();
+  }
+
+  @Test
+  void should_cap_tag_values_per_method_when_methods_share_a_name() {
+    orders.inNorth("R1");
+    orders.inNorth("R2");
+
+    orders.inSouth("R3");
+
+    assertThat(registry.get("orders.region").tags("method", "inSouth", "region", "R3").timer())
+        .isNotNull();
   }
 
   @Test
@@ -246,6 +298,49 @@ class MeasureAspectTest {
                 .timer()
                 .count())
         .isEqualTo(1);
+  }
+
+  @Test
+  void should_record_the_failure_when_the_future_fails_without_a_wrapper() {
+    var pending = new CompletableFuture<String>();
+    orders.async(pending);
+
+    pending.completeExceptionally(new IllegalArgumentException());
+
+    assertThat(registry.get("orders.async").tag("exception", "IllegalArgumentException").timer())
+        .isNotNull();
+  }
+
+  @Test
+  void should_record_cancellation_when_the_future_is_cancelled() {
+    var pending = new CompletableFuture<String>();
+    orders.async(pending);
+
+    pending.cancel(false);
+
+    assertThat(registry.get("orders.async").tag("exception", "CancellationException").timer())
+        .isNotNull();
+  }
+
+  @Test
+  void should_record_the_cause_when_a_derived_stage_fails() {
+    var pending = new CompletableFuture<String>();
+    orders.derived(pending);
+
+    pending.completeExceptionally(new IllegalArgumentException());
+
+    assertThat(registry.get("orders.derived").tag("exception", "IllegalArgumentException").timer())
+        .isNotNull();
+  }
+
+  @Test
+  void should_not_count_a_future_that_fails() {
+    var pending = new CompletableFuture<String>();
+    orders.async(pending);
+
+    pending.completeExceptionally(new IllegalArgumentException());
+
+    assertThat(registry.find("orders.async.counted").counter()).isNull();
   }
 
   @Test

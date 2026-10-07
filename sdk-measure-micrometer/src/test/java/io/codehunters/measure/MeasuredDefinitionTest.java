@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import io.micrometer.core.instrument.Tags;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.core.annotation.AnnotationUtils;
 
 class MeasuredDefinitionTest {
@@ -57,8 +59,29 @@ class MeasuredDefinitionTest {
   }
 
   @Test
-  void should_reject_a_tag_value_cap_below_one() {
-    assertThatIllegalArgumentException().isThrownBy(() -> new TagCardinalityLimiter(0));
+  void should_reject_an_expression_whose_key_is_not_a_tag_name() {
+    Measured measured = measured(Map.of("expressions", new String[] {"#status == 'OK'"}));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> MeasuredDefinition.of(measured))
+        .withMessageContaining("#status");
+  }
+
+  @Test
+  void should_reject_a_static_tag_key_that_is_not_a_tag_name() {
+    Measured measured = measured(Map.of("tags", new String[] {"region name", "eu"}));
+
+    assertThatIllegalArgumentException().isThrownBy(() -> MeasuredDefinition.of(measured));
+  }
+
+  @ParameterizedTest
+  @ValueSource(doubles = {0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY})
+  void should_reject_a_count_value_that_is_not_positive_and_finite(double countValue) {
+    Measured measured = measured(Map.of("count", true, "countValue", countValue));
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> MeasuredDefinition.of(measured))
+        .withMessageContaining("countValue");
   }
 
   private static Measured measured(Map<String, Object> attributes) {
