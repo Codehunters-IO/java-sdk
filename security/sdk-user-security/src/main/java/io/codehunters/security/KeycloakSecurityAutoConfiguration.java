@@ -30,6 +30,7 @@ import org.springframework.security.config.annotation.method.configuration.Enabl
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.oauth2.server.resource.OAuth2ResourceServerConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -40,7 +41,9 @@ import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
@@ -224,8 +227,11 @@ public class KeycloakSecurityAutoConfiguration {
         HttpSecurity http,
         KeycloakSecurityProperties properties,
         JwtDecoder decoder,
-        KeycloakJwtAuthenticationConverter converter)
+        KeycloakJwtAuthenticationConverter converter,
+        ObjectProvider<AuthenticationEntryPoint> entryPoints,
+        ObjectProvider<AccessDeniedHandler> deniedHandlers)
         throws Exception {
+      respondWith(http, entryPoints.getIfUnique(), deniedHandlers.getIfUnique());
       return http.csrf(AbstractHttpConfigurer::disable)
           .cors(cors -> cors.configurationSource(corsSource(properties.cors())))
           .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -239,10 +245,40 @@ public class KeycloakSecurityAutoConfiguration {
                 authorize.anyRequest().authenticated();
               })
           .oauth2ResourceServer(
-              server ->
-                  server.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(converter)))
+              server -> {
+                server.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(converter));
+                respondWith(server, entryPoints.getIfUnique(), deniedHandlers.getIfUnique());
+              })
           .addFilterAfter(new GatewayHeadersFilter(), BearerTokenAuthenticationFilter.class)
           .build();
+    }
+
+    // A single entry point / access-denied handler bean (sdk-web-errors offers problem-detail ones
+    // that keep the bearer challenge) answers 401 and 403; without one, Spring's defaults apply.
+    private static void respondWith(
+        HttpSecurity http, AuthenticationEntryPoint entryPoint, AccessDeniedHandler denied)
+        throws Exception {
+      http.exceptionHandling(
+          handling -> {
+            if (entryPoint != null) {
+              handling.authenticationEntryPoint(entryPoint);
+            }
+            if (denied != null) {
+              handling.accessDeniedHandler(denied);
+            }
+          });
+    }
+
+    private static void respondWith(
+        OAuth2ResourceServerConfigurer<HttpSecurity> server,
+        AuthenticationEntryPoint entryPoint,
+        AccessDeniedHandler denied) {
+      if (entryPoint != null) {
+        server.authenticationEntryPoint(entryPoint);
+      }
+      if (denied != null) {
+        server.accessDeniedHandler(denied);
+      }
     }
 
     private static RequestMatcher excluded(List<String> paths) {
