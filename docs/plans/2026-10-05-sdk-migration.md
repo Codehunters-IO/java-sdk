@@ -692,6 +692,41 @@ Rama: `feature/sdk-totp-v2`.
 3. Antes de entregarlo, se corrigen en el SDK los NaN de `Latitude`/`Longitude` y `SET NOCOUNT ON`,
    para no entregar los bugs. Ese arreglo no se publica.
 
+**Estado: hecha, salvo los puntos 1 y 2 de geo-validation** (bloqueados: falta el dueño en el
+servicio de rifas). Rama `feature/sdk-totp-v2`, creada desde `feature/sdk-parameter-v2` en un
+worktree aparte mientras la Fase 9 avanzaba en paralelo; se rebasea sobre `feature/sdk-i18n-v1`
+antes de integrar. Cada cambio lleva antes su commit de test en rojo.
+
+- `a7e7316`: `sdk-utils` → `sdk-totp` (directorio, `settings.gradle.kts`, `sdk-bom`) con
+  `replaces("sdk-utils")`.
+- `07bd888` → `e4a443a`: vectores RFC 6238 (apéndice B, 18 casos) con `TotpSecret.fromHex`;
+  `Locale.ROOT` en el padding y en Base32 (probado con `ar-SA-u-nu-arab` y `tr-TR`); `floorDiv`;
+  comparación en tiempo constante sin cortar en la primera coincidencia; variance `0..10`
+  (`MAX_VARIANCE`); código `null` → `false`; paso de segundos enteros ≥ 1 s; `SecureRandom`
+  estático; los errores de Base32 y hex no repiten la entrada. Se quitó el test con bucle.
+- `62526be` → `9a8b511`: `codehunters.totp.*` con alias `vitxo.totp.*` hasta 3.0
+  (`TotpLegacyProperties` sobre `sdk-support`) y metadata de deprecación; un paso inválido hace
+  fallar el arranque; versión 2.0.0.
+- `7478f57` → `ba1d454` (geo): `NaN` e infinitos rechazados, el mensaje ya no lleva la coordenada,
+  y `SET NOCOUNT ON` al inicio. La versión sigue en 0.2.0 y no se vuelve a publicar.
+- `5f87169`: README, CHANGELOG y `MIGRATION-2.0.md` de `sdk-totp`, `sdk-geo-validation/HANDOFF.md`
+  y las dos filas del README raíz.
+
+Verificación: `sdk-totp` 105 tests (98,4 % líneas, 100 % ramas); `sdk-geo-validation` 21 tests
+(100 % líneas, 93,8 % ramas); `./gradlew clean build` y `./gradlew -p build-logic test` en verde.
+
+**Desvíos:**
+- `sdk-utils` no tenía Lombok, así que no hubo nada que quitar.
+- Una variance negativa ahora falla (antes se trataba como 0); el plan solo pedía el tope de 10.
+- `TotpGenerator` sigue siendo candidato normal de inyección: es la API pública del módulo, no un
+  bean interno.
+- `HANDOFF.md` suma, para el dueño nuevo, los pendientes vistos en geo y no corregidos aquí:
+  `@ConditionalOnSingleCandidate`, `MatchedZoneType.valueOf` con un tipo desconocido, prefijo
+  propio y un test de integración contra SQL Server.
+
+**Abierto:** `verify` no impide reusar un código dentro de su ventana (documentado en el README:
+quien necesite un solo uso guarda el último paso aceptado). Sin review independiente todavía.
+
 ## Fase 11 — Cierre
 
 1. `sdk-bom` 1.0.0 con las versiones finales de las Fases 2 a 10.
