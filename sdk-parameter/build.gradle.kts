@@ -15,6 +15,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.mockito:mockito-core")
+    testImplementation(libs.archunit.junit5)
     testImplementation("com.h2database:h2")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-mssqlserver")

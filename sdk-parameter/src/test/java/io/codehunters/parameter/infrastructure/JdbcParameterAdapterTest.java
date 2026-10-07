@@ -275,6 +275,28 @@ class JdbcParameterAdapterTest {
   }
 
   @Test
+  void should_return_an_unmodifiable_list_from_findByModule() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    List<Parameter> result = adapter.findByModule(ParameterModule.RAFFLES, null);
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void should_return_an_unmodifiable_list_from_findByModules() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    List<Parameter> result = adapter.findByModules(List.of(ParameterModule.RAFFLES));
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
+  void should_return_an_unmodifiable_list_from_findByModuleAndSubmodules() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    List<Parameter> result =
+        adapter.findByModuleAndSubmodules(ParameterModule.RAFFLES, List.of("TICKETS"));
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  @Test
   void wraps_DataAccessException_into_ParameterAccessException() {
     jdbcClient.sql("DROP TABLE parameters").update();
     assertThatThrownBy(() -> adapter.lookup(ParameterModule.RAFFLES, "TICKETS", "MAX"))
