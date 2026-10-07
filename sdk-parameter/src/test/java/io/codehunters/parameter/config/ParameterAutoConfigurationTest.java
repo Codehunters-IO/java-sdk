@@ -111,6 +111,16 @@ class ParameterAutoConfigurationTest {
   }
 
   @Test
+  void should_read_without_cache_when_the_cache_ttl_is_empty() {
+    runner
+        .withPropertyValues("codehunters.parameter.cache-ttl=")
+        .run(
+            ctx ->
+                assertThat(ctx.getBean(ParameterClient.class))
+                    .isInstanceOf(JdbcParameterAdapter.class));
+  }
+
+  @Test
   void should_fail_startup_on_a_negative_cache_ttl() {
     runner
         .withPropertyValues("codehunters.parameter.cache-ttl=-1s")

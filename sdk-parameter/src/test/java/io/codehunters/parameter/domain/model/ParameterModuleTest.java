@@ -36,4 +36,24 @@ class ParameterModuleTest {
   void should_reject_a_null_code() {
     assertThatThrownBy(() -> ParameterModule.of(null)).isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void should_return_the_constant_instance_for_a_known_code() {
+    assertThat(ParameterModule.of("AUTH")).isSameAs(ParameterModule.AUTH);
+  }
+
+  @Test
+  void should_trim_the_code_before_matching_a_constant() {
+    assertThat(ParameterModule.of(" AUTH ")).isSameAs(ParameterModule.AUTH);
+  }
+
+  @Test
+  void should_trim_the_code_given_to_the_constructor() {
+    assertThat(new ParameterModule(" LOYALTY ").code()).isEqualTo("LOYALTY");
+  }
+
+  @Test
+  void should_match_codes_case_sensitively() {
+    assertThat(ParameterModule.of("auth")).isNotEqualTo(ParameterModule.AUTH);
+  }
 }

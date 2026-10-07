@@ -9,6 +9,7 @@ import io.codehunters.parameter.domain.model.Parameter;
 import io.codehunters.parameter.domain.model.ParameterModule;
 import io.codehunters.parameter.domain.model.ParameterType;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,6 +20,9 @@ import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
 class JdbcParameterAdapterTest {
@@ -263,10 +267,70 @@ class JdbcParameterAdapterTest {
     assertThat(custom.lookup(ParameterModule.GENERAL, null, "VERSION")).isPresent();
   }
 
-  @Test
-  void should_reject_a_table_name_that_is_not_an_identifier() {
-    assertThatThrownBy(() -> new JdbcParameterAdapter(jdbcClient, "parameters; DROP TABLE x"))
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(
+      strings = {
+        "parameters; DROP TABLE x",
+        "\"parameters\"",
+        "parameters--",
+        "1parameters",
+        "a.b.c.d",
+        "parameters\n",
+        "parámetros",
+        "parameters x",
+        ".parameters",
+        "parameters."
+      })
+  void should_reject_a_table_name_that_is_not_an_identifier(String tableName) {
+    assertThatThrownBy(() -> new JdbcParameterAdapter(jdbcClient, tableName))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void should_accept_a_database_and_schema_qualified_table_name() {
+    assertThat(new JdbcParameterAdapter(jdbcClient, "app.dbo.parameters")).isNotNull();
+  }
+
+  @Test
+  void should_query_a_schema_qualified_table() {
+    jdbcClient.sql("CREATE SCHEMA app").update();
+    createTable("app.parameters");
+    jdbcClient
+        .sql(
+            "INSERT INTO app.parameters (id, module, submodule, name, value, type, enabled,"
+                + " created_by, created_at, updated_at) VALUES"
+                + " (:id, 'GENERAL', '', 'VERSION', '2', 'STRING', TRUE, :op, :now, :now)")
+        .param("id", UUID.randomUUID())
+        .param("op", OP)
+        .param("now", NOW)
+        .update();
+    var qualified = new JdbcParameterAdapter(jdbcClient, "app.parameters");
+    assertThat(qualified.lookup(ParameterModule.GENERAL, null, "VERSION")).isPresent();
+  }
+
+  @Test
+  void should_map_a_known_module_to_its_constant_instance() {
+    seed("RAFFLES", "TICKETS", "MAX", "100", ParameterType.INTEGER, true, null);
+    assertThat(adapter.findByModule(ParameterModule.RAFFLES, null).get(0).module())
+        .isSameAs(ParameterModule.RAFFLES);
+  }
+
+  @Test
+  void should_reject_a_null_module_in_findByModules() {
+    assertThatThrownBy(() -> adapter.findByModules(Arrays.asList(ParameterModule.RAFFLES, null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("modules");
+  }
+
+  @Test
+  void should_reject_a_null_submodule_in_findByModuleAndSubmodules() {
+    assertThatThrownBy(
+            () ->
+                adapter.findByModuleAndSubmodules(
+                    ParameterModule.RAFFLES, Arrays.asList("TICKETS", null)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("submodules");
   }
 
   @Test
