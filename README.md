@@ -15,9 +15,9 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 
 | Module | Package | Status |
 |---|---|---|
-| `sdk-utils` | `io.codehunters.totp` | pending |
+| `sdk-totp` (was `sdk-utils`) | `io.codehunters.totp` | 2.0.0 — [README](sdk-totp/README.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 3.0.0 — [README](sdk-measure-micrometer/README.md) |
-| `sdk-geo-validation` | `io.codehunters.geo` | pending |
+| `sdk-geo-validation` | `io.codehunters.geo` | 0.2.0, leaving the SDK — [handoff](sdk-geo-validation/HANDOFF.md) |
 | `sdk-i18n` | `io.codehunters.i18n` | 1.0.0 — [README](sdk-i18n/README.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 — [README](sdk-tracing/README.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | 2.0.0 — [README](sdk-parameter/README.md) |
