@@ -11,6 +11,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 class MaskingTest {
 
   private static final String SECRET_VALUE = "s3cr3t-value";
+  private static final String COMBINING_ACUTE = Character.toString(0x0301);
 
   @ParameterizedTest
   @CsvSource({
@@ -42,6 +43,23 @@ class MaskingTest {
   @Test
   void should_count_code_points_not_chars_when_text_has_surrogate_pairs() {
     assertThat(Masking.keep("😀abc😁", 1, 1)).isEqualTo("😀***😁");
+  }
+
+  @Test
+  void should_reject_a_surrogate_as_mask_character() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> Masking.keep("abcdef", 1, 1, '\uD83D'))
+        .withMessage("mask must not be a surrogate");
+  }
+
+  @Test
+  void should_keep_a_letter_with_its_accent_when_text_is_decomposed() {
+    assertThat(Masking.keepLast("cafe" + COMBINING_ACUTE, 1)).isEqualTo("***é");
+  }
+
+  @Test
+  void should_not_reveal_a_bare_accent_when_text_is_decomposed() {
+    assertThat(Masking.keepFirst("e" + COMBINING_ACUTE + "abc", 1)).isEqualTo("é***");
   }
 
   @Test
@@ -94,6 +112,7 @@ class MaskingTest {
     "4111111111111111, ************1111",
     "4111 1111 1111 1111, ************1111",
     "4111-1111-1111-1111, ************1111",
+    "4111 1111-1111 1111, ************1111",
     "411111111111, ********1111"
   })
   void should_keep_last_four_digits_when_masking_card_number(String pan, String expected) {
@@ -101,7 +120,17 @@ class MaskingTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"41111111111", "41111111111111111111", "4111abcd11111111", ""})
+  @ValueSource(
+      strings = {
+        "41111111111",
+        "41111111111111111111",
+        "4111abcd11111111",
+        "",
+        "4111----1111  1111-1111",
+        "-4111111111111111-",
+        "4111  1111 1111 1111",
+        " 4111111111111111"
+      })
   void should_reject_values_that_are_not_card_numbers(String value) {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> Masking.pan(value))
