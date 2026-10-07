@@ -91,7 +91,8 @@ class GeoAutoConfigurationTest {
                 assertThat(context)
                     .getFailure()
                     .rootCause()
-                    .hasMessage("codehunters.geo.adapter=polygon needs exactly one GeoZoneSource bean"));
+                    .hasMessage(
+                        "codehunters.geo.adapter=polygon needs exactly one GeoZoneSource bean"));
   }
 
   @Test
@@ -193,7 +194,8 @@ class GeoAutoConfigurationTest {
                 assertThat(context)
                     .getFailure()
                     .rootCause()
-                    .hasMessage("codehunters.geo.adapter=sql-server needs spring-jdbc on the classpath"));
+                    .hasMessage(
+                        "codehunters.geo.adapter=sql-server needs spring-jdbc on the classpath"));
   }
 
   @Test
@@ -201,7 +203,9 @@ class GeoAutoConfigurationTest {
     runner
         .withUserConfiguration(OwnFence.class, ZoneSource.class)
         .withPropertyValues("codehunters.geo.adapter=polygon")
-        .run(context -> assertThat(context).hasSingleBean(GeoFenceValidator.class).hasBean("ownFence"));
+        .run(
+            context ->
+                assertThat(context).hasSingleBean(GeoFenceValidator.class).hasBean("ownFence"));
   }
 
   @Test
