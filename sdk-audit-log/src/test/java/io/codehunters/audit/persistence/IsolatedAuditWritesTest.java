@@ -15,6 +15,9 @@ import tools.jackson.databind.json.JsonMapper;
 /** Writes that must commit even though the caller's transaction rolls back. */
 class IsolatedAuditWritesTest {
 
+  private static final String H2_USER = "";
+  private static final String H2_PASSWORD = "";
+
   private final DataSource dataSource = H2AuditDatabase.create();
   private final DataSourceTransactionManager transactionManager =
       new DataSourceTransactionManager(dataSource);
@@ -74,6 +77,16 @@ class IsolatedAuditWritesTest {
     assertThat(H2AuditDatabase.countRows(dataSource)).isEqualTo(1);
   }
 
+  @Test
+  void should_hand_out_auto_commit_connections_when_asked_with_explicit_credentials()
+      throws SQLException {
+    var view = new AutoCommitDataSource(new ManualCommitDataSource(dataSource));
+
+    try (Connection connection = view.getConnection(H2_USER, H2_PASSWORD)) {
+      assertThat(connection.getAutoCommit()).isTrue();
+    }
+  }
+
   /** A pool configured with {@code auto-commit=false}. */
   private static final class ManualCommitDataSource extends DelegatingDataSource {
 
@@ -84,6 +97,13 @@ class IsolatedAuditWritesTest {
     @Override
     public Connection getConnection() throws SQLException {
       Connection connection = super.getConnection();
+      connection.setAutoCommit(false);
+      return connection;
+    }
+
+    @Override
+    public Connection getConnection(String username, String password) throws SQLException {
+      Connection connection = super.getConnection(username, password);
       connection.setAutoCommit(false);
       return connection;
     }
