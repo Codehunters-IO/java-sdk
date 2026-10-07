@@ -465,6 +465,12 @@ Verificación: 169 tests, cobertura 98,4 % líneas / 91,5 % ramas.
 `aspectjweaver`). El aspecto lo aplica la auto-configuración AOP de Boot, igual que en `measure`, y
 el bean del aspecto exige `org.aspectj.weaver.Advice`. 172 tests.
 
+**Review del proxying**, `ce571bb` → `3b63158`: sin un auto-proxy creator de AspectJ
+(`spring.aop.auto=false`, `AopAutoConfiguration` excluida o contexto Spring sin Boot) el audit no
+hacía nada y no avisaba. Un `SmartInitializingSingleton` lo comprueba al arrancar: WARN, o fallo
+del arranque con `fail-on-error=true`. 175 tests, 98,4 % líneas / 91,3 % ramas. `measure-v3` y
+`parameter-v2` se rebasaron encima, así que sus hashes anteriores cambiaron.
+
 1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
    `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
    verdad.
@@ -563,7 +569,27 @@ Commits (cada test en rojo seguido de su cambio):
   ArchUnit de capas.
 - `14b89f0`: README, CHANGELOG, MIGRATION-2.0 y la fila del README raíz.
 
-Verificación: 88 tests, cobertura 98,4 % líneas / 86,1 % ramas.
+Verificación: 88 tests, cobertura 98,4 % líneas / 86,1 % ramas. (Hashes anteriores al rebase
+sobre el fix de proxying de `audit-log`; los actuales son `679ac41` … `88a0e23`.)
+
+**Fixes de la review** (cada test en rojo seguido de su cambio):
+
+- `b0161ce` → `860365a`: `ParameterModule.of` devuelve la constante para un código conocido y
+  recorta espacios, así que `==` sigue funcionando con las filas que mapea el SDK. Tabla de hasta
+  tres partes (`db.schema.tabla`), probada contra un esquema real en H2. Un elemento `null` en las
+  colecciones lanza `IllegalArgumentException`. Un UUID mal formado lanza
+  `ParameterAccessException` con la columna y sin el valor.
+- `050a183` → `bccebbc`: la caché expulsa la respuesta menos usada en vez de dejar de guardar;
+  los fallos concurrentes de una misma clave comparten una sola consulta (single-flight) y el error
+  llega a todos sin cachearse; claves normalizadas (submódulo en blanco, colecciones ordenadas y
+  sin repetidos); listas copiadas e inmodificables; `asMap`/`asMapByName` salen del
+  `findByModule` cacheado.
+- `0b60853`: README, CHANGELOG y MIGRATION-2.0: identidad de `ParameterModule`, forma JSON
+  `{"code":...}`, `EnumMap`/`EnumSet`, listas inmodificables, reglas del nombre de tabla y la
+  caché.
+
+Verificación: 119 tests, cobertura 97,4 % líneas / 86,9 % ramas. Un `cache-ttl` vacío ya
+arrancaba sin caché; el test nuevo lo fija.
 
 **Desvíos del plan:**
 - No hay alias de propiedades: la 1.x no tenía ninguna propiedad `vitxo.*`.
