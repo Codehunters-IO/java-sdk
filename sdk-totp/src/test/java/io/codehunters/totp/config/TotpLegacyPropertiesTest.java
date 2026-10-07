@@ -57,6 +57,19 @@ class TotpLegacyPropertiesTest {
   }
 
   @Test
+  void should_bind_legacy_keys_when_environment_variables_split_dashed_names() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of("VITXO_TOTP_TIME_STEP", "45s")));
+
+    assertThat(postProcessAndBind().timeStep()).isEqualTo(Duration.ofSeconds(45));
+  }
+
+  @Test
   void should_keep_new_key_when_both_old_and_new_keys_set() {
     addApplicationProperties(
         Map.of("vitxo.totp.time-step", "60s", "codehunters.totp.time-step", "90s"));
