@@ -12,6 +12,11 @@ dependencies {
     compileOnly("org.springframework:spring-webmvc")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
     compileOnly("jakarta.validation:jakarta.validation-api")
+    compileOnly("org.springframework.boot:spring-boot-webmvc")
+    compileOnly("org.springframework.security:spring-security-core")
+    compileOnly("org.springframework.security:spring-security-web")
+    compileOnly("org.springframework.security:spring-security-oauth2-resource-server")
+    compileOnly("tools.jackson.core:jackson-databind")
     compileOnly(project(":sdk-tracing"))
 
     testImplementation(project(":sdk-tracing"))
@@ -22,6 +27,9 @@ dependencies {
     testImplementation("org.springframework:spring-web")
     testImplementation("org.springframework:spring-webmvc")
     testImplementation("org.springframework.security:spring-security-core")
+    testImplementation("org.springframework.security:spring-security-config")
+    testImplementation("org.springframework.security:spring-security-web")
+    testImplementation("org.springframework.security:spring-security-oauth2-resource-server")
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation(libs.archunit.junit5)
 }
