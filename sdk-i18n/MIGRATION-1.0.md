@@ -22,9 +22,15 @@
 5. **Custom message sources.** The SDK's `messageSource` now backs off only for a bean named
    `messageSource`. If you declared a `MessageSource` under another name to replace the SDK's, rename
    it to `messageSource`.
-6. **Custom validators.** Any `jakarta.validation.Validator` bean replaces the SDK's validator.
-   Without a Bean Validation provider (e.g. `hibernate-validator`) the SDK registers none.
-7. **`spring.messages.*`.** Still ignored while the SDK provides the message source; startup now
-   warns about it. Move the settings to `codehunters.i18n.*`.
-8. **Restricting locales (optional).** Set `codehunters.i18n.supported-locales` to stop serving
+6. **Validator.** The SDK no longer registers `validatorFactoryBean`. Boot's `defaultValidator`
+   resolves the same `{key}` messages through the SDK's message source, so constraint messages are
+   unchanged when `spring-boot-starter-validation` is on the classpath. If code injected the bean by
+   the name `validatorFactoryBean`, inject `Validator` instead.
+7. **`spring.messages.*` and `spring.web.locale*`.** Still ignored while the SDK provides the message
+   source and the locale resolver; startup now warns about them. Move the settings to
+   `codehunters.i18n.*`.
+8. **`Accept-Language` fallbacks.** With no `supported-locales`, a header of `*`, one where every
+   range has weight zero, or an unparseable one now resolves to `default-locale` instead of the
+   container's root or JVM locale.
+9. **Restricting locales (optional).** Set `codehunters.i18n.supported-locales` to stop serving
    locales you have no bundles for; it must include the default locale.

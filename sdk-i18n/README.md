@@ -10,17 +10,17 @@ implementation("io.codehunters:sdk-i18n")
 
 ## What it registers
 
-The auto-configuration has three independent parts. Each backs off when the application provides
+The auto-configuration has two independent parts. Each backs off when the application provides
 its own bean.
 
 | Part | Active when | Beans | Backs off on |
 |---|---|---|---|
 | Messages | always | `messageSource` (`ReloadableResourceBundleMessageSource`) | a bean named `messageSource` |
 | Servlet web | servlet web application with Spring MVC | `localeResolver` (`XLocaleAwareLocaleResolver`), `localeMdcFilterRegistration` | a bean named `localeResolver` / `localeMdcFilterRegistration` |
-| Validation | `jakarta.validation` and a provider (e.g. Hibernate Validator) on the classpath | `validatorFactoryBean` (`LocalValidatorFactoryBean`) | any `jakarta.validation.Validator` bean |
 
-It runs before Boot's `MessageSourceAutoConfiguration`, `ValidationAutoConfiguration` and
-`WebMvcAutoConfiguration`, so its beans win.
+It runs before Boot's `MessageSourceAutoConfiguration` and `WebMvcAutoConfiguration`, so its beans
+win. It registers no validator: Boot's `defaultValidator` already resolves `{key}` messages through
+the `messageSource` (see [Validation messages](#validation-messages)).
 
 ### Precedence over `spring.messages.*`
 
@@ -29,14 +29,25 @@ warning is logged at startup if `spring.messages.basename` is set. Configure bun
 `codehunters.i18n.*` instead. To use Boot's message source, declare your own `messageSource` bean
 or set `codehunters.i18n.enabled=false`.
 
+### Precedence over `spring.web.locale*`
+
+While this SDK provides `localeResolver`, Boot's `spring.web.locale` and
+`spring.web.locale-resolver` have no effect; startup warns when either is set. Use
+`codehunters.i18n.default-locale` instead, or declare your own `localeResolver` bean.
+
 ## Locale resolution
 
 `XLocaleAwareLocaleResolver` picks the locale in this order:
 
 1. The custom header (`X-Locale` by default). It takes BCP 47 tags (`en-US`) and Java's `en_US`
    form; blank, unparseable, or longer than 35 characters values are ignored.
-2. `Accept-Language`.
-3. `codehunters.i18n.default-locale`.
+2. `Accept-Language`. Without `supported-locales`, the highest-weighted range that names a
+   language; `*` and ranges of weight zero are skipped.
+3. `codehunters.i18n.default-locale`, also when `Accept-Language` is unparseable or names no usable
+   language (never the container's root locale or the JVM locale).
+
+Unicode extensions (`en-US-u-ca-japanese`) are dropped from the custom header, so a client cannot
+switch calendars or numbering systems.
 
 With `codehunters.i18n.supported-locales` set, both headers are matched against that list the
 same way Spring's `AcceptHeaderLocaleResolver` does: an exact match wins, otherwise a supported
@@ -54,9 +65,11 @@ request continues without the MDC entry.
 
 ## Validation messages
 
-The validator resolves `{key}` placeholders in constraint messages through the application's
-message source, in the locale of `LocaleContextHolder` (set by Spring MVC from the resolver).
-Keys that the message source does not have fall back to the provider's default messages.
+Boot's validator (`ValidationAutoConfiguration`, from `spring-boot-starter-validation`) resolves
+`{key}` placeholders in constraint messages through the application's message source, in the locale
+of `LocaleContextHolder` (set by Spring MVC from the resolver). Keys the message source does not
+have fall back to `ValidationMessages.properties` and then to the provider's default messages.
+`ValidationConfigurationCustomizer` beans apply as usual.
 
 ```java
 record CreateOrder(@NotNull(message = "{order.id.required}") String id) {}
@@ -92,4 +105,7 @@ The 0.x `vitxo.i18n.*` keys keep working until 2.0.0 under their new names; a ke
 - Bundles are cached for the life of the application; edits to bundle files need a restart.
 - Only servlet applications get the resolver and the filter; WebFlux is not supported.
 - Matching against `supported-locales` never maps a locale to one of another country
-  (`es-MX` does not become `es-CO`), as in Spring's resolver.
+  (`es-MX` does not become `es-CO`), as in Spring's resolver. Scripts are kept, so `zh-Hant-TW`
+  does not match a supported `zh-TW`.
+- The locale comes from request headers only: `LocaleResolver.setLocale` (and so
+  `LocaleChangeInterceptor`) throws `UnsupportedOperationException`.

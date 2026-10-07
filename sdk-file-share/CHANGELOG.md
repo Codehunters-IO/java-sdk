@@ -5,6 +5,9 @@
 ### Breaking
 - Properties move to `codehunters.file-share.*`; `vitxo.file-share.*` is deprecated and honoured
   until 3.0.0.
+- Old keys are read the way Boot binds them, so an environment variable may spell a dashed name
+  with or without underscores (`VITXO_FILE_SHARE_BASE_URL` or `VITXO_FILESHARE_BASEURL`). Only the documented old keys are aliased, and
+  startup lists old keys ignored because the new key is set.
 - Ticket `expiresAt` is an `Instant`.
 - `FileRef` requires `id` and `workflowId`; `status` is never `null` (`FileStatus.UNKNOWN`).
 - `UploadRequest` and `FileRef` validate their fields; `referenceId` arguments are validated.

@@ -15,9 +15,13 @@
   registered them in any application with the servlet API on the classpath).
 - The SDK's `messageSource` backs off only when a bean named `messageSource` exists (0.x backed off
   on any `MessageSource` bean, even one Spring would never use as the context's message source).
-- The validator is only registered when a Bean Validation provider is present, backs off on any
-  `jakarta.validation.Validator` bean (0.x: only on a `LocalValidatorFactoryBean`), and resolves
-  messages through the application context's message source rather than the SDK's bean directly.
+- No validator is registered: Boot's `defaultValidator` resolves `{key}` constraint messages through
+  the SDK's message source, applies `ValidationConfigurationCustomizer` beans and keeps
+  `ValidationMessages.properties`. 0.x registered `validatorFactoryBean`.
+- Without `supported-locales`, an `Accept-Language` of `*`, with every range at weight zero, or
+  unparseable resolves to `default-locale` instead of the container's root or JVM locale.
+- Unicode extensions are dropped from `X-Locale`.
+- `XLocaleAwareLocaleResolver.setLocale` throws `UnsupportedOperationException` with an explanation.
 - `LocaleMdcFilter` now also runs on async and error dispatches.
 - An `X-Locale` value longer than 35 characters is ignored.
 
@@ -28,6 +32,9 @@
 - Several base names in `codehunters.i18n.basename`.
 - `X-Locale` accepts Java's `en_US` form.
 - `LocaleMdcFilter` logs resolver failures (exception class only) instead of swallowing them.
-- A startup warning when `spring.messages.basename` is set, since the SDK's message source
-  ignores it.
-- Runs before Boot's message source, validation and Web MVC auto-configurations.
+- A startup warning when `spring.messages.basename`, `spring.web.locale` or
+  `spring.web.locale-resolver` is set, since the SDK's beans ignore them.
+- Legacy keys set as environment variables may spell dashed names with underscores
+  (`VITXO_I18N_DEFAULT_LOCALE` as well as `VITXO_I18N_DEFAULTLOCALE`); startup also lists old keys
+  ignored because the new key is set.
+- Runs before Boot's message source and Web MVC auto-configurations.

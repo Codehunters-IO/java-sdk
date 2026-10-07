@@ -9,6 +9,9 @@
 - Package `io.codehunters.sdk.security` → `io.codehunters.security`.
 - Properties `keycloak.security.*` → `codehunters.security.*`; introspection settings move under
   `codehunters.security.introspection`. Old keys are honoured until 4.0 with a warning.
+- Old keys are read the way Boot binds them, so an environment variable may spell a dashed name
+  with or without underscores (`KEYCLOAK_SECURITY_CLIENT_SECRET` or `KEYCLOAK_SECURITY_CLIENTSECRET`). Only the documented old keys are aliased, and
+  startup lists old keys ignored because the new key is set.
 - `fail-open` defaults to `false`.
 - No longer gated by the `develop`/`cert`/`prod` profiles; use `codehunters.security.enabled`.
 - `codehunters.security.audiences` is required (or `allow-any-audience=true`).

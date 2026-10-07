@@ -12,6 +12,9 @@ First release of the split artifacts; replaces `sdk-event-messaging` 5.1.5. Migr
   6.x on one classpath.
 - Properties `outbox.*` → `codehunters.outbox.*`. Old keys (files and environment variables) are
   honoured until 7.0 with a deprecation warning.
+- Old keys are read the way Boot binds them, so an environment variable may spell a dashed name
+  with or without underscores (`OUTBOX_BATCH_SIZE` or `OUTBOX_BATCHSIZE`). Only the documented old
+  keys are aliased, and startup lists old keys ignored because the new key is set.
 - Invalid configuration fails startup naming the key: sizes and attempts below 1, non-positive
   durations, unknown `publisher.type`, and `claim.ttl-ms` not above `batch-size` times the transport
   timeout.

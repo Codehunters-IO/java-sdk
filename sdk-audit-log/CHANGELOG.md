@@ -5,6 +5,9 @@
 ### Breaking
 - Properties move to `codehunters.audit.*`; `vitxo.audit.fail-on-error` is deprecated and honoured
   until 4.0.0.
+- Old keys are read the way Boot binds them, so an environment variable may spell a dashed name
+  with or without underscores (`VITXO_AUDIT_FAIL_ON_ERROR` or `VITXO_AUDIT_FAILONERROR`). Only the documented old keys are aliased, and
+  startup lists old keys ignored because the new key is set.
 - `errorMessage` holds the exception class name instead of its message.
 - The JDBC publisher bean is `auditEventPublisher` (was `auditEventJdbcAdapter`).
   `AuditEventJdbcAdapter` is synchronous, without `@Async` or `@Transactional`.
