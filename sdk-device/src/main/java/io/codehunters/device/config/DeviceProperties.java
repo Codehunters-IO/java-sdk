@@ -41,11 +41,15 @@ public record DeviceProperties(
    *
    * @param maxLength characters of the header kept and parsed, 16 to 8192; longer headers are cut
    *     so regex parsing stays cheap
-   * @param cacheSize parsed headers kept in memory, 0 to 100000; 0 disables the cache
+   * @param cacheSize parsed headers kept in memory, 0 to 100000; 0 disables the cache. {@code
+   *     max-length x cache-size} may not exceed {@value #MAX_CACHED_CHARACTERS} characters (64 MB)
    */
   public record UserAgent(@DefaultValue("512") int maxLength, @DefaultValue("1024") int cacheSize) {
 
-    /** Validates the ranges. */
+    /** Upper bound of {@code max-length x cache-size}: 64 MB of UTF-16 cached headers. */
+    public static final long MAX_CACHED_CHARACTERS = 32L * 1024 * 1024;
+
+    /** Validates the ranges and the memory the cache may hold. */
     public UserAgent {
       if (maxLength < 16 || maxLength > 8192) {
         throw new IllegalArgumentException(
@@ -54,6 +58,12 @@ public record DeviceProperties(
       if (cacheSize < 0 || cacheSize > 100_000) {
         throw new IllegalArgumentException(
             "codehunters.device.user-agent.cache-size must be between 0 and 100000");
+      }
+      if ((long) maxLength * cacheSize > MAX_CACHED_CHARACTERS) {
+        throw new IllegalArgumentException(
+            "codehunters.device.user-agent.max-length x cache-size must not exceed "
+                + MAX_CACHED_CHARACTERS
+                + " characters (64 MB of cached headers)");
       }
     }
   }
