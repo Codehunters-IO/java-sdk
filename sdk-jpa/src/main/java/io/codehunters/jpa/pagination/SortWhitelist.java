@@ -5,6 +5,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
+import java.util.TreeMap;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -24,9 +25,11 @@ import org.springframework.data.domain.Sort;
 public final class SortWhitelist {
 
   private final NavigableMap<String, String> properties;
+  private final Map<String, String> apiNames;
 
   private SortWhitelist(Map<String, String> properties) {
     this.properties = PropertyWhitelist.of(properties, "sort");
+    this.apiNames = reverse(this.properties);
   }
 
   /**
@@ -84,6 +87,28 @@ public final class SortWhitelist {
   public Sort apply(Sort requested) {
     var seen = new HashSet<String>();
     return Sort.by(requested.stream().map(order -> translate(order, seen)).toList());
+  }
+
+  /**
+   * Translates a sort by entity properties back into API names, for example to report how a page
+   * was sorted. Properties the whitelist does not name are left out; a property listed under
+   * several names takes the first in sorted order.
+   *
+   * @param sort the sort by entity properties
+   * @return the sort by API names
+   */
+  public Sort toApi(Sort sort) {
+    return Sort.by(
+        sort.stream()
+            .filter(order -> apiNames.containsKey(order.getProperty()))
+            .map(order -> order.withProperty(apiNames.get(order.getProperty())))
+            .toList());
+  }
+
+  private static Map<String, String> reverse(NavigableMap<String, String> properties) {
+    var reversed = new TreeMap<String, String>();
+    properties.forEach((name, property) -> reversed.putIfAbsent(property, name));
+    return reversed;
   }
 
   private Sort.Order translate(Sort.Order order, Set<String> seen) {

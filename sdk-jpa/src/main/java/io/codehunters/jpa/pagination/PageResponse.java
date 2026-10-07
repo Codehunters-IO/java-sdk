@@ -16,7 +16,8 @@ import org.springframework.data.domain.Sort;
  * @param size the requested page size; for an unpaged result, the number of elements
  * @param totalElements the number of elements across all pages
  * @param totalPages the number of pages
- * @param sort the orders the results were sorted by, in priority order
+ * @param sort the orders the results were sorted by, in priority order: entity properties, or the
+ *     API names when built with a {@link SortWhitelist}
  * @param <T> the element type
  */
 public record PageResponse<T>(
@@ -62,6 +63,31 @@ public record PageResponse<T>(
         page.getTotalElements(),
         page.getTotalPages(),
         page.getSort().stream().map(SortOrder::of).toList());
+  }
+
+  /**
+   * Copies a Spring Data page, mapping each element and reporting the sort under the API names of
+   * the whitelist that translated the request, so clients see the names they can send back.
+   *
+   * @param page the page to copy
+   * @param mapper maps each element; must not return {@code null}
+   * @param sorts the whitelist the request was sorted with; orders it does not name are left out
+   * @param <E> the source element type
+   * @param <T> the response element type
+   * @return the response
+   * @throws IllegalArgumentException if the mapper returns {@code null} or {@code sorts} is null
+   */
+  public static <E, T> PageResponse<T> from(
+      Page<E> page, Function<? super E, ? extends T> mapper, SortWhitelist sorts) {
+    require(sorts != null, "sorts must not be null");
+    PageResponse<T> response = from(page, mapper);
+    return new PageResponse<>(
+        response.content(),
+        response.page(),
+        response.size(),
+        response.totalElements(),
+        response.totalPages(),
+        sorts.toApi(page.getSort()).stream().map(SortOrder::of).toList());
   }
 
   private static void require(boolean condition, String message) {
