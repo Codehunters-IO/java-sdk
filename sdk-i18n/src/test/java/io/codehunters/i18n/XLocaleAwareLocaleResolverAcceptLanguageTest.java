@@ -3,6 +3,8 @@ package io.codehunters.i18n;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
@@ -11,9 +13,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 /**
  * Behaviour when no supported locales are configured. The servlet container's own parsing of {@code
- * Accept-Language} is simulated with {@link MockHttpServletRequest#setPreferredLocales}: Tomcat
- * returns the root locale for {@code *} and garbage, and the JVM locale when every range has weight
- * zero.
+ * Accept-Language} is simulated by overriding {@code getLocale()}: Tomcat returns the root locale
+ * for {@code *} and garbage, and the JVM locale when every range has weight zero.
  */
 class XLocaleAwareLocaleResolverAcceptLanguageTest {
 
@@ -26,35 +27,35 @@ class XLocaleAwareLocaleResolverAcceptLanguageTest {
 
   @Test
   void should_use_default_locale_when_accept_language_is_a_wildcard() {
-    acceptLanguage("*", Locale.ROOT);
+    var request = containerRequest("*", Locale.ROOT);
 
     assertThat(resolver.resolveLocale(request)).isEqualTo(SPANISH);
   }
 
   @Test
   void should_use_default_locale_when_every_accept_language_range_has_weight_zero() {
-    acceptLanguage("en;q=0", JVM_LOCALE);
+    var request = containerRequest("en;q=0", JVM_LOCALE);
 
     assertThat(resolver.resolveLocale(request)).isEqualTo(SPANISH);
   }
 
   @Test
   void should_use_default_locale_when_accept_language_cannot_be_parsed() {
-    acceptLanguage("!!!", Locale.ROOT);
+    var request = containerRequest("!!!", Locale.ROOT);
 
     assertThat(resolver.resolveLocale(request)).isEqualTo(SPANISH);
   }
 
   @Test
   void should_use_highest_weighted_language_when_accept_language_mixes_weights() {
-    acceptLanguage("fr;q=0, de;q=0.5, *;q=0.8", Locale.FRENCH);
+    var request = containerRequest("fr;q=0, de;q=0.5, *;q=0.8", Locale.FRENCH);
 
     assertThat(resolver.resolveLocale(request)).isEqualTo(Locale.GERMAN);
   }
 
   @Test
   void should_use_first_accept_language_range() {
-    acceptLanguage("en-US,en;q=0.9", Locale.US);
+    var request = containerRequest("en-US,en;q=0.9", Locale.US);
 
     assertThat(resolver.resolveLocale(request)).isEqualTo(Locale.US);
   }
@@ -84,8 +85,21 @@ class XLocaleAwareLocaleResolverAcceptLanguageTest {
         .hasMessageContaining("Accept-Language");
   }
 
-  private void acceptLanguage(String header, Locale containerLocale) {
-    request.addHeader("Accept-Language", header);
-    request.setPreferredLocales(List.of(containerLocale));
+  // Tomcat answers getLocale() from its own parse of the header; the mock would rewrite the header.
+  private static MockHttpServletRequest containerRequest(String acceptLanguage, Locale locale) {
+    var request =
+        new MockHttpServletRequest() {
+          @Override
+          public Locale getLocale() {
+            return locale;
+          }
+
+          @Override
+          public Enumeration<Locale> getLocales() {
+            return Collections.enumeration(List.of(locale));
+          }
+        };
+    request.addHeader("Accept-Language", acceptLanguage);
+    return request;
   }
 }
