@@ -20,6 +20,7 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.projectreactor:reactor-core")
     compileOnly("jakarta.transaction:jakarta.transaction-api")
+    compileOnly(project(":sdk-device"))
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework:spring-jdbc")
@@ -30,6 +31,9 @@ dependencies {
     testImplementation("io.projectreactor:reactor-core")
     testImplementation("jakarta.transaction:jakarta.transaction-api")
     testImplementation("tools.jackson.core:jackson-databind")
+    testImplementation(project(":sdk-device"))
+    testImplementation("org.springframework:spring-web")
+    testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation("org.testcontainers:testcontainers-mssqlserver")
