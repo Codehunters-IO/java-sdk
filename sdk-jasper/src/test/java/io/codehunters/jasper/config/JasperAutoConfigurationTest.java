@@ -43,6 +43,12 @@ class JasperAutoConfigurationTest {
 
   public record Row(String name, Integer amount) {}
 
+  private static List<Row> rows(int count) {
+    return java.util.stream.IntStream.rangeClosed(1, count)
+        .mapToObj(i -> new Row("row" + i, i))
+        .toList();
+  }
+
   @Configuration(proxyBeanMethods = false)
   static class OwnRenderer {
     static final ReportRenderer RENDERER =
@@ -151,8 +157,51 @@ class JasperAutoConfigurationTest {
             context -> {
               context.getBean(ReportRenderer.class).toBytes(ORDERS);
 
-              assertThat(Files.list(folder)).isEmpty();
+              try (var files = Files.walk(folder)) {
+                assertThat(files.filter(Files::isRegularFile)).isEmpty();
+              }
             });
+  }
+
+  @Test
+  void should_remove_the_swap_folder_when_the_context_closes() throws Exception {
+    runner
+        .withPropertyValues(
+            "codehunters.jasper.virtualizer.enabled=true",
+            "codehunters.jasper.virtualizer.max-pages=1",
+            "codehunters.jasper.virtualizer.directory=" + folder)
+        .run(context -> context.getBean(ReportRenderer.class).toBytes(ORDERS));
+
+    try (var files = Files.list(folder)) {
+      assertThat(files).isEmpty();
+    }
+  }
+
+  @Test
+  void should_apply_the_configured_page_limit() {
+    runner
+        .withPropertyValues("codehunters.jasper.max-pages=1")
+        .run(
+            context ->
+                assertThatThrownBy(
+                        () ->
+                            context
+                                .getBean(ReportRenderer.class)
+                                .toBytes(ORDERS.withData(ReportData.beans(rows(200)))))
+                    .isInstanceOf(ReportException.class)
+                    .hasMessage("report orders.jrxml exceeds the page limit (1)"));
+  }
+
+  @Test
+  void should_reject_an_invalid_timeout_at_startup() {
+    runner
+        .withPropertyValues("codehunters.jasper.timeout=0s")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessage("codehunters.jasper.timeout must be between 1 ms and 1 hour"));
   }
 
   @Test

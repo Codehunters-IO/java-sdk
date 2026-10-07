@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import java.nio.file.Path;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -14,6 +15,35 @@ class ReportSettingsTest {
   void should_default_to_the_reports_folder_a_cache_and_50_mb_without_virtualization() {
     assertThat(ReportSettings.DEFAULT)
         .isEqualTo(new ReportSettings("reports", 64, 50L * 1024 * 1024, Virtualization.OFF));
+  }
+
+  @Test
+  void should_bound_fills_to_2000_pages_and_two_minutes_by_default() {
+    assertThat(ReportSettings.DEFAULT.fillLimits())
+        .isEqualTo(new FillLimits(2_000, Duration.ofMinutes(2)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 1_000_001})
+  void should_reject_a_page_limit_outside_its_range(int maxPages) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new FillLimits(maxPages, Duration.ofMinutes(1)))
+        .withMessage("max-pages must be between 1 and 1000000");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"PT0S", "PT1H0.001S", "PT-1S"})
+  void should_reject_a_timeout_outside_its_range(Duration timeout) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new FillLimits(100, timeout))
+        .withMessage("timeout must be between 1 ms and 1 hour");
+  }
+
+  @Test
+  void should_reject_missing_fill_limits() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new ReportSettings("reports", 64, 1024, null, Virtualization.OFF))
+        .withMessage("fill limits must not be null");
   }
 
   @Test

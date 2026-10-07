@@ -3,11 +3,18 @@ package io.codehunters.jasper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.StringReader;
+import java.net.URI;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class ReportRequestTest {
@@ -146,5 +153,38 @@ class ReportRequestTest {
   private static void assertThatThrowsUnsupported(Map<String, Object> parameters) {
     org.assertj.core.api.Assertions.assertThatThrownBy(() -> parameters.put("b", 2))
         .isInstanceOf(UnsupportedOperationException.class);
+  }
+
+  static Stream<Object> locationsThatBypassTheClasspath() throws Exception {
+    return Stream.of(
+        URI.create("https://example.com/logo.png").toURL(),
+        URI.create("file:///etc/hosts"),
+        new File("/etc/hosts"),
+        Path.of("/etc/hosts"),
+        new ByteArrayInputStream(new byte[0]),
+        new StringReader(""),
+        List.of(new File("/etc/hosts")),
+        new Object[] {Path.of("/etc/hosts")},
+        Map.of("logo", URI.create("file:///etc/hosts")));
+  }
+
+  @ParameterizedTest
+  @MethodSource("locationsThatBypassTheClasspath")
+  void should_reject_a_parameter_value_that_loads_outside_the_classpath(Object value) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                ReportRequest.of(TEMPLATE, ReportFormat.PDF).withParameters(Map.of("logo", value)))
+        .withMessage(
+            "parameter logo holds a URL, URI, File, Path, stream or reader; pass a classpath"
+                + " location as a String");
+  }
+
+  @Test
+  void should_accept_image_bytes_as_a_parameter_value() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF).withParameters(Map.of("logo", new byte[1]));
+
+    assertThat(request.parameters()).containsKey("logo");
   }
 }

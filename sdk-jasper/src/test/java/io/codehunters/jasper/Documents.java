@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.PosixFilePermission;
+import java.util.Set;
 import java.util.zip.ZipFile;
 import org.apache.pdfbox.Loader;
 import org.apache.pdfbox.text.PDFTextStripper;
@@ -35,6 +37,22 @@ final class Documents {
       try (var archive = new ZipFile(file.toFile())) {
         return archive.getEntry(entry) != null;
       }
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  static long regularFilesUnder(Path folder) {
+    try (var files = Files.walk(folder)) {
+      return files.filter(Files::isRegularFile).count();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  static Set<PosixFilePermission> permissionsOfOnlyFolderIn(Path folder) {
+    try (var files = Files.list(folder)) {
+      return Files.getPosixFilePermissions(files.reduce((a, b) -> b).orElseThrow());
     } catch (IOException e) {
       throw new UncheckedIOException(e);
     }
