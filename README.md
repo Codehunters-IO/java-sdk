@@ -143,7 +143,7 @@ Integration tests (`*IT`) use Testcontainers, so `./gradlew build` needs a runni
 
 ## Publish
 
-Publishes to GitHub Packages (`https://maven.pkg.github.com/codehunters/java-sdk`) on merge to
+Publishes to GitHub Packages (`https://maven.pkg.github.com/Codehunters-IO/java-sdk`) on merge to
 `main`. A version is published once: versions already in the repository and `-SNAPSHOT` versions
 are skipped. Each module the run actually uploads is then tagged `sdk-<module>/vX.Y.Z`
 (`bom/vX.Y.Z` for the BOM) at the commit that built it, by a separate job that alone can write to

@@ -112,9 +112,10 @@ Ningún módulo cambió de versión. Las clases de los 10 jars son idénticas by
 | 1.11 | — | `codehuntersio-java-commons-support/` agregado a `.git/info/exclude`. **Moverlo fuera del árbol queda pendiente de ti**: es un repo git propio |
 | 1.6 | — | **Movida a la Fase 3** (tarea 3.0). El helper de capability se escribe junto a su primer uso real, con su test |
 
-**Pendiente de confirmar:** el repo `codehunters/java-sdk` no existe en GitHub, o el token local no
-tiene acceso. `github_packages_url` y `repository.url` apuntan ahí. Si la org es `Codehunters-IO`,
-hay que cambiar las dos propiedades en `gradle.properties`.
+**Confirmado (pasada final):** la org es `Codehunters-IO` y el remoto es
+`git@github.com:Codehunters-IO/java-sdk.git`. `repository.url`, `github_packages_url` y el README
+apuntan a `Codehunters-IO/java-sdk`. La organización de Sonar sigue en `codehunters` hasta confirmar
+su clave en SonarCloud.
 
 ## Fase 1b — Reestructuración del repo ✅ (rama `feature/build-logic`)
 
