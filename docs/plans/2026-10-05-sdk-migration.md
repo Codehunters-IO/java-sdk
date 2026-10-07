@@ -502,14 +502,34 @@ Detalle en `sdk-measure-micrometer/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.m
 - El tope de cardinalidad no es un `MeterFilter` sino un límite en el aspecto que sustituye los
   valores nuevos por `other`: un filtro `deny` de Micrometer descartaría la medición entera, y el
   aspecto es el único que sabe qué tags vienen de expresiones.
-- El contador pasa a `<name>.counted` y el long-task timer a `<name>.active`, para no chocar con
-  las series `_count` del timer ni registrar dos tipos de meter con el mismo nombre.
+- El contador pasa a `<name>.counted` y el long-task timer a `<name>.active`: así ningún nombre
+  lleva dos tipos de meter, y `.counted` no se lee como el `_count` del timer. (Un contador
+  `x.count` no choca con `x_seconds_count` en Prometheus, pero el sufijo confunde.)
 - Las expresiones que no parsean no fallan el arranque (se loguean y quedan `unknown`), como pide
   el punto 2; solo los errores de estructura de la anotación lo hacen.
 - No había propiedades `vitxo.*` en este módulo, así que no hay alias.
 
 Verificación: 50 tests, cobertura 100 % líneas / 93,2 % ramas, mutaciones detectadas (contexto
 SpEL, `afterName`), `./gradlew clean build` y `./gradlew -p build-logic test` en verde.
+
+**Revisión independiente**, `150ea9c` (tests en rojo) → `e27f790` (fix) → `docs`:
+
+- El validador junta `nombre → claves de tag` entre todos los beans y falla el arranque si dos
+  anotaciones comparten nombre con claves distintas (Prometheus descarta en silencio la segunda
+  serie; con el nombre por defecto `method.measured` era el caso normal). Revisa las anotaciones de
+  clase en las superclases; avisa de `@Measured` que nunca mide (método privado, final o estático, o
+  solo en una interfaz); salta clases que no se pueden introspectar (`isCandidateClass` + `catch
+  Throwable`).
+- Claves de tag con `[A-Za-z_][A-Za-z0-9_.-]*`; `countValue` positivo y finito.
+- Plan por `Method` en caché (definición, tags base, nombres de parámetros); una anotación inválida
+  queda en caché como inválida y no se construye contexto SpEL si no hace falta.
+- Tope de cardinalidad por nombre + método, con alta atómica. Avisos con clave y texto por nombre +
+  método.
+- Expresiones solo de lectura de propiedades: sin llamadas a métodos (incompatible, documentado).
+- Tests nuevos: identidad de la excepción, variantes de fallo asíncrono, contador sin incrementar en
+  fallos, SpEL con asignación y `@bean`, validador con superclases, limitador concurrente.
+
+Verificación: 77 tests, cobertura 98,0 % líneas / 91,7 % ramas.
 
 1. `@AutoConfiguration(afterName = ...MetricsAutoConfiguration / CompositeMeterRegistryAutoConfiguration)`.
    Se elimina `@EnableAspectJAutoProxy`.
