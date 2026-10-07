@@ -4,7 +4,7 @@ Gradle multi-module monorepo for Codehunters' Spring Boot SDK libraries. GroupId
 
 Requires Spring Boot 4 and Java 21 ([ADR 0007](docs/adr/0007-support-spring-boot-4-only.md)). Decisions are recorded in [`docs/adr`](docs/adr/README.md).
 
-Migrated from the standalone `vitxo-sdk-*` repositories (org `SOLDIFE`, group `com.soldife.vitxo`). Package/group renamed, no git history carried over, `@ConfigurationProperties` prefixes left unchanged for consumer backward-compatibility.
+Migrated from the standalone `vitxo-sdk-*` repositories (org `SOLDIFE`, group `com.soldife.vitxo`). Package/group renamed, no git history carried over. Configuration properties move to the `codehunters.<sdk>.*` prefix; the old `vitxo.*` keys keep working, with a deprecation warning, until the next major version of each SDK (see each module's `MIGRATION-*.md`).
 
 ## Modules
 
