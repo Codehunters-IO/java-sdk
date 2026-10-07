@@ -31,6 +31,11 @@ Declare an `AuditContextProvider` bean to fill the actor, IP, user agent, HTTP m
 and source service from the security context or the request. Values set on the annotation win. A
 provider method that throws leaves its field `null`.
 
+Without one, the default provider fills nothing, unless [`sdk-device`](../sdk-device/README.md) is
+on the classpath of a servlet application: then it records the IP of the current request, resolved
+behind the device SDK's trusted proxies, and its sanitized `User-Agent`. The actor and the rest stay
+empty; declare your own provider to fill them.
+
 The event is recorded when the method returns. A method returning a `CompletionStage` (such as
 `CompletableFuture`), or a Reactor `Mono` or `Flux`, is recorded when that work finishes instead,
 with its outcome and its duration. `#result` is the stage's value or the `Mono`'s element (`null`

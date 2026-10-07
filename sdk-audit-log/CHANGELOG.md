@@ -44,6 +44,8 @@
 - `AuditEventPublisherPort#publishDetached`, used for events of work that completes on another
   thread.
 - `CANCELLED` status for cancelled futures and Reactor subscriptions.
+- With `sdk-device` on the classpath of a servlet application, the default `AuditContextProvider`
+  reports the IP (resolved behind trusted proxies) and `User-Agent` of the current request.
 
 ### Fixed
 - `fail-on-error=true` never failed the audited call: the insert ran on another thread and the

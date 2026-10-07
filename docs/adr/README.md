@@ -15,3 +15,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0009](0009-file-share-outbound-client-credentials.md) | Authenticate sdk-file-share calls with client credentials | accepted |
 | [0010](0010-sdk-commons-for-framework-free-helpers.md) | Put framework-free helpers in sdk-commons | accepted |
 | [0011](0011-problem-details-with-stable-error-codes.md) | Answer errors with problem details and stable error codes | accepted |
+| [0012](0012-trusted-proxy-client-ip.md) | Resolve the client IP only through trusted proxies | accepted |

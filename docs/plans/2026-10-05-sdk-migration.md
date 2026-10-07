@@ -951,6 +951,39 @@ Review independiente (2 HIGH, 5 MEDIUM, 9 LOW), todo corregido con TDD (`4392a42
   para el filter chain de la app, más `ProblemWriter`. `sdk-user-security` todavía no los usa en su
   chain: queda como seguimiento.
 
+## Fase 14 — `sdk-device` 1.0.0 ✅ (rama `feature/sdk-device-v1`, sobre `feature/sdk-web-errors-v1`)
+
+Origen: `commons-util-ip-support` (`IpUtil`, `IpApiLocationHttpClient`) y `commons-util-device-support`
+(`DeviceUtil`, `Device`). `IpUtil` tomaba el primer valor de `X-Forwarded-For`, que lo escribe el
+cliente; la ubicación se pedía a ip-api.com por HTTP en el hilo del request.
+[ADR 0012](../adr/0012-trusted-proxy-client-ip.md).
+
+Hecho con TDD (cada `feat`/`fix` con su `test` en rojo antes: `065b3c8` → `5546750`, `9d68d38` →
+`a9ccb96`, `db34ca7` → `309efbc`, `ef601a6` → `59c328b`, `9916962` → `277d472`):
+- `ip` (solo JDK): `IpLiterals` sin DNS (IPv4 estricto, IPv6 con o sin corchetes, puerto opcional;
+  rechaza host names y zone ids), `TrustedProxies` (CIDR v4/v6, el error nombra el índice y no el
+  valor), `ProxyChain`, `ClientIpResolver`: lee el header configurado de derecha a izquierda mientras
+  la dirección actual sea un proxy de confianza; sin proxies de confianza, la remota; un hop no
+  parseable corta el recorrido.
+- `ForwardingHeader` (`x-forwarded-for` por defecto, o `forwarded`): solo se lee ese header. Preferir
+  `Forwarded` cuando venía permitía falsear la IP detrás de proxies que solo agregan
+  `X-Forwarded-For`; salió en la autorrevisión y se corrigió con su test en rojo (`ef601a6`).
+- `useragent` (solo JDK): `UserAgentParser` port, `UserAgentInfo` (nunca null, `UNKNOWN`),
+  `UserAgents.sanitize` (controles a espacio, tope de largo sin partir surrogates),
+  `CachingUserAgentParser` (LRU acotado, una sola carga por header); `uap` adapta `uap-java` 1.6.1
+  opcional (sin advisories publicados).
+- `geo`: solo el port `GeoIpLookup` y `GeoLocation`; sin implementación.
+- `servlet`: `ClientContextResolver` (una vez por request vía atributo; `current()` por
+  `RequestContextHolder`). `config`: `codehunters.device.*` validado al arrancar; cada bean se aparta
+  ante uno de la app; uap con caché si está, si no `UnknownUserAgentParser`.
+- `sdk-audit-log`: dependencia `compileOnly` de `sdk-device`; si está y la app no define
+  `AuditContextProvider`, el default llena IP y `User-Agent` del request actual. `audit-log` sigue en
+  3.0.0 (no publicada).
+- `sdk-bom` 1.0.0 incluye `sdk-device` (lock regenerado, BOM sin publicar).
+
+Abierto: sin soporte WebFlux (solo el `ClientIpResolver` en Java plano). Las IPv6 salen en la forma
+larga del JDK.
+
 ## Orden y dependencias
 
 ```
@@ -995,6 +1028,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-support` | — | 1.0.0 (interno) |
 | `sdk-commons` | `commons-util` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-web-errors` | `commons-web` 5.1.0 (otro repo) | 1.0.0 |
+| `sdk-device` | `commons-util-ip-support`, `commons-util-device-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
