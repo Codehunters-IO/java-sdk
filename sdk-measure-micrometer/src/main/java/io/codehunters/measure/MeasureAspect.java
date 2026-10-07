@@ -44,7 +44,7 @@ public class MeasureAspect {
 
   private final MeterRegistry registry;
   private final TagCardinalityLimiter limiter;
-  private final Map<Measured, MeasuredDefinition> definitions = new ConcurrentHashMap<>();
+  private final Map<Method, MethodPlan> plans = new ConcurrentHashMap<>();
   private final ParameterNameDiscoverer parameterNames = new DefaultParameterNameDiscoverer();
   private final WarnOnce warnings = new WarnOnce(log);
 
@@ -117,41 +117,47 @@ public class MeasureAspect {
   }
 
   private Measurement start(ProceedingJoinPoint pjp, Measured measured) {
+    Method method = ((MethodSignature) pjp.getSignature()).getMethod();
+    MethodPlan plan = plans.computeIfAbsent(method, key -> plan(key, measured));
+    if (!plan.isValid()) {
+      return Measurement.NONE;
+    }
     try {
-      MeasuredDefinition definition = definitions.computeIfAbsent(measured, MeasuredDefinition::of);
-      Method method = ((MethodSignature) pjp.getSignature()).getMethod();
-      EvaluationContext context = context(method, pjp.getArgs());
-      Tags tags =
-          Tags.of("class", pjp.getStaticPart().getSignature().getDeclaringTypeName())
-              .and("method", method.getName())
-              .and(definition.staticTags())
-              .and(expressionTags(definition, context));
+      EvaluationContext context = plan.needsContext() ? context(plan, pjp.getArgs()) : null;
+      Tags tags = plan.baseTags().and(expressionTags(plan, context));
       return RecordingMeasurement.start(
-          new RecordingMeasurement.Call(registry, definition, tags, context), warnings);
+          new RecordingMeasurement.Call(registry, plan.definition(), tags, context, plan.site()),
+          warnings);
     } catch (RuntimeException ex) {
-      String signature = pjp.getSignature().toLongString();
       warnings.warn(
-          signature,
-          "Could not start @Measured meters of {}: {}",
-          signature,
-          ex.getClass().getName());
+          plan.site(), "Could not start @Measured meters of {}: {}", plan.site(), className(ex));
       return Measurement.NONE;
     }
   }
 
-  private Tags expressionTags(MeasuredDefinition definition, EvaluationContext context) {
+  private MethodPlan plan(Method method, Measured measured) {
+    try {
+      return MethodPlan.of(MeasuredDefinition.of(measured), method, parameterNames);
+    } catch (RuntimeException ex) {
+      String location = MethodPlan.location(method);
+      warnings.warn(
+          location, "Could not start @Measured meters of {}: {}", location, className(ex));
+      return MethodPlan.INVALID;
+    }
+  }
+
+  private Tags expressionTags(MethodPlan plan, EvaluationContext context) {
     Tags tags = Tags.empty();
-    for (MeasuredDefinition.ExpressionTag tag : definition.expressionTags()) {
+    for (MeasuredDefinition.ExpressionTag tag : plan.definition().expressionTags()) {
       String value = tag.expression().tagValue(context);
-      tags = tags.and(tag.key(), limiter.limit(definition.name(), tag.key(), value));
+      tags = tags.and(tag.key(), limiter.limit(plan.site(), tag.key(), value));
     }
     return tags;
   }
 
-  private EvaluationContext context(Method method, Object[] args) {
-    EvaluationContext context =
-        SimpleEvaluationContext.forReadOnlyDataBinding().withInstanceMethods().build();
-    String[] names = parameterNames.getParameterNames(method);
+  private static EvaluationContext context(MethodPlan plan, Object[] args) {
+    EvaluationContext context = SimpleEvaluationContext.forReadOnlyDataBinding().build();
+    String[] names = plan.parameterNames();
     for (int i = 0; i < args.length; i++) {
       context.setVariable("p" + i, args[i]);
       context.setVariable("a" + i, args[i]);
@@ -161,6 +167,10 @@ public class MeasureAspect {
       }
     }
     return context;
+  }
+
+  private static String className(Throwable failure) {
+    return failure.getClass().getName();
   }
 
   private static Throwable unwrap(Throwable failure) {

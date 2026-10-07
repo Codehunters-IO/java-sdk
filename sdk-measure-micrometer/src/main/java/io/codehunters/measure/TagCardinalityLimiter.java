@@ -7,9 +7,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Caps the distinct values each expression tag can take on a meter. Once a tag has reached the
- * limit, new values are recorded as {@value #OTHER}, so the meter keeps counting every call while
- * the number of time series stays bounded. Values already seen keep their own series.
+ * Caps the distinct values an expression tag may take in one series, a series being one meter name
+ * at one method and one tag key. Values beyond the cap are recorded as {@value #OTHER}, so a tag
+ * fed by user input cannot create unbounded series. The cap is reached once and logged once per
+ * series; known values keep their own series. The total number of values a name can take is
+ * therefore the cap times the number of methods sharing it.
  */
 final class TagCardinalityLimiter {
 
@@ -18,8 +20,7 @@ final class TagCardinalityLimiter {
   private static final Logger log = LoggerFactory.getLogger(TagCardinalityLimiter.class);
 
   private final int maxValues;
-  private final Map<String, Set<String>> seen = new ConcurrentHashMap<>();
-  private final Set<String> overflowing = ConcurrentHashMap.newKeySet();
+  private final Map<String, Series> series = new ConcurrentHashMap<>();
 
   TagCardinalityLimiter(int maxValues) {
     if (maxValues < 1) {
@@ -28,28 +29,57 @@ final class TagCardinalityLimiter {
     this.maxValues = maxValues;
   }
 
-  String limit(String meterName, String key, String value) {
-    String series = meterName + '\u0000' + key;
-    Set<String> values = seen.computeIfAbsent(series, k -> ConcurrentHashMap.newKeySet());
-    if (values.contains(value)) {
+  /**
+   * Returns the value to record.
+   *
+   * @param site the meter name and method the tag belongs to
+   * @param key the tag key
+   * @param value the evaluated value
+   * @return {@code value}, or {@value #OTHER} once the series is full
+   */
+  String limit(String site, String key, String value) {
+    Series values = series.computeIfAbsent(site + '\u0000' + key, id -> new Series());
+    if (values.admit(value, maxValues)) {
       return value;
     }
-    if (values.size() >= maxValues) {
-      warnOnce(series, meterName, key);
-      return OTHER;
-    }
-    values.add(value);
-    return value;
+    warnOnce(values, site, key);
+    return OTHER;
   }
 
-  private void warnOnce(String series, String meterName, String key) {
-    if (overflowing.add(series)) {
+  private void warnOnce(Series values, String site, String key) {
+    if (values.markOverflowing()) {
       log.warn(
-          "Tag '{}' of meter '{}' reached {} distinct values; further values are recorded as '{}'",
+          "Tag '{}' of {} reached {} distinct values; further values are recorded as '{}'",
           key,
-          meterName,
+          site,
           maxValues,
           OTHER);
+    }
+  }
+
+  /** The values one series has admitted. */
+  private static final class Series {
+
+    private final Set<String> values = ConcurrentHashMap.newKeySet();
+    private boolean overflowing;
+
+    boolean admit(String value, int maxValues) {
+      if (values.contains(value)) {
+        return true;
+      }
+      synchronized (this) {
+        if (values.contains(value) || values.size() < maxValues) {
+          values.add(value);
+          return true;
+        }
+        return false;
+      }
+    }
+
+    synchronized boolean markOverflowing() {
+      boolean first = !overflowing;
+      overflowing = true;
+      return first;
     }
   }
 }

@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 /**
  * The parsed form of a {@link Measured} annotation.
@@ -26,15 +28,19 @@ record MeasuredDefinition(
   static final String DEFAULT_NAME = "method.measured";
   static final Set<String> RESERVED_KEYS = Set.of("class", "method", "exception", "outcome");
 
+  private static final Pattern TAG_KEY = Pattern.compile("[A-Za-z_][A-Za-z0-9_.-]*");
+
   /**
    * Parses and validates an annotation.
    *
    * @param measured the annotation
    * @return the definition
    * @throws IllegalArgumentException if the tags are not key/value pairs, an expression is not
-   *     {@code key=expression}, or a tag key is blank, reserved or repeated
+   *     {@code key=expression}, a tag key is blank, reserved, repeated or not a tag name, or the
+   *     count value is not positive and finite
    */
   static MeasuredDefinition of(Measured measured) {
+    requireCountValue(measured.countValue());
     Set<String> keys = new HashSet<>();
     return new MeasuredDefinition(
         measured,
@@ -72,9 +78,31 @@ record MeasuredDefinition(
     return List.copyOf(tags);
   }
 
+  /**
+   * Returns every tag key the timer of this definition carries, reserved ones included.
+   *
+   * @return the tag keys
+   */
+  Set<String> tagKeys() {
+    Set<String> keys = new TreeSet<>(RESERVED_KEYS);
+    staticTags.forEach(tag -> keys.add(tag.getKey()));
+    expressionTags.forEach(tag -> keys.add(tag.key()));
+    return keys;
+  }
+
+  private static void requireCountValue(double countValue) {
+    if (!(countValue > 0) || Double.isInfinite(countValue)) {
+      throw new IllegalArgumentException(
+          "countValue must be positive and finite, but is " + countValue);
+    }
+  }
+
   private static String requireKey(String key, Set<String> keys) {
     if (key.isBlank()) {
       throw new IllegalArgumentException("tag keys must not be blank");
+    }
+    if (!TAG_KEY.matcher(key).matches()) {
+      throw new IllegalArgumentException("tag key '" + key + "' must match " + TAG_KEY.pattern());
     }
     if (RESERVED_KEYS.contains(key)) {
       throw new IllegalArgumentException("tag key '" + key + "' is reserved");

@@ -48,9 +48,11 @@ final class RecordingMeasurement implements Measurement {
       stop(failure);
       countIfDue(result, failure);
     } catch (RuntimeException ex) {
-      String name = call.definition().name();
       warnings.warn(
-          name, "Could not record @Measured meters of '{}': {}", name, ex.getClass().getName());
+          call.site(),
+          "Could not record @Measured meters of {}: {}",
+          call.site(),
+          ex.getClass().getName());
     }
   }
 
@@ -111,11 +113,14 @@ final class RecordingMeasurement implements Measurement {
    * @param registry the registry the meters go to
    * @param definition the parsed annotation
    * @param tags the class, method and annotation tags
-   * @param context the variables of the call, for the count condition
+   * @param context the variables of the call, for the count condition, or {@code null} when the
+   *     annotation has neither expressions nor a count condition
+   * @param site the meter name and method, for log messages
    */
   record Call(
       MeterRegistry registry,
       MeasuredDefinition definition,
       Tags tags,
-      EvaluationContext context) {}
+      EvaluationContext context,
+      String site) {}
 }
