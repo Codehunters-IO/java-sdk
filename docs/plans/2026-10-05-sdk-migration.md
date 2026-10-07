@@ -476,9 +476,40 @@ el bean del aspecto exige `org.aspectj.weaver.Advice`. 172 tests.
 5. SQL de referencia para Postgres, además del de SQL Server.
 6. Prefijo: `vitxo.audit.*` → `codehunters.audit.*`.
 
-## Fase 7 — `sdk-measure-micrometer` 3.0.0
+## Fase 7 — `sdk-measure-micrometer` 3.0.0 ✅ (rama `feature/sdk-measure-v3`, sobre `feature/sdk-audit-log-v3`)
 
-Rama: `feature/sdk-measure-v3`. Según D8, `@Measured` y `MeasureAspect` se mantienen y se corrigen.
+Detalle en `sdk-measure-micrometer/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.md`.
+
+- `e9838db` → `9edfdd4`: un timer por nombre con tags `class`, `method`, `exception` y `outcome`
+  (fuera `<name>.errors`); `<name>.active` para long-task y `<name>.counted` para el contador;
+  nombre por defecto `method.measured`. Claves de tag estables (`none` para nulos/blancos,
+  `unknown` si la expresión falla). `SimpleEvaluationContext` (lectura de propiedades y métodos de
+  instancia, sin `T()` ni beans); cada anotación se parsea una vez. `@Measured` de clase
+  (`@within`, la anotación de método gana). `CompletionStage` medido hasta completar y devuelto sin
+  cambios. Tope de valores por tag de expresión: los nuevos pasan a `other`.
+- `f25832e` → `229c02f`: `@AutoConfiguration(afterName = MetricsAutoConfiguration,
+  CompositeMeterRegistryAutoConfiguration)`, sin `@EnableAspectJAutoProxy`;
+  `codehunters.measure.enabled` y `codehunters.measure.max-tag-values`; `MeasuredBeanValidator`
+  falla el arranque con tags impares, expresiones sin `=` o claves vacías, repetidas o reservadas.
+  Se borra `gradle.properties`: el módulo vuelve al 0.80 de ramas.
+- `bf63e49`: tests de parseo y del tope.
+- `178ddd6` → `346fe1c`: un meter rechazado por el registro o una anotación inválida se loguean una
+  vez, no en cada llamada.
+- `a93aa02`: README (tabla de meters, límites), CHANGELOG, MIGRATION-3.0 con la tabla de nombres
+  viejos y nuevos; fila en el README raíz.
+
+**Cambios respecto al plan:**
+- El tope de cardinalidad no es un `MeterFilter` sino un límite en el aspecto que sustituye los
+  valores nuevos por `other`: un filtro `deny` de Micrometer descartaría la medición entera, y el
+  aspecto es el único que sabe qué tags vienen de expresiones.
+- El contador pasa a `<name>.counted` y el long-task timer a `<name>.active`, para no chocar con
+  las series `_count` del timer ni registrar dos tipos de meter con el mismo nombre.
+- Las expresiones que no parsean no fallan el arranque (se loguean y quedan `unknown`), como pide
+  el punto 2; solo los errores de estructura de la anotación lo hacen.
+- No había propiedades `vitxo.*` en este módulo, así que no hay alias.
+
+Verificación: 50 tests, cobertura 100 % líneas / 93,2 % ramas, mutaciones detectadas (contexto
+SpEL, `afterName`), `./gradlew clean build` y `./gradlew -p build-logic test` en verde.
 
 1. `@AutoConfiguration(afterName = ...MetricsAutoConfiguration / CompositeMeterRegistryAutoConfiguration)`.
    Se elimina `@EnableAspectJAutoProxy`.
