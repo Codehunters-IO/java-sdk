@@ -78,6 +78,12 @@ public class ApiException extends RuntimeException {
     return arguments;
   }
 
+  /**
+   * Refuses serialization: the code and arguments are transient and would arrive missing.
+   *
+   * @param out the stream
+   * @throws IOException always, as {@link NotSerializableException}
+   */
   @Serial
   private void writeObject(ObjectOutputStream out) throws IOException {
     throw new NotSerializableException(ApiException.class.getName());
