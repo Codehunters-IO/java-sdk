@@ -2,6 +2,7 @@ package io.codehunters.jpa.specification;
 
 import io.codehunters.jpa.internal.PropertyWhitelist;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
@@ -137,7 +138,7 @@ public final class SpecificationBuilder<T> {
         : Specification.anyOf(specifications(criteria));
   }
 
-  private java.util.List<Specification<T>> specifications(Collection<SearchCriteria> criteria) {
+  private List<Specification<T>> specifications(Collection<SearchCriteria> criteria) {
     if (criteria.size() > MAX_CRITERIA) {
       throw new InvalidSearchException("at most " + MAX_CRITERIA + " search criteria are allowed");
     }
