@@ -931,6 +931,26 @@ Hecho con TDD (cada `feat` con su `test` en rojo antes: `557b6ed` → `3048451`,
 Desvíos: el módulo compila con `-parameters` para que la validación de parámetros nombre el campo. Una
 `ErrorResponseException` armada por la app pierde su detalle; está documentado (usar `ApiException`).
 
+Review independiente (2 HIGH, 5 MEDIUM, 9 LOW), todo corregido con TDD (`4392a42` → `a718802`,
+`63a7d6e` → `9c88dd4`, `7d19136` → `8f0969e`):
+- HIGH: los mensajes de violación ya no usan los mensajes por defecto de Spring, que repetían la
+  entrada y los tipos Java, y que al pasar por `MessageFormat` cacheaban cada valor distinto (DoS de
+  memoria) y parseaban la entrada como patrón. Orden: bundles por códigos, mensaje interpolado si la
+  plantilla no tiene `${…}`, y `web-errors.typeMismatch` / `web-errors.invalid` (`Invalid value`).
+- `ConstraintViolationException` es 400 solo si todas las violaciones son de argumentos de método;
+  entidades y valores de retorno dan 500 `INTERNAL_ERROR` sin `errors` (igual la validación del
+  retorno de un controller).
+- Los 5xx se exponen al filtro de observación; respuesta ya comprometida → un `WARN` sin stack ni
+  mensaje; cliente desconectado → `DEBUG`; timeout async → `WARN` sin stack; la causa de un 4xx va al
+  `DEBUG`; los logs conservan el `traceId` aunque el body no lo lleve.
+- Excepciones de Spring Security envueltas también se relanzan; `instance` sin parámetros de path
+  (`;jsessionid`) y, en el error dispatch, con el path original; `traceId` vacío se omite;
+  `ApiException` exige código y no se serializa; el detalle por defecto ya no pierde apóstrofos.
+- Nuevo: `ProblemErrorController` reemplaza el `BasicErrorController` de Boot;
+  `ProblemAuthenticationEntryPoint` y `ProblemAccessDeniedHandler` (mantienen el challenge bearer)
+  para el filter chain de la app, más `ProblemWriter`. `sdk-user-security` todavía no los usa en su
+  chain: queda como seguimiento.
+
 ## Orden y dependencias
 
 ```
