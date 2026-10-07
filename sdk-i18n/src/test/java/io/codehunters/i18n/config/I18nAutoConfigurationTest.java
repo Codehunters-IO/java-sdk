@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration;
-import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -26,7 +25,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.context.support.StaticMessageSource;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.LocaleResolver;
@@ -59,7 +57,7 @@ class I18nAutoConfigurationTest {
           assertThat(context.getBean("localeResolver"))
               .isInstanceOf(XLocaleAwareLocaleResolver.class);
           assertThat(context).hasSingleBean(FilterRegistrationBean.class);
-          assertThat(context).hasSingleBean(LocalValidatorFactoryBean.class);
+          assertThat(context).doesNotHaveBean(Validator.class);
         });
   }
 
@@ -174,33 +172,18 @@ class I18nAutoConfigurationTest {
   }
 
   @Test
-  void should_back_off_validator_when_application_defines_one() {
-    plainRunner
-        .withUserConfiguration(ValidatorConfig.class)
-        .run(
-            context ->
-                assertThat(context).hasSingleBean(Validator.class).hasBean("customValidator"));
-  }
-
-  @Test
-  void should_skip_validator_when_no_validation_provider_is_present() {
-    plainRunner
-        .withClassLoader(
-            new FilteredClassLoader(
-                new ClassPathResource(
-                    "META-INF/services/jakarta.validation.spi.ValidationProvider")))
-        .run(context -> assertThat(context).doesNotHaveBean(LocalValidatorFactoryBean.class));
-  }
-
-  @Test
-  void should_resolve_constraint_messages_from_the_message_source() {
+  void should_resolve_constraint_messages_through_boot_validator() {
     LocaleContextHolder.setLocale(ENGLISH);
 
-    plainRunner.run(
-        context ->
-            assertThat(context.getBean(Validator.class).validate(new Order(null)))
-                .extracting(violation -> violation.getMessage())
-                .containsExactly("The order id is required"));
+    plainRunner
+        .withConfiguration(AutoConfigurations.of(ValidationAutoConfiguration.class))
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(Validator.class).hasBean("defaultValidator");
+              assertThat(context.getBean(Validator.class).validate(new Order(null)))
+                  .extracting(violation -> violation.getMessage())
+                  .containsExactly("The order id is required");
+            });
   }
 
   @Test
@@ -219,7 +202,7 @@ class I18nAutoConfigurationTest {
                   .isInstanceOf(ReloadableResourceBundleMessageSource.class);
               assertThat(context.getBean("localeResolver"))
                   .isInstanceOf(XLocaleAwareLocaleResolver.class);
-              assertThat(context).hasSingleBean(Validator.class).hasBean("validatorFactoryBean");
+              assertThat(context).hasSingleBean(Validator.class).hasBean("defaultValidator");
             });
   }
 
@@ -246,14 +229,6 @@ class I18nAutoConfigurationTest {
     @Bean
     LocaleResolver localeResolver() {
       return new org.springframework.web.servlet.i18n.FixedLocaleResolver(ENGLISH);
-    }
-  }
-
-  @Configuration(proxyBeanMethods = false)
-  static class ValidatorConfig {
-    @Bean
-    LocalValidatorFactoryBean customValidator() {
-      return new LocalValidatorFactoryBean();
     }
   }
 }
