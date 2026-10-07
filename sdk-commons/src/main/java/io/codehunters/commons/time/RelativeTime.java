@@ -6,7 +6,8 @@ import java.util.Locale;
 
 /**
  * Coarse distance between two instants, for "3 days ago" style labels. The amount is floored, so
- * 119 seconds is one minute. Months are 30 days and years 365 days.
+ * 119 seconds is one minute. Months are 30 days, capped at 11 so that 360 to 364 days still reads
+ * "11 months", and years are 365 days.
  *
  * <p>Render it with {@link #toEnglish()}, or localize it from {@link #amount()}, {@link #unit()}
  * and {@link #direction()}.
@@ -29,7 +30,7 @@ public record RelativeTime(long amount, Unit unit, Direction direction) {
     DAYS,
     /** Less than 30 days away. */
     WEEKS,
-    /** Less than 365 days away. */
+    /** Less than 365 days away; the amount is at most 11. */
     MONTHS,
     /** 365 days or more away. */
     YEARS
@@ -46,11 +47,12 @@ public record RelativeTime(long amount, Unit unit, Direction direction) {
   private static final long DAYS_PER_WEEK = 7;
   private static final long DAYS_PER_MONTH = 30;
   private static final long DAYS_PER_YEAR = 365;
+  private static final long MAX_MONTHS = 11;
 
   /**
    * Validates the components.
    *
-   * @param amount the amount, not negative
+   * @param amount the amount, zero for {@link Unit#NOW} and positive otherwise
    * @param unit the unit, not null
    * @param direction the direction, not null
    */
@@ -58,6 +60,9 @@ public record RelativeTime(long amount, Unit unit, Direction direction) {
     if (amount < 0 || unit == null || direction == null) {
       throw new IllegalArgumentException(
           "amount must not be negative; unit and direction are required");
+    }
+    if ((amount == 0) != (unit == Unit.NOW)) {
+      throw new IllegalArgumentException("amount must be zero exactly when unit is NOW");
     }
   }
 
@@ -83,7 +88,7 @@ public record RelativeTime(long amount, Unit unit, Direction direction) {
       return new RelativeTime(days / DAYS_PER_YEAR, Unit.YEARS, direction);
     }
     if (days >= DAYS_PER_MONTH) {
-      return new RelativeTime(days / DAYS_PER_MONTH, Unit.MONTHS, direction);
+      return new RelativeTime(Math.min(days / DAYS_PER_MONTH, MAX_MONTHS), Unit.MONTHS, direction);
     }
     if (days >= DAYS_PER_WEEK) {
       return new RelativeTime(days / DAYS_PER_WEEK, Unit.WEEKS, direction);
