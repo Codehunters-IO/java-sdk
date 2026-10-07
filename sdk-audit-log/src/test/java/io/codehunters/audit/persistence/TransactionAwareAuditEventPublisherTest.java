@@ -109,4 +109,23 @@ class TransactionAwareAuditEventPublisherTest {
 
     assertThat(outside).containsExactly(SUCCESS);
   }
+
+  @Test
+  void should_write_a_detached_success_outside_the_transaction_when_atomic() {
+    transaction.executeWithoutResult(status -> atomic.publishDetached(SUCCESS));
+
+    assertThat(outside).containsExactly(SUCCESS);
+    assertThat(joined).isEmpty();
+  }
+
+  @Test
+  void should_not_tie_a_detached_success_to_the_transaction_when_deferred() {
+    transaction.executeWithoutResult(
+        status -> {
+          deferred.publishDetached(SUCCESS);
+          status.setRollbackOnly();
+        });
+
+    assertThat(outside).containsExactly(SUCCESS);
+  }
 }

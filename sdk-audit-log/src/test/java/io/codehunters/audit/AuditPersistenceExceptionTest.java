@@ -63,6 +63,17 @@ class AuditPersistenceExceptionTest {
   }
 
   @Test
+  void should_have_no_vendor_code_when_the_driver_reports_zero() {
+    var postgres = new SQLException("Failing row contains (" + ROW_VALUE + ")", SQL_STATE, 0);
+
+    AuditPersistenceException redacted =
+        AuditPersistenceException.redacted("Failed to persist audit event", postgres);
+
+    assertThat(redacted.vendorCode()).isEmpty();
+    assertThat(redacted.sqlState()).contains(SQL_STATE);
+  }
+
+  @Test
   void should_keep_the_given_cause_when_built_with_the_public_constructor() {
     var cause = new IllegalStateException("boom");
 

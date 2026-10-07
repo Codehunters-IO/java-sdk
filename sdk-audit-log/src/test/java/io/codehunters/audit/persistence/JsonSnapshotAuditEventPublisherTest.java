@@ -3,6 +3,7 @@ package io.codehunters.audit.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.codehunters.audit.AuditEvent;
+import io.codehunters.audit.AuditEventPublisherPort;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -14,8 +15,9 @@ class JsonSnapshotAuditEventPublisherTest {
 
   private final JsonMapper jsonMapper = JsonMapper.builder().build();
   private final List<AuditEvent> delivered = new ArrayList<>();
+  private final List<AuditEvent> detached = new ArrayList<>();
   private final JsonSnapshotAuditEventPublisher publisher =
-      new JsonSnapshotAuditEventPublisher(delivered::add, jsonMapper);
+      new JsonSnapshotAuditEventPublisher(new Recording(), jsonMapper);
 
   @Test
   void should_hand_on_a_payload_that_ignores_later_changes_to_the_argument() {
@@ -25,6 +27,18 @@ class JsonSnapshotAuditEventPublisherTest {
     items.add("added after the call");
 
     assertThat(jsonMapper.writeValueAsString(delivered.getFirst().payload()))
+        .isEqualTo("{\"items\":[\"first\"]}");
+  }
+
+  @Test
+  void should_hand_a_detached_event_on_detached_with_a_copied_payload() {
+    List<String> items = new ArrayList<>(List.of("first"));
+
+    publisher.publishDetached(event(Map.of("items", items)));
+    items.add("added after the call");
+
+    assertThat(delivered).isEmpty();
+    assertThat(jsonMapper.writeValueAsString(detached.getFirst().payload()))
         .isEqualTo("{\"items\":[\"first\"]}");
   }
 
@@ -67,5 +81,18 @@ class JsonSnapshotAuditEventPublisherTest {
         null,
         "order-service",
         OffsetDateTime.parse("2026-10-06T12:00:00Z"));
+  }
+
+  private final class Recording implements AuditEventPublisherPort {
+
+    @Override
+    public void publish(AuditEvent event) {
+      delivered.add(event);
+    }
+
+    @Override
+    public void publishDetached(AuditEvent event) {
+      detached.add(event);
+    }
   }
 }

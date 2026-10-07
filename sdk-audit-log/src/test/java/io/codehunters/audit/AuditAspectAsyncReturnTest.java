@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.Test;
@@ -154,6 +155,71 @@ class AuditAspectAsyncReturnTest {
 
     assertThat(published.getLastEvent().errorMessage())
         .isEqualTo(IllegalArgumentException.class.getName());
+  }
+
+  @Test
+  void should_record_cancelled_when_the_future_is_cancelled() {
+    AsyncOrderService orders = proxied(Mono.empty(), Flux.empty());
+    orders.placeOrderStage("ORD-9");
+
+    pending.cancel(false);
+
+    assertThat(published.getLastEvent().status()).isEqualTo("CANCELLED");
+    assertThat(published.getLastEvent().success()).isFalse();
+    assertThat(published.getLastEvent().errorMessage())
+        .isEqualTo(CancellationException.class.getName());
+  }
+
+  @Test
+  void should_record_cancelled_when_the_subscriber_cancels_the_flux() {
+    AsyncOrderService orders = proxied(Mono.empty(), Flux.just("ORD-1", "ORD-2"));
+
+    orders.listOrders("CUST-3").next().block();
+
+    assertThat(published.getEvents()).hasSize(1);
+    assertThat(published.getLastEvent().status()).isEqualTo("CANCELLED");
+  }
+
+  @Test
+  void should_record_cancelled_when_the_subscriber_cancels_the_mono() {
+    AsyncOrderService orders = proxied(Mono.never(), Flux.empty());
+
+    orders.readOrder("ORD-10").subscribe().dispose();
+
+    assertThat(published.getLastEvent().status()).isEqualTo("CANCELLED");
+  }
+
+  @Test
+  void should_record_one_event_per_subscription() {
+    AsyncOrderService orders = proxied(Mono.empty(), Flux.just("ORD-1"));
+    Flux<String> listed = orders.listOrders("CUST-4");
+
+    listed.blockLast();
+    listed.blockLast();
+
+    assertThat(published.getEvents()).hasSize(2);
+  }
+
+  @Test
+  void should_complete_the_callers_mono_when_publishing_the_completion_throws_an_error() {
+    AuditEventPublisherPort failing =
+        event -> {
+          throw new LinkageError("serializer missing");
+        };
+    AsyncOrderService orders = proxied(failing, Mono.just(ORDER), Flux.empty(), false);
+
+    assertThat(orders.readOrder("ORD-11").block()).isEqualTo(ORDER);
+  }
+
+  @Test
+  void should_complete_the_callers_mono_when_the_audit_write_fails_with_fail_on_error() {
+    AuditEventPublisherPort failing =
+        event -> {
+          throw new IllegalStateException("insert failed");
+        };
+    AsyncOrderService orders = proxied(failing, Mono.just(ORDER), Flux.empty(), true);
+
+    assertThat(orders.readOrder("ORD-12").block()).isEqualTo(ORDER);
   }
 
   private AsyncOrderService proxied(Mono<Map<String, Object>> mono, Flux<String> flux) {

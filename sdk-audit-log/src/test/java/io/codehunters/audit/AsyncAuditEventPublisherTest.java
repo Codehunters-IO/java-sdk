@@ -10,7 +10,11 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+@ExtendWith(OutputCaptureExtension.class)
 class AsyncAuditEventPublisherTest {
 
   private static final AuditEvent EVENT =
@@ -71,5 +75,19 @@ class AsyncAuditEventPublisherTest {
     var publisher = new AsyncAuditEventPublisher(failing, CALLER_THREAD, rejected::add);
 
     assertThatCode(() -> publisher.publish(EVENT)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void should_log_only_the_exception_class_when_the_delegate_fails(CapturedOutput output) {
+    AuditEventPublisherPort failing =
+        event -> {
+          throw new IllegalStateException("Failing row contains (alice@example.com)");
+        };
+    var publisher = new AsyncAuditEventPublisher(failing, CALLER_THREAD, rejected::add);
+
+    publisher.publish(EVENT);
+
+    assertThat(output).contains(IllegalStateException.class.getName());
+    assertThat(output).doesNotContain("alice@example.com");
   }
 }

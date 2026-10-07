@@ -3,6 +3,7 @@ package io.codehunters.audit;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import reactor.core.publisher.ConnectableFlux;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -45,5 +46,15 @@ class AsyncOrderService {
   @Auditable(entityType = "ORDER", action = "LIST", entityId = "#customerId")
   Flux<String> listOrders(String customerId) {
     return flux;
+  }
+
+  @Auditable(entityType = "ORDER", action = "PLACE", entityId = "#command['id']")
+  CompletableFuture<Map<String, Object>> placeFor(Map<String, Object> command) {
+    return pending;
+  }
+
+  @Auditable(entityType = "ORDER", action = "PUBLISH", entityId = "#customerId")
+  ConnectableFlux<String> publishOrders(String customerId) {
+    return flux.publish();
   }
 }

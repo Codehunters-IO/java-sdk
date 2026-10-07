@@ -2,6 +2,8 @@ package io.codehunters.audit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import jakarta.transaction.Transaction;
+import jakarta.transaction.TransactionManager;
 import jakarta.transaction.UserTransaction;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
@@ -40,9 +42,18 @@ class AuditJtaWarningTest {
   }
 
   @Test
-  void should_not_warn_when_the_jta_manager_is_the_only_one(CapturedOutput output) {
+  void should_warn_when_the_only_jta_manager_cannot_suspend(CapturedOutput output) {
     runner
         .withBean("jta", PlatformTransactionManager.class, AuditJtaWarningTest::jtaManager)
+        .run(ctx -> assertThat(ctx).hasSingleBean(AuditEventPublisherPort.class));
+
+    assertThat(output).contains(WARNING);
+  }
+
+  @Test
+  void should_not_warn_when_the_only_jta_manager_can_suspend(CapturedOutput output) {
+    runner
+        .withBean("jta", PlatformTransactionManager.class, AuditJtaWarningTest::suspendingJta)
         .run(ctx -> assertThat(ctx).hasSingleBean(AuditEventPublisherPort.class));
 
     assertThat(output).doesNotContain(WARNING);
@@ -64,6 +75,10 @@ class AuditJtaWarningTest {
 
   private static PlatformTransactionManager jtaManager() {
     return new JtaTransactionManager(new NoOpUserTransaction());
+  }
+
+  private static PlatformTransactionManager suspendingJta() {
+    return new JtaTransactionManager(new NoOpUserTransaction(), new NoOpTransactionManager());
   }
 
   /** Never called: the tests only start the context. */
@@ -88,5 +103,42 @@ class AuditJtaWarningTest {
 
     @Override
     public void setTransactionTimeout(int seconds) {}
+  }
+
+  /** Never called: the tests only start the context. */
+  private static final class NoOpTransactionManager implements TransactionManager {
+
+    @Override
+    public void begin() {}
+
+    @Override
+    public void commit() {}
+
+    @Override
+    public int getStatus() {
+      return 0;
+    }
+
+    @Override
+    public Transaction getTransaction() {
+      return null;
+    }
+
+    @Override
+    public void resume(Transaction transaction) {}
+
+    @Override
+    public void rollback() {}
+
+    @Override
+    public void setRollbackOnly() {}
+
+    @Override
+    public void setTransactionTimeout(int seconds) {}
+
+    @Override
+    public Transaction suspend() {
+      return null;
+    }
   }
 }
