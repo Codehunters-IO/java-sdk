@@ -146,9 +146,8 @@ class JasperReportRendererTest {
 
   @Test
   void should_not_load_images_from_the_file_system() throws IOException {
-    Path outside =
-        Files.copy(
-            getClass().getResourceAsStream("/reports/logo.png"), folder.resolve("outside.png"));
+    Path outside = folder.resolve("outside.png");
+    Files.copy(getClass().getResourceAsStream("/reports/logo.png"), outside);
     var request =
         ReportRequest.of("image.jrxml", ReportFormat.PDF)
             .withParameters(Map.of("image", outside.toString()));
@@ -160,9 +159,8 @@ class JasperReportRendererTest {
 
   @Test
   void should_not_load_images_from_a_url() throws IOException {
-    Path outside =
-        Files.copy(
-            getClass().getResourceAsStream("/reports/logo.png"), folder.resolve("outside.png"));
+    Path outside = folder.resolve("outside.png");
+    Files.copy(getClass().getResourceAsStream("/reports/logo.png"), outside);
     var request =
         ReportRequest.of("image.jrxml", ReportFormat.PDF)
             .withParameters(Map.of("image", outside.toUri().toString()));
