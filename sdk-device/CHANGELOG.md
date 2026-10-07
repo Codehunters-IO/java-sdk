@@ -19,3 +19,18 @@ First release ([ADR 0012](../docs/adr/0012-trusted-proxy-client-ip.md)).
 - Replaces `commons-util-ip-support` and `commons-util-device-support` from
   `codehuntersio-java-commons-support`; see
   [MIGRATION-from-commons-support.md](MIGRATION-from-commons-support.md).
+
+Hardened before release, after review:
+
+- A client-sent quote can no longer swallow the hop a proxy appends to its line: `X-Forwarded-For`
+  is split on every comma, and a `Forwarded` line with unbalanced quotes is too.
+- IPv6 literals must start with a hex digit or `:`, so no input reaches the system resolver.
+- Trusted entries reject ports and `/0` blocks, and accept IPv4-mapped CIDRs (`::ffff:10.0.0.0/104`).
+- The connection's link-local remote address drops its zone id instead of being lost.
+- `max-length x cache-size` is capped at 33554432 characters (64 MB).
+- An `Error` while parsing releases waiting requests with `UNKNOWN` and is not cached.
+- Any `UserAgentParser`, including the application's, gives `UNKNOWN` instead of failing the
+  request when it throws or returns `null`.
+- `ClientContextResolver.current()` ignores a request that has already completed.
+- README and ADR 0012: only `server.forward-headers-strategy=native` with `internal-proxies`
+  replaces `trusted-proxies`; `framework` trusts the leftmost value.

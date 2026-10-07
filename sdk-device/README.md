@@ -32,13 +32,29 @@ codehunters:
 - **Unparseable hops stop the walk.** `unknown`, obfuscated identifiers (`_hidden`) and garbage are
   never returned; the last address with a known origin is, because anything to its left may have
   been written by the client.
-- **No DNS.** Only IP literals are parsed (IPv4, IPv6 with or without brackets, optional port).
-  Host names and IPv6 zone ids are rejected.
+- **Client text cannot swallow proxy hops.** Proxies append to the line the client sent (`"`,
+  then `, 203.0.113.9`). `X-Forwarded-For` has no quoted strings and is split on every comma; a
+  `Forwarded` line whose quotes do not balance is split on every comma too, so only the client's own
+  elements become invalid.
+- **No DNS.** Only IP literals are parsed (IPv4, IPv6 with or without brackets, optional port); an
+  IPv6 literal must start with a hex digit or `:`. Host names and zone ids in headers are rejected.
+  The connection's own link-local address keeps its address and drops its zone id
+  (`fe80::1%en0` becomes `fe80:0:0:0:0:0:0:1`).
+- **Trusted entries are strict:** no ports, and no `0.0.0.0/0` or `::/0` (trusting every hop
+  would return the client-written leftmost one). IPv4-mapped blocks are accepted
+  (`::ffff:10.0.0.0/104` is `10.0.0.0/8`).
 - IPv6 addresses are returned in the JDK's full form (`2001:db8:0:0:0:0:0:1`).
 
-If the application already rewrites the remote address with `server.forward-headers-strategy`
-(`native` or `framework`), leave `trusted-proxies` empty: the remote address is then the resolved
-client, and resolving again would read headers the container has already consumed.
+### Container forward headers
+
+`server.forward-headers-strategy` rewrites the remote address before the SDK sees it:
+
+- **`native`** (Tomcat's `RemoteIpValve`) is equivalent to `trusted-proxies` only when
+  `server.tomcat.remoteip.internal-proxies` lists your proxies. Then leave `trusted-proxies` empty:
+  the remote address is already the resolved client.
+- **`framework`** (Spring's `ForwardedHeaderFilter`) takes the **leftmost** `Forwarded` or
+  `X-Forwarded-For` value without any trust check, so any client can choose its address. Turn it
+  off and configure `trusted-proxies` instead, or accept that the address can be spoofed.
 
 The resolution itself is plain Java (`io.codehunters.device.ip`), usable outside Spring:
 
@@ -56,10 +72,14 @@ Optional<InetAddress> client =
   slow and never ends in half a surrogate pair.
 - With `uap-java` on the classpath, `UapUserAgentParser` reads browser, OS and device families and
   versions; parses are kept in a bounded LRU cache (`user-agent.cache-size`, 1024; 0 disables it),
-  and concurrent requests with the same header share one parse.
+  and concurrent requests with the same header share one parse. `max-length x cache-size` may not
+  exceed 33554432 characters (64 MB). The cache saves repeated parses only: clients sending a
+  different header each time still cost one parse of up to `max-length` characters per request.
 - Without it, `UnknownUserAgentParser` answers `UserAgentInfo.UNKNOWN` (families `Other`, empty
   versions). The sanitized raw header is still available.
-- A parser failure answers `UNKNOWN`; it never fails the request.
+- A parser exception, or a `null` answer from any parser including your own, gives `UNKNOWN`; it
+  never fails the request. An `Error` thrown while parsing (a `StackOverflowError` in the regex
+  engine, say) releases the requests waiting on that parse with `UNKNOWN` and is not cached.
 - Define your own `UserAgentParser` bean to use another library.
 
 `uap-java` 1.6.1 (December 2023) is the latest release and has no published advisories; the ReDoS
@@ -93,10 +113,10 @@ supported.
 | Property | Default | Notes |
 |---|---|---|
 | `codehunters.device.enabled` | `true` | |
-| `codehunters.device.trusted-proxies` | empty | Addresses or CIDR blocks; an invalid entry fails startup |
+| `codehunters.device.trusted-proxies` | empty | Addresses or CIDR blocks; an invalid entry, a port or a `/0` block fails startup |
 | `codehunters.device.forwarding-header` | `x-forwarded-for` | Or `forwarded` |
 | `codehunters.device.user-agent.max-length` | `512` | 16 to 8192 |
-| `codehunters.device.user-agent.cache-size` | `1024` | 0 to 100000; 0 disables the cache |
+| `codehunters.device.user-agent.cache-size` | `1024` | 0 to 100000; 0 disables the cache; `max-length x cache-size` at most 33554432 |
 
 Every bean (`ClientIpResolver`, `UserAgentParser`, `ClientContextResolver`) backs off when the
 application defines its own. `ClientContextResolver` is registered in servlet applications only.

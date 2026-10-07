@@ -44,8 +44,13 @@ stops the walk, and only IP literals are parsed, so no host name is ever resolve
 - Good, because the default (nothing trusted) is safe and needs no configuration.
 - Bad, because every deployment behind proxies must list them; a missing entry yields the proxy's
   address instead of the client's.
-- Neutral, because applications already using `server.forward-headers-strategy` keep it and leave
-  the trusted list empty; Option C remains valid for them.
+- Neutral, because applications using `server.forward-headers-strategy=native` with
+  `server.tomcat.remoteip.internal-proxies` listing their proxies can keep it and leave the trusted
+  list empty; Option C is valid for them. `framework` (Spring's `ForwardedHeaderFilter`) takes the
+  leftmost value without a trust check, so it must be turned off, or the address accepted as
+  spoofable.
+- Neutral, because client text must not be able to hide the hops proxies append to its line:
+  `X-Forwarded-For` is split on every comma, and a `Forwarded` line with unbalanced quotes is too.
 
 ## Pros and Cons of the Options
 
@@ -59,3 +64,5 @@ stops the walk, and only IP literals are parsed, so no host name is ever resolve
 - Good, because it is built into Boot.
 - Bad, because the trust rules live in container settings that differ between Tomcat, Jetty and
   `ForwardedHeaderFilter`, and plain-Java callers (messaging, batch) cannot reuse them.
+- Bad, because `ForwardedHeaderFilter` (`framework`) has no trust check at all and returns the
+  leftmost, client-controlled value.
