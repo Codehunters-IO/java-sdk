@@ -32,6 +32,13 @@ import org.springframework.expression.EvaluationContext;
  * null}. If the event cannot be built at all, the call fails with an {@link
  * AuditPersistenceException} in fail-on-error mode; otherwise the failure is logged.
  *
+ * <p>A method that returns a {@link java.util.concurrent.CompletionStage}, or a Reactor {@code
+ * Mono} or {@code Flux}, is audited when that work finishes, with its outcome and the time it took.
+ * The stage is returned unchanged; a {@code Mono} or {@code Flux} is returned decorated and audits
+ * each subscription, and a cancelled subscription is not audited. That event is published on the
+ * thread that completes the work, so it cannot fail the call: a failure to publish it is logged,
+ * even in fail-on-error mode.
+ *
  * <p>The aspect is {@link Ordered}. With the default {@link Ordered#LOWEST_PRECEDENCE} it runs
  * inside the transaction of a {@code @Transactional} method, so a synchronous write of a success
  * event commits or rolls back with the business write.
@@ -124,12 +131,39 @@ public class AuditAspect implements Ordered {
     try {
       result = pjp.proceed();
     } catch (Throwable ex) {
-      Outcome failure = new Outcome(null, STATUS_ERROR, false, ex.getClass().getName());
-      publishAfterFailure(ex, () -> publishEvent(auditable, method, args, failure, start));
+      publishAfterFailure(ex, () -> publishEvent(auditable, method, args, failure(ex), start));
       throw ex;
     }
-    publishEvent(auditable, method, args, new Outcome(result, STATUS_SUCCESS, true, null), start);
+    Optional<Object> pending =
+        AsyncResults.observe(result, start, completion(new Invocation(auditable, method, args)));
+    if (pending.isPresent()) {
+      return pending.get();
+    }
+    publishEvent(auditable, method, args, success(result), start);
     return result;
+  }
+
+  private AsyncResults.Completion completion(Invocation invocation) {
+    return (value, failure, startNanos) -> {
+      Outcome outcome = failure == null ? success(value) : failure(failure);
+      try {
+        publishEvent(
+            invocation.auditable(), invocation.method(), invocation.args(), outcome, startNanos);
+      } catch (RuntimeException ex) {
+        log.error(
+            "Failed to audit the completion of {}: {}",
+            invocation.method().getName(),
+            ex.getClass().getName());
+      }
+    };
+  }
+
+  private static Outcome success(Object result) {
+    return new Outcome(result, STATUS_SUCCESS, true, null);
+  }
+
+  private static Outcome failure(Throwable failure) {
+    return new Outcome(null, STATUS_ERROR, false, failure.getClass().getName());
   }
 
   private static void publishAfterFailure(Throwable methodFailure, Runnable publish) {
@@ -264,4 +298,6 @@ public class AuditAspect implements Ordered {
   public record Options(Clock clock, boolean failOnError, int order) {}
 
   private record Outcome(Object result, String status, boolean success, String error) {}
+
+  private record Invocation(Auditable auditable, Method method, Object[] args) {}
 }
