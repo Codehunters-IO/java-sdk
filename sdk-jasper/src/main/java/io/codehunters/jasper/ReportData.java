@@ -7,7 +7,6 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import net.sf.jasperreports.engine.JRDataSource;
 import net.sf.jasperreports.engine.JREmptyDataSource;
-import net.sf.jasperreports.engine.data.JRBeanCollectionDataSource;
 
 /**
  * The rows a report is filled with. A {@link JRDataSource} is consumed as it is read, so a report
@@ -25,7 +24,8 @@ public sealed interface ReportData {
   }
 
   /**
-   * One row per bean; fields are read through getters or record components.
+   * One row per bean; fields are read through JavaBean getters or record components, and a dotted
+   * field ({@code customer.name}) walks nested ones.
    *
    * @param rows the beans, copied; none may be null
    * @return the data
@@ -83,7 +83,7 @@ public sealed interface ReportData {
 
     @Override
     public JRDataSource open() {
-      return new JRBeanCollectionDataSource(rows);
+      return new BeanRows(rows);
     }
 
     @Override
