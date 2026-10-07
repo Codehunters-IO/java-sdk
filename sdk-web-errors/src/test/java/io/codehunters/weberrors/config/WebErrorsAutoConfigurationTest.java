@@ -2,11 +2,14 @@ package io.codehunters.weberrors.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.tracing.TraceContextPort;
+import io.codehunters.weberrors.web.MdcTraceIdProvider;
 import io.codehunters.weberrors.web.TraceIdProvider;
 import io.codehunters.weberrors.web.WebErrorsExceptionHandler;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
@@ -104,5 +107,15 @@ class WebErrorsAutoConfigurationTest {
     runner
         .withPropertyValues("codehunters.web-errors.type-base-uri=https://errors.example.com")
         .run(context -> assertThat(context).hasFailed());
+  }
+
+  @Test
+  void should_read_the_trace_id_from_the_mdc_when_the_tracing_sdk_is_absent() {
+    runner
+        .withClassLoader(new FilteredClassLoader(TraceContextPort.class))
+        .run(
+            context ->
+                assertThat(context.getBean(TraceIdProvider.class))
+                    .isInstanceOf(MdcTraceIdProvider.class));
   }
 }
