@@ -440,6 +440,26 @@ Verificación: 119 tests (incluye ITs Postgres 17 y azure-sql-edge), cobertura 9
 Verificación: 143 tests, cobertura 98,6 % líneas / 93,8 % ramas, `./gradlew clean build` y
 `./gradlew -p build-logic test` en verde.
 
+**Segunda revisión (pendientes asíncronos)**, `6a11724` (tests en rojo) → `0556a46` (fix) → `docs`:
+
+- Los eventos de completion se publican con `AuditEventPublisherPort#publishDetached` (método
+  `default` nuevo): el publisher transaccional los manda siempre "fuera", así que un future o un
+  `Mono` que termina dentro de otra transacción ya no se une a ella ni toma su resultado.
+- `CapturedCall`: los campos del `AuditContextProvider`, el MDC y las expresiones que no nombran
+  `#result` se toman en el hilo del caller cuando el método retorna; solo `#result` espera al
+  resultado.
+- Cualquier fallo del publisher o al construir el evento: con `fail-on-error` falla la llamada con
+  una excepción redactada; sin él, se loguea solo la clase. `AsyncAuditEventPublisher` también.
+- Cancelación (future o suscripción Reactor) → estado `CANCELLED`; cada suscripción reporta una sola
+  vez. Reintentos = un evento por intento (documentado).
+- Un completion en un hilo no bloqueante se escribe en `Schedulers.boundedElastic()`.
+- Solo se decora si el tipo declarado admite `Mono`/`Flux` (un `ConnectableFlux` se audita al
+  retornar). `Throwable` contenido en el callback, salvo `VirtualMachineError`.
+- WARN si el único transaction manager es JTA sin `TransactionManager`. `vendorCode` 0 → vacío.
+- Test con un classloader que oculta Reactor.
+
+Verificación: 169 tests, cobertura 98,4 % líneas / 91,5 % ramas.
+
 1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
    `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
    verdad.
