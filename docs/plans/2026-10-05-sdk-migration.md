@@ -386,7 +386,8 @@ Detalle en `sdk-audit-log/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.md`.
 
 **Límites documentados:** eventos en cola se pierden si el proceso muere o vence
 `await-termination`; un evento diferido hasta el fin de la transacción se pierde si el proceso muere
-antes; los tipos de retorno asíncronos se registran al arrancar el trabajo, no al terminarlo.
+antes; los tipos de retorno asíncronos se registran al arrancar el trabajo, no al terminarlo
+(resuelto después, ver abajo).
 
 **Revisión independiente** (3 HIGH/MEDIUM de transacción, 3 MEDIUM, 6 LOW). Arreglos, cada uno con
 su commit de test en rojo:
@@ -419,6 +420,25 @@ Desvíos: un commit fallido se registra `UNKNOWN`, no `ROLLED_BACK`, porque Spri
 
 Verificación: 119 tests (incluye ITs Postgres 17 y azure-sql-edge), cobertura 98,4 % líneas /
 95,8 % ramas, `./gradlew clean build` y `./gradlew -p build-logic test` en verde.
+
+**Pendientes cerrados tras la revisión**, cada uno con su commit de test en rojo:
+- `795b68b` → `0b8b928`: `AuditPersistenceException.redacted(...)`. En modo `fail-on-error` la
+  excepción y su cadena de causas ya no llevan el mensaje de la base (Postgres incluye
+  `Failing row contains (...)`); quedan clase, SQLState, código de proveedor y stack trace
+  (`failureClass()`, `sqlState()`, `vendorCode()`). IT con violación de NOT NULL en Postgres;
+  mutación detectada.
+- `7c5c527` → `12cbb81`: los métodos que devuelven `CompletionStage`, `Mono` o `Flux` se auditan al
+  terminar el trabajo, con su resultado y duración. El stage se devuelve sin cambios; `Mono`/`Flux`
+  (Reactor opcional, `compileOnly`) se decoran y auditan cada suscripción; una cancelación no se
+  audita. El evento se publica en el hilo que completa el trabajo y un fallo se loguea aunque haya
+  `fail-on-error`.
+- `24a5b34`: test de `AutoCommitDataSource.getConnection(username, password)`.
+- `3f28dea` → `476b1e8`: WARN al arrancar si hay varios transaction managers sin primario y uno es
+  `JtaTransactionManager` (los eventos de error irían por una conexión auto-commit que JTA enlista).
+- `36872fc`: README, CHANGELOG y MIGRATION-3.0.
+
+Verificación: 143 tests, cobertura 98,6 % líneas / 93,8 % ramas, `./gradlew clean build` y
+`./gradlew -p build-logic test` en verde.
 
 1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
    `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
