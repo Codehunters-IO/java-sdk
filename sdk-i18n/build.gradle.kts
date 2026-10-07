@@ -14,7 +14,6 @@ dependencies {
     compileOnly("org.springframework:spring-webmvc")
     compileOnly("org.springframework:spring-context")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
-    compileOnly("jakarta.validation:jakarta.validation-api")
 
     testImplementation("org.springframework.boot:spring-boot-webmvc")
     testImplementation("org.springframework:spring-web")

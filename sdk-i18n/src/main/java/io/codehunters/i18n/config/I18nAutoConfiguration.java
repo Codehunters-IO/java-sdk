@@ -9,13 +9,11 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnResource;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication.Type;
 import org.springframework.boot.autoconfigure.condition.SearchStrategy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,22 +21,21 @@ import org.springframework.context.support.AbstractApplicationContext;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.Environment;
-import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.DispatcherServlet;
 import org.springframework.web.servlet.LocaleResolver;
 
 /**
- * Spring Boot auto-configuration for internationalization, in three independent parts: the message
- * source, the servlet locale resolver with its locale-to-MDC filter, and a message-aware bean
- * validator. Runs before Boot's message source, validation and Web MVC auto-configurations, so the
- * {@code codehunters.i18n.*} settings take precedence: while this SDK provides the {@code
- * messageSource} bean, {@code spring.messages.*} is ignored. Set {@code
- * codehunters.i18n.enabled=false} or declare a bean named {@code messageSource} to use Boot's.
+ * Spring Boot auto-configuration for internationalization, in two independent parts: the message
+ * source and the servlet locale resolver with its locale-to-MDC filter. Bean validation needs no
+ * part of its own: Boot's validator resolves {@code {key}} messages through this message source.
+ * Runs before Boot's message source and Web MVC auto-configurations, so the {@code
+ * codehunters.i18n.*} settings take precedence: while this SDK provides the {@code messageSource}
+ * bean, {@code spring.messages.*} is ignored. Set {@code codehunters.i18n.enabled=false} or declare
+ * a bean named {@code messageSource} to use Boot's.
  */
 @AutoConfiguration(
     beforeName = {
       "org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration",
-      "org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration",
       "org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration"
     })
 @ConditionalOnBooleanProperty(name = "codehunters.i18n.enabled", matchIfMissing = true)
@@ -102,21 +99,6 @@ public class I18nAutoConfiguration {
       registration.setOrder(LOCALE_MDC_FILTER_ORDER);
       registration.setName("localeMdcFilter");
       return registration;
-    }
-  }
-
-  @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(name = "jakarta.validation.Validator")
-  @ConditionalOnResource(
-      resources = "classpath:META-INF/services/jakarta.validation.spi.ValidationProvider")
-  static class ValidationConfiguration {
-
-    @Bean
-    @ConditionalOnMissingBean(type = "jakarta.validation.Validator")
-    static LocalValidatorFactoryBean validatorFactoryBean(ApplicationContext context) {
-      var validator = new LocalValidatorFactoryBean();
-      validator.setValidationMessageSource(context);
-      return validator;
     }
   }
 }
