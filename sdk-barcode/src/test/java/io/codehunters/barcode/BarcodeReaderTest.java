@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class BarcodeReaderTest {
 
@@ -70,6 +71,83 @@ class BarcodeReaderTest {
   }
 
   @Test
+  void should_reject_a_high_bit_depth_image_above_the_decode_memory_limit() {
+    BarcodeReader limited = new BarcodeReader(new BarcodeLimits(4096, 4096, 16_777_216, 1_000_000));
+    byte[] png = Images.rgba16Png(512, 512);
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> limited.read(new ByteArrayInputStream(png)))
+        .withMessage("the image exceeds the decode memory limit of 1000000 bytes");
+  }
+
+  @Test
+  void should_read_a_low_bit_depth_image_of_the_same_size_within_that_memory_limit() {
+    BarcodeReader limited = new BarcodeReader(new BarcodeLimits(4096, 4096, 16_777_216, 1_000_000));
+    byte[] png = Images.whitePng(512, 512);
+
+    assertThat(limited.read(new ByteArrayInputStream(png))).isEmpty();
+  }
+
+  @Test
+  void should_downscale_a_large_image_to_decode_it_within_the_memory_limit() {
+    BarcodeReader limited = new BarcodeReader(new BarcodeLimits(4096, 4096, 16_777_216, 8_000_000));
+    byte[] png = renderer.toPng(BarcodeRequest.of(BarcodeFormat.QR_CODE, "42", 3000, 3000));
+
+    assertThat(limited.read(new ByteArrayInputStream(png)))
+        .contains(new DecodedBarcode(BarcodeFormat.QR_CODE, "42"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"jpeg", "gif", "bmp"})
+  void should_decode_jpeg_gif_and_bmp_images(String formatName) {
+    byte[] png = renderer.toPng(BarcodeRequest.of(BarcodeFormat.QR_CODE, "42", 300, 300));
+    byte[] image = Images.reencoded(png, formatName);
+
+    assertThat(reader.read(new ByteArrayInputStream(image)))
+        .contains(new DecodedBarcode(BarcodeFormat.QR_CODE, "42"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"tiff", "wbmp"})
+  void should_reject_image_formats_other_than_png_jpeg_gif_and_bmp(String formatName) {
+    byte[] image = Images.encoded(formatName, 100, 100);
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> reader.read(new ByteArrayInputStream(image)))
+        .withMessage("the image format is not supported");
+  }
+
+  @Test
+  void should_reject_an_image_whose_header_cannot_be_read() {
+    byte[] gif = Images.gifWithoutFrames();
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> reader.read(new ByteArrayInputStream(gif)))
+        .withMessage("the image could not be read");
+  }
+
+  @Test
+  void should_find_nothing_when_the_decoder_fails_on_a_crafted_image() {
+    BarcodeReader failing =
+        new BarcodeReader(
+            BarcodeLimits.DEFAULT,
+            bitmap -> {
+              throw new ArrayIndexOutOfBoundsException("crafted image");
+            });
+    byte[] png = renderer.toPng(BarcodeRequest.of(BarcodeFormat.QR_CODE, "42", 300, 300));
+
+    assertThat(failing.read(new ByteArrayInputStream(png))).isEmpty();
+  }
+
+  @Test
+  void should_guess_the_character_set_of_a_qr_code_without_an_eci() {
+    byte[] png = Images.latin1QrWithoutEci("Ñandú café", 300);
+
+    assertThat(reader.read(new ByteArrayInputStream(png)))
+        .contains(new DecodedBarcode(BarcodeFormat.QR_CODE, "Ñandú café"));
+  }
+
+  @Test
   void should_reject_bytes_that_are_not_an_image() {
     InputStream text = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
 
@@ -110,6 +188,9 @@ class BarcodeReaderTest {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new BarcodeReader(null))
         .withMessage("limits must not be null");
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new BarcodeReader(BarcodeLimits.DEFAULT, null))
+        .withMessage("decoder must not be null");
   }
 
   @Test

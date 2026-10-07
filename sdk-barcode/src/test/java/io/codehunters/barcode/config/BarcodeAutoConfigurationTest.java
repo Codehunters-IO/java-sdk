@@ -87,6 +87,25 @@ class BarcodeAutoConfigurationTest {
   }
 
   @Test
+  void should_apply_the_configured_decode_memory_limit() {
+    runner
+        .withPropertyValues("codehunters.barcode.max-decode-bytes=1KB")
+        .run(
+            context -> {
+              byte[] png =
+                  context
+                      .getBean(BarcodeRenderer.class)
+                      .toPng(BarcodeRequest.of(BarcodeFormat.QR_CODE, "42", 200, 200));
+
+              assertThatIllegalArgumentException()
+                  .isThrownBy(
+                      () ->
+                          context.getBean(BarcodeReader.class).read(new ByteArrayInputStream(png)))
+                  .withMessage("the image exceeds the decode memory limit of 1024 bytes");
+            });
+  }
+
+  @Test
   void should_back_off_when_the_application_defines_its_own_beans() {
     runner
         .withUserConfiguration(OwnBeans.class)
@@ -113,6 +132,7 @@ class BarcodeAutoConfigurationTest {
     "max-width=0, codehunters.barcode.max-width must be between 1 and 16384",
     "max-height=20000, codehunters.barcode.max-height must be between 1 and 16384",
     "max-decode-pixels=0, codehunters.barcode.max-decode-pixels must be between 1 and 33554432",
+    "max-decode-bytes=2GB, codehunters.barcode.max-decode-bytes must be between 1 and 1073741824",
   })
   void should_fail_startup_on_limits_outside_their_range(String property, String message) {
     runner
