@@ -672,7 +672,7 @@ Tareas planificadas:
 3. `supportedLocales`; `_` se normaliza a `-`. `LocaleMdcFilter` registra los errores en el log.
 4. `I18nProperties` pasa a record. Prefijo: `vitxo.i18n.*` → `codehunters.i18n.*`.
 
-## Fase 10 — `sdk-totp` 2.0.0 (antes `sdk-utils`) y retiro de `sdk-geo-validation`
+## Fase 10 — `sdk-totp` 2.0.0 (antes `sdk-utils`) y retiro de `sdk-geo-validation` ✅ (rama `feature/sdk-totp-v2`, sobre `feature/sdk-i18n-v1`; geo 1 y 2 bloqueados)
 
 Rama: `feature/sdk-totp-v2`.
 
@@ -694,8 +694,9 @@ Rama: `feature/sdk-totp-v2`.
 
 **Estado: hecha, salvo los puntos 1 y 2 de geo-validation** (bloqueados: falta el dueño en el
 servicio de rifas). Rama `feature/sdk-totp-v2`, creada desde `feature/sdk-parameter-v2` en un
-worktree aparte mientras la Fase 9 avanzaba en paralelo; se rebasea sobre `feature/sdk-i18n-v1`
-antes de integrar. Cada cambio lleva antes su commit de test en rojo.
+worktree aparte mientras la Fase 9 avanzaba en paralelo, y después rebaseada sobre
+`feature/sdk-i18n-v1` (único conflicto: las filas de geo e i18n del README raíz). Los hashes de esta
+sección son los de antes del rebase. Cada cambio lleva antes su commit de test en rojo.
 
 - `a7e7316`: `sdk-utils` → `sdk-totp` (directorio, `settings.gradle.kts`, `sdk-bom`) con
   `replaces("sdk-utils")`.
@@ -755,8 +756,13 @@ Verificación tras la review: `sdk-totp` 142 tests (98,6 % líneas, 100 % ramas)
   hacerlo).
 - `sdk-bom` todavía declara `sdk-geo-validation`, ahora en `0.2.1-SNAPSHOT`: hay que sacarlo del BOM
   antes de publicar la 1.0.0 (Fase 11), aunque el módulo siga sin dueño.
-- Las claves legacy con nombres desconocidos (`vitxo.totp.algo-mal-escrito`) se copian y se ignoran,
+- Las claves legacy con nombres desconocidos (`vitxo.totp.algo-mal-escrito`) se ignoran sin aviso,
   como en el resto de los módulos que usan `LegacyPropertyAliases`.
+
+**Tras el rebase sobre `feature/sdk-i18n-v1`:** `9848125` → `30ee6a0`. `TotpLegacyProperties` declara
+sus claves viejas (`time-step`, `digits`, `algorithm`) para la nueva API de `LegacyPropertyAliases`,
+y un test fija la forma `VITXO_TOTP_TIME_STEP`. `sdk-totp` queda con 143 tests; `./gradlew clean
+build` y `./gradlew -p build-logic test` en verde.
 
 ## Fase 11 — Cierre
 
@@ -788,7 +794,7 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
-`feature/sdk-i18n-v1`. Se integran en ese orden.
+`feature/sdk-i18n-v1` → `feature/sdk-totp-v2`. Se integran en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
