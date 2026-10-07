@@ -21,6 +21,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-parameter` | 2.0.0 | [CHANGELOG](sdk-parameter/CHANGELOG.md) | [2.0](sdk-parameter/MIGRATION-2.0.md) |
 | `sdk-i18n` | 1.0.0 | [CHANGELOG](sdk-i18n/CHANGELOG.md) | [1.0](sdk-i18n/MIGRATION-1.0.md) |
 | `sdk-totp` | 2.0.0 | [CHANGELOG](sdk-totp/CHANGELOG.md) | [2.0](sdk-totp/MIGRATION-2.0.md) |
+| `sdk-commons` | 1.0.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
 | `sdk-geo-validation` | 0.2.0 (published; 0.2.1-SNAPSHOT local) | leaving the SDK, see [HANDOFF](sdk-geo-validation/HANDOFF.md) | — |
 
@@ -28,6 +29,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 - First release. Constrains every released SDK module, `sdk-support` included, to the versions
   above. Does not export Spring Boot's BOM ([ADR 0006](docs/adr/0006-sdk-bom-and-no-exported-boot-bom.md)).
+- Includes `sdk-commons` 1.0.0 ([ADR 0010](docs/adr/0010-sdk-commons-for-framework-free-helpers.md)).
 - `sdk-geo-validation` is not part of it ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)).
 
 ## Build

@@ -29,6 +29,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-parameter` | `io.codehunters.parameter` | 2.0.0 | [README](sdk-parameter/README.md) · [MIGRATION](sdk-parameter/MIGRATION-2.0.md) |
 | `sdk-i18n` | `io.codehunters.i18n` | 1.0.0 | [README](sdk-i18n/README.md) · [MIGRATION](sdk-i18n/MIGRATION-1.0.md) |
 | `sdk-totp` (was `sdk-utils`) | `io.codehunters.totp` | 2.0.0 | [README](sdk-totp/README.md) · [MIGRATION](sdk-totp/MIGRATION-2.0.md) |
+| `sdk-commons` | `io.codehunters.commons` | 1.0.0 | [README](sdk-commons/README.md) · [CHANGELOG](sdk-commons/CHANGELOG.md) |
 | `sdk-support` | `io.codehunters.support` | 1.0.0, internal | Legacy property aliases; brought in transitively |
 | `sdk-geo-validation` | `io.codehunters.geo` | 0.2.0 (published; 0.2.1-SNAPSHOT local), leaving the SDK | [handoff](sdk-geo-validation/HANDOFF.md) ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)); not in the BOM |
 
