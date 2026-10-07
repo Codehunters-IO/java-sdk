@@ -28,10 +28,25 @@ class AuditDeviceContextTest {
   static class OwnProvider {
     @Bean
     AuditContextProvider ownProvider() {
-      return new NoOpAuditContextProvider() {
+      return new AuditContextProvider() {
         @Override
         public Optional<String> getActorId() {
           return Optional.of("own");
+        }
+
+        @Override
+        public Optional<String> getActorType() {
+          return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> getIpAddress() {
+          return Optional.empty();
+        }
+
+        @Override
+        public Optional<String> getSourceService() {
+          return Optional.empty();
         }
       };
     }
@@ -98,7 +113,9 @@ class AuditDeviceContextTest {
 
   @Test
   void should_use_the_no_op_provider_when_the_device_sdk_is_absent() {
-    web.withClassLoader(new FilteredClassLoader("io.codehunters.device"))
+    new WebApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(AuditAutoConfiguration.class))
+        .withClassLoader(new FilteredClassLoader("io.codehunters.device"))
         .run(
             context ->
                 assertThat(context)
