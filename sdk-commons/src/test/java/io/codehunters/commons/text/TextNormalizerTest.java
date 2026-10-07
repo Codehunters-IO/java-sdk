@@ -61,6 +61,23 @@ class TextNormalizerTest {
     assertThat(TextNormalizer.simplify("日本語 テキスト")).isEqualTo("日本語_テキスト");
   }
 
+  @ParameterizedTest
+  @CsvSource({"Йод, йод", "Ёж, ёж", "Άθηνα, άθηνα", "Ελλάδα, ελλάδα"})
+  void should_keep_diacritics_of_letters_outside_the_latin_script(String text, String expected) {
+    assertThat(TextNormalizer.simplify(text)).isEqualTo(expected);
+  }
+
+  @Test
+  void should_not_merge_distinct_cyrillic_letters() {
+    assertThat(TextNormalizer.simplify("йод")).isNotEqualTo(TextNormalizer.simplify("иод"));
+  }
+
+  @ParameterizedTest
+  @CsvSource({"ΟΔΟΣ, οδοσ", "οδος, οδοσ"})
+  void should_fold_greek_final_sigma_into_sigma(String text, String expected) {
+    assertThat(TextNormalizer.simplify(text)).isEqualTo(expected);
+  }
+
   @Test
   void should_keep_marks_that_are_not_latin_diacritics() {
     assertThat(TextNormalizer.simplify("データ")).isEqualTo("データ");
