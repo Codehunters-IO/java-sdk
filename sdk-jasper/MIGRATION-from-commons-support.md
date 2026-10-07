@@ -21,7 +21,12 @@ compatible.
 - **XLSX and CSV** are available besides PDF; `render` streams instead of building a `byte[]`, and
   `toBytes` is capped (`max-output-size`).
 - **Resources stay on the classpath.** Images and subreports referenced by file path or URL no
-  longer load; put them next to the templates.
+  longer load; put them next to the templates. Parameters holding a `URL`, `File`, `Path` or stream
+  are rejected; pass the location as a `String`.
+- **Fills are bounded.** 2000 pages and two minutes by default (`codehunters.jasper.max-pages`,
+  `codehunters.jasper.timeout`); raise them for long reports.
+- **No tagged PDF or PDF/A level A.** A report that asked for them through its properties now fails
+  with a `ReportException`; level B PDF/A is unaffected.
 
 ## Intentionally not migrated
 

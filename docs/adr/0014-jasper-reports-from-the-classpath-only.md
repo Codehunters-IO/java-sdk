@@ -32,10 +32,15 @@ their resources, and what should it depend on?
 
 Chosen option: **Option A**. Template names are validated as relative classpath names (no absolute
 paths, `..` or URLs) under `codehunters.jasper.template-base`. The JasperReports context the SDK uses
-inherits every default extension except the repository, which is replaced by one that reads only
-from that folder, with the file repository off, `DOCTYPE` declarations refused and unknown entities
-never loaded. Compiled templates are cached, with concurrent first requests sharing one compilation.
-`jasperreports-pdf`'s OpenPDF is excluded in favour of the same release on Maven Central.
+inherits every default extension except the repository, which is replaced by one that reads `String`
+locations only from that folder, beside the naming template first. Values JasperReports would load
+from directly (`URL`, `URI`, `File`, `Path`, streams, readers) are refused as parameters, because no
+repository sees them. DTDs are never processed: JasperReports 7 parses JRXML and JRTX with Jackson's
+XML mapper, which leaves them unprocessed, so the SDK sets nothing for it. Compiled templates are
+cached, with concurrent first requests sharing one compilation, and compiled by ecj
+(`jasperreports-jdt`), which reads classes through the class loader and so works in a fat jar. Fills
+run under page and time governors. `jasperreports-pdf`'s OpenPDF, a Jaspersoft build of 1.3.43, is
+excluded in favour of upstream OpenPDF 1.3.43 on Maven Central.
 
 ### Consequences
 
@@ -45,7 +50,9 @@ never loaded. Compiled templates are cached, with concurrent first requests shar
 - Good: no extra Maven repository for consumers.
 - Bad: images and subreports must be packaged next to the templates; reports that loaded them from
   disk or HTTP must change.
-- Bad: OpenPDF 1.3.43 from Central may lack fixes Jaspersoft added to its build; the PDF tests cover
-  text, images and multi-page output.
+- Bad: upstream OpenPDF 1.3.43 is not Jaspersoft's build. It lacks the structure-tree API
+  JasperReports tags with, so tagged PDF, PDF/A level A and PDF/UA cannot be written; the renderer
+  refuses those reports before export. It may lack other Jaspersoft fixes; the PDF tests cover text,
+  images and multi-page output.
 - Neutral: an expression can still open a `URL` or `File` itself. Templates are trusted code, which
   the README states; the SDK does not sandbox expressions.
