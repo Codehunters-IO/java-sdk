@@ -3,6 +3,7 @@ name: Publish to Main
 on:
   push:
     branches:
+      - master
       - main
 
 # One publish at a time: overlapping runs would race on the upload (409) and on the tags.

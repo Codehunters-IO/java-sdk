@@ -2,7 +2,7 @@
 
 Gradle multi-module monorepo for Codehunters' Spring Boot SDK libraries. GroupId `io.codehunters`.
 
-Requires Spring Boot 4 and Java 21 ([ADR 0007](docs/adr/0007-support-spring-boot-4-only.md)). Decisions are recorded in [`docs/adr`](docs/adr/README.md).
+Requires Spring Boot 4 (built and tested against 4.1.1) and Java 21 ([ADR 0007](docs/adr/0007-support-spring-boot-4-only.md)). Decisions are recorded in [`docs/adr`](docs/adr/README.md).
 
 Migrated from the standalone `vitxo-sdk-*` repositories (org `SOLDIFE`, group `com.soldife.vitxo`). Package/group renamed, no git history carried over. Configuration properties move to the `codehunters.<sdk>.*` prefix; the old keys keep working, with a deprecation warning, until the next major version of each SDK (see [Migrating a service](#migrating-a-service)).
 
@@ -16,7 +16,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | Module | Package | Version | Docs |
 |---|---|---|---|
 | `sdk-bom` | — (BOM, `java-platform`) | 1.0.0 | [below](#using-the-bom) |
-| `sdk-user-security` | `io.codehunters.security` | 3.0.0 | [README](security/sdk-user-security/README.md) · [CHANGELOG](security/sdk-user-security/CHANGELOG.md) |
+| `sdk-user-security` | `io.codehunters.security` | 3.1.0 | [README](security/sdk-user-security/README.md) · [CHANGELOG](security/sdk-user-security/CHANGELOG.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 | [README](security/sdk-user-security-authz/README.md) · [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 | [README](sdk-tracing/README.md) · [CHANGELOG](sdk-tracing/CHANGELOG.md) |
 | `sdk-event-messaging-core` | `io.codehunters.messaging` | 6.0.0 | [README](messaging/sdk-event-messaging-core/README.md) · [MIGRATION](messaging/MIGRATION-6.0.md) |
@@ -144,7 +144,7 @@ Integration tests (`*IT`) use Testcontainers, so `./gradlew build` needs a runni
 ## Publish
 
 Publishes to GitHub Packages (`https://maven.pkg.github.com/Codehunters-IO/java-sdk`) on merge to
-`main`. A version is published once: versions already in the repository and `-SNAPSHOT` versions
+`master` (the base branch; `main` also triggers it). A version is published once: versions already in the repository and `-SNAPSHOT` versions
 are skipped. Each module the run actually uploads is then tagged `sdk-<module>/vX.Y.Z`
 (`bom/vX.Y.Z` for the BOM) at the commit that built it, by a separate job that alone can write to
 the repository; existing tags are left alone, and runs never overlap. Publishing locally needs

@@ -8,7 +8,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
 | `sdk-bom` | 1.0.0 | [below](#sdk-bom-100) | — |
-| `sdk-user-security` | 3.0.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
+| `sdk-user-security` | 3.1.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
 | `sdk-user-security-authz` | 3.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
 | `sdk-tracing` | 1.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | in the changelog |
 | `sdk-event-messaging-core` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
@@ -53,3 +53,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
   (`platform/sdk-bom/bom-lock.properties`, rewritten with `:sdk-bom:updateBomLock`).
 - Publishing skips versions already in GitHub Packages and `-SNAPSHOT`s, then tags exactly the
   modules the run uploaded, from a separate job; publish runs never overlap.
+- Built against Spring Boot 4.1.1 (Spring 7.0.9, Security 7.1.1). The internal platform raises
+  Jackson 3 to 3.1.7, Jackson 2 to 2.21.7 and Tomcat to 11.0.26, past advisories open in the
+  versions Boot manages.
+- Publishing points at `Codehunters-IO/java-sdk`.

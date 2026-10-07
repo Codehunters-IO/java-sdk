@@ -5,7 +5,8 @@ Discuss a change with the repository owners (issue or message) before starting o
 ## Branches and pull requests
 
 - Branch from the target branch with a prefix: `feature/`, `fix/`, `refactor/`, `docs/` or `chore/`.
-  CI builds every push to those branches and every pull request to `develop` and `main`.
+  CI builds every push to those branches and every pull request to `master`, `main` and `develop`.
+  `master` is the base branch; merging to it publishes.
 - One concern per pull request. A change that needs another one first is stacked on that branch and
   merged after it, in order.
 - Merging to `main` publishes (see [README](README.md#publish)); `main` only receives reviewed pull

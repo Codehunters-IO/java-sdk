@@ -832,13 +832,7 @@ Tests de `build-logic`: 25 (TestKit). `./gradlew clean build` y `./gradlew -p bu
 verde. Sin cambio: un merge a `main` con release de librería y sin bump del BOM falla en `check`
 antes de publicar nada.
 
-**Pendiente (fuera del repo o de quien lo mantiene):**
-1. Confirmar la organización (`codehunters` o `Codehunters-IO`) en `repository.url`,
-   `github_packages_url` y la clave y organización de Sonar; configurar el remoto.
-2. Push y PRs en el orden de la pila (ver abajo), cada uno contra el anterior.
-3. Dueño de `sdk-geo-validation` en el servicio de rifas (Fase 10, geo 1 y 2).
-4. Sacar `codehuntersio-java-commons-support/` del directorio del repo (está en `.git/info/exclude`)
-   y borrar el resto sin versionar de `sdk-utils/` (`build/`, `src/main` vacío).
+**Pendiente (fuera del repo o de quien lo mantiene):** ver "Pasada final" al final del plan.
 
 ---
 
@@ -1058,12 +1052,14 @@ Abierto: los límites cubren la memoria de la decodificación, no el tamaño com
 README pide limitar el body). Un código chico dentro de una foto grande puede perderse por el
 submuestreo (hay que recortar antes).
 
-## Fase 16 — `sdk-jpa` 1.0.0 ✅ (rama `feature/sdk-jpa-v1`, sobre `feature/sdk-device-v1`)
+## Fase 16 — `sdk-jpa` 1.0.0 ✅ (rama `feature/sdk-jpa-v1`, sobre `feature/sdk-jasper-v1`)
 
 Origen: `commons-repository`, `commons-jpa-mapper-support` (paginación),
 `commons-jpa-converter-support` y los DTO de paginación de `commons-dto` y `commons-web`.
 [ADR 0013](../adr/0013-jpa-building-blocks.md). Se construyó en paralelo con la Fase 15 (barcode),
-en un worktree aparte; falta rebasarla sobre `feature/sdk-barcode-v1`.
+en un worktree aparte sobre `feature/sdk-device-v1` y después se rebaseó sobre `feature/sdk-jasper-v1`
+(antes `c00c9a3`); los conflictos (settings, BOM y lock, README y CHANGELOG raíz, índice de ADR,
+este plan) se resolvieron conservando ambos lados.
 
 Hecho con TDD (cada `feat` con su `test` en rojo antes: `88ca9c8` → `69332be`, `cbe9df7` →
 `bc96bda`, `b87e1af` → `6732a21`, `1370cf8` → `ac4aee7`; cobertura y bordes en `8f95081`):
@@ -1218,8 +1214,8 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
 `feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1` →
 `feature/sdk-web-errors-v1` → `feature/sdk-device-v1` → `feature/sdk-barcode-v1` →
-`feature/sdk-jasper-v1`.
-Se integran en ese orden.
+`feature/sdk-jasper-v1` → `feature/sdk-jpa-v1` → `chore/final-pass`. Son 19 ramas sobre `master`;
+se integran en ese orden.
 
 `feature/sdk-device-v1` se construyó en paralelo en un worktree aparte y se rebaseó sobre
 `feature/sdk-web-errors-v1` ya con sus correcciones de review (antes `ee3859a`). El único conflicto fue
@@ -1235,7 +1231,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 
 | Artefacto | Antes | Después |
 |---|---|---|
-| `sdk-user-security` | 2.6.0 | 3.0.0 |
+| `sdk-user-security` | 2.6.0 | 3.1.0 |
 | `sdk-user-security-authz` | — | 3.0.0 |
 | `sdk-event-messaging` | 5.1.5 | (reemplazado) |
 | `sdk-event-messaging-core` / `-jdbc` / `-rabbit` / `-kafka` | — | 6.0.0 |
@@ -1288,3 +1284,31 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
    Lo cubre el test "arranque junto a la autoconfiguración real de Boot" de cada módulo.
 5. **Un pod alcanzable sin pasar por el gateway:** espera que un header forjado no dé privilegios.
    Lo cubre el test de la Fase 2 (`x-user-roles` forjado → 401).
+
+## Pasada final ✅ (rama `chore/final-pass`, sobre `feature/sdk-jpa-v1`)
+
+- Org confirmada: `Codehunters-IO`. `repository.url`, `github_packages_url` y el README apuntan a
+  `Codehunters-IO/java-sdk`; remoto `origin` = `git@github.com:Codehunters-IO/java-sdk.git` (vacío,
+  nada pusheado). La organización de Sonar sigue en `codehunters` hasta confirmar su clave.
+- Spring Boot 4.0.2 → 4.1.1 (Spring 7.0.3 → 7.0.9, Security → 7.1.1, Logback 1.5.25 → 1.5.38,
+  Micrometer 1.16.2 → 1.17.1, AssertJ → 3.27.7), limpios en OSV. Boot 4.1.1 todavía gestiona
+  Jackson 3.1.5, Jackson 2.21.5 y Tomcat 11.0.24 con advisories, así que la plataforma interna sube
+  pisos a 3.1.7, 2.21.7 y 11.0.26 (limpios).
+- Boot 4.1 movió `OAuth2ResourceServerAutoConfiguration` y separó
+  `OAuth2ResourceServerWebSecurityAutoConfiguration`: el `beforeName` viejo de `sdk-user-security` ya
+  no existía. Un test nuevo exige que cada nombre del orden exista.
+- `sdk-user-security` 3.1.0: el filter chain usa el `AuthenticationEntryPoint` y el
+  `AccessDeniedHandler` únicos de la aplicación; con `sdk-web-errors` los 401/403 salen como
+  `application/problem+json` con `code` y `traceId` y conservan el challenge bearer. Sin dependencia
+  de compilación sobre `sdk-web-errors`. BOM y lock al día.
+
+**Pendiente del usuario:**
+1. Revocar el token de Sonar versionado en el `gradle.properties` del repo legado
+   `codehuntersio-java-commons-support` y el token de GitHub filtrado en los tests de su Action;
+   ambos siguen en el historial de GitHub.
+2. Borrar `codehuntersio-java-commons-support/` del directorio y su línea en `.git/info/exclude`;
+   borrar el resto sin versionar de `sdk-utils/`.
+3. Confirmar la clave de la organización de Sonar en SonarCloud (`sonar.organization` en
+   `build.gradle.kts`).
+4. Dueño de `sdk-geo-validation` en el servicio de rifas (Fase 10, geo 1 y 2).
+5. Push de `master` y de las 19 ramas en orden, y PRs encadenados, cada uno contra el anterior.
