@@ -545,9 +545,33 @@ Verificación: 77 tests, cobertura 98,0 % líneas / 91,7 % ramas.
 7. Borrar `sdk-measure-micrometer/gradle.properties` (`coverage.branch.minimum=0.60`): el módulo vuelve
    al 0.80 por defecto.
 
-## Fase 8 — `sdk-parameter` 2.0.0
+## Fase 8 — `sdk-parameter` 2.0.0 ✅ (rama `feature/sdk-parameter-v2`, sobre `feature/sdk-measure-v3`)
 
-Rama: `feature/sdk-parameter-v2`.
+Commits (cada test en rojo seguido de su cambio):
+
+- `2b135a4` → `e69a964`: `ParameterModule` pasa a `record` con constantes y `of(code)`; un módulo
+  desconocido ya no se mapea a `null`. Accesores null-safe, `asBoolean` estricto, overflow como
+  `ParameterTypeMismatchException`; el mensaje nombra el parámetro, sin valor y sin causa.
+- `3641f27` → `ad0759e`: `asMap`/`asMapByName` conservan el orden y los `null`, y un nombre
+  repetido entre submódulos lanza `ParameterException`. Submódulo en blanco = vacío. Tabla
+  configurable, validada como identificador (opcionalmente `schema.tabla`). Fuera Lombok.
+- `ccf8e3f` → `ab5d8f1`: `ParameterProperties` (`enabled`, `table-name`, `cache-ttl`),
+  `CachingParameterClient` (TTL, acotado a 1024 respuestas, no cachea fallos),
+  `parameterJdbcClient` con `defaultCandidate = false`, `@ConditionalOnSingleCandidate(DataSource)`.
+  Fuera el `compileOnly` de `spring-boot-starter-jdbc`. Versión 2.0.0.
+- `cfaeeba` → `479bdfd`: listas inmodificables (una respuesta cacheada no se puede alterar) y test
+  ArchUnit de capas.
+- `14b89f0`: README, CHANGELOG, MIGRATION-2.0 y la fila del README raíz.
+
+Verificación: 88 tests, cobertura 98,4 % líneas / 86,1 % ramas.
+
+**Desvíos del plan:**
+- No hay alias de propiedades: la 1.x no tenía ninguna propiedad `vitxo.*`.
+- El tope de 1024 respuestas de la caché es una constante, no una propiedad.
+- Se añadieron, fuera del plan: `@ConditionalOnSingleCandidate(DataSource)`, tabla validada contra
+  inyección SQL y resultados inmodificables.
+
+Tareas planificadas:
 
 1. `JdbcClient` interno con `defaultCandidate = false`.
 2. `asMap` acepta valores nulos y conserva el orden; un nombre duplicado lanza
