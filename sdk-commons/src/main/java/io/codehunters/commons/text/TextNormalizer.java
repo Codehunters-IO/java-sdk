@@ -14,8 +14,6 @@ public final class TextNormalizer {
   /** Separator that replaces spaces and symbols. */
   public static final char SEPARATOR = '_';
 
-  private static final Pattern LATIN_DIACRITICS =
-      Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
   private static final Pattern SEPARATOR_RUNS = Pattern.compile(SEPARATOR + "{2,}");
   private static final String DROPPED = ".\"'";
   private static final Map<Integer, String> NON_DECOMPOSING =
@@ -28,7 +26,8 @@ public final class TextNormalizer {
           (int) 'ð', "d",
           (int) 'đ', "d",
           (int) 'ɖ', "d",
-          (int) 'þ', "th");
+          (int) 'þ', "th",
+          (int) 'ς', "σ");
 
   private TextNormalizer() {}
 
@@ -37,9 +36,11 @@ public final class TextNormalizer {
    *
    * <ol>
    *   <li>lower-cases it with {@link Locale#ROOT};
-   *   <li>removes Latin diacritics ({@code é} becomes {@code e}) and spells out letters that do not
-   *       decompose ({@code ß}, {@code æ}, {@code ø}, {@code œ}, {@code ł}, {@code ð}, {@code đ},
-   *       {@code þ});
+   *   <li>removes combining marks from Latin letters only ({@code é} becomes {@code e}, while
+   *       Cyrillic {@code й} and Greek {@code ά} keep theirs) and spells out Latin letters that do
+   *       not decompose ({@code ß}, {@code æ}, {@code ø}, {@code œ}, {@code ł}, {@code ð}, {@code
+   *       đ}, {@code þ});
+   *   <li>folds the Greek final sigma {@code ς} into {@code σ};
    *   <li>drops dots and quotes;
    *   <li>turns every other character that is not a letter, digit or combining mark into a single
    *       {@code _}, trimmed at both ends.
@@ -56,11 +57,24 @@ public final class TextNormalizer {
       throw new IllegalArgumentException("text must not be null");
     }
     String decomposed = Normalizer.normalize(text.toLowerCase(Locale.ROOT), Normalizer.Form.NFD);
-    String plain =
-        Normalizer.normalize(
-            LATIN_DIACRITICS.matcher(decomposed).replaceAll(""), Normalizer.Form.NFC);
+    String plain = Normalizer.normalize(stripLatinMarks(decomposed), Normalizer.Form.NFC);
     String mapped = mapCodePoints(plain);
     return trimSeparators(SEPARATOR_RUNS.matcher(mapped).replaceAll(String.valueOf(SEPARATOR)));
+  }
+
+  private static String stripLatinMarks(String decomposed) {
+    var builder = new StringBuilder(decomposed.length());
+    var baseScript = Character.UnicodeScript.COMMON;
+    for (int codePoint : decomposed.codePoints().toArray()) {
+      boolean mark = isMark(codePoint);
+      if (!mark) {
+        baseScript = Character.UnicodeScript.of(codePoint);
+      }
+      if (!mark || baseScript != Character.UnicodeScript.LATIN) {
+        builder.appendCodePoint(codePoint);
+      }
+    }
+    return builder.toString();
   }
 
   private static String mapCodePoints(String text) {
