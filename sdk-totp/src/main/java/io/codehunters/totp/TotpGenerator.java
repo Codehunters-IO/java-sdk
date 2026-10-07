@@ -4,8 +4,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
+import java.util.Objects;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -27,6 +29,7 @@ public final class TotpGenerator {
   public static final int MAX_VARIANCE = 10;
 
   private final TotpConfig config;
+  private final Clock clock;
 
   /** Creates a generator using {@link TotpConfig#defaultConfig()}. */
   public TotpGenerator() {
@@ -34,12 +37,12 @@ public final class TotpGenerator {
   }
 
   /**
-   * Creates a generator with the given configuration.
+   * Creates a generator with the given configuration, reading the time from the UTC system clock.
    *
    * @param config the TOTP parameters
    */
   public TotpGenerator(TotpConfig config) {
-    this.config = config;
+    this(config, Clock.systemUTC());
   }
 
   /**
@@ -48,8 +51,9 @@ public final class TotpGenerator {
    * @param config the TOTP parameters
    * @param clock the source of the current time
    */
-  public TotpGenerator(TotpConfig config, java.time.Clock clock) {
-    this(config);
+  public TotpGenerator(TotpConfig config, Clock clock) {
+    this.config = Objects.requireNonNull(config, "config must not be null");
+    this.clock = Objects.requireNonNull(clock, "clock must not be null");
   }
 
   /**
@@ -59,7 +63,7 @@ public final class TotpGenerator {
    * @return the TOTP code
    */
   public String generate(TotpSecret secret) {
-    return generate(secret, Instant.now());
+    return generate(secret, clock.instant());
   }
 
   /**
@@ -97,7 +101,7 @@ public final class TotpGenerator {
    *     #MAX_VARIANCE}
    */
   public boolean verify(TotpSecret secret, String code, int variance) {
-    return verify(secret, code, variance, Instant.now());
+    return verify(secret, code, variance, clock.instant());
   }
 
   /**

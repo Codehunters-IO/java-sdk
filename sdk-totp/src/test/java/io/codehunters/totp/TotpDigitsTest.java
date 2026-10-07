@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 class TotpDigitsTest {
 
   @Test
+  @SuppressWarnings("deprecation")
   void should_return_4_for_FOUR() {
     assertEquals(4, TotpDigits.FOUR.value());
   }

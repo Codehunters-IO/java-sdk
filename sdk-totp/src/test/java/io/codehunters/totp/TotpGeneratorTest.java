@@ -38,6 +38,7 @@ class TotpGeneratorTest {
   }
 
   @Test
+  @SuppressWarnings("deprecation")
   void should_generate_four_digit_code() {
     var config = new TotpConfig(Duration.ofSeconds(30), TotpDigits.FOUR, TotpAlgorithm.HMAC_SHA512);
     var generator = new TotpGenerator(config);

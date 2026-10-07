@@ -6,7 +6,8 @@ import java.util.Objects;
 /**
  * Immutable TOTP parameters: time step, code length and HMAC algorithm.
  *
- * @param timeStep the duration of one time window; a whole number of seconds, at least one
+ * @param timeStep the duration of one time window; a whole number of seconds, from one second to
+ *     {@link #MAX_TIME_STEP}
  * @param digits the number of digits in generated codes
  * @param algorithm the HMAC algorithm
  */
@@ -22,8 +23,11 @@ public record TotpConfig(Duration timeStep, TotpDigits digits, TotpAlgorithm alg
     Objects.requireNonNull(timeStep, "timeStep must not be null");
     Objects.requireNonNull(digits, "digits must not be null");
     Objects.requireNonNull(algorithm, "algorithm must not be null");
-    if (timeStep.getSeconds() < 1 || timeStep.getNano() != 0) {
-      throw new IllegalArgumentException("timeStep must be a whole number of seconds, at least 1s");
+    if (timeStep.getSeconds() < 1
+        || timeStep.getNano() != 0
+        || timeStep.compareTo(MAX_TIME_STEP) > 0) {
+      throw new IllegalArgumentException(
+          "timeStep must be a whole number of seconds, from 1s to 10 minutes");
     }
   }
 
