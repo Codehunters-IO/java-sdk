@@ -1,11 +1,17 @@
 package io.codehunters.totp;
 
+import static io.codehunters.totp.TotpAlgorithm.HMAC_SHA1;
+import static io.codehunters.totp.TotpAlgorithm.HMAC_SHA256;
+import static io.codehunters.totp.TotpAlgorithm.HMAC_SHA512;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /** Test vectors from RFC 6238, Appendix B. */
 class Rfc6238VectorsTest {
@@ -17,58 +23,56 @@ class Rfc6238VectorsTest {
       "3132333435363738393031323334353637383930313233343536373839303132"
           + "3334353637383930313233343536373839303132333435363738393031323334";
 
-  @ParameterizedTest(name = "{0} at {1}")
-  @CsvSource({
-    "HMAC_SHA1, 59, 94287082",
-    "HMAC_SHA1, 1111111109, 07081804",
-    "HMAC_SHA1, 1111111111, 14050471",
-    "HMAC_SHA1, 1234567890, 89005924",
-    "HMAC_SHA1, 2000000000, 69279037",
-    "HMAC_SHA1, 20000000000, 65353130",
-    "HMAC_SHA256, 59, 46119246",
-    "HMAC_SHA256, 1111111109, 68084774",
-    "HMAC_SHA256, 1111111111, 67062674",
-    "HMAC_SHA256, 1234567890, 91819424",
-    "HMAC_SHA256, 2000000000, 90698825",
-    "HMAC_SHA256, 20000000000, 77737706",
-    "HMAC_SHA512, 59, 90693936",
-    "HMAC_SHA512, 1111111109, 25091201",
-    "HMAC_SHA512, 1111111111, 99943326",
-    "HMAC_SHA512, 1234567890, 93441116",
-    "HMAC_SHA512, 2000000000, 38618901",
-    "HMAC_SHA512, 20000000000, 47863826"
-  })
+  static Stream<Arguments> vectors() {
+    return Stream.of(
+        arguments(HMAC_SHA1, SEED_SHA1, 59L, "94287082"),
+        arguments(HMAC_SHA1, SEED_SHA1, 1111111109L, "07081804"),
+        arguments(HMAC_SHA1, SEED_SHA1, 1111111111L, "14050471"),
+        arguments(HMAC_SHA1, SEED_SHA1, 1234567890L, "89005924"),
+        arguments(HMAC_SHA1, SEED_SHA1, 2000000000L, "69279037"),
+        arguments(HMAC_SHA1, SEED_SHA1, 20000000000L, "65353130"),
+        arguments(HMAC_SHA256, SEED_SHA256, 59L, "46119246"),
+        arguments(HMAC_SHA256, SEED_SHA256, 1111111109L, "68084774"),
+        arguments(HMAC_SHA256, SEED_SHA256, 1111111111L, "67062674"),
+        arguments(HMAC_SHA256, SEED_SHA256, 1234567890L, "91819424"),
+        arguments(HMAC_SHA256, SEED_SHA256, 2000000000L, "90698825"),
+        arguments(HMAC_SHA256, SEED_SHA256, 20000000000L, "77737706"),
+        arguments(HMAC_SHA512, SEED_SHA512, 59L, "90693936"),
+        arguments(HMAC_SHA512, SEED_SHA512, 1111111109L, "25091201"),
+        arguments(HMAC_SHA512, SEED_SHA512, 1111111111L, "99943326"),
+        arguments(HMAC_SHA512, SEED_SHA512, 1234567890L, "93441116"),
+        arguments(HMAC_SHA512, SEED_SHA512, 2000000000L, "38618901"),
+        arguments(HMAC_SHA512, SEED_SHA512, 20000000000L, "47863826"));
+  }
+
+  static Stream<Arguments> verifiedVectors() {
+    return Stream.of(
+        arguments(HMAC_SHA1, SEED_SHA1, 1111111109L, "07081804"),
+        arguments(HMAC_SHA256, SEED_SHA256, 1234567890L, "91819424"),
+        arguments(HMAC_SHA512, SEED_SHA512, 20000000000L, "47863826"));
+  }
+
+  @ParameterizedTest(name = "{0} at {2}")
+  @MethodSource("vectors")
   void should_match_rfc_6238_vector_when_generating(
-      TotpAlgorithm algorithm, long epochSecond, String expected) {
+      TotpAlgorithm algorithm, String seed, long epochSecond, String expected) {
     var generator = generatorFor(algorithm);
 
-    assertThat(generator.generate(seedFor(algorithm), Instant.ofEpochSecond(epochSecond)))
+    assertThat(generator.generate(TotpSecret.fromHex(seed), Instant.ofEpochSecond(epochSecond)))
         .isEqualTo(expected);
   }
 
-  @ParameterizedTest(name = "{0} at {1}")
-  @CsvSource({
-    "HMAC_SHA1, 1111111109, 07081804",
-    "HMAC_SHA256, 1234567890, 91819424",
-    "HMAC_SHA512, 20000000000, 47863826"
-  })
+  @ParameterizedTest(name = "{0} at {2}")
+  @MethodSource("verifiedVectors")
   void should_verify_rfc_6238_vector_when_variance_is_zero(
-      TotpAlgorithm algorithm, long epochSecond, String code) {
+      TotpAlgorithm algorithm, String seed, long epochSecond, String code) {
     var generator = generatorFor(algorithm);
+    var at = Instant.ofEpochSecond(epochSecond);
 
-    assertThat(generator.verify(seedFor(algorithm), code, 0, Instant.ofEpochSecond(epochSecond)))
-        .isTrue();
+    assertThat(generator.verify(TotpSecret.fromHex(seed), code, 0, at)).isTrue();
   }
 
   private static TotpGenerator generatorFor(TotpAlgorithm algorithm) {
     return new TotpGenerator(new TotpConfig(Duration.ofSeconds(30), TotpDigits.EIGHT, algorithm));
-  }
-
-  private static TotpSecret seedFor(TotpAlgorithm algorithm) {
-    return switch (algorithm) {
-      case HMAC_SHA1 -> TotpSecret.fromHex(SEED_SHA1);
-      case HMAC_SHA256 -> TotpSecret.fromHex(SEED_SHA256);
-      case HMAC_SHA512 -> TotpSecret.fromHex(SEED_SHA512);
-    };
   }
 }
