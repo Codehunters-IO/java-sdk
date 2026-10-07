@@ -39,7 +39,8 @@ public class DeviceAutoConfiguration {
   @Bean
   @ConditionalOnMissingBean
   public ClientIpResolver clientIpResolver(DeviceProperties properties) {
-    return new ClientIpResolver(TrustedProxies.of(properties.trustedProxies()));
+    return new ClientIpResolver(
+        TrustedProxies.of(properties.trustedProxies()), properties.forwardingHeader());
   }
 
   /**

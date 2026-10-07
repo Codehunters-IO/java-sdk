@@ -18,17 +18,20 @@ import java.util.Optional;
 public final class ClientIpResolver {
 
   private final TrustedProxies trustedProxies;
+  private final ForwardingHeader header;
 
   /**
    * Creates a resolver.
    *
    * @param trustedProxies the proxies whose headers are believed; empty trusts nobody
+   * @param header the header those proxies write
    */
-  public ClientIpResolver(TrustedProxies trustedProxies) {
-    if (trustedProxies == null) {
-      throw new IllegalArgumentException("trusted proxies must not be null");
+  public ClientIpResolver(TrustedProxies trustedProxies, ForwardingHeader header) {
+    if (trustedProxies == null || header == null) {
+      throw new IllegalArgumentException("trusted proxies and forwarding header must not be null");
     }
     this.trustedProxies = trustedProxies;
+    this.header = header;
   }
 
   /**
@@ -48,7 +51,7 @@ public final class ClientIpResolver {
     if (trustedProxies.isEmpty()) {
       return remote;
     }
-    List<String> hops = ForwardingHops.of(chain);
+    List<String> hops = ForwardingHops.of(chain, header);
     var current = remote;
     for (int i = hops.size() - 1; i >= 0 && trustedProxies.contains(current); i--) {
       var hop = IpLiterals.parse(hops.get(i));

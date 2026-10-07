@@ -5,16 +5,16 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * Splits forwarding headers into hops, client first. Each hop is the raw node text a proxy wrote;
- * {@code Forwarded} elements without a {@code for} parameter become empty hops so they stop the
- * walk instead of being skipped.
+ * Splits the configured forwarding header into hops, client first. Each hop is the raw node text a
+ * proxy wrote; {@code Forwarded} elements without a {@code for} parameter become empty hops so they
+ * stop the walk instead of being skipped.
  */
 final class ForwardingHops {
 
   private ForwardingHops() {}
 
-  static List<String> of(ProxyChain chain) {
-    if (!chain.forwarded().isEmpty()) {
+  static List<String> of(ProxyChain chain, ForwardingHeader header) {
+    if (header == ForwardingHeader.FORWARDED) {
       return fromForwarded(chain.forwarded());
     }
     return chain.xForwardedFor().stream()

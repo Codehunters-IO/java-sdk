@@ -1,5 +1,6 @@
 package io.codehunters.device.config;
 
+import io.codehunters.device.ip.ForwardingHeader;
 import io.codehunters.device.ip.TrustedProxies;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -13,12 +14,16 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param trustedProxies addresses or CIDR blocks of the proxies whose {@code Forwarded} and {@code
  *     X-Forwarded-For} headers are believed; empty (the default) trusts nobody and uses the
  *     connection's remote address
+ * @param forwardingHeader the header the trusted proxies write the client address into; {@code
+ *     x-forwarded-for} (the default) or {@code forwarded}. The other header is never read, since a
+ *     client could send it
  * @param userAgent {@code User-Agent} handling
  */
 @ConfigurationProperties(prefix = "codehunters.device")
 public record DeviceProperties(
     @DefaultValue("true") boolean enabled,
     @DefaultValue List<String> trustedProxies,
+    @DefaultValue("x-forwarded-for") ForwardingHeader forwardingHeader,
     @DefaultValue UserAgent userAgent) {
 
   /** Validates the trusted proxies. */
