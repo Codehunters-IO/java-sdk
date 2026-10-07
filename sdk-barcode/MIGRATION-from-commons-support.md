@@ -8,7 +8,7 @@ compatible.
 |---|---|
 | `BarcodeUtil.generateQRCodeImage(text, width, height)` | `renderer.toPng(BarcodeRequest.of(QR_CODE, text, width, height))` |
 | `generateEAN13BarcodeImage`, `generateUPCABarcodeImage`, `generateCode39BarcodeImage`, `generateCode128BarcodeImage`, `generateITFBarcodeImage`, `generatePDF417BarcodeImage` (fixed 160 dpi, `BufferedImage`) | `BarcodeRequest.of(<format>, text, width, height)` rendered with `toPng` or `render(..., ImageFormat.PNG \| SVG, out)` |
-| `BarcodeUtil.readQRCodeImage(File)` (`Result`, checked ZXing exceptions) | `reader.read(InputStream)`: `Optional<DecodedBarcode>`, any supported format |
+| `BarcodeUtil.readQRCodeImage(File)` (`Result`, checked ZXing exceptions) | `reader.read(InputStream)`: `Optional<DecodedBarcode>`, any supported barcode format in a PNG, JPEG, GIF or BMP image |
 | `BarcodeUtil.writeFile(image, properties)`, `BarcodeProperties` (path, resolution, image type, orientation) | Write the bytes yourself; size, margin and format are on `BarcodeRequest` |
 | barcode4j 2.1 and ZXing `core`/`javase` 3.4.0 | ZXing `core` 3.5.4 only |
 
@@ -18,8 +18,9 @@ compatible.
   barcode4j accepted some invalid content silently or failed with its own exceptions.
 - **Sizes are pixels and are limited.** The old 1D methods ignored any size and always drew at
   160 dpi; requests now say how large the image is, and the `BarcodeLimits` cap it.
-- **Decoding checks the image size first** and reads only from a stream; it no longer opens a
-  `FileInputStream` it never closed.
+- **Decoding checks the image size and memory first** and reads only from a stream; it no longer
+  opens a `FileInputStream` it never closed. Only PNG, JPEG, GIF and BMP are read, and large images
+  are subsampled to about 4 megapixels.
 - **Exceptions are unchecked** (`IllegalArgumentException`, `UncheckedIOException`) and never quote
   the content.
 

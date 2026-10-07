@@ -1010,7 +1010,7 @@ que nunca se cerraba y escritura a una ruta tomada de propiedades.
 Hecho con TDD (cada `feat` con su `test` en rojo antes: `178c37f` → `f98fbb7`, `2d95679` → `b956b7b`,
 `6b4c20f` → `f362cf0`; luego `f18c9cd` refactor):
 - Solo ZXing `core` 3.5.4 (última versión, sin advisories en OSV); sin `javase` (traía jcommander y
-  jai-imageio) ni barcode4j. La luminancia se arma con `RGBLuminanceSource`.
+  jai-imageio) ni barcode4j.
 - `BarcodeFormat` propio (QR, Data Matrix, PDF417, Code 128, Code 39, EAN-13, UPC-A, ITF),
   `BarcodeRequest` (contenido validado por formato, dígito verificador GS1 en EAN-13/UPC-A, margen en
   módulos por lado igual para todos los formatos, `ErrorCorrection` solo QR) y `BarcodeLimits`
@@ -1029,8 +1029,33 @@ Hecho con TDD (cada `feat` con su `test` en rojo antes: `178c37f` → `f98fbb7`,
 - `sdk-bom` 1.0.0 incluye `sdk-barcode` (lock actualizado a mano como en `sdk-device`; BOM sin
   publicar).
 
-Abierto: los límites cubren píxeles, no el tamaño comprimido del upload (el README pide limitar el
-body). `ITF` decodifica solo los largos que ZXing acepta por defecto (6 a 14 dígitos pares).
+Correcciones de la review (cada `fix` con su `test` en rojo antes: `c8f04c1` → `ff15eff`,
+`f385e6a` → `729ba97`):
+- **Memoria de la decodificación en bytes, no en píxeles (HIGH).** Un PNG RGBA de 16 bits de 4096 x
+  4096 pesaba 130 KB, pasaba el límite de píxeles y tomaba unos 208 MB. Ahora el header da los bytes
+  por píxel de la imagen que asigna ImageIO; la copia gris para ZXing se arma fila por fila (1 byte
+  por píxel, sin el `int[]` ARGB completo); JPEG suma el buffer de su decodificador (6 bytes por píxel
+  de origen). Todo se compara con el nuevo `maxDecodeBytes`
+  (`codehunters.barcode.max-decode-bytes`, 128 MB por defecto, hasta 1 GB). Las imágenes de más de
+  unos 4 MP se submuestrean al decodificar (también acota el tiempo de búsqueda).
+- Solo PNG, JPEG, GIF y BMP: TIFF, WBMP y los plugins de ImageIO del classpath se rechazan como no
+  soportados.
+- Las excepciones runtime de la detección de formato, del header (GIF sin frames) y de los
+  decodificadores de ZXing ya no escapan: header o píxeles ilegibles dan "could not be read"; un fallo
+  de ZXing cuenta como "sin código".
+- Data Matrix usa el codificador compacto de ZXing, el único que respeta el charset: el texto no
+  Latin-1 sale en UTF-8 con ECI en vez de fallar.
+- PDF417 puede usar sus 90 filas; los topes de contenido son los reales (QR 7089 dígitos con
+  corrección L, Data Matrix 3112, PDF417 2686) y el README trae la tabla por tipo de contenido.
+- `ITF` lee todos los largos pares de 2 a 80, igual que los que acepta el renderer.
+- Sin charset forzado al decodificar: los símbolos propios llevan ECI y los de terceros sin ECI quedan
+  con la adivinanza de ZXing.
+- Documentado: un EAN-13 con `0` inicial se lee como `UPC_A` de 12 dígitos; acotar las llamadas
+  concurrentes del lector.
+
+Abierto: los límites cubren la memoria de la decodificación, no el tamaño comprimido del upload (el
+README pide limitar el body). Un código chico dentro de una foto grande puede perderse por el
+submuestreo (hay que recortar antes).
 
 ## Orden y dependencias
 
