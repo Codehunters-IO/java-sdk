@@ -4,18 +4,21 @@ import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 /**
  * Spring Boot auto-configuration enabling the {@link Auditable} aspect. Registers a no-op {@link
  * AuditContextProvider} and the {@link AuditAspect} when an {@link AuditEventPublisherPort} bean is
  * present.
+ *
+ * <p>The aspect is applied by Boot's AOP auto-configuration ({@code spring.aop.auto}, on by default
+ * with AspectJ on the classpath); this auto-configuration does not enable proxying itself. With
+ * {@code spring.aop.auto=false} the application must enable AspectJ proxying for auditing to apply.
  */
 @AutoConfiguration
-@EnableAspectJAutoProxy
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditAutoConfiguration {
 
@@ -43,6 +46,7 @@ public class AuditAutoConfiguration {
    * @return the {@link AuditAspect}
    */
   @Bean
+  @ConditionalOnClass(name = "org.aspectj.weaver.Advice")
   @ConditionalOnBean(AuditEventPublisherPort.class)
   public AuditAspect auditAspect(
       AuditEventPublisherPort publisher,

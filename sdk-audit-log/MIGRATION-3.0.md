@@ -12,6 +12,9 @@
 4. **`@Async`.** The SDK no longer enables `@Async` for the whole application. If your own
    `@Async` methods ran asynchronously only because of the SDK, add `@EnableAsync` to your
    configuration.
+   The SDK no longer applies `@EnableAspectJAutoProxy` either: Boot's AOP auto-configuration
+   (`spring.aop.auto`, on by default) applies the aspect. With `spring.aop.auto=false`, enable
+   AspectJ proxying yourself or `@Auditable` has no effect.
 5. **Beans.** The publisher bean is `auditEventPublisher`. `auditTaskExecutor` and
    `auditJsonMapper` need `@Qualifier` to be injected, and no longer replace Boot's
    `applicationTaskExecutor` or your `JsonMapper`. A custom `auditTaskExecutor` bean still

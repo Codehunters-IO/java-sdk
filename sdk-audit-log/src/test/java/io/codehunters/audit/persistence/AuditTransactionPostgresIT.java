@@ -11,6 +11,7 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -40,7 +41,10 @@ class AuditTransactionPostgresIT {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withConfiguration(
-              AutoConfigurations.of(AuditJdbcAutoConfiguration.class, AuditAutoConfiguration.class))
+              AutoConfigurations.of(
+                  AopAutoConfiguration.class,
+                  AuditJdbcAutoConfiguration.class,
+                  AuditAutoConfiguration.class))
           .withUserConfiguration(TransactionConfig.class)
           .withBean("dataSource", DataSource.class, () -> dataSource)
           .withBean(

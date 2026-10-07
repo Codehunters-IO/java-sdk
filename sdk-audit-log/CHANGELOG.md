@@ -8,7 +8,9 @@
 - `errorMessage` holds the exception class name instead of its message.
 - The JDBC publisher bean is `auditEventPublisher` (was `auditEventJdbcAdapter`).
   `AuditEventJdbcAdapter` is synchronous, without `@Async` or `@Transactional`.
-- The auto-configuration no longer applies `@EnableAsync` to the application.
+- The auto-configuration no longer applies `@EnableAsync` or `@EnableAspectJAutoProxy` to the
+  application. Boot's AOP auto-configuration applies the aspect; with `spring.aop.auto=false`,
+  auditing needs AspectJ proxying enabled by the application.
 - The JDBC publisher needs a single `DataSource` candidate; with several and no primary it is not
   created (2.x failed startup).
 - Without `fail-on-error`, the success event of a transactional call is written after the

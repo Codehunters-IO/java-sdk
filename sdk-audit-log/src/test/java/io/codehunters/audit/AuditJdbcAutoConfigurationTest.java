@@ -13,6 +13,7 @@ import java.util.concurrent.CountDownLatch;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.aop.AopAutoConfiguration;
 import org.springframework.boot.autoconfigure.task.TaskExecutionAutoConfiguration;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -48,7 +49,10 @@ class AuditJdbcAutoConfigurationTest {
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withConfiguration(
-              AutoConfigurations.of(AuditJdbcAutoConfiguration.class, AuditAutoConfiguration.class))
+              AutoConfigurations.of(
+                  AopAutoConfiguration.class,
+                  AuditJdbcAutoConfiguration.class,
+                  AuditAutoConfiguration.class))
           .withBean("dataSource", DataSource.class, () -> dataSource);
 
   @Test
@@ -104,7 +108,10 @@ class AuditJdbcAutoConfigurationTest {
   void should_not_create_jdbc_publisher_when_no_datasource() {
     new ApplicationContextRunner()
         .withConfiguration(
-            AutoConfigurations.of(AuditJdbcAutoConfiguration.class, AuditAutoConfiguration.class))
+            AutoConfigurations.of(
+                AopAutoConfiguration.class,
+                AuditJdbcAutoConfiguration.class,
+                AuditAutoConfiguration.class))
         .run(ctx -> assertThat(ctx).doesNotHaveBean(AuditEventPublisherPort.class));
   }
 
@@ -181,7 +188,10 @@ class AuditJdbcAutoConfigurationTest {
   void should_fail_audited_call_when_fail_on_error_and_insert_fails() {
     new ApplicationContextRunner()
         .withConfiguration(
-            AutoConfigurations.of(AuditJdbcAutoConfiguration.class, AuditAutoConfiguration.class))
+            AutoConfigurations.of(
+                AopAutoConfiguration.class,
+                AuditJdbcAutoConfiguration.class,
+                AuditAutoConfiguration.class))
         .withBean("dataSource", DataSource.class, AuditJdbcAutoConfigurationTest::emptyDatabase)
         .withBean(OrderService.class)
         .withPropertyValues("codehunters.audit.fail-on-error=true")
@@ -241,7 +251,10 @@ class AuditJdbcAutoConfigurationTest {
   void should_count_events_that_could_not_be_written() {
     new ApplicationContextRunner()
         .withConfiguration(
-            AutoConfigurations.of(AuditJdbcAutoConfiguration.class, AuditAutoConfiguration.class))
+            AutoConfigurations.of(
+                AopAutoConfiguration.class,
+                AuditJdbcAutoConfiguration.class,
+                AuditAutoConfiguration.class))
         .withBean("dataSource", DataSource.class, AuditJdbcAutoConfigurationTest::emptyDatabase)
         .withBean(MeterRegistry.class, SimpleMeterRegistry::new)
         .withPropertyValues("codehunters.audit.async.enabled=false")

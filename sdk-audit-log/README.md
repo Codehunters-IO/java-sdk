@@ -152,6 +152,10 @@ The scripts have no Flyway version prefix, so the SDK never runs them.
 | `codehunters.audit.async.queue-capacity` | `500` | Events waiting for a thread |
 | `codehunters.audit.async.await-termination` | `10s` | How long shutdown waits for queued events |
 
+The aspect is applied by Boot's AOP auto-configuration (`spring.aop.auto`, on by default with
+AspectJ on the classpath); the SDK does not enable proxying itself. With `spring.aop.auto=false`,
+enable AspectJ proxying in your configuration or `@Auditable` has no effect.
+
 Invalid sizes fail at startup. The 2.x key `vitxo.audit.fail-on-error` works until 4.0.0 and logs
 a deprecation warning.
 
