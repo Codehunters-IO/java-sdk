@@ -19,6 +19,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.IntStream;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
@@ -42,6 +43,10 @@ import javax.imageio.stream.MemoryCacheImageInputStream;
 public final class BarcodeReader {
 
   private static final Set<String> FORMATS = Set.of("png", "jpeg", "gif", "bmp");
+
+  /** Every ITF length the renderer accepts (2 to 80 digits), not just ZXing's default 6 to 14. */
+  private static final int[] ITF_LENGTHS = IntStream.rangeClosed(1, 40).map(i -> 2 * i).toArray();
+
   private static final Map<DecodeHintType, Object> HINTS = hints();
 
   private final BarcodeLimits limits;
@@ -229,6 +234,7 @@ public final class BarcodeReader {
         DecodeHintType.POSSIBLE_FORMATS,
         Arrays.stream(BarcodeFormat.values()).map(BarcodeFormat::zxing).toList());
     hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
+    hints.put(DecodeHintType.ALLOWED_LENGTHS, ITF_LENGTHS);
     return Map.copyOf(hints);
   }
 

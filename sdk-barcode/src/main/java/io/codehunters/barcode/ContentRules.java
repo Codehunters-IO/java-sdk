@@ -5,6 +5,9 @@ import java.util.regex.Pattern;
 /**
  * The content each symbology accepts. Messages describe the rule broken and never repeat the
  * content, which may be a ticket, a token or personal data.
+ *
+ * <p>The 2D maxima are the longest all-digit content each symbol holds (QR Code at error correction
+ * L); text and non-ASCII content fill a symbol sooner, which only encoding can tell.
  */
 final class ContentRules {
 
@@ -23,8 +26,8 @@ final class ContentRules {
       case CODE_39 -> linear("CODE 39", content, CODE_39, "0-9, A-Z, space and - . $ / + %");
       case CODE_128 -> linear("CODE 128", content, PRINTABLE_ASCII, "printable ASCII");
       case QR_CODE -> maxLength("QR_CODE", content, 7089);
-      case DATA_MATRIX -> maxLength("DATA_MATRIX", content, 3116);
-      case PDF_417 -> maxLength("PDF_417", content, 2710);
+      case DATA_MATRIX -> maxLength("DATA_MATRIX", content, 3112);
+      case PDF_417 -> maxLength("PDF_417", content, 2686);
     }
   }
 
