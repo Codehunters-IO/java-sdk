@@ -1057,6 +1057,47 @@ Abierto: los límites cubren la memoria de la decodificación, no el tamaño com
 README pide limitar el body). Un código chico dentro de una foto grande puede perderse por el
 submuestreo (hay que recortar antes).
 
+## Fase 16 — `sdk-jpa` 1.0.0 ✅ (rama `feature/sdk-jpa-v1`, sobre `feature/sdk-device-v1`)
+
+Origen: `commons-repository`, `commons-jpa-mapper-support` (paginación),
+`commons-jpa-converter-support` y los DTO de paginación de `commons-dto` y `commons-web`.
+[ADR 0013](../adr/0013-jpa-building-blocks.md). Se construyó en paralelo con la Fase 15 (barcode),
+en un worktree aparte; falta rebasarla sobre `feature/sdk-barcode-v1`.
+
+Hecho con TDD (cada `feat` con su `test` en rojo antes: `88ca9c8` → `69332be`, `cbe9df7` →
+`bc96bda`, `b87e1af` → `6732a21`, `1370cf8` → `ac4aee7`; cobertura y bordes en `8f95081`):
+- `domain`: `BaseEntity` (UUID v7 con `@UuidGenerator(style = VERSION_7)`, `@Version`, `equals` por
+  clase e id que lee los proxies de Hibernate sin inicializarlos, `hashCode` por clase; getters
+  `Optional` porque Hibernate mapea campos) y `AuditableEntity` (`created_at`, `created_by`,
+  `updated_at`, `updated_by`, `Instant`).
+- `auditing` + `config`: `JpaAuditingAutoConfiguration` activa el auditing de Spring Data con un
+  `DateTimeProvider` sobre el `Clock` de la app (cortado a microsegundos) y, con Spring Security, el
+  nombre del usuario autenticado. Se aparta ante `@EnableJpaAuditing` propio, un `DateTimeProvider` o
+  `AuditorAware` de la app, o `codehunters.jpa.auditing.enabled=false`.
+- `pagination`: `PageResponse<T>` (record con forma JSON estable) y `SortWhitelist` (nombres de API
+  a property paths; rechaza desconocidos o repetidos sin repetir el input). El tope de tamaño es el
+  de Spring Data (`spring.data.web.pageable.max-page-size`), no se reinventa.
+- `converter`: `JsonAttributeConverter<T>` con `TypeReference`, `JsonList/Set/MapConverter` y los
+  `String*Converter` listos; Jackson 3 `JsonMapper` compartido o el de la app; lecturas
+  inmodificables; `JsonColumnException` sin el contenido ni la causa de Jackson.
+- `specification`: `SearchCriteria` (aridad por operación, `IN` ≤ 1000), `SpecificationBuilder<T>`
+  (lista blanca, ≤ 32 criterios, valores convertidos con `ApplicationConversionService`, `LIKE`
+  contains sin distinguir mayúsculas con `%` y `_` escapados, `BETWEEN` inclusivo, left joins
+  compartidos por query, `distinct` al unir colecciones), `InvalidSearchException` sin el input.
+- Postgres 17 con Testcontainers para entidades, auditing, paginación, converters y
+  specifications; H2 para la auto-configuración. ArchUnit: el wiring de Spring solo en `config`,
+  `domain` sin web, seguridad ni JSON.
+- `sdk-bom` 1.0.0 incluye `sdk-jpa` (lock con `sdk-jpa=1.0.0`, BOM sin publicar) (`ca9ce68`).
+- Docs: README, CHANGELOG, `MIGRATION-from-commons-support.md`, ADR 0013 y filas del README y
+  CHANGELOG raíz (`b467df5`).
+
+Mutaciones comprobadas: un `INNER` join en vez de `LEFT`, quitar el escape del `LIKE` y quitar el
+`distinct` hacen fallar los tests.
+
+Abierto: sin review independiente todavía. `BaseEntity` solo admite ids UUID; las tablas con ids
+numéricos se quedan con su mapeo. Los errores de conversión salen al ejecutar la query, envueltos
+por Spring en `InvalidDataAccessApiUsageException`.
+
 ## Fase 17 — `sdk-jasper` 1.0.0 ✅ (rama `feature/sdk-jasper-v1`, sobre `feature/sdk-barcode-v1`)
 
 Origen: `commons-util-jasperreport-support` (`JasperManagerUtil.fill`): compilaba el JRXML recibido
@@ -1188,6 +1229,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-device` | `commons-util-ip-support`, `commons-util-device-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-barcode` | `commons-util-barcode-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-jasper` | `commons-util-jasperreport-support` 5.1.0 (otro repo) | 1.0.0 |
+| `sdk-jpa` | `commons-repository`, `commons-jpa-mapper-support`, `commons-jpa-converter-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
@@ -1201,7 +1243,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `vitxo.file-share.*` | `codehunters.file-share.*` |
 | `vitxo.i18n.*` | `codehunters.i18n.*` |
 | `vitxo.totp.*` | `codehunters.totp.*` |
-| (no había) | `codehunters.tracing.*`, `codehunters.measure.*`, `codehunters.parameter.*` |
+| (no había) | `codehunters.tracing.*`, `codehunters.measure.*`, `codehunters.parameter.*`, `codehunters.jpa.*` |
 | `geo.validation.*` | (se retira con el módulo) |
 
 ---
