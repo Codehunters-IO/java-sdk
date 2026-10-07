@@ -281,6 +281,36 @@ class MeasureAspectTest {
     assertThat(orders.place("ORD-3")).isEqualTo("placed-ORD-3");
   }
 
+  @Test
+  void should_call_the_method_without_meters_when_its_annotation_is_invalid() {
+    OddTagsService odd = proxied(new OddTagsService());
+
+    assertThat(odd.call()).isEqualTo("called");
+    assertThat(registry.find("odd").meters()).isEmpty();
+  }
+
+  @Test
+  void should_keep_recording_other_after_the_cap_was_reported() {
+    orders.byCustomer("CUST-A");
+    orders.byCustomer("CUST-B");
+    orders.byCustomer("CUST-C");
+
+    orders.byCustomer("CUST-D");
+
+    assertThat(registry.get("orders.by.customer").tag("customer", "other").timer().count())
+        .isEqualTo(2);
+  }
+
+  /** Not validated at startup because it is proxied by hand. */
+  static class OddTagsService {
+    @Measured(
+        name = "odd",
+        tags = {"region"})
+    String call() {
+      return "called";
+    }
+  }
+
   private <T> T proxied(T target) {
     var factory = new AspectJProxyFactory(target);
     factory.setProxyTargetClass(true);
