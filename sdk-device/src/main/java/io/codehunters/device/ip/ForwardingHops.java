@@ -1,13 +1,21 @@
 package io.codehunters.device.ip;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * Splits the configured forwarding header into hops, client first. Each hop is the raw node text a
  * proxy wrote; {@code Forwarded} elements without a {@code for} parameter become empty hops so they
  * stop the walk instead of being skipped.
+ *
+ * <p>Proxies append to the line the client sent ({@code ", 203.0.113.9"}), so client text must
+ * never be able to swallow what follows it. {@code X-Forwarded-For} has no quoted strings and is
+ * split on every comma. A {@code Forwarded} line whose quotes do not balance is split on every
+ * comma too: only the client's own elements on the left become invalid.
  */
 final class ForwardingHops {
 
@@ -17,20 +25,18 @@ final class ForwardingHops {
     if (header == ForwardingHeader.FORWARDED) {
       return fromForwarded(chain.forwarded());
     }
-    return chain.xForwardedFor().stream()
-        .flatMap(line -> splitOutsideQuotes(line, ',').stream())
-        .toList();
+    return chain.xForwardedFor().stream().flatMap(line -> splitEverywhere(line, ',')).toList();
   }
 
   private static List<String> fromForwarded(List<String> lines) {
     return lines.stream()
-        .flatMap(line -> splitOutsideQuotes(line, ',').stream())
+        .flatMap(line -> split(line, ',').stream())
         .map(ForwardingHops::forNode)
         .toList();
   }
 
   private static String forNode(String element) {
-    for (var pair : splitOutsideQuotes(element, ';')) {
+    for (var pair : split(element, ';')) {
       var equals = pair.indexOf('=');
       if (equals > 0 && "for".equals(pair.substring(0, equals).strip().toLowerCase(Locale.ROOT))) {
         return unquote(pair.substring(equals + 1).strip());
@@ -58,7 +64,16 @@ final class ForwardingHops {
     return "";
   }
 
-  static List<String> splitOutsideQuotes(String text, char separator) {
+  private static List<String> split(String text, char separator) {
+    return splitOutsideQuotes(text, separator)
+        .orElseGet(() -> splitEverywhere(text, separator).toList());
+  }
+
+  private static Stream<String> splitEverywhere(String text, char separator) {
+    return Arrays.stream(text.split(String.valueOf(separator), -1)).map(String::strip);
+  }
+
+  private static Optional<List<String>> splitOutsideQuotes(String text, char separator) {
     var parts = new ArrayList<String>();
     var current = new StringBuilder();
     var quoted = false;
@@ -78,7 +93,10 @@ final class ForwardingHops {
         current.append(c);
       }
     }
+    if (quoted) {
+      return Optional.empty();
+    }
     parts.add(current.toString().strip());
-    return parts;
+    return Optional.of(parts);
   }
 }

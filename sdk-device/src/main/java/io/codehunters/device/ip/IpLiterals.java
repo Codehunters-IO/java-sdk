@@ -14,7 +14,9 @@ import java.util.regex.Pattern;
 public final class IpLiterals {
 
   private static final Pattern IPV4_PART = Pattern.compile("0|[1-9][0-9]{0,2}");
-  private static final Pattern IPV6 = Pattern.compile("[0-9A-Fa-f:.]{2,45}");
+  // The JDK treats text as a literal only when it starts with a hex digit or ':'; anything else
+  // would reach the system resolver.
+  private static final Pattern IPV6 = Pattern.compile("[0-9A-Fa-f:][0-9A-Fa-f:.]{1,44}");
   private static final Pattern PORT = Pattern.compile("[0-9]{1,5}");
   private static final int MAX_PORT = 65_535;
 
@@ -27,23 +29,41 @@ public final class IpLiterals {
    * @return the address, or empty when the text is not an IP literal
    */
   public static Optional<InetAddress> parse(String text) {
+    return parse(text, true);
+  }
+
+  /**
+   * Parses an address literal that must not carry a port, as in configured trusted proxies.
+   *
+   * @param text the literal
+   * @return the address, or empty when the text is not a port-less IP literal
+   */
+  static Optional<InetAddress> parseWithoutPort(String text) {
+    return parse(text, false);
+  }
+
+  private static Optional<InetAddress> parse(String text, boolean portAllowed) {
     if (text == null || text.isBlank()) {
       return Optional.empty();
     }
     var node = text.strip();
     if (node.startsWith("[")) {
-      return parseBracketed(node);
+      return parseBracketed(node, portAllowed);
     }
     var colons = node.chars().filter(c -> c == ':').count();
     if (colons == 1) {
-      return parseWithPort(node);
+      return portAllowed ? parseWithPort(node) : Optional.empty();
     }
     return colons == 0 ? parseIpv4(node) : parseIpv6(node);
   }
 
-  private static Optional<InetAddress> parseBracketed(String node) {
+  private static Optional<InetAddress> parseBracketed(String node, boolean portAllowed) {
     var close = node.indexOf(']');
-    if (close < 0 || !isPortSuffix(node.substring(close + 1))) {
+    if (close < 0) {
+      return Optional.empty();
+    }
+    var suffix = node.substring(close + 1);
+    if (portAllowed ? !isPortSuffix(suffix) : !suffix.isEmpty()) {
       return Optional.empty();
     }
     return parseIpv6(node.substring(1, close));

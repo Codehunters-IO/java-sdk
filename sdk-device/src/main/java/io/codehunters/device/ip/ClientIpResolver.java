@@ -12,8 +12,8 @@ import java.util.Optional;
  * trusted proxy; the first untrusted address is the client. A hop that is not an IP literal ({@code
  * unknown}, an obfuscated identifier, garbage) stops the walk, and the last address with a known
  * origin is returned, because anything left of it may have been written by the client. When every
- * hop is trusted, the leftmost one is returned. {@code Forwarded} wins over {@code X-Forwarded-For}
- * when both are present. No host name is ever resolved.
+ * hop is trusted, the leftmost one is returned. Only the configured header is read, since a client
+ * can send the other one through proxies that leave it untouched. No host name is ever resolved.
  */
 public final class ClientIpResolver {
 
@@ -44,7 +44,19 @@ public final class ClientIpResolver {
     if (chain == null) {
       throw new IllegalArgumentException("proxy chain must not be null");
     }
-    return IpLiterals.parse(chain.remoteAddress()).map(remote -> walk(remote, chain));
+    return IpLiterals.parse(withoutZone(chain.remoteAddress())).map(remote -> walk(remote, chain));
+  }
+
+  // Containers report link-local IPv6 peers with their interface (fe80::1%en0). The zone id is
+  // dropped for the connection's own address only; hops written into headers keep being rejected.
+  private static String withoutZone(String remoteAddress) {
+    if (remoteAddress == null) {
+      return null;
+    }
+    var zone = remoteAddress.indexOf('%');
+    return zone > 0 && remoteAddress.contains(":")
+        ? remoteAddress.substring(0, zone)
+        : remoteAddress;
   }
 
   private InetAddress walk(InetAddress remote, ProxyChain chain) {
