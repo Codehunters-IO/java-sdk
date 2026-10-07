@@ -18,6 +18,8 @@ import org.springframework.util.ClassUtils;
  * The specification of one whitelisted condition. After deserialization it converts values with
  * Spring Boot's shared {@link ApplicationConversionService}: a custom conversion service is not
  * serialized.
+ *
+ * @param <T> the entity type
  */
 final class CriteriaSpecification<T> implements Specification<T> {
 

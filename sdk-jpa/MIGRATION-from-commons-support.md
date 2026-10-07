@@ -9,7 +9,7 @@ was rewritten; none is source compatible.
 
 | commons-support | sdk-jpa |
 |---|---|
-| `JpaEntity<I extends Number>` (`IDENTITY` id, `Persistable`) | `BaseEntity`: UUID v7 id, `@Version`, proxy-safe equality |
+| `JpaEntity<I extends Number>` (`IDENTITY` id, `Persistable`) | `BaseEntity`: UUID v7 id, `@Version`, `Persistable`, proxy-safe equality; `id()` instead of `getId()` |
 | `AuditableJpaEntity` (`java.util.Date`; `created_by`, `created_date`, `modified_by`, `last_modified_date`) | `AuditableEntity` (`Instant`; `created_by`, `created_at`, `updated_by`, `updated_at`) |
 | `UniqueIdJpaEntity` (`unique_Id varchar(80)`) | not migrated: the UUID id is the unique id; keep your own column if you need another |
 | `GeolocationJpaEntity` (`latitude`, `longitude`) | not migrated: coordinates are the application's model |
@@ -45,7 +45,8 @@ Fixed on the way:
   ignores case on both sides.
 - **Values were compared as given.** They are converted to the attribute's type.
 - **Nested paths were not supported.** `customer.name` is now a left join, shared per query, so rows
-  without a customer still match an `OR` on another attribute.
+  without a customer still match an `OR` on another attribute. A path through a collection is an
+  `EXISTS` subquery per condition.
 
 ## Pagination
 

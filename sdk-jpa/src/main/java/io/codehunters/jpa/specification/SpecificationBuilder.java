@@ -12,10 +12,12 @@ import org.springframework.data.jpa.domain.Specification;
 
 /**
  * Builds Spring Data JPA {@link Specification}s from {@link SearchCriteria}, only over whitelisted
- * attributes. API names map to entity property paths; a path through an association, such as {@code
- * customer.name}, is reached with a left join that conditions on the same association share. Values
- * are converted to the attribute's type with a {@link ConversionService}. Immutable and
- * thread-safe: build one per entity and reuse it.
+ * attributes. API names map to entity property paths; a path through a to-one association, such as
+ * {@code customer.name}, is reached with a left join that conditions on the same association share,
+ * and a path through a collection, such as {@code lines.sku}, with a correlated {@code EXISTS}
+ * subquery per condition, so the query is never {@code distinct}. Values are converted to the
+ * attribute's type with a {@link ConversionService}. Immutable and thread-safe: build one per
+ * entity and reuse it.
  *
  * <pre>{@code
  * SpecificationBuilder<Order> SEARCH =

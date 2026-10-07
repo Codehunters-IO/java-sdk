@@ -36,16 +36,21 @@ Chosen option: **Option A**.
 
 - **Ids.** Hibernate 7's `@UuidGenerator(style = VERSION_7)` generates time-ordered UUIDs on persist:
   no sequence or identity round trip, inserts stay mostly append-only in B-tree indexes, and ids are
-  safe to expose. Equality is by class and id and reads proxies through their lazy initializer;
-  `hashCode()` is per class so hash collections survive the transition from new to persisted.
+  safe to expose. `BaseEntity` is a Spring Data `Persistable`, new while it has no id, so
+  repositories persist new entities rather than merge a copy; its accessors are record style because
+  Spring reads `Optional`-returning `getX()` methods as bean properties. Equality is by class and id,
+  final, and reads proxies through their lazy initializer without loading them; `hashCode()` is per
+  class so hash collections survive the transition from new to persisted.
 - **Auditing.** The SDK enables Spring Data JPA auditing with a `Clock`-based `DateTimeProvider`
   (microsecond precision, what the databases keep) and, with Spring Security, an `AuditorAware`
   that returns the authenticated name. It steps aside for an application's own
   `@EnableJpaAuditing`, provider beans, or a property.
 - **Whitelists.** `SortWhitelist` and `SpecificationBuilder` map API names to entity property paths
   and reject everything else. Search values are converted to the attribute type; `LIKE` escapes its
-  wildcards; associations are left-joined once per query; criteria and `IN` lists are capped.
-  Errors never repeat the client's input.
+  wildcards; to-one associations are left-joined once per query, and a path through a collection
+  is a correlated `EXISTS` subquery per condition, so the outer query is never `distinct` and stays
+  sortable by any whitelisted property; criteria, `IN` lists and `LIKE` values are capped. Errors
+  never repeat the client's input.
 
 ### Consequences
 
