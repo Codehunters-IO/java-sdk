@@ -101,13 +101,14 @@ tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
 }
 
 // The gates are the same for every module. The old per-module override is rejected rather than
-// silently ignored, so nobody believes a lowered bar is still in effect.
-val coverageOverride = providers.gradleProperty("coverage.branch.minimum")
+// silently ignored, so nobody believes a lowered bar is still in effect. Project properties, not
+// gradleProperty(): only they include the module's own gradle.properties, where the override lived.
+val coverageOverride = findProperty("coverage.branch.minimum")?.toString()
 val verifyCoverageGates = tasks.register("verifyCoverageGates") {
     description = "Fails when a module tries to override the shared JaCoCo coverage gates."
     group = JavaBasePlugin.VERIFICATION_GROUP
-    val override = coverageOverride.orNull
-    val projectPath = path
+    val override = coverageOverride
+    val projectPath = project.path
     doLast {
         if (override != null) {
             throw GradleException(
