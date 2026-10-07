@@ -32,6 +32,8 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D8 | Mantener `@Measured` y su aspecto propio; no se reemplaza por `@Timed`/`@Counted` de Micrometer (2026-10-05) | `docs/adr/0008-keep-measured.md` |
 | D10 (A4) | `file-share` se autentica con client credentials por defecto; un bean `FileShareRequestInterceptor` lo reemplaza (2026-10-06) | `docs/adr/0009-file-share-outbound-client-credentials.md` |
 | D11 | Los utilitarios sueltos de `codehuntersio-java-commons-support` van a un módulo nuevo `sdk-commons`, solo JDK; no se reusa `sdk-utils` porque `sdk-totp` publica esa capability (2026-10-07) | `docs/adr/0010-sdk-commons-for-framework-free-helpers.md` |
+| D12 | Lo que queda de `codehuntersio-java-commons-support` se extrae en módulos propios, en este orden: `sdk-web-errors`, `sdk-device`, `sdk-barcode`, `sdk-jpa` (con converters y specifications) y `sdk-jasper`. Lo que ya cubren Boot, Spring o los SDK actuales se omite. `ClientIpResolver` va a `sdk-device`, junto al user agent, y no a `sdk-user-security` (2026-10-07) | — |
+| D13 | Los errores HTTP se responden con RFC 9457 `ProblemDetail` y una extensión `code` estable que sale de un enum `ErrorCode` por contexto (2026-10-07) | `docs/adr/0011-problem-details-with-stable-error-codes.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -888,6 +890,47 @@ Correcciones de la review independiente (sin hallazgos HIGH), cada una con su te
 
 Pendiente: sacar `codehuntersio-java-commons-support/` del directorio del repo.
 
+## Fases 13 a 17 — resto de `codehuntersio-java-commons-support` (D12)
+
+Cola acordada, una rama por fase, cada una sobre la anterior, con TDD y review independiente:
+
+| Fase | Módulo | Origen | Notas |
+|---|---|---|---|
+| 13 | `sdk-web-errors` 1.0.0 | `commons-web` | ✅ ver abajo |
+| 14 | `sdk-device` 1.0.0 | `commons-util-ip-support`, `commons-util-device-support` | `ClientIpResolver` con proxies de confianza (CIDR, `X-Forwarded-For`/`Forwarded` desde la derecha), `UserAgentParser` (uap-java opcional, longitud máxima, caché acotada), `ClientContext`; geolocalización solo como port `GeoIpLookup` sin implementación (el código viejo mandaba la IP a ip-api.com por HTTP). `audit-log` lo usa si está presente |
+| 15 | `sdk-barcode` 1.0.0 | `commons-util-barcode-support` | QR y 1D sobre zxing, tamaños configurables, validación por formato |
+| 16 | `sdk-jpa` 1.0.0 | `commons-repository`, `commons-jpa-mapper-support`, `commons-jpa-converter-support` | `BaseEntity` (UUID, `@Version`, `equals`/`hashCode` seguros con proxies), `AuditableEntity` con el auditing de Spring Data, `PageResponse<T>`, sort con lista blanca, converters JSON con `JsonMapper`, specifications reescritas (`BETWEEN` con dos extremos, `LIKE` escapado, atributos en lista blanca) |
+| 17 | `sdk-jasper` 1.0.0 | `commons-util-jasperreport-support` | JasperReports 7 (Jakarta, OpenPDF en vez de iText 2.1.7), render en streaming, caché de plantillas compiladas con carga única, plantillas solo de `classpath:`, virtualizer, `ReportException` sin valores |
+
+Se omite, porque ya existe: `UUIDConstraint` (`@UUID` de Hibernate Validator), `CollectionValidator`
+(`List<@Valid T>`), `createURI` (`ServletUriComponentsBuilder`), mail y Mustache (starters de Boot),
+tasklets (Spring Batch), JWT y TOTP (`sdk-user-security`, `sdk-totp`), properties acopladas a una app.
+
+## Fase 13 — `sdk-web-errors` 1.0.0 ✅ (rama `feature/sdk-web-errors-v1`, sobre `feature/sdk-commons-v1`)
+
+Origen: `commons-web` (`ApiError`, `ApiMessage`, `RestException`, `ContractException`), que serializaba
+el `Throwable` entero y mandaba texto libre como único identificador. Decisión D13 /
+[ADR 0011](../adr/0011-problem-details-with-stable-error-codes.md).
+
+Hecho con TDD (cada `feat` con su `test` en rojo antes: `557b6ed` → `3048451`, `c0f159c` → `d46a778`):
+- Modelo sin framework (`ErrorCode` con `int status()`, `ApiException`, `FieldViolation`,
+  `CommonErrorCode`), con un test de ArchUnit. El mensaje de `ApiException` es solo el código.
+- `WebErrorsExceptionHandler` (`ResponseEntityExceptionHandler`, orden último): `ApiException`,
+  validación (`@Valid`, validación de parámetros, `ConstraintViolationException`) con `errors` sin
+  valores rechazados, excepciones propias de Spring MVC con el detalle reemplazado (el de Spring repite
+  la entrada), `@ResponseStatus`, `ResponseStatusException` de la app con su `reason`, 500 genérico
+  para lo demás. Las excepciones de Spring Security se relanzan.
+- Extensiones `code`, `traceId` (del `TraceContextPort` de `sdk-tracing` si está, si no del MDC) y
+  `errors`; `type` desde `codehunters.web-errors.type-base-uri`; `instance` = path sin query.
+- Mensajes por `MessageSource` en el locale del request: `error.<CODE>` y `web-errors.<STATUS>`.
+- Auto-config antes de `WebMvcAutoConfiguration` (el handler de problem details de Boot no se
+  registra); se aparta ante un `ResponseEntityExceptionHandler` de la app o con
+  `codehunters.web-errors.enabled=false`. Propiedades validadas al arrancar.
+- `sdk-bom` 1.0.0 incluye `sdk-web-errors`; como no se había publicado, su lock suma el módulo.
+
+Desvíos: el módulo compila con `-parameters` para que la validación de parámetros nombre el campo. Una
+`ErrorResponseException` armada por la app pierde su detalle; está documentado (usar `ApiException`).
+
 ## Orden y dependencias
 
 ```
@@ -906,7 +949,8 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
-`feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1`.
+`feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1` →
+`feature/sdk-web-errors-v1`.
 Se integran en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
@@ -930,6 +974,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-geo-validation` | 0.2.0 | (sale del SDK; no está en el BOM, `0.2.1-SNAPSHOT` local sin publicar) |
 | `sdk-support` | — | 1.0.0 (interno) |
 | `sdk-commons` | `commons-util` 5.1.0 (otro repo) | 1.0.0 |
+| `sdk-web-errors` | `commons-web` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
