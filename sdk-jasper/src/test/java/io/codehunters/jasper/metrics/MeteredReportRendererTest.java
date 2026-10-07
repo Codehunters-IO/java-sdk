@@ -57,6 +57,30 @@ class MeteredReportRendererTest {
   }
 
   @Test
+  void should_close_the_renderer_it_wraps() {
+    var closed = new java.util.concurrent.atomic.AtomicBoolean();
+    var delegate =
+        new ReportRenderer() {
+          @Override
+          public void render(ReportRequest request, OutputStream out) {}
+
+          @Override
+          public byte[] toBytes(ReportRequest request) {
+            return DOCUMENT;
+          }
+
+          @Override
+          public void close() {
+            closed.set(true);
+          }
+        };
+
+    new MeteredReportRenderer(delegate, registry).close();
+
+    assertThat(closed).isTrue();
+  }
+
+  @Test
   void should_reject_missing_collaborators() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new MeteredReportRenderer(null, registry))
