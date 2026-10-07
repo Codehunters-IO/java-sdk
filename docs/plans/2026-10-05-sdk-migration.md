@@ -900,7 +900,7 @@ Cola acordada, una rama por fase, cada una sobre la anterior, con TDD y review i
 | 14 | `sdk-device` 1.0.0 | `commons-util-ip-support`, `commons-util-device-support` | `ClientIpResolver` con proxies de confianza (CIDR, `X-Forwarded-For`/`Forwarded` desde la derecha), `UserAgentParser` (uap-java opcional, longitud máxima, caché acotada), `ClientContext`; geolocalización solo como port `GeoIpLookup` sin implementación (el código viejo mandaba la IP a ip-api.com por HTTP). `audit-log` lo usa si está presente |
 | 15 | `sdk-barcode` 1.0.0 | `commons-util-barcode-support` | QR y 1D sobre zxing, tamaños configurables, validación por formato |
 | 16 | `sdk-jpa` 1.0.0 | `commons-repository`, `commons-jpa-mapper-support`, `commons-jpa-converter-support` | `BaseEntity` (UUID, `@Version`, `equals`/`hashCode` seguros con proxies), `AuditableEntity` con el auditing de Spring Data, `PageResponse<T>`, sort con lista blanca, converters JSON con `JsonMapper`, specifications reescritas (`BETWEEN` con dos extremos, `LIKE` escapado, atributos en lista blanca) |
-| 17 | `sdk-jasper` 1.0.0 | `commons-util-jasperreport-support` | JasperReports 7 (Jakarta, OpenPDF en vez de iText 2.1.7), render en streaming, caché de plantillas compiladas con carga única, plantillas solo de `classpath:`, virtualizer, `ReportException` sin valores |
+| 17 | `sdk-jasper` 1.0.0 | `commons-util-jasperreport-support` | ✅ ver abajo. JasperReports 7 (Jakarta, OpenPDF en vez de iText 2.1.7), render en streaming, caché de plantillas compiladas con carga única, plantillas solo de `classpath:`, virtualizer, `ReportException` sin valores |
 
 Se omite, porque ya existe: `UUIDConstraint` (`@UUID` de Hibernate Validator), `CollectionValidator`
 (`List<@Valid T>`), `createURI` (`ServletUriComponentsBuilder`), mail y Mustache (starters de Boot),
@@ -1057,6 +1057,52 @@ Abierto: los límites cubren la memoria de la decodificación, no el tamaño com
 README pide limitar el body). Un código chico dentro de una foto grande puede perderse por el
 submuestreo (hay que recortar antes).
 
+## Fase 17 — `sdk-jasper` 1.0.0 ✅ (rama `feature/sdk-jasper-v1`, sobre `feature/sdk-barcode-v1`)
+
+Origen: `commons-util-jasperreport-support` (`JasperManagerUtil.fill`): compilaba el JRXML recibido
+como `InputStream` en cada llamada, solo PDF, JasperReports 6.13 con iText 2.1.7 y `JRException`
+chequeada.
+
+Hecho con TDD (cada `feat` con su `test` en rojo antes: `6d7fbe8` → `2158b28`, `b85f0ca` → `248df82`,
+`a860447` → `c4397ab`, `7aa113f` → `5380e1d`; luego `707b1fe` tests de bordes, `423201d` BOM,
+`0b650c9` docs):
+- JasperReports 7.0.8 (`jasperreports` + `jasperreports-pdf`), sin advisories en OSV, igual que sus
+  transitivas salvo Jackson 2: Boot fija 2.20.2 con advisories abiertos y el módulo lo sube a 2.21.7
+  (limpio) con constraints. `jasperreports-pdf` fija `openpdf:1.3.43.jaspersoft.2`, que solo sirve el
+  repositorio de Jaspersoft: se excluye y se usa OpenPDF 1.3.43 de Maven Central.
+- `ReportRequest` (plantilla validada, parámetros copiados con `null` permitido y los built-in que
+  maneja el SDK rechazados, `ReportData`, `ReportFormat`), `toString()` sin valores. `ReportData`:
+  beans, supplier de `JRDataSource` (una fuente se consume al leerla) o vacío. Los beans pueden ser
+  records (el bean source de Jasper no los lee: `NoSuchMethodException`) con rutas `a.b`.
+- `JasperReportRenderer`: `render(request, out)` en streaming (el stream queda abierto) y `toBytes`
+  con tope (`max-output-size`). Plantillas solo bajo `template-base` en el classpath; `.jasper` tal
+  cual, `.jrxml` compilado una vez en una caché LRU acotada con carga única entre pedidos
+  concurrentes y sin cachear fallos.
+- Contexto de Jasper endurecido: hereda todas las extensiones salvo el repositorio, reemplazado por
+  uno que solo lee del folder base del classpath (rutas de archivo, URLs y `..` no resuelven nada);
+  repositorio de archivos apagado, sin `DOCTYPE` ni entidades desconocidas en JRXML.
+- Virtualizer opcional (`JRSwapFileVirtualizer`) por render, borrado al terminar aunque falle.
+- `ReportException` con el nombre de la plantilla como mucho, nunca valores; la causa (de Jasper)
+  queda para el log.
+- `config`: `codehunters.jasper.{enabled, template-base, cache-size, max-output-size,
+  virtualizer.enabled, virtualizer.max-pages, virtualizer.directory}` validado al arrancar; con
+  Micrometer y un `MeterRegistry` único, `MeteredReportRenderer` mide `report.render` por `format` y
+  `outcome`. ArchUnit: el paquete core depende solo del JDK y de JasperReports; `metrics`, sin Spring.
+- ADR 0014. `sdk-bom` 1.0.0 incluye `sdk-jasper` (lock a mano; BOM sin publicar).
+
+Desvíos del plan:
+- XLSX no necesita `jasperreports-excel-poi`: el `JRXlsxExporter` de Jasper 7 está en el core y
+  escribe OOXML sin POI (ese módulo es el XLS binario). Los tres formatos están siempre disponibles;
+  no hay detección de módulos en el classpath.
+- No hay tarea de compilación en build; el README explica cómo precompilar con
+  `JasperCompileManager` y por qué conviene (`.jrxml` necesita `jdk.compiler` en runtime).
+
+Abierto: sin review independiente todavía. La mutación de las propiedades XXE (permitir `DOCTYPE`)
+no rompe el test: Jasper 7 ya rechaza ese JRXML por su cuenta, así que las propiedades del SDK son
+defensa adicional. OpenPDF de Central puede no traer arreglos del build de Jaspersoft (los tests
+cubren texto, imágenes y varias páginas). Las advisories de Spring Boot 4.0.2, Spring, Logback y
+Micrometer que reporta OSV son de todo el repo, no de este módulo.
+
 ## Orden y dependencias
 
 ```
@@ -1076,7 +1122,8 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
 `feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1` →
-`feature/sdk-web-errors-v1` → `feature/sdk-device-v1` → `feature/sdk-barcode-v1`.
+`feature/sdk-web-errors-v1` → `feature/sdk-device-v1` → `feature/sdk-barcode-v1` →
+`feature/sdk-jasper-v1`.
 Se integran en ese orden.
 
 `feature/sdk-device-v1` se construyó en paralelo en un worktree aparte y se rebaseó sobre
@@ -1110,6 +1157,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-web-errors` | `commons-web` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-device` | `commons-util-ip-support`, `commons-util-device-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-barcode` | `commons-util-barcode-support` 5.1.0 (otro repo) | 1.0.0 |
+| `sdk-jasper` | `commons-util-jasperreport-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
