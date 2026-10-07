@@ -1,6 +1,7 @@
 package io.codehunters.security;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -25,7 +26,21 @@ public class KeycloakSecurityLegacyProperties implements EnvironmentPostProcesso
               "keycloak.security.client-secret", "codehunters.security.introspection.client-secret",
               "keycloak.security.cache-ttl-seconds", "codehunters.security.introspection.cache-ttl",
               "keycloak.security.fail-open", "codehunters.security.introspection.fail-open"),
-          Map.of("keycloak.security.cache-ttl-seconds", seconds -> seconds.trim() + "s"));
+          Map.of("keycloak.security.cache-ttl-seconds", seconds -> seconds.trim() + "s"),
+          List.of(
+              "keycloak.security.url",
+              "keycloak.security.realm",
+              "keycloak.security.client-id",
+              "keycloak.security.client-secret",
+              "keycloak.security.cache-ttl-seconds",
+              "keycloak.security.fail-open",
+              "keycloak.security.public-paths",
+              "keycloak.security.excluded-paths",
+              "keycloak.security.cors.allowed-origins",
+              "keycloak.security.cors.allowed-methods",
+              "keycloak.security.cors.allowed-headers",
+              "keycloak.security.cors.allow-credentials",
+              "keycloak.security.cors.max-age"));
 
   private final Log log;
 

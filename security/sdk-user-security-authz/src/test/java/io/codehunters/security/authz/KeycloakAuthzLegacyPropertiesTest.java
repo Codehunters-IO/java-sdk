@@ -14,6 +14,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 
 class KeycloakAuthzLegacyPropertiesTest {
 
@@ -53,6 +54,25 @@ class KeycloakAuthzLegacyPropertiesTest {
     assertThat(environment.getProperty("codehunters.security.url"))
         .isEqualTo("https://kc.example.com");
     assertThat(environment.getProperty("codehunters.security.realm")).isEqualTo("acme");
+  }
+
+  @Test
+  void should_bind_2x_keys_when_environment_variables_split_dashed_names() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of("KEYCLOAK_POLICY_ENFORCER_ENFORCEMENT_MODE", "PERMISSIVE")));
+
+    new KeycloakAuthzLegacyProperties(Supplier::get)
+        .postProcessEnvironment(environment, new SpringApplication());
+
+    KeycloakPolicyEnforcerProperties properties =
+        Binder.get(environment)
+            .bindOrCreate("codehunters.security.authz", KeycloakPolicyEnforcerProperties.class);
+    assertThat(properties.enforcementMode()).isEqualTo(EnforcementMode.PERMISSIVE);
   }
 
   @Test

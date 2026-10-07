@@ -59,6 +59,16 @@ class I18nLegacyPropertiesTest {
   }
 
   @Test
+  void should_bind_legacy_keys_when_environment_variables_split_dashed_names() {
+    useEnvironment(Map.of("VITXO_I18N_DEFAULT_LOCALE", "en", "VITXO_I18N_HEADER_NAME", "X-Lang"));
+
+    I18nProperties properties = postProcessAndBind();
+
+    assertThat(properties.defaultLocale()).isEqualTo(Locale.of("en"));
+    assertThat(properties.headerName()).isEqualTo("X-Lang");
+  }
+
+  @Test
   void should_keep_new_key_when_both_old_and_new_keys_set() {
     addApplicationProperties(
         Map.of("vitxo.i18n.header-name", "X-Old", "codehunters.i18n.header-name", "X-New"));
@@ -93,6 +103,15 @@ class I18nLegacyPropertiesTest {
         .contains("\"replacement\": \"codehunters.i18n.default-locale\"")
         .contains("\"replacement\": \"codehunters.i18n.fallback-to-system-locale\"")
         .contains("\"name\": \"codehunters.i18n.supported-locales\"");
+  }
+
+  private void useEnvironment(Map<String, Object> variables) {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, variables));
   }
 
   private void addApplicationProperties(Map<String, Object> properties) {

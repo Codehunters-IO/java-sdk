@@ -68,6 +68,22 @@ class OutboxLegacyPropertiesTest {
   }
 
   @Test
+  void should_bind_legacy_keys_when_environment_variables_split_dashed_names() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of("OUTBOX_BATCH_SIZE", "7", "OUTBOX_MAX_ATTEMPTS", "9")));
+
+    EventMessagingProperties properties = postProcessAndBind();
+
+    assertThat(properties.batchSize()).isEqualTo(7);
+    assertThat(properties.maxAttempts()).isEqualTo(9);
+  }
+
+  @Test
   void should_keep_new_key_when_both_old_and_new_keys_set() {
     addApplicationProperties(
         Map.of("outbox.batch-size", "10", "codehunters.outbox.batch-size", "20"));

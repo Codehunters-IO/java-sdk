@@ -1,6 +1,7 @@
 package io.codehunters.security.authz;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -23,7 +24,15 @@ public class KeycloakAuthzLegacyProperties implements EnvironmentPostProcessor, 
               "keycloak.policy-enforcer", "codehunters.security.authz",
               "keycloak.host", "codehunters.security.url",
               "keycloak.realm", "codehunters.security.realm"),
-          Map.of());
+          Map.of(),
+          List.of(
+              "keycloak.policy-enforcer.enabled",
+              "keycloak.policy-enforcer.enforcement-mode",
+              "keycloak.policy-enforcer.resource",
+              "keycloak.policy-enforcer.client-secret",
+              "keycloak.policy-enforcer.paths",
+              "keycloak.host",
+              "keycloak.realm"));
 
   private final Log log;
 

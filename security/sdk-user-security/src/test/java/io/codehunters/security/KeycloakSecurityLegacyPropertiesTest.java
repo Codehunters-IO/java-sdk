@@ -83,6 +83,30 @@ class KeycloakSecurityLegacyPropertiesTest {
   }
 
   @Test
+  void should_bind_2x_keys_when_environment_variables_split_dashed_names() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of(
+                    "KEYCLOAK_SECURITY_CLIENT_SECRET", "secret",
+                    "KEYCLOAK_SECURITY_CACHE_TTL_SECONDS", "60",
+                    "KEYCLOAK_SECURITY_PUBLIC_PATHS_0", "/public/**")));
+
+    new KeycloakSecurityLegacyProperties(Supplier::get)
+        .postProcessEnvironment(environment, new SpringApplication());
+
+    KeycloakSecurityProperties properties =
+        Binder.get(environment)
+            .bindOrCreate("codehunters.security", KeycloakSecurityProperties.class);
+    assertThat(properties.introspection().clientSecret()).isEqualTo("secret");
+    assertThat(properties.introspection().cacheTtl()).isEqualTo(Duration.ofSeconds(60));
+    assertThat(properties.publicPaths()).containsExactly("/public/**");
+  }
+
+  @Test
   void should_be_discovered_by_spring_boot() {
     DeferredLogFactory logFactory = Supplier::get;
 

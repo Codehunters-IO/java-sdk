@@ -1,6 +1,7 @@
 package io.codehunters.i18n.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -18,7 +19,16 @@ import org.springframework.core.env.ConfigurableEnvironment;
 public class I18nLegacyProperties implements EnvironmentPostProcessor, Ordered {
 
   private static final LegacyPropertyAliases ALIASES =
-      new LegacyPropertyAliases("i18n", Map.of("vitxo.i18n", "codehunters.i18n"), Map.of());
+      new LegacyPropertyAliases(
+          "i18n",
+          Map.of("vitxo.i18n", "codehunters.i18n"),
+          Map.of(),
+          List.of(
+              "vitxo.i18n.basename",
+              "vitxo.i18n.default-locale",
+              "vitxo.i18n.header-name",
+              "vitxo.i18n.encoding",
+              "vitxo.i18n.fallback-to-system-locale"));
 
   private final Log log;
 

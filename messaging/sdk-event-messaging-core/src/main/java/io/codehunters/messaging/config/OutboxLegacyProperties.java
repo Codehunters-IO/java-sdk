@@ -1,6 +1,7 @@
 package io.codehunters.messaging.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -19,7 +20,30 @@ public class OutboxLegacyProperties implements EnvironmentPostProcessor, Ordered
 
   private static final LegacyPropertyAliases ALIASES =
       new LegacyPropertyAliases(
-          "event-messaging", Map.of("outbox", "codehunters.outbox"), Map.of());
+          "event-messaging",
+          Map.of("outbox", "codehunters.outbox"),
+          Map.of(),
+          List.of(
+              "outbox.enabled",
+              "outbox.batch-size",
+              "outbox.max-attempts",
+              "outbox.task.fixed-delay",
+              "outbox.task.lock-at-most",
+              "outbox.task.lock-at-least",
+              "outbox.task.lock-name",
+              "outbox.claim.ttl-ms",
+              "outbox.claim.dialect",
+              "outbox.backoff.base-delay-ms",
+              "outbox.backoff.max-delay-ms",
+              "outbox.publisher.type",
+              "outbox.publisher.kafka.send-timeout",
+              "outbox.purge.retention",
+              "outbox.purge.batch-size",
+              "outbox.purge.fixed-delay",
+              "outbox.purge.initial-delay",
+              "outbox.purge.lock-name",
+              "outbox.purge.lock-at-most",
+              "outbox.purge.lock-at-least"));
 
   private final Log log;
 

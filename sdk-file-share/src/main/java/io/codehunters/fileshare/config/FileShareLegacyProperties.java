@@ -1,6 +1,7 @@
 package io.codehunters.fileshare.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -19,7 +20,14 @@ public class FileShareLegacyProperties implements EnvironmentPostProcessor, Orde
 
   private static final LegacyPropertyAliases ALIASES =
       new LegacyPropertyAliases(
-          "file-share", Map.of("vitxo.file-share", "codehunters.file-share"), Map.of());
+          "file-share",
+          Map.of("vitxo.file-share", "codehunters.file-share"),
+          Map.of(),
+          List.of(
+              "vitxo.file-share.enabled",
+              "vitxo.file-share.base-url",
+              "vitxo.file-share.connect-timeout",
+              "vitxo.file-share.read-timeout"));
 
   private final Log log;
 

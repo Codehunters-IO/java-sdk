@@ -46,6 +46,19 @@ class AuditLegacyPropertiesTest {
   }
 
   @Test
+  void should_bind_legacy_key_when_environment_variable_splits_dashed_name() {
+    environment
+        .getPropertySources()
+        .replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of("VITXO_AUDIT_FAIL_ON_ERROR", "true")));
+
+    assertThat(postProcessAndBind().failOnError()).isTrue();
+  }
+
+  @Test
   void should_keep_new_key_when_both_old_and_new_keys_set() {
     addApplicationProperties(
         Map.of("vitxo.audit.fail-on-error", "true", "codehunters.audit.fail-on-error", "false"));

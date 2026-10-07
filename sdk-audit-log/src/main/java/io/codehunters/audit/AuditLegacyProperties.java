@@ -1,6 +1,7 @@
 package io.codehunters.audit;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -18,7 +19,11 @@ import org.springframework.core.env.ConfigurableEnvironment;
 public class AuditLegacyProperties implements EnvironmentPostProcessor, Ordered {
 
   private static final LegacyPropertyAliases ALIASES =
-      new LegacyPropertyAliases("audit", Map.of("vitxo.audit", "codehunters.audit"), Map.of());
+      new LegacyPropertyAliases(
+          "audit",
+          Map.of("vitxo.audit", "codehunters.audit"),
+          Map.of(),
+          List.of("vitxo.audit.fail-on-error"));
 
   private final Log log;
 

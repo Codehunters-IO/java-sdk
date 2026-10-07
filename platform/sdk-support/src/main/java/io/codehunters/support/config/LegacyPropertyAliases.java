@@ -1,5 +1,6 @@
 package io.codehunters.support.config;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,11 +36,13 @@ public final class LegacyPropertyAliases {
    * @param name identifies the property source this instance adds
    * @param renames old key or prefix to new key or prefix
    * @param valueTransforms old key to a conversion applied to its value, e.g. seconds to a duration
+   * @param keys every old key that is aliased, in canonical form
    */
   public LegacyPropertyAliases(
       String name,
       Map<String, String> renames,
-      Map<String, UnaryOperator<String>> valueTransforms) {
+      Map<String, UnaryOperator<String>> valueTransforms,
+      Collection<String> keys) {
     this.name = name;
     this.renames =
         renames.entrySet().stream()
