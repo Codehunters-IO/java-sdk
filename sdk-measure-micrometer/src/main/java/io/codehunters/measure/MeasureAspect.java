@@ -1,14 +1,12 @@
 package io.codehunters.measure;
 
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.LongTaskTimer;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Tag;
-import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.Tags;
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -18,208 +16,154 @@ import org.slf4j.LoggerFactory;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
-import org.springframework.expression.ExpressionParser;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.expression.spel.support.SimpleEvaluationContext;
 
 /**
- * Aspect for measuring methods
+ * Records Micrometer meters for methods annotated with {@link Measured}, or declared in a class
+ * annotated with it. A method annotation takes precedence over the class annotation.
+ *
+ * <p>Measuring never changes the call: the method's result or exception reaches the caller as is,
+ * and a failure to evaluate an expression or to register a meter is logged and skipped. A method
+ * that returns a {@link CompletionStage} is measured until the stage completes, and the stage is
+ * returned unchanged.
+ *
+ * <p>Expressions run in a {@link SimpleEvaluationContext} with read access to properties and
+ * instance methods, and no access to types, constructors or beans. They see the arguments by name
+ * ({@code #orderId}) and position ({@code #p0}, {@code #a0}, {@code #arg0}); a count condition also
+ * sees {@code #result}. Each annotation is parsed once.
  *
  * @since 1.0.0
- * @author anresmontoyat@gmail.com
  */
 @Aspect
 public class MeasureAspect {
 
-  private final Logger log = LoggerFactory.getLogger(MeasureAspect.class);
+  /** Default cap on the distinct values of each expression tag. */
+  public static final int DEFAULT_MAX_TAG_VALUES = 100;
+
+  private static final Logger log = LoggerFactory.getLogger(MeasureAspect.class);
 
   private final MeterRegistry registry;
-  private final ExpressionParser expressionParser;
-  private final ParameterNameDiscoverer parameterNameDiscoverer;
+  private final TagCardinalityLimiter limiter;
+  private final Map<Measured, MeasuredDefinition> definitions = new ConcurrentHashMap<>();
+  private final ParameterNameDiscoverer parameterNames = new DefaultParameterNameDiscoverer();
+
+  /**
+   * Creates the aspect with {@value #DEFAULT_MAX_TAG_VALUES} values per expression tag.
+   *
+   * @param registry the registry meters are registered against
+   */
+  public MeasureAspect(MeterRegistry registry) {
+    this(registry, DEFAULT_MAX_TAG_VALUES);
+  }
 
   /**
    * Creates the aspect.
    *
-   * @param registry the Micrometer registry timers and counters are registered against
+   * @param registry the registry meters are registered against
+   * @param maxTagValues the distinct values each expression tag may take on a meter before new
+   *     values are recorded as {@code other}
+   * @throws IllegalArgumentException if {@code maxTagValues} is less than 1
+   * @since 3.0.0
    */
-  public MeasureAspect(MeterRegistry registry) {
+  public MeasureAspect(MeterRegistry registry, int maxTagValues) {
     this.registry = registry;
-    this.expressionParser = new SpelExpressionParser();
-    this.parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
+    this.limiter = new TagCardinalityLimiter(maxTagValues);
   }
 
   /**
-   * Times (and optionally counts) a method annotated with {@link Measured}.
+   * Measures a method annotated with {@link Measured}.
    *
    * @param pjp the intercepted join point
-   * @param measured the annotation on the intercepted method
-   * @return the value returned by the intercepted method
-   * @throws Throwable if the intercepted method throws
+   * @param measured the annotation on the method
+   * @return the value returned by the method
+   * @throws Throwable if the method throws
    */
   @Around("@annotation(measured)")
-  public Object aroundAnnotated(ProceedingJoinPoint pjp, Measured measured) throws Throwable {
-    if (log.isDebugEnabled()) log.debug("Measuring method: {}", pjp.getSignature().toShortString());
-    return time(pjp, measured);
+  public Object measureMethod(ProceedingJoinPoint pjp, Measured measured) throws Throwable {
+    return measure(pjp, measured);
   }
 
-  private Object time(ProceedingJoinPoint pjp, Measured measured) throws Throwable {
-    MethodSignature methodSignature = (MethodSignature) pjp.getSignature();
-    Method method = methodSignature.getMethod();
-    String metricName = resolveMetricName(measured, method);
+  /**
+   * Measures a method of a class annotated with {@link Measured}, unless the method has its own
+   * annotation.
+   *
+   * @param pjp the intercepted join point
+   * @param measured the annotation on the class
+   * @return the value returned by the method
+   * @throws Throwable if the method throws
+   * @since 3.0.0
+   */
+  @Around("@within(measured) && !@annotation(io.codehunters.measure.Measured)")
+  public Object measureClass(ProceedingJoinPoint pjp, Measured measured) throws Throwable {
+    return measure(pjp, measured);
+  }
 
-    if (log.isDebugEnabled()) log.debug("Metric name resolved to: {}", metricName);
-
-    EvaluationContext evaluationContext = buildEvaluationContext(pjp, method);
-    List<String> tags = resolveTags(measured, evaluationContext);
-    Iterable<Tag> micrometerTags = toTags(tags);
-
-    if (log.isDebugEnabled()) log.debug("Tags for metric '{}': {}", metricName, tags);
-
-    boolean useLongTask = measured.longTask();
-
-    Timer.Sample timerSample = null;
-    Timer timer = null;
-    LongTaskTimer.Sample longSample = null;
-
-    if (useLongTask) {
-      if (log.isDebugEnabled()) log.debug("Starting long-task timer for '{}'", metricName);
-      LongTaskTimer ltt =
-          LongTaskTimer.builder(String.format("%s.long-task", metricName))
-              .description("Long task execution time")
-              .tags(micrometerTags)
-              .register(registry);
-      longSample = ltt.start();
-    } else {
-      if (log.isDebugEnabled()) log.debug("Starting timer for '{}'", metricName);
-      timerSample = Timer.start(registry);
-      timer =
-          Timer.builder(metricName)
-              .description("Execution time")
-              .tags(micrometerTags)
-              .register(registry);
-    }
-
+  private Object measure(ProceedingJoinPoint pjp, Measured measured) throws Throwable {
+    Measurement measurement = start(pjp, measured);
+    Object result;
     try {
-      Object result = pjp.proceed();
-      incrementCountIfEnabled(measured, metricName, micrometerTags, evaluationContext, result);
-      return result;
+      result = pjp.proceed();
     } catch (Throwable ex) {
-      if (log.isDebugEnabled())
-        log.debug("Exception caught in '{}': {}", metricName, ex.getClass().getSimpleName());
-      if (measured.recordExceptions()) {
-        if (log.isDebugEnabled())
-          log.debug("Recording exception counter for '{}.errors'", metricName);
-        Counter.builder(String.format("%s.errors", metricName))
-            .tags(micrometerTags)
-            .tag("exception", ex.getClass().getSimpleName())
-            .register(registry)
-            .increment();
-      }
+      measurement.finished(null, ex);
       throw ex;
+    }
+    if (result instanceof CompletionStage<?> stage) {
+      stage.whenComplete((value, failure) -> measurement.finished(value, unwrap(failure)));
+      return result;
+    }
+    measurement.finished(result, null);
+    return result;
+  }
 
-    } finally {
-      if (useLongTask && longSample != null) {
-        longSample.stop();
-        if (log.isDebugEnabled()) log.debug("Long-task timer stopped for '{}'", metricName);
-      } else if (timerSample != null && timer != null) {
-        timerSample.stop(timer);
-        if (log.isDebugEnabled()) log.debug("Timer stopped for '{}'", metricName);
-      }
+  private Measurement start(ProceedingJoinPoint pjp, Measured measured) {
+    try {
+      MeasuredDefinition definition = definitions.computeIfAbsent(measured, MeasuredDefinition::of);
+      Method method = ((MethodSignature) pjp.getSignature()).getMethod();
+      EvaluationContext context = context(method, pjp.getArgs());
+      Tags tags =
+          Tags.of("class", pjp.getStaticPart().getSignature().getDeclaringTypeName())
+              .and("method", method.getName())
+              .and(definition.staticTags())
+              .and(expressionTags(definition, context));
+      return RecordingMeasurement.start(
+          new RecordingMeasurement.Call(registry, definition, tags, context));
+    } catch (RuntimeException ex) {
+      log.warn(
+          "Could not start @Measured meters of {}: {}",
+          pjp.getSignature().toShortString(),
+          ex.getClass().getName());
+      return Measurement.NONE;
     }
   }
 
-  private String resolveMetricName(Measured measured, Method method) {
-    return measured.name() == null || measured.name().isBlank()
-        ? method.getDeclaringClass().getSimpleName() + "." + method.getName()
-        : measured.name();
-  }
-
-  private EvaluationContext buildEvaluationContext(ProceedingJoinPoint pjp, Method method) {
-    Object[] args = pjp.getArgs();
-    String[] paramNames = parameterNameDiscoverer.getParameterNames(method);
-
-    if (paramNames == null || paramNames.length == 0) {
-      paramNames = new String[args.length];
-      for (int i = 0; i < args.length; i++) paramNames[i] = "arg" + i;
+  private Tags expressionTags(MeasuredDefinition definition, EvaluationContext context) {
+    Tags tags = Tags.empty();
+    for (MeasuredDefinition.ExpressionTag tag : definition.expressionTags()) {
+      String value = tag.expression().tagValue(context);
+      tags = tags.and(tag.key(), limiter.limit(definition.name(), tag.key(), value));
     }
-
-    EvaluationContext ctx = new StandardEvaluationContext();
-    for (int i = 0; i < args.length; i++) {
-      ctx.setVariable("p" + i, args[i]);
-      ctx.setVariable("a" + i, args[i]);
-      ctx.setVariable("arg" + i, args[i]);
-    }
-
-    for (int i = 0; i < paramNames.length; i++) {
-      ctx.setVariable(paramNames[i], args[i]);
-    }
-
-    return ctx;
-  }
-
-  private List<String> resolveTags(Measured measured, EvaluationContext ctx) {
-    List<String> tags = new ArrayList<>(Arrays.asList(measured.tags()));
-
-    if (measured.expressions() == null || measured.expressions().length == 0) {
-      return tags;
-    }
-
-    for (String expression : measured.expressions()) {
-      String[] keyValue = expression.split("=", 2);
-      if (keyValue.length == 2) {
-        String key = keyValue[0].trim();
-        String value =
-            expressionParser.parseExpression(keyValue[1].trim()).getValue(ctx, String.class);
-        if (value != null && !value.isBlank()) {
-          if (log.isDebugEnabled()) log.debug("Expression tag resolved: {}={}", key, value);
-          tags.add(key);
-          tags.add(value);
-        }
-      }
-    }
-
     return tags;
   }
 
-  private void incrementCountIfEnabled(
-      Measured measured,
-      String metricName,
-      Iterable<Tag> tags,
-      EvaluationContext ctx,
-      Object result) {
-    if (!measured.count()) return;
-
-    ctx.setVariable("result", result);
-
-    String condition = measured.countCondition();
-    if (condition != null && !condition.isBlank()) {
-      Boolean shouldCount =
-          expressionParser.parseExpression(condition).getValue(ctx, Boolean.class);
-      if (!Boolean.TRUE.equals(shouldCount)) {
-        if (log.isDebugEnabled())
-          log.debug("Count condition evaluated to false for '{}'", metricName);
-        return;
+  private EvaluationContext context(Method method, Object[] args) {
+    EvaluationContext context =
+        SimpleEvaluationContext.forReadOnlyDataBinding().withInstanceMethods().build();
+    String[] names = parameterNames.getParameterNames(method);
+    for (int i = 0; i < args.length; i++) {
+      context.setVariable("p" + i, args[i]);
+      context.setVariable("a" + i, args[i]);
+      context.setVariable("arg" + i, args[i]);
+      if (names != null && i < names.length) {
+        context.setVariable(names[i], args[i]);
       }
     }
-
-    String counterName = String.format("%s.count", metricName);
-
-    Counter.builder(counterName)
-        .description("Execution count")
-        .tags(tags)
-        .register(registry)
-        .increment(measured.countValue());
-
-    if (log.isDebugEnabled())
-      log.debug("Counter '{}' incremented by {}", counterName, measured.countValue());
+    return context;
   }
 
-  private Iterable<Tag> toTags(List<String> kv) {
-    List<Tag> out = new ArrayList<>();
-    for (int i = 0; i + 1 < kv.size(); i += 2) {
-      String k = kv.get(i), v = kv.get(i + 1);
-      if (k != null && v != null && !k.isBlank() && !v.isBlank()) out.add(Tag.of(k, v));
+  private static Throwable unwrap(Throwable failure) {
+    if (failure instanceof CompletionException && failure.getCause() != null) {
+      return failure.getCause();
     }
-    return out;
+    return failure;
   }
 }
