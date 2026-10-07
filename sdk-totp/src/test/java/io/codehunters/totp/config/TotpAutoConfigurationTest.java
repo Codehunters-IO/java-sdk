@@ -5,7 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.codehunters.totp.TotpAlgorithm;
 import io.codehunters.totp.TotpDigits;
 import io.codehunters.totp.TotpGenerator;
+import io.codehunters.totp.TotpSecret;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -70,5 +74,19 @@ class TotpAutoConfigurationTest {
                     .getFailure()
                     .rootCause()
                     .hasMessageContaining("timeStep"));
+  }
+
+  @Test
+  void should_use_application_clock_when_a_single_clock_bean_exists() {
+    var at = Instant.ofEpochSecond(59);
+    var secret = TotpSecret.fromHex("3132333435363738393031323334353637383930");
+
+    contextRunner
+        .withBean(Clock.class, () -> Clock.fixed(at, ZoneOffset.UTC))
+        .run(
+            context -> {
+              var generator = context.getBean(TotpGenerator.class);
+              assertThat(generator.generate(secret)).isEqualTo(generator.generate(secret, at));
+            });
   }
 }

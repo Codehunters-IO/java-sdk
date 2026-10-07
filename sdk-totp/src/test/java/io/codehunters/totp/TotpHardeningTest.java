@@ -3,8 +3,10 @@ package io.codehunters.totp;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 
 class TotpHardeningTest {
@@ -49,6 +51,27 @@ class TotpHardeningTest {
   }
 
   @Test
+  void should_reject_code_eleven_steps_ahead_when_variance_is_ten() {
+    var code = generator.generate(SECRET, AT.plusSeconds(330));
+
+    assertThat(generator.verify(SECRET, code, 10, AT)).isFalse();
+  }
+
+  @Test
+  void should_accept_code_ten_steps_behind_when_variance_is_ten() {
+    var code = generator.generate(SECRET, AT.minusSeconds(300));
+
+    assertThat(generator.verify(SECRET, code, 10, AT)).isTrue();
+  }
+
+  @Test
+  void should_reject_code_eleven_steps_behind_when_variance_is_ten() {
+    var code = generator.generate(SECRET, AT.minusSeconds(330));
+
+    assertThat(generator.verify(SECRET, code, 10, AT)).isFalse();
+  }
+
+  @Test
   void should_reject_null_code() {
     assertThat(generator.verify(SECRET, null, 1, AT)).isFalse();
   }
@@ -81,6 +104,50 @@ class TotpHardeningTest {
     var config = new TotpConfig(Duration.ofSeconds(1), TotpDigits.SIX, TotpAlgorithm.HMAC_SHA1);
 
     assertThat(config.timeStep()).isEqualTo(Duration.ofSeconds(1));
+  }
+
+  @Test
+  void should_reject_time_step_when_longer_than_ten_minutes() {
+    var step = TotpConfig.MAX_TIME_STEP.plusSeconds(1);
+
+    assertThatThrownBy(() -> new TotpConfig(step, TotpDigits.SIX, TotpAlgorithm.HMAC_SHA1))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("timeStep");
+  }
+
+  @Test
+  void should_accept_time_step_when_it_is_ten_minutes() {
+    var config = new TotpConfig(Duration.ofMinutes(10), TotpDigits.SIX, TotpAlgorithm.HMAC_SHA1);
+
+    assertThat(config.timeStep()).isEqualTo(TotpConfig.MAX_TIME_STEP);
+  }
+
+  @Test
+  void should_fail_at_construction_when_config_is_null() {
+    assertThatThrownBy(() -> new TotpGenerator(null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("config");
+  }
+
+  @Test
+  void should_generate_code_for_clock_time_when_clock_is_given() {
+    var clocked = new TotpGenerator(TotpConfig.defaultConfig(), Clock.fixed(AT, ZoneOffset.UTC));
+
+    assertThat(clocked.generate(SECRET)).isEqualTo(generator.generate(SECRET, AT));
+  }
+
+  @Test
+  void should_verify_code_against_clock_time_when_clock_is_given() {
+    var clocked = new TotpGenerator(TotpConfig.defaultConfig(), Clock.fixed(AT, ZoneOffset.UTC));
+
+    assertThat(clocked.verify(SECRET, generator.generate(SECRET, AT), 0)).isTrue();
+  }
+
+  @Test
+  void should_fail_at_construction_when_clock_is_null() {
+    assertThatThrownBy(() -> new TotpGenerator(TotpConfig.defaultConfig(), null))
+        .isInstanceOf(NullPointerException.class)
+        .hasMessageContaining("clock");
   }
 
   @Test

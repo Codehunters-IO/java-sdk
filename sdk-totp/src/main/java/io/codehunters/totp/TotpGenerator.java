@@ -43,6 +43,16 @@ public final class TotpGenerator {
   }
 
   /**
+   * Creates a generator that reads the current time from the given clock.
+   *
+   * @param config the TOTP parameters
+   * @param clock the source of the current time
+   */
+  public TotpGenerator(TotpConfig config, java.time.Clock clock) {
+    this(config);
+  }
+
+  /**
    * Generates the code for the current time.
    *
    * @param secret the shared secret

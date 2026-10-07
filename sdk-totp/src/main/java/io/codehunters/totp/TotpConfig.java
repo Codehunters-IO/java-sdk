@@ -12,6 +12,9 @@ import java.util.Objects;
  */
 public record TotpConfig(Duration timeStep, TotpDigits digits, TotpAlgorithm algorithm) {
 
+  /** The longest accepted time step. */
+  public static final Duration MAX_TIME_STEP = Duration.ofMinutes(10);
+
   private static final Duration DEFAULT_TIME_STEP = Duration.ofSeconds(30);
 
   /** Validates the parameters. */
