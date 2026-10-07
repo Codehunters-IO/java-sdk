@@ -56,11 +56,19 @@ class JsonAttributeConverterTest {
   }
 
   @Test
+  void should_report_a_value_jackson_cannot_write() {
+    var converter = new OpaqueConverter();
+
+    assertThatThrownBy(() -> converter.convertToDatabaseColumn(new Opaque()))
+        .isInstanceOf(JsonColumnException.class)
+        .hasMessageStartingWith("Could not write")
+        .hasNoCause();
+  }
+
+  @Test
   void should_use_the_mapper_it_is_given() {
     var snakeCase =
-        JsonMapper.builder()
-            .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
-            .build();
+        JsonMapper.builder().propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE).build();
     var custom = new NamedConverter(snakeCase);
 
     assertThat(custom.convertToDatabaseColumn(new Named("Ada Lovelace")))
@@ -69,11 +77,22 @@ class JsonAttributeConverterTest {
 
   @Test
   void should_reject_a_missing_type_or_mapper() {
-    assertThatThrownBy(() -> new NamedConverter(null))
-        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> new NamedConverter(null)).isInstanceOf(IllegalArgumentException.class);
   }
 
   record Named(String fullName) {}
+
+  static final class Opaque {
+    public String getSecret() {
+      throw new IllegalStateException("not readable");
+    }
+  }
+
+  static final class OpaqueConverter extends JsonAttributeConverter<Opaque> {
+    OpaqueConverter() {
+      super(new TypeReference<>() {});
+    }
+  }
 
   static final class NamedConverter extends JsonAttributeConverter<Named> {
     NamedConverter(JsonMapper mapper) {
