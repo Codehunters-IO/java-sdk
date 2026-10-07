@@ -4,91 +4,165 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.codehunters.i18n.LocaleMdcFilter;
 import io.codehunters.i18n.XLocaleAwareLocaleResolver;
+import jakarta.validation.Validator;
+import jakarta.validation.constraints.NotNull;
 import java.util.Locale;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration;
+import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
+import org.springframework.context.support.StaticMessageSource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.LocaleResolver;
 
+@ExtendWith(OutputCaptureExtension.class)
 class I18nAutoConfigurationTest {
 
-  private final ApplicationContextRunner contextRunner =
+  private static final Locale ENGLISH = Locale.of("en");
+  private static final Locale SPANISH = Locale.of("es");
+
+  private final WebApplicationContextRunner webRunner =
+      new WebApplicationContextRunner()
+          .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class));
+
+  private final ApplicationContextRunner plainRunner =
       new ApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class));
 
+  @AfterEach
+  void resetLocale() {
+    LocaleContextHolder.resetLocaleContext();
+  }
+
   @Test
-  @DisplayName("should_register_all_beans_when_autoconfig_runs")
-  void should_register_all_beans() {
-    contextRunner.run(
+  void should_register_all_beans_when_running_in_a_servlet_application() {
+    webRunner.run(
         context -> {
-          assertThat(context).hasBean("messageSource");
-          assertThat(context).hasSingleBean(LocaleResolver.class);
+          assertThat(context.getBean("messageSource"))
+              .isInstanceOf(ReloadableResourceBundleMessageSource.class);
+          assertThat(context.getBean("localeResolver"))
+              .isInstanceOf(XLocaleAwareLocaleResolver.class);
           assertThat(context).hasSingleBean(FilterRegistrationBean.class);
           assertThat(context).hasSingleBean(LocalValidatorFactoryBean.class);
-          assertThat(context.getBean(LocaleResolver.class))
-              .isInstanceOf(XLocaleAwareLocaleResolver.class);
         });
   }
 
   @Test
-  @DisplayName("should_apply_default_properties_when_not_overridden")
-  void should_apply_default_properties() {
-    contextRunner.run(
+  void should_skip_web_beans_when_application_is_not_a_servlet_application() {
+    plainRunner.run(
         context -> {
-          I18nProperties properties = context.getBean(I18nProperties.class);
-          assertThat(properties.getBasename()).isEqualTo("classpath:i18n/messages");
-          assertThat(properties.getDefaultLocale()).isEqualTo(Locale.of("es"));
-          assertThat(properties.getHeaderName()).isEqualTo("X-Locale");
+          assertThat(context).hasBean("messageSource");
+          assertThat(context).doesNotHaveBean(LocaleResolver.class);
+          assertThat(context).doesNotHaveBean(FilterRegistrationBean.class);
         });
   }
 
   @Test
-  @DisplayName("should_override_properties_when_provided_via_environment")
-  void should_override_properties() {
-    contextRunner
+  void should_back_off_entirely_when_disabled() {
+    webRunner
+        .withPropertyValues("codehunters.i18n.enabled=false")
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(I18nProperties.class);
+              assertThat(context).doesNotHaveBean(LocaleResolver.class);
+              assertThat(context).doesNotHaveBean(LocalValidatorFactoryBean.class);
+            });
+  }
+
+  @Test
+  void should_read_messages_from_configured_basenames() {
+    plainRunner
         .withPropertyValues(
-            "vitxo.i18n.basename=classpath:i18n/custom",
-            "vitxo.i18n.default-locale=en",
-            "vitxo.i18n.header-name=X-Lang",
-            "vitxo.i18n.encoding=ISO-8859-1",
-            "vitxo.i18n.fallback-to-system-locale=true")
+            "codehunters.i18n.basename=classpath:i18n/messages,classpath:i18n/extra")
         .run(
             context -> {
-              I18nProperties properties = context.getBean(I18nProperties.class);
-              assertThat(properties.getBasename()).isEqualTo("classpath:i18n/custom");
-              assertThat(properties.getDefaultLocale()).isEqualTo(Locale.of("en"));
-              assertThat(properties.getHeaderName()).isEqualTo("X-Lang");
-              assertThat(properties.getEncoding()).isEqualTo("ISO-8859-1");
-              assertThat(properties.isFallbackToSystemLocale()).isTrue();
+              assertThat(context.getMessage("greeting", null, ENGLISH)).isEqualTo("Hello");
+              assertThat(context.getMessage("farewell", null, ENGLISH)).isEqualTo("Bye");
             });
   }
 
   @Test
-  @DisplayName("should_back_off_when_user_provides_message_source")
-  void should_back_off_when_user_provides_message_source() {
-    contextRunner
-        .withUserConfiguration(CustomMessageSourceConfig.class)
+  void should_use_default_locale_bundle_when_requested_locale_has_none() {
+    plainRunner
+        .withPropertyValues("codehunters.i18n.default-locale=en")
+        .run(
+            context ->
+                assertThat(context.getMessage("greeting", null, Locale.of("fr")))
+                    .isEqualTo("Hello"));
+  }
+
+  @Test
+  void should_apply_locale_properties_to_the_resolver() {
+    webRunner
+        .withPropertyValues(
+            "codehunters.i18n.default-locale=en", "codehunters.i18n.supported-locales=en,es")
         .run(
             context -> {
-              MessageSource custom = context.getBean("customSource", MessageSource.class);
-              assertThat(context.getBeansOfType(MessageSource.class)).containsValue(custom);
-              assertThat(context.getBeansOfType(ReloadableResourceBundleMessageSource.class))
-                  .hasSize(1)
-                  .containsKey("customSource");
+              var resolver = context.getBean(XLocaleAwareLocaleResolver.class);
+              assertThat(resolver.getDefaultLocale()).isEqualTo(ENGLISH);
+              assertThat(resolver.getSupportedLocales()).containsExactly(ENGLISH, SPANISH);
             });
   }
 
   @Test
-  @DisplayName("should_register_filter_at_configured_order")
-  void should_register_filter_at_configured_order() {
-    contextRunner.run(
+  void should_back_off_message_source_when_application_defines_one_named_message_source() {
+    plainRunner
+        .withUserConfiguration(NamedMessageSourceConfig.class)
+        .run(
+            context ->
+                assertThat(context.getBean("messageSource"))
+                    .isInstanceOf(StaticMessageSource.class));
+  }
+
+  @Test
+  void should_keep_its_message_source_when_application_message_source_has_another_name() {
+    plainRunner
+        .withUserConfiguration(OtherMessageSourceConfig.class)
+        .run(
+            context ->
+                assertThat(context.getBean("messageSource"))
+                    .isInstanceOf(ReloadableResourceBundleMessageSource.class));
+  }
+
+  @Test
+  void should_warn_when_spring_messages_basename_is_set(CapturedOutput output) {
+    plainRunner
+        .withPropertyValues("spring.messages.basename=messages")
+        .run(
+            context ->
+                assertThat(output).contains("spring.messages.*").contains("codehunters.i18n"));
+  }
+
+  @Test
+  void should_back_off_locale_resolver_when_application_defines_one() {
+    webRunner
+        .withUserConfiguration(LocaleResolverConfig.class)
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(LocaleResolver.class);
+              assertThat(context.getBean(LocaleResolver.class))
+                  .isNotInstanceOf(XLocaleAwareLocaleResolver.class);
+            });
+  }
+
+  @Test
+  void should_register_filter_at_configured_order_when_running_in_a_servlet_application() {
+    webRunner.run(
         context -> {
           FilterRegistrationBean<?> registration = context.getBean(FilterRegistrationBean.class);
           assertThat(registration.getOrder())
@@ -98,11 +172,87 @@ class I18nAutoConfigurationTest {
         });
   }
 
-  @Configuration
-  static class CustomMessageSourceConfig {
+  @Test
+  void should_back_off_validator_when_application_defines_one() {
+    plainRunner
+        .withUserConfiguration(ValidatorConfig.class)
+        .run(
+            context ->
+                assertThat(context).hasSingleBean(Validator.class).hasBean("customValidator"));
+  }
+
+  @Test
+  void should_skip_validator_when_no_validation_provider_is_present() {
+    plainRunner
+        .withClassLoader(
+            new FilteredClassLoader(
+                new ClassPathResource(
+                    "META-INF/services/jakarta.validation.spi.ValidationProvider")))
+        .run(context -> assertThat(context).doesNotHaveBean(LocalValidatorFactoryBean.class));
+  }
+
+  @Test
+  void should_resolve_constraint_messages_from_the_message_source() {
+    LocaleContextHolder.setLocale(ENGLISH);
+
+    plainRunner.run(
+        context ->
+            assertThat(context.getBean(Validator.class).validate(new Order(null)))
+                .extracting(violation -> violation.getMessage())
+                .containsExactly("The order id is required"));
+  }
+
+  @Test
+  void should_take_precedence_over_boot_auto_configurations() {
+    new WebApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                I18nAutoConfiguration.class,
+                MessageSourceAutoConfiguration.class,
+                ValidationAutoConfiguration.class,
+                WebMvcAutoConfiguration.class))
+        .withPropertyValues("spring.messages.basename=i18n/extra")
+        .run(
+            context -> {
+              assertThat(context.getBean("messageSource"))
+                  .isInstanceOf(ReloadableResourceBundleMessageSource.class);
+              assertThat(context.getBean("localeResolver"))
+                  .isInstanceOf(XLocaleAwareLocaleResolver.class);
+              assertThat(context).hasSingleBean(Validator.class).hasBean("validatorFactoryBean");
+            });
+  }
+
+  record Order(@NotNull(message = "{order.id.required}") String id) {}
+
+  @Configuration(proxyBeanMethods = false)
+  static class NamedMessageSourceConfig {
+    @Bean
+    MessageSource messageSource() {
+      return new StaticMessageSource();
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class OtherMessageSourceConfig {
     @Bean
     MessageSource customSource() {
-      return new ReloadableResourceBundleMessageSource();
+      return new StaticMessageSource();
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class LocaleResolverConfig {
+    @Bean
+    LocaleResolver localeResolver() {
+      return new org.springframework.web.servlet.i18n.FixedLocaleResolver(ENGLISH);
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class ValidatorConfig {
+    @Bean
+    LocalValidatorFactoryBean customValidator() {
+      return new LocalValidatorFactoryBean();
     }
   }
 }
