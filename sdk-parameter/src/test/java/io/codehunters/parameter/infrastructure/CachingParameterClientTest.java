@@ -2,17 +2,24 @@ package io.codehunters.parameter.infrastructure;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.parameter.application.ParameterClient;
 import io.codehunters.parameter.domain.exception.ParameterAccessException;
+import io.codehunters.parameter.domain.model.Parameter;
 import io.codehunters.parameter.domain.model.ParameterModule;
+import io.codehunters.parameter.domain.model.ParameterType;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
@@ -21,6 +28,8 @@ class CachingParameterClientTest {
 
   private static final Duration TTL = Duration.ofMinutes(5);
   private static final ParameterModule MODULE = ParameterModule.RAFFLES;
+  private static final Parameter MAX = parameter("MAX", "100");
+  private static final Parameter MIN = parameter("MIN", "1");
 
   private final ParameterClient delegate = mock(ParameterClient.class);
   private final AtomicLong now = new AtomicLong();
@@ -71,26 +80,12 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_still_answer_without_caching_when_full() {
+  void should_keep_a_new_answer_when_full() {
     var tiny = new CachingParameterClient(delegate, TTL, now::get, 1);
     when(delegate.lookup(MODULE, "T", "A")).thenReturn(Optional.empty());
     when(delegate.lookup(MODULE, "T", "B")).thenReturn(Optional.empty());
 
     tiny.lookup(MODULE, "T", "A");
-    tiny.lookup(MODULE, "T", "B");
-    tiny.lookup(MODULE, "T", "B");
-
-    verify(delegate, times(2)).lookup(MODULE, "T", "B");
-  }
-
-  @Test
-  void should_make_room_by_dropping_expired_entries_when_full() {
-    var tiny = new CachingParameterClient(delegate, TTL, now::get, 1);
-    when(delegate.lookup(MODULE, "T", "A")).thenReturn(Optional.empty());
-    when(delegate.lookup(MODULE, "T", "B")).thenReturn(Optional.empty());
-
-    tiny.lookup(MODULE, "T", "A");
-    now.addAndGet(TTL.toNanos());
     tiny.lookup(MODULE, "T", "B");
     tiny.lookup(MODULE, "T", "B");
 
@@ -98,13 +93,114 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_cache_find_by_module() {
-    when(delegate.findByModule(MODULE, null)).thenReturn(List.of());
+  void should_evict_the_least_recently_used_answer_when_full() {
+    var small = new CachingParameterClient(delegate, TTL, now::get, 2);
+    when(delegate.lookup(eq(MODULE), eq("T"), any())).thenReturn(Optional.empty());
+
+    small.lookup(MODULE, "T", "A");
+    small.lookup(MODULE, "T", "B");
+    small.lookup(MODULE, "T", "A");
+    small.lookup(MODULE, "T", "C");
+    small.lookup(MODULE, "T", "A");
+    small.lookup(MODULE, "T", "B");
+
+    verify(delegate, times(1)).lookup(MODULE, "T", "A");
+    verify(delegate, times(2)).lookup(MODULE, "T", "B");
+  }
+
+  @Test
+  void should_share_one_load_between_concurrent_callers() throws InterruptedException {
+    var calls = new ConcurrentCalls(delegate);
+    calls.blockLookupWith(Optional.of(MAX));
+
+    calls.startLoaderAndWaiter(() -> cache.lookup(MODULE, "T", "MAX"));
+
+    assertThat(calls.results()).containsExactly(Optional.of(MAX), Optional.of(MAX));
+    verify(delegate, times(1)).lookup(MODULE, "T", "MAX");
+  }
+
+  @Test
+  void should_pass_a_failed_load_to_concurrent_callers_without_caching_it()
+      throws InterruptedException {
+    var calls = new ConcurrentCalls(delegate);
+    calls.failLookupWith(new ParameterAccessException("down", null));
+
+    calls.startLoaderAndWaiter(() -> cache.lookup(MODULE, "T", "MAX"));
+
+    assertThat(calls.failures()).hasSize(2).allMatch(ParameterAccessException.class::isInstance);
+    assertThat(cache.lookup(MODULE, "T", "MAX")).isEmpty();
+  }
+
+  @Test
+  void should_treat_a_null_and_a_blank_submodule_as_the_same_lookup() {
+    when(delegate.lookup(eq(MODULE), any(), eq("MAX"))).thenReturn(Optional.empty());
+
+    cache.lookup(MODULE, null, "MAX");
+    cache.lookup(MODULE, "  ", "MAX");
+
+    verify(delegate, times(1)).lookup(eq(MODULE), any(), eq("MAX"));
+  }
+
+  @Test
+  void should_keep_all_submodules_apart_from_the_empty_submodule() {
+    when(delegate.findByModule(eq(MODULE), any())).thenReturn(List.of());
 
     cache.findByModule(MODULE, null);
-    cache.findByModule(MODULE, null);
+    cache.findByModule(MODULE, "");
 
-    verify(delegate, times(1)).findByModule(MODULE, null);
+    verify(delegate, times(2)).findByModule(eq(MODULE), any());
+  }
+
+  @Test
+  void should_treat_reordered_and_repeated_submodules_as_the_same_query() {
+    when(delegate.findByModuleAndSubmodules(eq(MODULE), any())).thenReturn(List.of());
+
+    cache.findByModuleAndSubmodules(MODULE, List.of("B", "A", "A"));
+    cache.findByModuleAndSubmodules(MODULE, List.of("A", "B"));
+
+    verify(delegate, times(1)).findByModuleAndSubmodules(eq(MODULE), any());
+  }
+
+  @Test
+  void should_treat_reordered_and_repeated_modules_as_the_same_query() {
+    when(delegate.findByModules(any())).thenReturn(List.of());
+
+    cache.findByModules(List.of(ParameterModule.AUTH, MODULE));
+    cache.findByModules(List.of(MODULE, ParameterModule.AUTH, MODULE));
+
+    verify(delegate, times(1)).findByModules(any());
+  }
+
+  @Test
+  void should_not_follow_changes_to_the_caller_collection() {
+    when(delegate.findByModuleAndSubmodules(eq(MODULE), any())).thenReturn(List.of());
+    var submodules = new ArrayList<>(List.of("A"));
+
+    cache.findByModuleAndSubmodules(MODULE, submodules);
+    submodules.add("B");
+    cache.findByModuleAndSubmodules(MODULE, List.of("A", "B"));
+
+    verify(delegate, times(2)).findByModuleAndSubmodules(eq(MODULE), any());
+  }
+
+  @Test
+  void should_not_follow_changes_to_the_list_the_delegate_returned() {
+    var answer = new ArrayList<>(List.of(MAX));
+    when(delegate.findByModule(MODULE, null)).thenReturn(answer);
+
+    cache.findByModule(MODULE, null);
+    answer.clear();
+
+    assertThat(cache.findByModule(MODULE, null)).containsExactly(MAX);
+  }
+
+  @Test
+  void should_return_an_unmodifiable_cached_list() {
+    when(delegate.findByModule(MODULE, null)).thenReturn(new ArrayList<>(List.of(MAX)));
+
+    List<Parameter> result = cache.findByModule(MODULE, null);
+
+    assertThatThrownBy(result::clear).isInstanceOf(UnsupportedOperationException.class);
   }
 
   @Test
@@ -118,38 +214,49 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_cache_find_by_module_and_submodules() {
-    when(delegate.findByModuleAndSubmodules(MODULE, List.of("T"))).thenReturn(List.of());
+  void should_build_as_map_from_the_cached_find_by_module() {
+    when(delegate.findByModule(MODULE, "T")).thenReturn(List.of(MAX, MIN));
 
-    cache.findByModuleAndSubmodules(MODULE, List.of("T"));
-    cache.findByModuleAndSubmodules(MODULE, List.of("T"));
+    cache.findByModule(MODULE, "T");
 
-    verify(delegate, times(1)).findByModuleAndSubmodules(MODULE, List.of("T"));
+    assertThat(cache.asMap(MODULE, "T")).containsEntry("MAX", "100").containsEntry("MIN", "1");
+    verify(delegate, times(1)).findByModule(MODULE, "T");
+    verify(delegate, never()).asMap(any(), any());
   }
 
   @Test
-  void should_cache_as_map() {
-    when(delegate.asMap(MODULE, "T")).thenReturn(Map.of());
+  void should_build_as_map_by_name_from_the_cached_find_by_module() {
+    when(delegate.findByModule(MODULE, "T")).thenReturn(List.of(MAX, MIN));
 
-    cache.asMap(MODULE, "T");
-    cache.asMap(MODULE, "T");
+    cache.findByModule(MODULE, "T");
 
-    verify(delegate, times(1)).asMap(MODULE, "T");
+    assertThat(cache.asMapByName(MODULE, "T")).containsEntry("MAX", MAX);
+    verify(delegate, times(1)).findByModule(MODULE, "T");
+    verify(delegate, never()).asMapByName(any(), any());
   }
 
   @Test
-  void should_cache_as_map_by_name() {
-    when(delegate.asMapByName(MODULE, "T")).thenReturn(Map.of());
+  void should_reject_a_null_module_without_calling_the_delegate() {
+    assertThatThrownBy(() -> cache.findByModules(Arrays.asList(MODULE, null)))
+        .isInstanceOf(IllegalArgumentException.class);
+    verifyNoInteractions(delegate);
+  }
 
-    cache.asMapByName(MODULE, "T");
-    cache.asMapByName(MODULE, "T");
-
-    verify(delegate, times(1)).asMapByName(MODULE, "T");
+  @Test
+  void should_reject_a_null_submodule_without_calling_the_delegate() {
+    assertThatThrownBy(() -> cache.findByModuleAndSubmodules(MODULE, Arrays.asList("A", null)))
+        .isInstanceOf(IllegalArgumentException.class);
+    verifyNoInteractions(delegate);
   }
 
   @Test
   void should_reject_a_ttl_that_is_not_positive() {
     assertThatThrownBy(() -> new CachingParameterClient(delegate, Duration.ZERO))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  private static Parameter parameter(String name, String value) {
+    return new Parameter(
+        null, MODULE, "T", name, value, ParameterType.STRING, true, null, null, null, null, null);
   }
 }
