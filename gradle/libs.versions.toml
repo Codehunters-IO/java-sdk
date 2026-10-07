@@ -27,6 +27,7 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 jasperreports = { module = "net.sf.jasperreports:jasperreports", version.ref = "jasperreports" }
 jasperreports-pdf = { module = "net.sf.jasperreports:jasperreports-pdf", version.ref = "jasperreports" }
+jasperreports-jdt = { module = "net.sf.jasperreports:jasperreports-jdt", version.ref = "jasperreports" }
 jackson2-core = { module = "com.fasterxml.jackson.core:jackson-core", version.ref = "jackson2" }
 jackson2-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson2" }
 jackson2-dataformat-xml = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-xml", version.ref = "jackson2" }

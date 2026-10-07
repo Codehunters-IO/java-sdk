@@ -3,13 +3,13 @@ package io.codehunters.jasper;
 import java.util.List;
 import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.SimpleJasperReportsContext;
-import net.sf.jasperreports.repo.DefaultRepositoryService;
 import net.sf.jasperreports.repo.RepositoryService;
 
 /**
- * JasperReports' defaults with three changes: resources come only from the classpath base folder,
- * JRXML may not declare a DOCTYPE, and unknown XML entities are never loaded. Every other extension
- * (fonts, components, exporters) is inherited.
+ * JasperReports' defaults with one change: resources come only from the classpath base folder.
+ * Every other extension (fonts, components, exporters) is inherited. XML needs no setting here:
+ * JasperReports 7 parses JRXML and JRTX with Jackson's XML mapper, which leaves DTDs unprocessed,
+ * so a DOCTYPE's entities are never resolved.
  */
 final class HardenedContext extends SimpleJasperReportsContext {
 
@@ -17,9 +17,6 @@ final class HardenedContext extends SimpleJasperReportsContext {
 
   HardenedContext(ReportSettings settings, ClassLoader loader) {
     super(DefaultJasperReportsContext.getInstance());
-    setProperty("net.sf.jasperreports.xml.allow.doctype", "false");
-    setProperty("net.sf.jasperreports.xml.load.unknown.entities", "false");
-    setProperty(DefaultRepositoryService.PROPERTY_FILES_ENABLED, "false");
     this.repositories = List.of(new ClasspathRepositoryService(this, settings, loader));
   }
 

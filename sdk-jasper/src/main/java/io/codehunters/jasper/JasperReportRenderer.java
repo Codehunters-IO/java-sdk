@@ -87,16 +87,24 @@ public final class JasperReportRenderer implements ReportRenderer {
   }
 
   private void export(ReportRequest request, JasperPrint print, OutputStream out) {
+    if (request.format() == ReportFormat.PDF && Exports.asksForTaggedPdf(print, context)) {
+      throw new ReportException(
+          "report "
+              + request.template()
+              + " asks for tagged PDF or PDF/A level A, which the OpenPDF release on Maven Central"
+              + " cannot write");
+    }
     try {
       Exports.write(print, request.format(), context, out);
-    } catch (JRException | RuntimeException e) {
+    } catch (JRException | RuntimeException | LinkageError e) {
+      // A LinkageError is OpenPDF missing an API a JasperReports exporter calls, not a broken JVM.
       throw failure(
           "report " + request.template() + " could not be exported to " + request.format(), e);
     }
   }
 
   // The output limit is reported as itself even when an exporter wrapped it.
-  private static ReportException failure(String message, Exception e) {
+  private static ReportException failure(String message, Throwable e) {
     for (Throwable cause = e; cause != null; cause = cause.getCause()) {
       if (cause instanceof ReportException known) {
         return known;

@@ -13,6 +13,9 @@ dependencies {
         exclude(group = "com.github.librepdf", module = "openpdf")
     }
     implementation(libs.openpdf)
+    // Compiles .jrxml expressions with ecj, which reads classes through the class loader; javac, the
+    // fallback, only sees java.class.path and fails inside a Spring Boot fat jar.
+    implementation(libs.jasperreports.jdt)
     compileOnly("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("io.micrometer:micrometer-core")
 
