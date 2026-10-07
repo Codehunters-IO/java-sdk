@@ -1,5 +1,6 @@
 package io.codehunters.totp;
 
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.HexFormat;
@@ -8,13 +9,19 @@ import java.util.Objects;
 /**
  * Immutable holder for a TOTP shared secret. Defensive copies are made on construction and access,
  * and {@link #toString()} never reveals the key material.
+ *
+ * <p>Generated secrets are at least {@value #MIN_KEY_LENGTH} bytes. Imported secrets ({@link
+ * #fromBytes}, {@link #fromBase32}, {@link #fromHex}) only have to be non-empty, so secrets already
+ * enrolled with a shorter key keep working.
+ *
+ * <p>Two secrets are equal when their keys are; the comparison takes constant time. {@link
+ * #hashCode()} is derived from the key, so never log it.
  */
 public final class TotpSecret {
 
   /** The shortest key {@link #generate(int)} creates, in bytes (128 bits, RFC 4226 R6). */
   public static final int MIN_KEY_LENGTH = 16;
 
-  private static final int DEFAULT_KEY_LENGTH = 20;
   private static final SecureRandom RANDOM = new SecureRandom();
 
   private final byte[] key;
@@ -68,12 +75,12 @@ public final class TotpSecret {
   }
 
   /**
-   * Generates a random secret of the default length (20 bytes).
+   * Generates a random secret for the default algorithm, HMAC-SHA512: 64 bytes.
    *
    * @return a randomly generated secret
    */
   public static TotpSecret generate() {
-    return generate(DEFAULT_KEY_LENGTH);
+    return generate(TotpConfig.defaultConfig().algorithm());
   }
 
   /**
@@ -83,16 +90,20 @@ public final class TotpSecret {
    * @return a randomly generated secret
    */
   public static TotpSecret generate(TotpAlgorithm algorithm) {
-    return generate();
+    return generate(algorithm.keyLength());
   }
 
   /**
    * Generates a random secret of the given length.
    *
-   * @param keyLength the key length in bytes
+   * @param keyLength the key length in bytes, at least {@value #MIN_KEY_LENGTH}
    * @return a randomly generated secret
+   * @throws TotpException if {@code keyLength} is below {@value #MIN_KEY_LENGTH}
    */
   public static TotpSecret generate(int keyLength) {
+    if (keyLength < MIN_KEY_LENGTH) {
+      throw new TotpException("Generated keys must be at least " + MIN_KEY_LENGTH + " bytes");
+    }
     byte[] key = new byte[keyLength];
     RANDOM.nextBytes(key);
     return new TotpSecret(key);
@@ -125,7 +136,7 @@ public final class TotpSecret {
   public boolean equals(Object o) {
     if (this == o) return true;
     if (!(o instanceof TotpSecret that)) return false;
-    return Arrays.equals(key, that.key);
+    return MessageDigest.isEqual(key, that.key);
   }
 
   @Override
