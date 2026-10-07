@@ -22,7 +22,8 @@ class BarcodeRequestTest {
     "UPC_A, 036000291452",
     "ITF, 12345678901231",
   })
-  void should_accept_content_when_it_follows_the_format_rules(BarcodeFormat format, String content) {
+  void should_accept_content_when_it_follows_the_format_rules(
+      BarcodeFormat format, String content) {
     BarcodeRequest request = BarcodeRequest.of(format, content, 300, 150);
 
     assertThat(request.content()).isEqualTo(content);
