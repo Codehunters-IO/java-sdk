@@ -460,6 +460,11 @@ Verificación: 143 tests, cobertura 98,6 % líneas / 93,8 % ramas, `./gradlew cl
 
 Verificación: 169 tests, cobertura 98,4 % líneas / 91,5 % ramas.
 
+**Proxying**, `d4d9f79` (test en rojo) → `8ebc5fe` (fix): la auto-configuración ya no aplica
+`@EnableAspectJAutoProxy` (anulaba `spring.aop.auto=false` y rompía el arranque sin
+`aspectjweaver`). El aspecto lo aplica la auto-configuración AOP de Boot, igual que en `measure`, y
+el bean del aspecto exige `org.aspectj.weaver.Advice`. 172 tests.
+
 1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
    `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
    verdad.
