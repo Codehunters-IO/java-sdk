@@ -1,7 +1,7 @@
 # Changelog
 
 Each module keeps its own changelog; this file indexes them and records changes to the build itself.
-Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) when they are first published.
+Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run that publishes them.
 
 ## Modules
 
@@ -22,7 +22,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) when they a
 | `sdk-i18n` | 1.0.0 | [CHANGELOG](sdk-i18n/CHANGELOG.md) | [1.0](sdk-i18n/MIGRATION-1.0.md) |
 | `sdk-totp` | 2.0.0 | [CHANGELOG](sdk-totp/CHANGELOG.md) | [2.0](sdk-totp/MIGRATION-2.0.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
-| `sdk-geo-validation` | 0.2.0 | leaving the SDK, see [HANDOFF](sdk-geo-validation/HANDOFF.md) | — |
+| `sdk-geo-validation` | 0.2.0 (published; 0.2.1-SNAPSHOT local) | leaving the SDK, see [HANDOFF](sdk-geo-validation/HANDOFF.md) | — |
 
 ## sdk-bom 1.0.0
 
@@ -36,6 +36,8 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) when they a
   one Gradle build, with conventions in `build-logic/` and versions in `gradle/libs.versions.toml`.
 - JaCoCo gates are fixed for every module (LINE 0.90, BRANCH 0.80); `verifyCoverageGates` rejects
   per-module overrides.
-- `verifyBomConstraints` keeps `sdk-bom` in step with the released modules.
-- Publishing skips versions already in GitHub Packages and `-SNAPSHOT`s, then tags first
-  publications.
+- `verifyBomConstraints` keeps `sdk-bom` in step with the released modules; exclusions are explicit.
+- `verifyBomLock` fails when a library version changes under an unchanged `sdk-bom` version
+  (`platform/sdk-bom/bom-lock.properties`, rewritten with `:sdk-bom:updateBomLock`).
+- Publishing skips versions already in GitHub Packages and `-SNAPSHOT`s, then tags exactly the
+  modules the run uploaded, from a separate job; publish runs never overlap.

@@ -30,7 +30,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-i18n` | `io.codehunters.i18n` | 1.0.0 | [README](sdk-i18n/README.md) · [MIGRATION](sdk-i18n/MIGRATION-1.0.md) |
 | `sdk-totp` (was `sdk-utils`) | `io.codehunters.totp` | 2.0.0 | [README](sdk-totp/README.md) · [MIGRATION](sdk-totp/MIGRATION-2.0.md) |
 | `sdk-support` | `io.codehunters.support` | 1.0.0, internal | Legacy property aliases; brought in transitively |
-| `sdk-geo-validation` | `io.codehunters.geo` | 0.2.0, leaving the SDK | [handoff](sdk-geo-validation/HANDOFF.md) ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)); not in the BOM |
+| `sdk-geo-validation` | `io.codehunters.geo` | 0.2.0 (published; 0.2.1-SNAPSHOT local), leaving the SDK | [handoff](sdk-geo-validation/HANDOFF.md) ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)); not in the BOM |
 
 Release notes for every module are indexed in [CHANGELOG.md](CHANGELOG.md).
 
@@ -101,6 +101,7 @@ has the full checklist. What every service has to look at:
    |---|---|
    | `keycloak.security.*` | `codehunters.security.*` |
    | `keycloak.policy-enforcer.*` | `codehunters.security.authz.*` |
+   | `keycloak.host`, `keycloak.realm` | `codehunters.security.url`, `codehunters.security.realm` |
    | `outbox.*` | `codehunters.outbox.*` |
    | `vitxo.file-share.*` | `codehunters.file-share.*` |
    | `vitxo.audit.*` | `codehunters.audit.*` |
@@ -138,17 +139,21 @@ Integration tests (`*IT`) use Testcontainers, so `./gradlew build` needs a runni
 
 Publishes to GitHub Packages (`https://maven.pkg.github.com/codehunters/java-sdk`) on merge to
 `main`. A version is published once: versions already in the repository and `-SNAPSHOT` versions
-are skipped. After a successful publish the workflow tags each module's first publication as
-`sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM); existing tags are left alone. Publishing locally
-needs `GH_PACKAGES_USERNAME` / `GH_PACKAGES_TOKEN`.
+are skipped. Each module the run actually uploads is then tagged `sdk-<module>/vX.Y.Z`
+(`bom/vX.Y.Z` for the BOM) at the commit that built it, by a separate job that alone can write to
+the repository; existing tags are left alone, and runs never overlap. Publishing locally needs
+`GH_PACKAGES_USERNAME` / `GH_PACKAGES_TOKEN`.
 
 ## Quality gates
 
 - Spotless (`googleJavaFormat`) — `./gradlew spotlessCheck` / `spotlessApply`
 - JaCoCo — LINE ≥ 90% and BRANCH ≥ 80% per module, enforced on `check`. The gates are the same for
   every module: `verifyCoverageGates` fails the build if `coverage.branch.minimum` is set.
-- BOM — `verifyBomConstraints` fails the build when a released module is missing from `sdk-bom` or
-  a `-SNAPSHOT` one is listed.
+- BOM — `verifyBomConstraints` fails the build when a released module is missing from `sdk-bom`, or
+  a `-SNAPSHOT` or excluded one (`sdk-geo-validation`) is listed. `verifyBomLock` fails when a
+  library version changes while the BOM version doesn't: bump `sdk-bom` and run
+  `./gradlew :sdk-bom:updateBomLock`, which records the versions in
+  `platform/sdk-bom/bom-lock.properties`.
 - SonarCloud — single project `codehunters_java-sdk`, org `codehunters`
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commits and the definition of done.

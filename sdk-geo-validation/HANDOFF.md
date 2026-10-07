@@ -44,6 +44,5 @@ GitHub Packages as `0.2.0` by mistake (for example if the check for an existing 
 ## Removing it from the SDK
 
 Once the raffle service builds with its own copy, delete `sdk-geo-validation/`, remove it from
-`settings.gradle.kts` and from the constraints in `platform/sdk-bom`, and mark it retired in the
-root `README.md`. Until then the BOM constraint points at `0.2.1-SNAPSHOT`, so the module must be
-out of `platform/sdk-bom` before the BOM is released.
+`settings.gradle.kts` and from `codehuntersBom.excludedModules` in `platform/sdk-bom`, and mark it
+retired in the root `README.md`. It is already out of the BOM's constraints.

@@ -43,6 +43,9 @@ A change is done when, on its branch:
   major version.
 - A new module is added to `settings.gradle.kts`, to `platform/sdk-bom` (`verifyBomConstraints`
   fails otherwise) and to the module table in the root `README.md` and `CHANGELOG.md`.
+- Every library release bumps `sdk-bom` too, in the same pull request, followed by
+  `./gradlew :sdk-bom:updateBomLock`. Otherwise `verifyBomLock` fails: consumers of the released
+  BOM version would never see the new library version.
 - No secrets, tokens or personal data in code, tests, logs or exception messages.
 - Local assistant or editor configuration files stay out of the repository.
 
@@ -51,7 +54,8 @@ A change is done when, on its branch:
 - Semantic versioning per module; the version lives in the module's `build.gradle.kts`.
 - A version is published once. Bump it in the same pull request as the change; work in progress
   may use `-SNAPSHOT`, which is never published and must not be listed in the BOM.
-- After publishing, CI tags each module's first publication `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z`).
+- After publishing, CI tags each module that run uploaded `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z`), at
+  the commit that built it.
 
 ## Configuration properties
 
