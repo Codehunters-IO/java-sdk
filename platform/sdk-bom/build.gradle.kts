@@ -30,5 +30,6 @@ dependencies {
         api(project(":sdk-tracing"))
         api(project(":sdk-user-security"))
         api(project(":sdk-user-security-authz"))
+        api(project(":sdk-web-errors"))
     }
 }
