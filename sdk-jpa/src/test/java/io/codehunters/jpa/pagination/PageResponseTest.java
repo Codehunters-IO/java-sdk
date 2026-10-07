@@ -8,6 +8,8 @@ import io.codehunters.jpa.pagination.PageResponse.SortOrder.Direction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -110,5 +112,27 @@ class PageResponseTest {
   void should_reject_null_elements_in_the_content() {
     assertThatThrownBy(() -> new PageResponse<>(Arrays.asList("a", null), 0, 2, 2, 1, List.of()))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void should_report_sort_orders_under_their_api_names_when_given_the_whitelist() {
+    var sorts = SortWhitelist.of(Map.of("created", "createdAt", "ref", "reference"));
+    var page = new PageImpl<>(List.of("c", "d"), SECOND_PAGE_OF_TWO, 5);
+
+    var response = PageResponse.from(page, Function.identity(), sorts);
+
+    assertThat(response.sort())
+        .containsExactly(
+            new SortOrder("created", Direction.DESC), new SortOrder("ref", Direction.ASC));
+  }
+
+  @Test
+  void should_leave_out_sort_orders_the_whitelist_does_not_name() {
+    var sorts = SortWhitelist.of(Map.of("created", "createdAt"));
+    var page = new PageImpl<>(List.of("c", "d"), SECOND_PAGE_OF_TWO, 5);
+
+    var response = PageResponse.from(page, Function.identity(), sorts);
+
+    assertThat(response.sort()).containsExactly(new SortOrder("created", Direction.DESC));
   }
 }

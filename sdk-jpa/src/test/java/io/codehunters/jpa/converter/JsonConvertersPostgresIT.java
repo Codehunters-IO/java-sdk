@@ -54,6 +54,26 @@ class JsonConvertersPostgresIT {
   }
 
   @Test
+  void should_not_write_or_bump_the_version_of_an_unchanged_entity_on_flush() {
+    runner.run(
+        context -> {
+          var orders = context.getBean(OrderRepository.class);
+          var order = new Order("A-1");
+          order.describe(List.of("gift"), Map.of("size", "XL"), ADDRESS);
+          var id = orders.save(order).id().orElseThrow();
+          var before = orders.findById(id).orElseThrow().version();
+
+          var tx =
+              new org.springframework.transaction.support.TransactionTemplate(
+                  context.getBean(
+                      org.springframework.transaction.PlatformTransactionManager.class));
+          tx.executeWithoutResult(status -> orders.findById(id).orElseThrow());
+
+          assertThat(orders.findById(id).orElseThrow().version()).isEqualTo(before);
+        });
+  }
+
+  @Test
   void should_persist_a_replaced_collection() {
     runner.run(
         context -> {

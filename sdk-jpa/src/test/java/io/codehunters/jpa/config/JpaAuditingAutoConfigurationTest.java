@@ -37,6 +37,14 @@ class JpaAuditingAutoConfigurationTest {
   }
 
   @Configuration(proxyBeanMethods = false)
+  static class FixedDateTimeProvider {
+    @Bean
+    DateTimeProvider fixedDateTimeProvider() {
+      return () -> Optional.of(NOW);
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
   @EnableJpaAuditing
   static class OwnAuditing {}
 
@@ -69,6 +77,17 @@ class JpaAuditingAutoConfigurationTest {
             context -> {
               assertThat(context).doesNotHaveBean(SecurityContextAuditorAware.class);
               assertThat(savedOrder(context).createdBy()).contains("system");
+            });
+  }
+
+  @Test
+  void should_use_the_application_date_time_provider_when_it_defines_one() {
+    runner
+        .withUserConfiguration(FixedDateTimeProvider.class)
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(ClockDateTimeProvider.class);
+              assertThat(savedOrder(context).createdAt()).contains(NOW);
             });
   }
 

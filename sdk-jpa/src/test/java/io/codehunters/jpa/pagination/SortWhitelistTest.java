@@ -111,4 +111,14 @@ class SortWhitelistTest {
     assertThatThrownBy(() -> SortWhitelist.of("created", null))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void should_translate_entity_properties_back_into_api_names() {
+    var sorts = SortWhitelist.of(Map.of("created", "createdAt", "customer", "customer.name"));
+
+    var api =
+        sorts.toApi(Sort.by(Sort.Order.desc("customer.name"), Sort.Order.asc("internalRank")));
+
+    assertThat(api).containsExactly(Sort.Order.desc("customer"));
+  }
 }
