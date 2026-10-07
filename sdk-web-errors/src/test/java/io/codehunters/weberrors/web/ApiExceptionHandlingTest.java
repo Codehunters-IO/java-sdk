@@ -36,8 +36,16 @@ class ApiExceptionHandlingTest {
                 .andExpect(jsonPath("$.title").value("Not Found"))
                 .andExpect(jsonPath("$.status").value(404))
                 .andExpect(jsonPath("$.detail").value("Order order-42 was not found"))
-                .andExpect(jsonPath("$.instance").value("/orders/order-42"))
-                .andExpect(jsonPath("$.type").value("about:blank")));
+                .andExpect(jsonPath("$.instance").value("/orders/order-42")));
+  }
+
+  @Test
+  void should_omit_the_type_meaning_about_blank_when_no_base_uri_is_configured() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(get("/orders/order-42"))
+                .andExpect(jsonPath("$.type").doesNotExist()));
   }
 
   @Test

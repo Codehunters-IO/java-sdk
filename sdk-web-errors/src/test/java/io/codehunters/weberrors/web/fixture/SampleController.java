@@ -71,7 +71,8 @@ public class SampleController {
 
   @GetMapping("/server-side")
   String serverSide() {
-    throw new ApiException(SampleErrorCode.SERVER_SIDE_FAILURE, List.of(), new IllegalStateException(SECRET));
+    throw new ApiException(
+        SampleErrorCode.SERVER_SIDE_FAILURE, List.of(), new IllegalStateException(SECRET));
   }
 
   @GetMapping("/out-of-range")
