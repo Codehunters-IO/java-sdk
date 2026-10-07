@@ -724,8 +724,39 @@ Verificación: `sdk-totp` 105 tests (98,4 % líneas, 100 % ramas); `sdk-geo-vali
   `@ConditionalOnSingleCandidate`, `MatchedZoneType.valueOf` con un tipo desconocido, prefijo
   propio y un test de integración contra SQL Server.
 
-**Abierto:** `verify` no impide reusar un código dentro de su ventana (documentado en el README:
-quien necesite un solo uso guarda el último paso aceptado). Sin review independiente todavía.
+**Correcciones de la review independiente** (cada una con su test en rojo antes):
+- `a1ffbe9` → `8809c63`: `TotpSecret.generate(int)` exige al menos 16 bytes (`MIN_KEY_LENGTH`,
+  RFC 4226 R6) y lanza `TotpException` también para longitudes negativas. `generate()` y el nuevo
+  `generate(TotpAlgorithm)` usan el largo del hash (20/32/64 bytes, `TotpAlgorithm.keyLength()`),
+  así que `generate()` pasa a 64 bytes. Los secretos importados siguen siendo permisivos (solo no
+  vacíos) para no romper los ya enrolados. `equals` compara en tiempo constante.
+- `1170294` → `e809a15`: Base32 estricto. Se rechazan largos que no salen de bytes enteros (1, 3 o
+  6 caracteres módulo 8), bits sobrantes distintos de cero, padding que no esté al final y
+  separadores que no sean espacios.
+- `803f6c7` → `80cdb04`: `TotpConfig.MAX_TIME_STEP` (10 min); `TotpGenerator(TotpConfig, Clock)`,
+  con el `Clock` de la app en la auto-config cuando hay uno solo; `requireNonNull` de config y
+  clock; `TotpDigits.FOUR` deprecado. Tests de los bordes de variance (±10 aceptado, 11 rechazado).
+- `5877494`: el test de vectores RFC ya no tiene `switch` (la semilla viaja como dato), el test de
+  locale toma `@ResourceLock(Resources.LOCALE)`, y un `SpringApplication` real prueba que
+  `vitxo.totp.time-step` llega al generador y que un paso legacy inválido hace fallar el arranque.
+- `70d43bf`, `7584aa9` (geo): tests del otro borde de latitud y longitud; versión `0.2.1-SNAPSHOT`,
+  que el publish nunca sube, para que el código corregido no pueda salir como `0.2.0`.
+- `172bcf6`: README, CHANGELOG, MIGRATION-2.0 y ADR 0005 (la capability solo protege a Gradle; en
+  Maven hay que excluir `sdk-utils`), redacción correcta del cambio antes de la época y nota de
+  rate limiting.
+
+Verificación tras la review: `sdk-totp` 142 tests (98,6 % líneas, 100 % ramas);
+`sdk-geo-validation` 23 tests (100 % líneas, 93,8 % ramas); `./gradlew clean build` y
+`./gradlew -p build-logic test` en verde.
+
+**Abierto:**
+- `verify` no impide reusar un código dentro de su ventana (documentado: quien necesite un solo uso
+  guarda el último paso aceptado), y la librería no limita intentos (documentado: el llamador debe
+  hacerlo).
+- `sdk-bom` todavía declara `sdk-geo-validation`, ahora en `0.2.1-SNAPSHOT`: hay que sacarlo del BOM
+  antes de publicar la 1.0.0 (Fase 11), aunque el módulo siga sin dueño.
+- Las claves legacy con nombres desconocidos (`vitxo.totp.algo-mal-escrito`) se copian y se ignoran,
+  como en el resto de los módulos que usan `LegacyPropertyAliases`.
 
 ## Fase 11 — Cierre
 
