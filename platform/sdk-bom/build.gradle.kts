@@ -16,6 +16,7 @@ codehuntersBom {
 dependencies {
     constraints {
         api(project(":sdk-audit-log"))
+        api(project(":sdk-commons"))
         api(project(":sdk-event-messaging-core"))
         api(project(":sdk-event-messaging-jdbc"))
         api(project(":sdk-event-messaging-kafka"))
