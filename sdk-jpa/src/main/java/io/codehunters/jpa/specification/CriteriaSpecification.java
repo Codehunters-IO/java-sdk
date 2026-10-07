@@ -8,12 +8,17 @@ import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.boot.convert.ApplicationConversionService;
 import org.springframework.core.convert.ConversionException;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.util.ClassUtils;
 
-/** The specification of one whitelisted condition. */
+/**
+ * The specification of one whitelisted condition. After deserialization it converts values with
+ * Spring Boot's shared {@link ApplicationConversionService}: a custom conversion service is not
+ * serialized.
+ */
 final class CriteriaSpecification<T> implements Specification<T> {
 
   private static final long serialVersionUID = 1L;
@@ -32,11 +37,26 @@ final class CriteriaSpecification<T> implements Specification<T> {
 
   @Override
   public Predicate toPredicate(Root<T> root, CriteriaQuery<?> query, CriteriaBuilder cb) {
-    var path = PropertyPaths.resolve(root, propertyPath, query);
+    var target = PropertyPaths.resolve(root, propertyPath, query);
+    if (target.collection()) {
+      return collectionPredicate(target, cb);
+    }
+    return target.within(condition(target.path(), cb), cb);
+  }
+
+  private Predicate condition(Path<?> path, CriteriaBuilder cb) {
     return switch (criteria.operation()) {
       case IS_NULL -> cb.isNull(path);
       case IS_NOT_NULL -> cb.isNotNull(path);
       default -> valuePredicate(PropertyPaths.requireValueAttribute(path), cb);
+    };
+  }
+
+  private Predicate collectionPredicate(ResolvedPath target, CriteriaBuilder cb) {
+    return switch (criteria.operation()) {
+      case IS_NOT_NULL -> target.within(cb.conjunction(), cb);
+      case IS_NULL -> cb.not(target.within(cb.conjunction(), cb));
+      default -> valuePredicate(PropertyPaths.requireValueAttribute(target.path()), cb);
     };
   }
 
@@ -81,7 +101,8 @@ final class CriteriaSpecification<T> implements Specification<T> {
 
   @SuppressWarnings({"unchecked", "rawtypes"})
   private static Expression<Comparable> ordered(Path<?> path) {
-    if (!Comparable.class.isAssignableFrom(targetType(path))) {
+    var type = targetType(path);
+    if (type.isEnum() || !Comparable.class.isAssignableFrom(type)) {
       throw new InvalidSearchException(
           "this operation needs an attribute whose values can be ordered");
     }
@@ -93,7 +114,7 @@ final class CriteriaSpecification<T> implements Specification<T> {
       return value;
     }
     try {
-      var converted = conversions.convert(value, target);
+      var converted = conversionService().convert(value, target);
       if (converted == null) {
         throw cannotConvert(target);
       }
@@ -101,6 +122,10 @@ final class CriteriaSpecification<T> implements Specification<T> {
     } catch (ConversionException | IllegalArgumentException e) {
       throw cannotConvert(target);
     }
+  }
+
+  private ConversionService conversionService() {
+    return conversions != null ? conversions : ApplicationConversionService.getSharedInstance();
   }
 
   private static InvalidSearchException cannotConvert(Class<?> target) {

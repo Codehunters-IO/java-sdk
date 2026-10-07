@@ -5,20 +5,27 @@ import jakarta.persistence.criteria.From;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import jakarta.persistence.metamodel.Attribute;
 
-/** Resolves property paths, joining associations once per query with left joins. */
+/**
+ * Resolves property paths. A to-one association is left-joined once per query and shared by the
+ * conditions that cross it. The first collection on a path opens a subquery correlated with the
+ * outer row, one per condition, so each condition matches its own element and the outer query never
+ * needs {@code distinct}.
+ */
 final class PropertyPaths {
 
   private PropertyPaths() {}
 
-  static Path<?> resolve(From<?, ?> root, String propertyPath, CriteriaQuery<?> query) {
+  static ResolvedPath resolve(Root<?> root, String propertyPath, CriteriaQuery<?> query) {
     var segments = propertyPath.split("\\.");
-    Path<?> current = root;
+    var walk = new Walk(root, query);
     for (int i = 0; i < segments.length - 1; i++) {
-      current = step(current, segments[i], query);
+      walk.step(segments[i]);
     }
-    return current.get(segments[segments.length - 1]);
+    return walk.end(segments[segments.length - 1]);
   }
 
   static Path<?> requireValueAttribute(Path<?> path) {
@@ -29,29 +36,71 @@ final class PropertyPaths {
     return path;
   }
 
-  private static Path<?> step(Path<?> current, String segment, CriteriaQuery<?> query) {
-    if (current instanceof From<?, ?> from && isAssociation(from.get(segment))) {
-      return join(from, segment, query);
-    }
-    return current.get(segment);
-  }
-
-  private static Join<?, ?> join(From<?, ?> from, String attribute, CriteriaQuery<?> query) {
-    for (Join<?, ?> existing : from.getJoins()) {
-      if (existing.getAttribute().getName().equals(attribute)
-          && existing.getJoinType() == JoinType.LEFT) {
-        return existing;
-      }
-    }
-    Join<?, ?> join = from.join(attribute, JoinType.LEFT);
-    if (join.getAttribute().isCollection() && query != null) {
-      query.distinct(true);
-    }
-    return join;
-  }
-
   private static boolean isAssociation(Path<?> path) {
     return path.getModel() instanceof Attribute<?, ?> attribute
         && (attribute.isAssociation() || attribute.isCollection());
+  }
+
+  private static boolean isCollection(Path<?> path) {
+    return path.getModel() instanceof Attribute<?, ?> attribute && attribute.isCollection();
+  }
+
+  /** One walk along a path; opens at most one subquery. */
+  private static final class Walk {
+
+    private final CriteriaQuery<?> query;
+    private Path<?> current;
+    private Subquery<Integer> subquery;
+
+    Walk(Root<?> root, CriteriaQuery<?> query) {
+      this.current = root;
+      this.query = query;
+    }
+
+    void step(String segment) {
+      current =
+          current instanceof From<?, ?> from && isAssociation(from.get(segment))
+              ? join(from, segment)
+              : current.get(segment);
+    }
+
+    ResolvedPath end(String segment) {
+      if (current instanceof From<?, ?> from && opensSubquery(from, segment)) {
+        var owner = subquery == null ? enter(from) : from;
+        return new ResolvedPath(owner.join(segment, JoinType.INNER), subquery, true);
+      }
+      return new ResolvedPath(current.get(segment), subquery, false);
+    }
+
+    private boolean opensSubquery(From<?, ?> from, String attribute) {
+      return query != null && isCollection(from.get(attribute));
+    }
+
+    private Join<?, ?> join(From<?, ?> from, String attribute) {
+      if (subquery != null) {
+        return from.join(attribute, JoinType.LEFT);
+      }
+      if (opensSubquery(from, attribute)) {
+        return enter(from).join(attribute, JoinType.INNER);
+      }
+      return sharedLeftJoin(from, attribute);
+    }
+
+    private From<?, ?> enter(From<?, ?> from) {
+      subquery = query.subquery(Integer.class);
+      return from instanceof Root<?> root
+          ? subquery.correlate(root)
+          : subquery.correlate((Join<?, ?>) from);
+    }
+
+    private static Join<?, ?> sharedLeftJoin(From<?, ?> from, String attribute) {
+      for (Join<?, ?> existing : from.getJoins()) {
+        if (existing.getAttribute().getName().equals(attribute)
+            && existing.getJoinType() == JoinType.LEFT) {
+          return existing;
+        }
+      }
+      return from.join(attribute, JoinType.LEFT);
+    }
   }
 }

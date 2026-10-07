@@ -1,5 +1,6 @@
 package io.codehunters.jpa.specification;
 
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -11,12 +12,17 @@ import java.util.Objects;
  * @param attribute the API attribute name, checked against the builder's whitelist
  * @param operation the operation
  * @param values the operation's values: none for null checks, two for {@code BETWEEN}, up to
- *     {@value #MAX_IN_VALUES} for {@code IN}, one otherwise; never {@code null} elements
+ *     {@value #MAX_IN_VALUES} for {@code IN}, one otherwise; never {@code null} elements. A {@code
+ *     LIKE} value has at most {@value #MAX_LIKE_LENGTH} characters
  */
-public record SearchCriteria(String attribute, SearchOperation operation, List<Object> values) {
+public record SearchCriteria(String attribute, SearchOperation operation, List<Object> values)
+    implements Serializable {
 
   /** Most values an {@code IN} condition may list. */
   public static final int MAX_IN_VALUES = 1000;
+
+  /** Most characters a {@code LIKE} value may have. */
+  public static final int MAX_LIKE_LENGTH = 256;
 
   /** Validates the condition and copies the values. */
   public SearchCriteria {
@@ -25,6 +31,10 @@ public record SearchCriteria(String attribute, SearchOperation operation, List<O
     require(
         values.stream().allMatch(Objects::nonNull), "search values must not be null; use IS_NULL");
     require(operation.accepts(values.size()), operation + " takes " + operation.arity());
+    require(
+        operation != SearchOperation.LIKE
+            || String.valueOf(values.get(0)).length() <= MAX_LIKE_LENGTH,
+        "a LIKE value may have at most " + MAX_LIKE_LENGTH + " characters");
     values = List.copyOf(values);
   }
 

@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -25,8 +26,12 @@ public final class PropertyWhitelist {
    *
    * @param properties property paths
    * @return the identity map
+   * @throws IllegalArgumentException if the array or one of its names is null
    */
   public static Map<String, String> identity(String... properties) {
+    if (properties == null || Arrays.stream(properties).anyMatch(Objects::isNull)) {
+      throw new IllegalArgumentException("property names must not be null");
+    }
     return Arrays.stream(properties)
         .collect(Collectors.toMap(Function.identity(), p -> p, (first, again) -> first));
   }
