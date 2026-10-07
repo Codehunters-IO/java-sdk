@@ -39,7 +39,11 @@ extension gives clients the stable identifier that `title` and `detail` cannot.
 - The handler is ordered last and backs off for an application's own
   `ResponseEntityExceptionHandler`.
 - Details are localized through the `MessageSource`; framework details are replaced because they
-  echo request input.
+  echo request input. Violation messages come from the bundles or from input-free defaults only:
+  rendering Spring's defaults through `MessageFormat` both leaked the input and cached every
+  distinct value.
+- The same problem format covers what never reaches Spring MVC: a problem-detail error controller
+  replaces Boot's, and Spring Security entry points are offered for the application's filter chain.
 
 ### Consequences
 
@@ -48,6 +52,8 @@ extension gives clients the stable identifier that `title` and `detail` cannot.
 - Bad, because codes become API contract: renaming one is a breaking change.
 - Bad, because an `ErrorResponseException` carrying custom details loses them; applications use
   `ApiException` instead.
+- Bad, because Boot's HTML whitelabel error page is replaced, and 401/403 are problem details only
+  where the application wires the SDK's entry points into its filter chain.
 
 ## Pros and Cons of the Options
 

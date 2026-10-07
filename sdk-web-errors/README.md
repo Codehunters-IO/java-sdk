@@ -5,6 +5,10 @@ problem details with a stable error `code`, a localized `detail`, the `traceId` 
 failures, the list of violated constraints. Rejected values, exception messages and stack traces
 never reach the client.
 
+It covers exceptions handled by Spring MVC, the servlet container's error dispatch, and — once wired
+into the filter chain — Spring Security's 401 and 403 (see
+[Errors outside Spring MVC](#errors-outside-spring-mvc)).
+
 ```kotlin
 implementation(platform("io.codehunters:sdk-bom:<version>"))
 implementation("io.codehunters:sdk-web-errors")
@@ -42,7 +46,7 @@ field then constraint:
 | `type` | `codehunters.web-errors.type-base-uri` + the code in kebab case; omitted (`about:blank`) without a base |
 | `title` | the status reason phrase |
 | `detail` | the localized message (see [Messages](#messages)); the reason phrase when none is defined |
-| `instance` | the request path, without the query string |
+| `instance` | the requested path, without the query string or path parameters (`;jsessionid=…`); path variables are echoed |
 | `code` | the stable error code |
 | `traceId` | the current trace id; omitted when no trace is active |
 | `errors` | one entry per violated constraint: `field`, `code` (constraint name), `message` |
@@ -79,14 +83,20 @@ throw new ApiException(OrderErrorCode.ORDER_NOT_FOUND, List.of(orderId));
 | Exception | Status | `code` |
 |---|---|---|
 | `ApiException` | the code's status | the code |
-| `MethodArgumentNotValidException` (`@Valid @RequestBody`) | 400 | `VALIDATION_FAILED` + `errors` |
+| `MethodArgumentNotValidException` (`@Valid @RequestBody`, `@ModelAttribute` binding) | 400 | `VALIDATION_FAILED` + `errors` |
 | `HandlerMethodValidationException` (constraints on `@RequestParam`, `@PathVariable`…) | 400 | `VALIDATION_FAILED` + `errors` |
-| `jakarta.validation.ConstraintViolationException` (`@Validated` services) | 400 | `VALIDATION_FAILED` + `errors` |
+| `HandlerMethodValidationException` for a controller's return value | 500 | `INTERNAL_ERROR`, no `errors` |
+| `jakarta.validation.ConstraintViolationException` whose violations all concern method arguments (`@Validated` services) | 400 | `VALIDATION_FAILED` + `errors` |
+| `jakarta.validation.ConstraintViolationException` for an entity or a return value | 500 | `INTERNAL_ERROR`, no `errors` |
 | Spring MVC's own exceptions (404, 405, 406, 415, type mismatch, unreadable body…) | Spring's status | the status name, e.g. `NOT_FOUND`, `METHOD_NOT_ALLOWED` |
 | An exception annotated with `@ResponseStatus` | the annotated status | the status name; `reason` becomes the detail |
 | `ResponseStatusException` thrown by the application | its status | the status name; its reason becomes the detail |
-| Spring Security's `AccessDeniedException` / `AuthenticationException` | rethrown | Spring Security answers them |
+| Spring Security's `AccessDeniedException` / `AuthenticationException`, also when wrapped by a proxy or future | rethrown | Spring Security answers them |
+| A disconnected client (broken pipe, connection reset) | none | logged at `DEBUG` |
 | Anything else | 500 | `INTERNAL_ERROR` |
+
+A response already committed (a stream or `SseEmitter` that failed midway) is left alone: the
+failure is logged once at `WARN`, without the exception message or stack trace.
 
 Headers Spring sets on its own errors are kept, such as `Allow` on a 405.
 
@@ -115,14 +125,66 @@ error.ORDER_NOT_FOUND=Order {0} was not found
 web-errors.NOT_FOUND=Resource not found
 ```
 
-Violation messages are the validator's interpolated messages, so `{jakarta.validation...}` and custom
-`{key}` messages follow the same bundles.
+A violation's `message` is resolved in this order, and a default message is never formatted with
+`MessageFormat`:
+
+1. The bundles, through the error's codes (`NotBlank.order.name`, …, `NotBlank`; `typeMismatch.quantity`,
+   …, `typeMismatch` for a failed conversion).
+2. The validator's interpolated message, unless its template uses an expression such as
+   `${validatedValue}`, which puts the rejected value into the message.
+3. `web-errors.typeMismatch` for a failed conversion, `web-errors.invalid` otherwise, both defaulting
+   to `Invalid value`.
+
+Spring's own default message for a failed conversion contains the input and Java type names, so it
+is never used.
+
+Arguments of an `ApiException` are formatted by `MessageFormat`, which groups numbers by locale
+(`1234` becomes `1,234`). Use `{0,number,#}` in the message, or pass identifiers as strings.
+
+## Errors outside Spring MVC
+
+**Error dispatch.** `ProblemErrorController` replaces Boot's `BasicErrorController` and answers the
+servlet container's error dispatch (`response.sendError`, exceptions thrown by filters, errors raised
+by the container) with a problem for the dispatched status, as `application/problem+json` whatever
+the `Accept` header. Boot's HTML whitelabel page is therefore gone. It backs off when the application
+declares its own `ErrorController`.
+
+**Spring Security.** Spring Security answers 401 and 403 in its filters, before Spring MVC. With
+Spring Security on the classpath the SDK offers a `ProblemAuthenticationEntryPoint` and a
+`ProblemAccessDeniedHandler`; with the OAuth2 resource server they keep its bearer challenge
+(`WWW-Authenticate: Bearer …`). Wire them into the filter chain:
+
+```java
+@Bean
+SecurityFilterChain api(
+    HttpSecurity http,
+    ProblemAuthenticationEntryPoint entryPoint,
+    ProblemAccessDeniedHandler accessDenied) throws Exception {
+  return http
+      .oauth2ResourceServer(server -> server
+          .jwt(Customizer.withDefaults())
+          .authenticationEntryPoint(entryPoint)
+          .accessDeniedHandler(accessDenied))
+      .exceptionHandling(handling -> handling
+          .authenticationEntryPoint(entryPoint)
+          .accessDeniedHandler(accessDenied))
+      .build();
+}
+```
+
+The filter chain of `sdk-user-security` does not wire them yet; applications that need problem
+details for 401/403 declare their own chain as above. `ProblemWriter` writes the same body from any
+other servlet code.
 
 ## Logging
 
 - 5xx: `ERROR` with the status, code, trace id and the exception, stack trace included. This is the
-  only place the exception message appears.
-- 4xx: `DEBUG` with the status, code and trace id, never the arguments or rejected values.
+  only place the exception message appears. The exception is also exposed to the observation
+  filter, so `http.server.requests` and the server span record it.
+- Async request timeouts (503): `WARN` without the stack trace.
+- 4xx: `DEBUG` with the status, code and trace id, never the arguments or rejected values. When an
+  `ApiException` has a cause, the exception and its cause are logged at `DEBUG`.
+- Log lines carry the trace id even with `include-trace-id=false`.
 
 ## Configuration
 
@@ -135,7 +197,9 @@ Violation messages are the validator's interpolated messages, so `{jakarta.valid
 ## Precedence and back-off
 
 - The handler is ordered last. An application `@RestControllerAdvice` that handles an exception wins
-  over it for that exception.
+  over it for that exception. An advice without `@Order` has the same order; it still wins because
+  application beans are registered before auto-configured ones. Give an advice contributed by
+  another auto-configuration an explicit `@Order`.
 - It runs before Boot's Web MVC auto-configuration, so Boot's own problem-details handler
   (`spring.mvc.problemdetails.enabled`) is not registered.
 - The SDK backs off when the application declares its own `ResponseEntityExceptionHandler` bean, and
@@ -149,5 +213,4 @@ Violation messages are the validator's interpolated messages, so `{jakarta.valid
 - Servlet stack only; WebFlux is not supported.
 - `field` of a method parameter violation is the Java parameter name, which needs `-parameters`
   (Spring Boot's Gradle and Maven plugins enable it); without it the field is `argN`.
-- A default detail containing an apostrophe is formatted with `MessageFormat` when the exception has
-  arguments, which drops the apostrophe; define the message in the bundle instead.
+- `ApiException` cannot be serialized: its code and arguments are not required to be.
