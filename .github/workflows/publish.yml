@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 jobs:
@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -28,3 +30,20 @@ jobs:
           GH_PACKAGES_USERNAME: ${{ github.actor }}
           GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew build publish
+
+      # Runs only after a successful publish. A version is published once (the build skips versions
+      # already in GitHub Packages), so a tag that doesn't exist yet marks its first publication.
+      # Existing tags are left alone, which makes reruns safe.
+      - name: Tag released modules
+        run: |
+          git fetch --tags --force
+          ./gradlew releaseTag --quiet | while read -r tag; do
+            [ -z "$tag" ] && continue
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "skip $tag (exists)"
+            else
+              git tag "$tag" "$GITHUB_SHA"
+              git push origin "refs/tags/$tag"
+              echo "tagged $tag"
+            fi
+          done

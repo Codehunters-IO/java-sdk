@@ -53,6 +53,20 @@ tasks.withType<PublishToMavenRepository>().configureEach {
     }
 }
 
+// Prints the git tag for this module's release (`sdk-<module>/vX.Y.Z`, or `bom/vX.Y.Z`); nothing for
+// a SNAPSHOT. The publish workflow tags only names that don't exist yet, i.e. first publications.
+val moduleName = name
+tasks.register("releaseTag") {
+    description = "Prints the release tag of this module, or nothing for a SNAPSHOT version."
+    group = PublishingPlugin.PUBLISH_TASK_GROUP
+    val moduleVersion = provider { version.toString() }
+    val tagPrefix = if (moduleName == "sdk-bom") "bom" else moduleName
+    doLast {
+        val version = moduleVersion.get()
+        if (!version.endsWith("-SNAPSHOT")) println("$tagPrefix/v$version")
+    }
+}
+
 publishing {
     repositories {
         maven {
