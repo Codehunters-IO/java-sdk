@@ -13,6 +13,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class SearchCriteriaTest {
 
+  private static final int LIKE_CAP = 256;
+
   @ParameterizedTest(name = "{0} with {1} values")
   @CsvSource({
     "EQUAL,1",
@@ -101,5 +103,21 @@ class SearchCriteriaTest {
   void should_reject_a_missing_values_array() {
     assertThatThrownBy(() -> SearchCriteria.of("status", SearchOperation.IS_NULL, (Object[]) null))
         .isInstanceOf(InvalidSearchException.class);
+  }
+
+  @Test
+  void should_accept_a_like_value_up_to_the_cap() {
+    var value = "x".repeat(LIKE_CAP);
+
+    assertThat(SearchCriteria.of("ref", SearchOperation.LIKE, value).values()).hasSize(1);
+  }
+
+  @Test
+  void should_reject_a_longer_like_value_without_repeating_it() {
+    var value = "secret".repeat(LIKE_CAP / 6 + 1);
+
+    assertThatThrownBy(() -> SearchCriteria.of("ref", SearchOperation.LIKE, value))
+        .isInstanceOf(InvalidSearchException.class)
+        .hasMessageNotContaining("secret");
   }
 }

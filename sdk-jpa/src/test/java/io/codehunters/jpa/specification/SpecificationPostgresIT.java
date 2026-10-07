@@ -192,6 +192,39 @@ class SpecificationPostgresIT {
         });
   }
 
+  @Test
+  void should_reject_an_order_comparison_on_an_enum() {
+    runner.run(
+        context -> {
+          seed(context);
+          var spec = search.where(SearchCriteria.of("status", GT, "OPEN"));
+
+          assertThatThrownBy(() -> context.getBean(OrderRepository.class).findAll(spec))
+              .hasRootCauseInstanceOf(InvalidSearchException.class);
+        });
+  }
+
+  @Test
+  void should_find_the_same_rows_with_a_specification_restored_from_serialized_form()
+      throws Exception {
+    var restored = roundTrip(search.where(SearchCriteria.of("customerName", EQUAL, "Ann")));
+
+    assertFound(restored, "A-Ann", "a_b");
+  }
+
+  @SuppressWarnings("unchecked")
+  private static Specification<Order> roundTrip(Specification<Order> specification)
+      throws Exception {
+    var bytes = new java.io.ByteArrayOutputStream();
+    try (var out = new java.io.ObjectOutputStream(bytes)) {
+      out.writeObject(specification);
+    }
+    try (var in =
+        new java.io.ObjectInputStream(new java.io.ByteArrayInputStream(bytes.toByteArray()))) {
+      return (Specification<Order>) in.readObject();
+    }
+  }
+
   private void assertFound(Specification<Order> specification, String... references) {
     runner.run(
         context -> {

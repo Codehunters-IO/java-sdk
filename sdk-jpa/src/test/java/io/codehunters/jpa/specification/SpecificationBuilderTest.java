@@ -63,4 +63,12 @@ class SpecificationBuilderTest {
     assertThatThrownBy(() -> SpecificationBuilder.of(Order.class, Map.of()))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void should_reject_missing_attribute_names_with_an_illegal_argument() {
+    assertThatThrownBy(() -> SpecificationBuilder.of(Order.class, (String[]) null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> SpecificationBuilder.of(Order.class, "status", null))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 }

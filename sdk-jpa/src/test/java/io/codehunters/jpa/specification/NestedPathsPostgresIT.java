@@ -69,7 +69,7 @@ class NestedPathsPostgresIT {
   }
 
   @Test
-  void should_join_an_association_once_for_several_conditions_on_it() {
+  void should_let_each_condition_on_a_collection_match_its_own_element() {
     runner.run(
         context -> {
           seed(context);
@@ -80,7 +80,7 @@ class NestedPathsPostgresIT {
                   .findAll(
                       customers.allOf(
                           List.of(
-                              SearchCriteria.of("orderRef", LIKE, "ann"),
+                              SearchCriteria.of("orderRef", LIKE, "bag"),
                               SearchCriteria.of("orderRef", LIKE, "a-"))));
 
           assertThat(found).extracting(Customer::getName).containsExactly("Ann");

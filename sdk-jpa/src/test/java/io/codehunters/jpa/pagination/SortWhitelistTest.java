@@ -103,4 +103,12 @@ class SortWhitelistTest {
     assertThatThrownBy(() -> SortWhitelist.of(missingProperty))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void should_reject_missing_property_names_with_an_illegal_argument() {
+    assertThatThrownBy(() -> SortWhitelist.of((String[]) null))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> SortWhitelist.of("created", null))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 }
