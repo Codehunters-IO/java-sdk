@@ -28,4 +28,8 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation("ch.qos.logback:logback-classic")
+    testImplementation(project(":sdk-web-errors"))
+    testImplementation("org.springframework.boot:spring-boot-webmvc")
+    testImplementation("org.springframework.boot:spring-boot-jackson")
+    testImplementation("com.jayway.jsonpath:json-path")
 }
