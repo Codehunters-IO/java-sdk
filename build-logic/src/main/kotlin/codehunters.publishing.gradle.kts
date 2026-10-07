@@ -20,9 +20,13 @@ afterEvaluate {
         }
 }
 
-// GitHub Packages rejects re-publishing a version (409), so publish only what isn't there yet.
+// GitHub Packages rejects re-publishing a version (409), so publish only what isn't there yet. A
+// file repository (used by the build-logic tests) is checked on disk.
 fun isAlreadyPublished(repositoryUrl: java.net.URI, group: String, artifact: String, version: String): Boolean {
     val pom = "${group.replace('.', '/')}/$artifact/$version/$artifact-$version.pom"
+    if (repositoryUrl.scheme == "file") {
+        return java.io.File(repositoryUrl.resolve("${repositoryUrl.path.trimEnd('/')}/$pom")).exists()
+    }
     val token = System.getenv("GH_PACKAGES_TOKEN")
         ?: throw GradleException("GH_PACKAGES_TOKEN is required to check whether $artifact $version exists")
     val credentials = java.util.Base64.getEncoder()
@@ -42,6 +46,12 @@ fun isAlreadyPublished(repositoryUrl: java.net.URI, group: String, artifact: Str
     }
 }
 
+// Each upload to GitHub Packages records its git tag (`sdk-<module>/vX.Y.Z`, or `bom/vX.Y.Z`) in
+// build/released-tags/, one file per module. Skipped and failed uploads record nothing, so the
+// publish workflow tags exactly what this build released, at the commit that built it.
+val tagName = if (name == "sdk-bom") "bom" else name
+val releasedTagFile = rootProject.layout.buildDirectory.file("released-tags/$tagName.txt")
+
 tasks.withType<PublishToMavenRepository>().configureEach {
     onlyIf("version is a release not yet in the target repository") {
         val version = publication.version
@@ -51,19 +61,12 @@ tasks.withType<PublishToMavenRepository>().configureEach {
         !version.endsWith("-SNAPSHOT") &&
             !isAlreadyPublished(repository.url, publication.groupId, publication.artifactId, version)
     }
-}
-
-// Prints the git tag for this module's release (`sdk-<module>/vX.Y.Z`, or `bom/vX.Y.Z`); nothing for
-// a SNAPSHOT. The publish workflow tags only names that don't exist yet, i.e. first publications.
-val moduleName = name
-tasks.register("releaseTag") {
-    description = "Prints the release tag of this module, or nothing for a SNAPSHOT version."
-    group = PublishingPlugin.PUBLISH_TASK_GROUP
-    val moduleVersion = provider { version.toString() }
-    val tagPrefix = if (moduleName == "sdk-bom") "bom" else moduleName
+    val tag = tagName
+    val tagFile = releasedTagFile
     doLast {
-        val version = moduleVersion.get()
-        if (!version.endsWith("-SNAPSHOT")) println("$tagPrefix/v$version")
+        if (repository.name == "GitHubPackages") {
+            tagFile.get().asFile.apply { parentFile.mkdirs() }.writeText("$tag/v${publication.version}\n")
+        }
     }
 }
 
@@ -72,9 +75,12 @@ publishing {
         maven {
             name = "GitHubPackages"
             url = uri("${rootProject.findProperty("github_packages_url")}")
-            credentials {
-                username = System.getenv("GH_PACKAGES_USERNAME")
-                password = System.getenv("GH_PACKAGES_TOKEN")
+            // Gradle rejects credentials on a file repository, which the build-logic tests use.
+            if (url.scheme != "file") {
+                credentials {
+                    username = System.getenv("GH_PACKAGES_USERNAME")
+                    password = System.getenv("GH_PACKAGES_TOKEN")
+                }
             }
         }
     }
