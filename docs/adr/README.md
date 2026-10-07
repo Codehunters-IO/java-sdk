@@ -6,7 +6,7 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 |---|---|---|
 | [0001](0001-split-event-messaging-by-transport.md) | Split sdk-event-messaging by transport | accepted |
 | [0002](0002-move-policy-enforcer-to-its-own-artifact.md) | Move the Keycloak policy enforcer to sdk-user-security-authz | accepted |
-| [0003](0003-retire-geo-validation-from-the-sdk.md) | Retire sdk-geo-validation from the SDK | accepted |
+| [0003](0003-retire-geo-validation-from-the-sdk.md) | Retire sdk-geo-validation from the SDK | superseded by [0015](0015-domain-agnostic-geofencing.md) |
 | [0004](0004-single-codehunters-property-prefix.md) | Use the codehunters.&lt;sdk&gt; property prefix with deprecated aliases | accepted |
 | [0005](0005-rename-sdk-utils-to-sdk-totp.md) | Rename sdk-utils to sdk-totp | accepted |
 | [0006](0006-sdk-bom-and-no-exported-boot-bom.md) | Publish an sdk-bom and stop exporting the Spring Boot BOM | accepted |
@@ -18,3 +18,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0012](0012-trusted-proxy-client-ip.md) | Resolve the client IP only through trusted proxies | accepted |
 | [0013](0013-jpa-building-blocks.md) | JPA building blocks: UUID v7 entities, Spring Data auditing and whitelisted queries | accepted |
 | [0014](0014-jasper-reports-from-the-classpath-only.md) | Render JasperReports templates from the classpath only | accepted |
+| [0015](0015-domain-agnostic-geofencing.md) | Keep sdk-geo-validation as domain-agnostic geofencing | accepted |
