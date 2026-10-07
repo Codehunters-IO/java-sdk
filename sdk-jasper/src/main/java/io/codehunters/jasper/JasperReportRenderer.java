@@ -5,12 +5,15 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import net.sf.jasperreports.engine.JRDataSource;
 import net.sf.jasperreports.engine.JRException;
-import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.JasperReportsContext;
+import net.sf.jasperreports.engine.fill.JRFiller;
+import net.sf.jasperreports.engine.fill.ReportFiller;
+import net.sf.jasperreports.engine.fill.SimpleJasperReportSource;
 import net.sf.jasperreports.governors.MaxPagesGovernorException;
 import net.sf.jasperreports.governors.TimeoutGovernorException;
+import net.sf.jasperreports.repo.SimpleRepositoryResourceContext;
 
 /**
  * Renders JasperReports 7 templates read from a classpath folder. Templates are compiled once and
@@ -99,13 +102,22 @@ public final class JasperReportRenderer implements ReportRenderer {
     swap.attachTo(parameters);
     JRDataSource source = request.data().open();
     try (var closing = closing(source)) {
-      var print = JasperFillManager.getInstance(context).fill(report, parameters, source);
+      var print = filler(request, report).fill(parameters, source);
       swap.freeze();
       return print;
     } catch (Exception e) {
       // JasperReports, the source's close and the governors all fail as plain exceptions here.
       throw fillFailure(request, e);
     }
+  }
+
+  // Naming the template gives its resources a folder to be looked up beside.
+  private ReportFiller filler(ReportRequest request, JasperReport report) throws JRException {
+    String template = request.template();
+    var source =
+        SimpleJasperReportSource.from(
+            report, template, SimpleRepositoryResourceContext.of(template));
+    return JRFiller.createReportFiller(context, source);
   }
 
   private ReportException fillFailure(ReportRequest request, Exception e) {
