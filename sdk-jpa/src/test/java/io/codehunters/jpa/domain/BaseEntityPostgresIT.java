@@ -70,16 +70,86 @@ class BaseEntityPostgresIT {
                   em -> {
                     var proxy = em.getReference(Customer.class, id);
                     var equal = loaded.equals(proxy);
-                    return new ProxyView(equal, Hibernate.isInitialized(proxy), proxy.hashCode());
+                    var hash = proxy.hashCode();
+                    return new ProxyView(equal, Hibernate.isInitialized(proxy), hash);
                   });
 
           assertThat(view.equal()).isTrue();
-          assertThat(view.initializedByEquals()).isFalse();
+          assertThat(view.initialized()).isFalse();
           assertThat(view.proxyHash()).isEqualTo(loaded.hashCode());
         });
   }
 
-  private record ProxyView(boolean equal, boolean initializedByEquals, int proxyHash) {}
+  @Test
+  void should_compare_from_an_uninitialized_proxy_without_loading_it() {
+    runner.run(
+        context -> {
+          var id = idOf(customers(context).save(new Customer("Ada")));
+          var loaded = customers(context).findById(id).orElseThrow();
+
+          var view =
+              inTransaction(
+                  context,
+                  em -> {
+                    var proxy = em.getReference(Customer.class, id);
+                    var equal = proxy.equals(loaded);
+                    return new ProxyView(equal, Hibernate.isInitialized(proxy), proxy.hashCode());
+                  });
+
+          assertThat(view.equal()).isTrue();
+          assertThat(view.initialized()).isFalse();
+        });
+  }
+
+  @Test
+  void should_compare_and_identify_a_detached_proxy_without_a_session() {
+    runner.run(
+        context -> {
+          var id = idOf(customers(context).save(new Customer("Ada")));
+          var loaded = customers(context).findById(id).orElseThrow();
+
+          var proxy = inTransaction(context, em -> em.getReference(Customer.class, id));
+
+          assertThat(proxy.equals(loaded)).isTrue();
+          assertThat(proxy.hashCode()).isEqualTo(loaded.hashCode());
+          assertThat(proxy.getId()).contains(id);
+        });
+  }
+
+  private record ProxyView(boolean equal, boolean initialized, int proxyHash) {}
+
+  @Test
+  void should_persist_and_manage_the_instance_it_saves_when_the_entity_is_new() {
+    runner.run(
+        context -> {
+          var view =
+              inTransaction(
+                  context,
+                  em -> {
+                    var customer = new Customer("Ada");
+                    customers(context).save(customer);
+                    return new SaveView(customer.getId().isPresent(), em.contains(customer));
+                  });
+
+          assertThat(view.idAssigned()).isTrue();
+          assertThat(view.managed()).isTrue();
+        });
+  }
+
+  private record SaveView(boolean idAssigned, boolean managed) {}
+
+  @Test
+  void should_delete_a_saved_entity_through_the_repository() {
+    runner.run(
+        context -> {
+          var repository = customers(context);
+          var saved = repository.save(new Customer("Ada"));
+
+          repository.delete(saved);
+
+          assertThat(repository.count()).isZero();
+        });
+  }
 
   @Test
   void should_not_equal_another_row() {
@@ -98,6 +168,7 @@ class BaseEntityPostgresIT {
 
           customers(context).save(customer);
 
+          assertThat(customer.getId()).isPresent();
           assertThat(set).contains(customer);
         });
   }
