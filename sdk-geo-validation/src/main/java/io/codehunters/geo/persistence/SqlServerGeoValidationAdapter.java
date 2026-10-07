@@ -12,12 +12,14 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
  * SQL Server geography-backed adapter. Calls {@code sp_geo_can_purchase_raffle} through a SELECT
- * wrapper that captures the procedure's OUTPUT parameters in a single row.
+ * wrapper that captures the procedure's OUTPUT parameters in a single row. {@code SET NOCOUNT ON}
+ * stops the procedure's own row counts from reaching the driver ahead of that row.
  */
 public class SqlServerGeoValidationAdapter implements RaffleGeoValidationPort {
 
   private static final String SQL =
       """
+      SET NOCOUNT ON;
       DECLARE @allowed BIT, @code VARCHAR(10), @type VARCHAR(20), @name NVARCHAR(200), @dept NVARCHAR(200);
       EXEC dbo.sp_geo_can_purchase_raffle
           @raffle_id = :raffleId, @lat = :lat, @lon = :lon,
