@@ -4,7 +4,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Test fake: echoes the header as the browser family and counts calls; can block until released. */
+/**
+ * Test fake: echoes the header as the browser family and counts calls; can block until released.
+ */
 final class CountingParser implements UserAgentParser {
 
   private final AtomicInteger calls = new AtomicInteger();

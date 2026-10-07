@@ -14,14 +14,13 @@ class UserAgentsTest {
   @CsvSource(
       delimiter = '|',
       nullValues = "NULL",
-      emptyValue = "EMPTY",
       textBlock =
           """
           Mozilla/5.0         | 64 | Mozilla/5.0
           '  Mozilla/5.0  '   | 64 | Mozilla/5.0
           Mozilla/5.0 (X11)   | 7  | Mozilla
-          NULL                | 64 | EMPTY
-          EMPTY               | 64 | EMPTY
+          NULL                | 64 | ''
+          ''                  | 64 | ''
           """)
   void should_trim_and_truncate_the_header(String raw, int maxLength, String expected) {
     assertThat(UserAgents.sanitize(raw, maxLength)).isEqualTo(expected);

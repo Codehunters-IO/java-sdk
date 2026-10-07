@@ -30,6 +30,6 @@ class UapUserAgentParserTest {
 
   @Test
   void should_describe_an_unrecognised_header_as_unknown() {
-    assertThat(PARSER.parse("curl-like-thing")).isEqualTo(UserAgentInfo.UNKNOWN);
+    assertThat(PARSER.parse("zz-qq/0")).isEqualTo(UserAgentInfo.UNKNOWN);
   }
 }
