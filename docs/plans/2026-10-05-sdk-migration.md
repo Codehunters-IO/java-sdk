@@ -852,7 +852,7 @@ archivos y streams solo lo que la JDK no cubre. Los conversores JPA quedan fuera
 Hecho, reescrito con TDD (cada `feat` con su `test` en rojo antes):
 - `Masking` (`keep`, `keepFirst`, `keepLast`, `email`, `pan`): enmascara todo cuando lo visible
   cubriría el valor entero; cuenta code points.
-- `TextNormalizer.simplify`: `Locale.ROOT`, quita diacríticos latinos y recompone (NFC), deletrea
+- `TextNormalizer.simplify`: `Locale.ROOT`, quita marcas de letras latinas y recompone (NFC), deletrea
   `ß æ ø œ ł ð đ þ`, todo lo demás que no es letra, dígito o marca pasa a un único `_`.
 - `PasswordPolicy` / `PasswordCheck` / `CharacterClass` / `PasswordViolation`, y `PasswordGenerator`
   (12–128, por defecto 16, `SecureRandom` compartido, una clase de cada tipo por construcción, sin
@@ -867,7 +867,26 @@ Hecho, reescrito con TDD (cada `feat` con su `test` en rojo antes):
 - `sdk-bom` 1.0.0 incluye `sdk-commons`. Como el BOM no se había publicado, se regeneró su lock en vez
   de subirlo a 1.1.0.
 
-Pendiente: review independiente; sacar `codehuntersio-java-commons-support/` del directorio del repo.
+Correcciones de la review independiente (sin hallazgos HIGH), cada una con su test en rojo antes:
+- Contraseñas (`058ec9a`): los espacios no separables cuentan como espacio; los caracteres de control,
+  de formato (como el espacio de ancho cero), surrogates sueltos, de uso privado y sin asignar dan
+  `CONTAINS_INVISIBLE`; solo la puntuación y los símbolos visibles cuentan como `SPECIAL`. Una entrada
+  de más del doble del máximo devuelve solo `TOO_LONG` sin recorrerla. `PasswordCheck(null)` lanza
+  `IllegalArgumentException`.
+- `FileNames` (`2a6a06f`): la extensión solo vale si son 1 a 16 letras, dígitos, `-` o `_`;
+  `withBaseName` rechaza `.`, `..`, dos puntos, caracteres de control o formato y un punto o espacio
+  final.
+- `TextNormalizer` (`9a866d6`): quita marcas solo de letras latinas (`йод` e `иод` ya no colisionan)
+  y pliega la sigma final `ς` en `σ`.
+- `Masking` (`cb543fe`): compone el texto (NFC) antes de contar, rechaza un surrogate como máscara y
+  valida la forma del PAN (grupos de dígitos con un solo espacio o guion).
+- `RelativeTime` y `CronExpressions` (`486bbcd`): los meses topan en 11; la cantidad es cero solo con
+  `NOW`; `quartzAt` rechaza años fuera de 1970–2099.
+- Test de `distinctByKey` en un stream paralelo (`739ef00`) y migración corregida (`e413c9f`):
+  `leftMask`, bucle infinito del generador viejo también por encima de 10, semanas redondeadas hacia
+  arriba en la versión vieja, `©` y `trim()`.
+
+Pendiente: sacar `codehuntersio-java-commons-support/` del directorio del repo.
 
 ## Orden y dependencias
 
