@@ -46,6 +46,12 @@ public final class MeteredReportRenderer implements ReportRenderer {
     return timed(request, () -> delegate.toBytes(request));
   }
 
+  /** Closes the renderer it wraps. */
+  @Override
+  public void close() {
+    delegate.close();
+  }
+
   private <T> T timed(ReportRequest request, Supplier<T> render) {
     if (request == null) {
       return render.get();

@@ -1,12 +1,16 @@
 package io.codehunters.jasper;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;
+import net.sf.jasperreports.engine.JRDataSource;
 import net.sf.jasperreports.engine.JRException;
 import net.sf.jasperreports.engine.JasperFillManager;
 import net.sf.jasperreports.engine.JasperPrint;
 import net.sf.jasperreports.engine.JasperReport;
 import net.sf.jasperreports.engine.JasperReportsContext;
+import net.sf.jasperreports.governors.MaxPagesGovernorException;
+import net.sf.jasperreports.governors.TimeoutGovernorException;
 
 /**
  * Renders JasperReports 7 templates read from a classpath folder. Templates are compiled once and
@@ -21,6 +25,7 @@ public final class JasperReportRenderer implements ReportRenderer {
   private final ReportSettings settings;
   private final JasperReportsContext context;
   private final TemplateCache<JasperReport> templates;
+  private final SwapFolder swaps;
 
   /** Creates a renderer with {@link ReportSettings#DEFAULT}. */
   public JasperReportRenderer() {
@@ -50,6 +55,7 @@ public final class JasperReportRenderer implements ReportRenderer {
     this.context = new HardenedContext(settings, loader);
     var templateLoader = new TemplateLoader(settings, context, loader);
     this.templates = new TemplateCache<>(settings.cacheSize(), templateLoader::load);
+    this.swaps = new SwapFolder(settings.virtualization().directory());
   }
 
   @Override
@@ -61,9 +67,15 @@ public final class JasperReportRenderer implements ReportRenderer {
       throw new IllegalArgumentException("out must not be null");
     }
     var report = templates.get(request.template());
-    try (var swap = Swap.open(settings.virtualization(), context)) {
+    try (var swap = openSwap(request)) {
       export(request, fill(request, report, swap), out);
     }
+  }
+
+  /** Deletes the renderer's swap folder; renders after this create a new one. */
+  @Override
+  public void close() {
+    swaps.close();
   }
 
   @Override
@@ -73,17 +85,49 @@ public final class JasperReportRenderer implements ReportRenderer {
     return out.toByteArray();
   }
 
+  private Swap openSwap(ReportRequest request) {
+    try {
+      return Swap.open(settings.virtualization(), context, swaps);
+    } catch (IOException | RuntimeException e) {
+      throw new ReportException(
+          "the swap folder for report " + request.template() + " could not be created", e);
+    }
+  }
+
   private JasperPrint fill(ReportRequest request, JasperReport report, Swap swap) {
     var parameters = new HashMap<>(request.parameters());
     swap.attachTo(parameters);
-    try {
-      var print =
-          JasperFillManager.getInstance(context).fill(report, parameters, request.data().open());
+    JRDataSource source = request.data().open();
+    try (var closing = closing(source)) {
+      var print = JasperFillManager.getInstance(context).fill(report, parameters, source);
       swap.freeze();
       return print;
-    } catch (JRException | RuntimeException e) {
-      throw failure("report " + request.template() + " could not be filled", e);
+    } catch (Exception e) {
+      // JasperReports, the source's close and the governors all fail as plain exceptions here.
+      throw fillFailure(request, e);
     }
+  }
+
+  private ReportException fillFailure(ReportRequest request, Exception e) {
+    var limits = settings.fillLimits();
+    for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+      if (cause instanceof MaxPagesGovernorException) {
+        return new ReportException(
+            "report " + request.template() + " exceeds the page limit (" + limits.maxPages() + ")",
+            e);
+      }
+      if (cause instanceof TimeoutGovernorException) {
+        return new ReportException(
+            "report " + request.template() + " exceeds the fill timeout (" + limits.timeout() + ")",
+            e);
+      }
+    }
+    return failure("report " + request.template() + " could not be filled", e);
+  }
+
+  // A source backed by a cursor or a stream is released after the fill, successful or not.
+  private static AutoCloseable closing(JRDataSource source) {
+    return source instanceof AutoCloseable closeable ? closeable : () -> {};
   }
 
   private void export(ReportRequest request, JasperPrint print, OutputStream out) {

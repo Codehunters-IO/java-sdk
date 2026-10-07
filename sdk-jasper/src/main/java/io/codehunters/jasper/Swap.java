@@ -1,5 +1,7 @@
 package io.codehunters.jasper;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 import net.sf.jasperreports.engine.JRParameter;
 import net.sf.jasperreports.engine.JasperReportsContext;
@@ -7,8 +9,9 @@ import net.sf.jasperreports.engine.fill.JRSwapFileVirtualizer;
 import net.sf.jasperreports.engine.util.JRSwapFile;
 
 /**
- * One render's page swap file, or nothing when virtualization is off. Closing it deletes the file,
- * so it must outlive the export, which reads the swapped pages back.
+ * One render's page swap file, in its own folder, or nothing when virtualization is off. Closing it
+ * deletes the file and the folder, so it must outlive the export, which reads the swapped pages
+ * back.
  */
 final class Swap implements AutoCloseable {
 
@@ -16,17 +19,21 @@ final class Swap implements AutoCloseable {
   private static final int MIN_GROW = 64;
 
   private final JRSwapFileVirtualizer virtualizer;
+  private final Path folder;
 
-  private Swap(JRSwapFileVirtualizer virtualizer) {
+  private Swap(JRSwapFileVirtualizer virtualizer, Path folder) {
     this.virtualizer = virtualizer;
+    this.folder = folder;
   }
 
-  static Swap open(Virtualization virtualization, JasperReportsContext context) {
+  static Swap open(Virtualization virtualization, JasperReportsContext context, SwapFolder swaps)
+      throws IOException {
     if (!virtualization.enabled()) {
-      return new Swap(null);
+      return new Swap(null, null);
     }
-    var file = new JRSwapFile(context, virtualization.directory().toString(), BLOCK_SIZE, MIN_GROW);
-    return new Swap(new JRSwapFileVirtualizer(virtualization.maxPages(), file, true));
+    Path folder = swaps.newRenderFolder();
+    var file = new JRSwapFile(context, folder.toString(), BLOCK_SIZE, MIN_GROW);
+    return new Swap(new JRSwapFileVirtualizer(virtualization.maxPages(), file, true), folder);
   }
 
   void attachTo(Map<String, Object> parameters) {
@@ -45,6 +52,7 @@ final class Swap implements AutoCloseable {
   public void close() {
     if (virtualizer != null) {
       virtualizer.cleanup();
+      SwapFolder.delete(folder);
     }
   }
 }

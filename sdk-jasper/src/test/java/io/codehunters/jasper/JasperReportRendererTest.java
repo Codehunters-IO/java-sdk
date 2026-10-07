@@ -225,7 +225,7 @@ class JasperReportRendererTest {
 
     assertThat(Documents.pdfPages(pdf)).isGreaterThan(1);
     assertThat(Documents.pdfText(pdf)).contains("row1", "row200");
-    assertThat(Documents.filesIn(folder)).isZero();
+    assertThat(Documents.regularFilesUnder(folder)).isZero();
   }
 
   @Test
@@ -238,7 +238,7 @@ class JasperReportRendererTest {
             .withParameters(Map.of("number", "not a number"));
 
     assertThatThrownBy(() -> swapping.toBytes(request)).isInstanceOf(ReportException.class);
-    assertThat(Documents.filesIn(folder)).isZero();
+    assertThat(Documents.regularFilesUnder(folder)).isZero();
   }
 
   @Test

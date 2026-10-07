@@ -6,13 +6,21 @@ package io.codehunters.jasper;
  * @param templateBase the classpath folder templates and their resources are read from
  * @param cacheSize compiled templates kept, 0 to 10000; 0 loads the template on every render
  * @param maxOutputBytes the largest document {@link ReportRenderer#toBytes} returns, 1 byte to
- *     about 2 GB
+ *     about 2 GB; {@code toBytes} holds up to about twice this while it copies the result out
+ * @param fillLimits how many pages and how long a fill may take
  * @param virtualization whether filled pages are swapped to a file
  */
 public record ReportSettings(
-    String templateBase, int cacheSize, long maxOutputBytes, Virtualization virtualization) {
+    String templateBase,
+    int cacheSize,
+    long maxOutputBytes,
+    FillLimits fillLimits,
+    Virtualization virtualization) {
 
-  /** {@code reports/} on the classpath, 64 templates cached, 50 MB, no virtualization. */
+  /**
+   * {@code reports/} on the classpath, 64 templates cached, 50 MB, {@link FillLimits#DEFAULT}, no
+   * virtualization.
+   */
   public static final ReportSettings DEFAULT =
       new ReportSettings("reports", 64, 50L * 1024 * 1024, Virtualization.OFF);
 
@@ -33,9 +41,25 @@ public record ReportSettings(
       throw new IllegalArgumentException(
           "max-output-size must be between 1 and " + MAX_OUTPUT + " bytes");
     }
+    if (fillLimits == null) {
+      throw new IllegalArgumentException("fill limits must not be null");
+    }
     if (virtualization == null) {
       throw new IllegalArgumentException("virtualization must not be null");
     }
+  }
+
+  /**
+   * Settings with {@link FillLimits#DEFAULT}.
+   *
+   * @param templateBase the classpath folder templates and their resources are read from
+   * @param cacheSize compiled templates kept, 0 to 10000
+   * @param maxOutputBytes the largest document {@link ReportRenderer#toBytes} returns
+   * @param virtualization whether filled pages are swapped to a file
+   */
+  public ReportSettings(
+      String templateBase, int cacheSize, long maxOutputBytes, Virtualization virtualization) {
+    this(templateBase, cacheSize, maxOutputBytes, FillLimits.DEFAULT, virtualization);
   }
 
   String resolve(String name) {

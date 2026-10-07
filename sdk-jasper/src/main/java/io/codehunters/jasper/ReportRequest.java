@@ -1,5 +1,13 @@
 package io.codehunters.jasper;
 
+import java.io.File;
+import java.io.InputStream;
+import java.io.Reader;
+import java.net.URI;
+import java.net.URL;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -10,7 +18,8 @@ import java.util.Set;
  *
  * @param template the template name under the configured base folder, ending in {@code .jasper}
  *     (precompiled, preferred) or {@code .jrxml}
- * @param parameters the report parameters, unmodifiable; values may be null
+ * @param parameters the report parameters, unmodifiable; values may be null but never a URL, URI,
+ *     File, Path, stream or reader, which JasperReports would load from directly
  * @param data the rows
  * @param format the output format
  */
@@ -87,7 +96,38 @@ public record ReportRequest(
       throw new IllegalArgumentException("parameters must not be null");
     }
     parameters.keySet().forEach(ReportRequest::checkName);
+    parameters.forEach(ReportRequest::checkValue);
     return Collections.unmodifiableMap(new LinkedHashMap<>(parameters));
+  }
+
+  // JasperReports loads an image, subreport or style template directly from a value of these types,
+  // bypassing the classpath-only repository; a stream may even be deserialized as a report.
+  private static void checkValue(String name, Object value) {
+    if (isLocation(value) || containsLocation(value)) {
+      throw new IllegalArgumentException(
+          "parameter "
+              + name
+              + " holds a URL, URI, File, Path, stream or reader; pass a classpath location as a"
+              + " String");
+    }
+  }
+
+  private static boolean containsLocation(Object value) {
+    return switch (value) {
+      case Collection<?> values -> values.stream().anyMatch(ReportRequest::isLocation);
+      case Map<?, ?> values -> values.values().stream().anyMatch(ReportRequest::isLocation);
+      case Object[] values -> Arrays.stream(values).anyMatch(ReportRequest::isLocation);
+      case null, default -> false;
+    };
+  }
+
+  private static boolean isLocation(Object value) {
+    return value instanceof URL
+        || value instanceof URI
+        || value instanceof File
+        || value instanceof Path
+        || value instanceof InputStream
+        || value instanceof Reader;
   }
 
   private static void checkName(String name) {
