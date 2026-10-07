@@ -40,6 +40,7 @@ public interface ParameterClient {
    *
    * @param modules the modules to include; an empty collection returns an empty list
    * @return the matching parameters, ordered by {@code module} then {@code name}
+   * @throws IllegalArgumentException if {@code modules} contains a {@code null} element
    */
   List<Parameter> findByModules(Collection<ParameterModule> modules);
 
@@ -49,6 +50,7 @@ public interface ParameterClient {
    * @param module the owning module
    * @param submodules the submodules to include; an empty collection returns an empty list
    * @return the matching parameters, ordered by {@code submodule} then {@code name}
+   * @throws IllegalArgumentException if {@code submodules} contains a {@code null} element
    */
   List<Parameter> findByModuleAndSubmodules(ParameterModule module, Collection<String> submodules);
 

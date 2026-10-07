@@ -1,5 +1,6 @@
 package io.codehunters.parameter.infrastructure;
 
+import io.codehunters.parameter.domain.exception.ParameterAccessException;
 import io.codehunters.parameter.domain.model.Parameter;
 import io.codehunters.parameter.domain.model.ParameterModule;
 import io.codehunters.parameter.domain.model.ParameterType;
@@ -44,7 +45,11 @@ final class ParameterRowMapper implements RowMapper<Parameter> {
     if (raw instanceof UUID uuid) {
       return uuid;
     }
-    return UUID.fromString(raw.toString());
+    try {
+      return UUID.fromString(raw.toString());
+    } catch (IllegalArgumentException ex) {
+      throw new ParameterAccessException("Malformed UUID in column " + column, null);
+    }
   }
 
   private OffsetDateTime readTimestamp(ResultSet rs, String column) throws SQLException {

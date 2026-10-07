@@ -1,9 +1,19 @@
 package io.codehunters.parameter.domain.model;
 
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * Owning module of a parameter, identified by the code stored in the {@code module} column. The
  * constants cover the modules known when this SDK was released; {@link #of(String)} accepts any
  * other code, so a module added on the server does not need a new SDK version.
+ *
+ * <p>{@link #of(String)} returns the constant itself for a known code, so {@code ==} against a
+ * constant keeps working for rows read by the SDK. Compare with {@link #equals(Object)} anyway: a
+ * module the SDK does not know is a new instance on every call. Codes are trimmed and compared
+ * case-sensitively ({@code "auth"} is not {@link #AUTH}).
  *
  * @param code the module code, as stored in the parameters table
  */
@@ -42,17 +52,20 @@ public record ParameterModule(String code) {
     if (code == null || code.isBlank()) {
       throw new IllegalArgumentException("Parameter module code must not be blank");
     }
+    code = code.strip();
   }
 
   /**
-   * Returns the module with the given code.
+   * Returns the module with the given code: the constant itself for a known code, a new module
+   * otherwise. Surrounding whitespace is ignored.
    *
    * @param code the module code
    * @return the module
    * @throws IllegalArgumentException if {@code code} is null or blank
    */
   public static ParameterModule of(String code) {
-    return new ParameterModule(code);
+    ParameterModule module = new ParameterModule(code);
+    return Known.BY_CODE.getOrDefault(module.code(), module);
   }
 
   /**
@@ -63,5 +76,21 @@ public record ParameterModule(String code) {
   @Override
   public String toString() {
     return code;
+  }
+
+  /** Lookup of the constants by code, initialised after them on first use. */
+  private static final class Known {
+
+    private static final Map<String, ParameterModule> BY_CODE =
+        Stream.of(
+                GENERAL,
+                AUTH,
+                CONFIG_SERVER,
+                FILE_SHARE,
+                MANAGEMENT,
+                NOTIFICATIONS,
+                PAYMENT,
+                RAFFLES)
+            .collect(Collectors.toUnmodifiableMap(ParameterModule::code, Function.identity()));
   }
 }

@@ -22,6 +22,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  * {@link ParameterClient} implementation backed by direct JDBC reads against the parameters table.
  * Queries return only enabled, non-deleted rows. A blank submodule is treated as the empty
  * submodule.
+ *
+ * <p>The table name is validated as an unquoted identifier of up to three parts ({@code table},
+ * {@code schema.table} or {@code database.schema.table}) and is never quoted. It is therefore
+ * subject to the database's rules for unquoted names: reserved words such as {@code user} fail at
+ * query time, and Postgres folds the name to lower case, so a table created with a quoted
+ * mixed-case name is not found.
  */
 public class JdbcParameterAdapter implements ParameterClient {
 
@@ -29,7 +35,7 @@ public class JdbcParameterAdapter implements ParameterClient {
   public static final String DEFAULT_TABLE = "parameters";
 
   private static final Pattern IDENTIFIER =
-      Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?");
+      Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*){0,2}");
   private static final ParameterRowMapper ROW_MAPPER = new ParameterRowMapper();
   private static final String BASE_COLUMNS =
       "id, module, submodule, name, value, type, enabled, description, "
@@ -52,13 +58,14 @@ public class JdbcParameterAdapter implements ParameterClient {
    * Creates the adapter over the given table.
    *
    * @param jdbcClient the JDBC client bound to the consumer's {@code DataSource}
-   * @param tableName the table to read, optionally schema-qualified ({@code schema.table})
+   * @param tableName the table to read, optionally qualified ({@code schema.table} or {@code
+   *     database.schema.table})
    * @throws IllegalArgumentException if {@code tableName} is not a plain SQL identifier
    */
   public JdbcParameterAdapter(JdbcClient jdbcClient, String tableName) {
     if (tableName == null || !IDENTIFIER.matcher(tableName).matches()) {
       throw new IllegalArgumentException(
-          "Parameter table name must be an identifier, optionally schema-qualified: " + tableName);
+          "Parameter table name must be an identifier of up to three parts: " + tableName);
     }
     this.jdbcClient = jdbcClient;
     this.select = "SELECT " + BASE_COLUMNS + " FROM " + tableName;
@@ -93,6 +100,7 @@ public class JdbcParameterAdapter implements ParameterClient {
 
   @Override
   public List<Parameter> findByModules(Collection<ParameterModule> modules) {
+    Arguments.requireNoNullElements(modules, "modules");
     if (modules == null || modules.isEmpty()) {
       return List.of();
     }
@@ -108,6 +116,7 @@ public class JdbcParameterAdapter implements ParameterClient {
   @Override
   public List<Parameter> findByModuleAndSubmodules(
       ParameterModule module, Collection<String> submodules) {
+    Arguments.requireNoNullElements(submodules, "submodules");
     if (submodules == null || submodules.isEmpty()) {
       return List.of();
     }
