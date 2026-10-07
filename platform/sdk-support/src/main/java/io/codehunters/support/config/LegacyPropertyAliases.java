@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
+import java.util.stream.StreamSupport;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.context.properties.source.ConfigurationProperty;
 import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
@@ -17,10 +18,16 @@ import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
 
 /**
- * Keeps renamed configuration keys working for one major version: every key under an old prefix is
- * copied to its new name, unless the new name is already set, into a lowest-precedence property
- * source. The most specific mapping wins, so single keys can move to a different place than the
- * rest of their prefix. One warning lists the old keys found (never their values).
+ * Keeps renamed configuration keys working for one major version: every declared old key, and every
+ * entry nested under it (list items, fields of list items), is copied to its new name, unless the
+ * new name is already set, into a lowest-precedence property source. The most specific mapping
+ * wins, so single keys can move to a different place than the rest of their prefix. One warning
+ * lists the old keys copied and another the old keys ignored because the new key is set (never
+ * their values).
+ *
+ * <p>Declared keys are looked up the way Boot binds them, so an environment variable may write a
+ * dashed name with or without underscores ({@code OLD_PREFIX_TIMEOUT_SECONDS} or {@code
+ * OLD_PREFIX_TIMEOUTSECONDS}). Old keys that are not declared are not copied.
  *
  * <p>Internal to the SDK modules; not a supported API.
  */
@@ -29,6 +36,7 @@ public final class LegacyPropertyAliases {
   private final String name;
   private final List<Map.Entry<ConfigurationPropertyName, String>> renames;
   private final List<Map.Entry<ConfigurationPropertyName, UnaryOperator<String>>> valueTransforms;
+  private final List<ConfigurationPropertyName> keys;
 
   /**
    * Creates the aliases.
@@ -53,58 +61,68 @@ public final class LegacyPropertyAliases {
         valueTransforms.entrySet().stream()
             .map(e -> Map.entry(ConfigurationPropertyName.of(e.getKey()), e.getValue()))
             .toList();
+    this.keys = keys.stream().map(ConfigurationPropertyName::of).toList();
   }
 
   /**
    * Adds the aliases found in the environment.
    *
    * @param environment the environment to read and extend
-   * @param log where the deprecation warning goes
+   * @param log where the deprecation warnings go
    */
   public void apply(ConfigurableEnvironment environment, Log log) {
-    Map<String, Object> aliases = new LinkedHashMap<>();
-    Map<String, String> renamed = new LinkedHashMap<>();
-    for (ConfigurationPropertySource source : ConfigurationPropertySources.get(environment)) {
-      collect(source, environment, aliases, renamed);
+    Found found = new Found(environment);
+    keys.forEach(key -> copyKey(key, found));
+    found.sources.forEach(source -> copyNested(source, found));
+    if (!found.ignored.isEmpty()) {
+      log.warn("Deprecated configuration keys ignored, the new key is set: " + found.ignored);
     }
-    if (aliases.isEmpty()) {
+    if (found.aliases.isEmpty()) {
       return;
     }
     environment
         .getPropertySources()
-        .addLast(new MapPropertySource("legacyAliases-" + name, aliases));
-    log.warn("Deprecated configuration keys, rename them: " + renamed);
+        .addLast(new MapPropertySource("legacyAliases-" + name, found.aliases));
+    log.warn("Deprecated configuration keys, rename them: " + found.renamed);
   }
 
-  private void collect(
-      ConfigurationPropertySource source,
-      ConfigurableEnvironment environment,
-      Map<String, Object> aliases,
-      Map<String, String> renamed) {
+  // A forward lookup lets Boot's environment-variable mapping match every accepted form.
+  private void copyKey(ConfigurationPropertyName key, Found found) {
+    found.lookup(key).ifPresent(property -> found.add(key, newName(key), value(key, property)));
+    int index = 0;
+    Optional<ConfigurationProperty> item = found.lookup(indexed(key, index));
+    while (item.isPresent()) {
+      ConfigurationPropertyName itemName = indexed(key, index);
+      found.add(itemName, newName(itemName), item.get().getValue());
+      item = found.lookup(indexed(key, ++index));
+    }
+  }
+
+  // Covers what a forward lookup cannot enumerate: nested fields such as paths[0].methods[0].
+  private void copyNested(ConfigurationPropertySource source, Found found) {
     if (!(source instanceof IterableConfigurationPropertySource iterable)) {
       return;
     }
     iterable.stream()
+        .filter(oldName -> keys.stream().anyMatch(key -> key.isAncestorOf(oldName)))
         .forEach(
             oldName ->
-                newName(oldName)
-                    .filter(newName -> !aliases.containsKey(newName))
-                    .filter(newName -> !isSet(environment, newName))
-                    .ifPresent(
-                        newName -> {
-                          aliases.put(
-                              newName, value(oldName, source.getConfigurationProperty(oldName)));
-                          renamed.put(oldName.toString(), newName);
-                        }));
+                found.add(
+                    oldName,
+                    newName(oldName),
+                    source.getConfigurationProperty(oldName).getValue()));
   }
 
-  // Names are compared element by element: an environment variable such as
-  // KEYCLOAK_SECURITY_CLIENTSECRET is the same name as keycloak.security.client-secret.
-  private Optional<String> newName(ConfigurationPropertyName oldName) {
+  private static ConfigurationPropertyName indexed(ConfigurationPropertyName key, int index) {
+    return ConfigurationPropertyName.of(key + "[" + index + "]");
+  }
+
+  private String newName(ConfigurationPropertyName oldName) {
     return renames.stream()
         .filter(rename -> rename.getKey().equals(oldName) || rename.getKey().isAncestorOf(oldName))
         .findFirst()
-        .map(rename -> rename(oldName, rename.getKey(), rename.getValue()));
+        .map(rename -> rename(oldName, rename.getKey(), rename.getValue()))
+        .orElseThrow(() -> new IllegalStateException("No rename declared for " + oldName));
   }
 
   private static String rename(
@@ -122,13 +140,37 @@ public final class LegacyPropertyAliases {
         .orElse(value);
   }
 
-  private static boolean isSet(ConfigurableEnvironment environment, String key) {
-    ConfigurationPropertyName name = ConfigurationPropertyName.of(key);
-    for (ConfigurationPropertySource source : ConfigurationPropertySources.get(environment)) {
-      if (source.getConfigurationProperty(name) != null) {
-        return true;
-      }
+  private static final class Found {
+
+    private final List<ConfigurationPropertySource> sources;
+    private final Map<String, Object> aliases = new LinkedHashMap<>();
+    private final Map<String, String> renamed = new LinkedHashMap<>();
+    private final Map<String, String> ignored = new LinkedHashMap<>();
+
+    private Found(ConfigurableEnvironment environment) {
+      this.sources =
+          StreamSupport.stream(ConfigurationPropertySources.get(environment).spliterator(), false)
+              .toList();
     }
-    return false;
+
+    // Sources come in precedence order, so the first one holding the key wins.
+    private Optional<ConfigurationProperty> lookup(ConfigurationPropertyName key) {
+      return sources.stream()
+          .map(source -> source.getConfigurationProperty(key))
+          .filter(property -> property != null)
+          .findFirst();
+    }
+
+    private void add(ConfigurationPropertyName oldName, String newName, Object value) {
+      if (aliases.containsKey(newName) || ignored.containsKey(oldName.toString())) {
+        return;
+      }
+      if (lookup(ConfigurationPropertyName.of(newName)).isPresent()) {
+        ignored.put(oldName.toString(), newName);
+        return;
+      }
+      aliases.put(newName, value);
+      renamed.put(oldName.toString(), newName);
+    }
   }
 }

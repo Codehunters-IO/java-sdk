@@ -91,6 +91,10 @@ class KeycloakSecurityLegacyPropertiesTest {
             new SystemEnvironmentPropertySource(
                 StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
                 Map.of(
+                    "KEYCLOAK_SECURITY_URL", "https://kc.example.com",
+                    "KEYCLOAK_SECURITY_REALM", "acme",
+                    "CODEHUNTERS_SECURITY_ALLOW_ANY_AUDIENCE", "true",
+                    "KEYCLOAK_SECURITY_CLIENT_ID", "svc",
                     "KEYCLOAK_SECURITY_CLIENT_SECRET", "secret",
                     "KEYCLOAK_SECURITY_CACHE_TTL_SECONDS", "60",
                     "KEYCLOAK_SECURITY_PUBLIC_PATHS_0", "/public/**")));
