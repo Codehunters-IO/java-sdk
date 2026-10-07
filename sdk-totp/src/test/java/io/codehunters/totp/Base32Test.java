@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class Base32Test {
 
@@ -69,5 +72,42 @@ class Base32Test {
     byte[] decoded = Base32.decode(Base32.encode(original));
 
     assertArrayEquals(original, decoded);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"M", "MZX", "MZXW6Y", "MZXW6YTBO", "MY======A"})
+  void should_reject_input_when_its_length_cannot_come_from_whole_bytes(String encoded) {
+    assertThrows(TotpException.class, () -> Base32.decode(encoded));
+  }
+
+  @Test
+  void should_reject_input_when_trailing_bits_are_not_zero() {
+    assertThrows(TotpException.class, () -> Base32.decode("MZ"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"MY==MY==", "=MY=====", "MY=", "MZXW6YQ=="})
+  void should_reject_input_when_padding_is_misplaced(String encoded) {
+    assertThrows(TotpException.class, () -> Base32.decode(encoded));
+  }
+
+  @Test
+  void should_decode_input_when_groups_are_separated_by_spaces() {
+    assertArrayEquals("foobar".getBytes(), Base32.decode("mzxw 6ytb oi"));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"MZXW\t6YTB", "MZXW\n6YTB", "MZXW-6YTB"})
+  void should_reject_input_when_it_holds_separators_other_than_spaces(String escaped) {
+    var encoded = escaped.translateEscapes();
+
+    assertThrows(TotpException.class, () -> Base32.decode(encoded));
+  }
+
+  @Test
+  void should_not_repeat_input_when_length_is_invalid() {
+    Assertions.assertThatThrownBy(() -> Base32.decode("QWERTYUIO"))
+        .isInstanceOf(TotpException.class)
+        .hasMessageNotContaining("QWERTYUIO");
   }
 }

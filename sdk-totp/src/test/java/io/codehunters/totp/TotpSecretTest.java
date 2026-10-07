@@ -133,4 +133,10 @@ class TotpSecretTest {
     assertNotEquals(a, other);
     assertNotEquals(a, "not-a-secret");
   }
+
+  @Test
+  void should_reject_base32_secret_when_a_character_was_added_by_mistake() {
+    assertThrows(
+        TotpException.class, () -> TotpSecret.fromBase32("JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXPA"));
+  }
 }
