@@ -16,7 +16,13 @@ import org.springframework.web.context.request.WebRequest;
 class ProblemFactoryTest {
 
   private static final ProblemSpec NOT_FOUND =
-      new ProblemSpec(HttpStatus.NOT_FOUND, "NOT_FOUND", "web-errors.NOT_FOUND", List.of(), "Not Found", List.of());
+      new ProblemSpec(
+          HttpStatus.NOT_FOUND,
+          "NOT_FOUND",
+          "web-errors.NOT_FOUND",
+          List.of(),
+          "Not Found",
+          List.of());
 
   private final ProblemFactory factory =
       new ProblemFactory(
@@ -48,5 +54,12 @@ class ProblemFactoryTest {
     WebRequest request = mock(WebRequest.class);
 
     assertThat(factory.create(NOT_FOUND, request).getInstance()).isNull();
+  }
+
+  @Test
+  void should_use_an_empty_code_when_a_violation_has_an_empty_code_list() {
+    var error = new DefaultMessageSourceResolvable(new String[0], "must be valid");
+
+    assertThat(factory.violation("name", error).code()).isEmpty();
   }
 }
