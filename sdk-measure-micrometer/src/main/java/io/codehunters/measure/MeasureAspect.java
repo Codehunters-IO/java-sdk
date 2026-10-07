@@ -46,6 +46,7 @@ public class MeasureAspect {
   private final TagCardinalityLimiter limiter;
   private final Map<Measured, MeasuredDefinition> definitions = new ConcurrentHashMap<>();
   private final ParameterNameDiscoverer parameterNames = new DefaultParameterNameDiscoverer();
+  private final WarnOnce warnings = new WarnOnce(log);
 
   /**
    * Creates the aspect with {@value #DEFAULT_MAX_TAG_VALUES} values per expression tag.
@@ -126,11 +127,13 @@ public class MeasureAspect {
               .and(definition.staticTags())
               .and(expressionTags(definition, context));
       return RecordingMeasurement.start(
-          new RecordingMeasurement.Call(registry, definition, tags, context));
+          new RecordingMeasurement.Call(registry, definition, tags, context), warnings);
     } catch (RuntimeException ex) {
-      log.warn(
+      String signature = pjp.getSignature().toLongString();
+      warnings.warn(
+          signature,
           "Could not start @Measured meters of {}: {}",
-          pjp.getSignature().toShortString(),
+          signature,
           ex.getClass().getName());
       return Measurement.NONE;
     }

@@ -5,8 +5,6 @@ import io.micrometer.core.instrument.LongTaskTimer;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.expression.EvaluationContext;
 
 /**
@@ -19,28 +17,29 @@ import org.springframework.expression.EvaluationContext;
  */
 final class RecordingMeasurement implements Measurement {
 
-  private static final Logger log = LoggerFactory.getLogger(RecordingMeasurement.class);
-
   private final Call call;
+  private final WarnOnce warnings;
   private final Timer.Sample sample;
   private final LongTaskTimer.Sample activeTask;
 
-  private RecordingMeasurement(Call call, Timer.Sample sample, LongTaskTimer.Sample activeTask) {
+  private RecordingMeasurement(
+      Call call, WarnOnce warnings, Timer.Sample sample, LongTaskTimer.Sample activeTask) {
     this.call = call;
+    this.warnings = warnings;
     this.sample = sample;
     this.activeTask = activeTask;
   }
 
-  static Measurement start(Call call) {
+  static Measurement start(Call call, WarnOnce warnings) {
     if (call.definition().annotation().longTask()) {
       LongTaskTimer active =
           LongTaskTimer.builder(call.definition().name() + ".active")
               .description("@Measured calls in progress")
               .tags(call.tags())
               .register(call.registry());
-      return new RecordingMeasurement(call, null, active.start());
+      return new RecordingMeasurement(call, warnings, null, active.start());
     }
-    return new RecordingMeasurement(call, Timer.start(call.registry()), null);
+    return new RecordingMeasurement(call, warnings, Timer.start(call.registry()), null);
   }
 
   @Override
@@ -49,10 +48,9 @@ final class RecordingMeasurement implements Measurement {
       stop(failure);
       countIfDue(result, failure);
     } catch (RuntimeException ex) {
-      log.warn(
-          "Could not record @Measured meters of '{}': {}",
-          call.definition().name(),
-          ex.getClass().getName());
+      String name = call.definition().name();
+      warnings.warn(
+          name, "Could not record @Measured meters of '{}': {}", name, ex.getClass().getName());
     }
   }
 
