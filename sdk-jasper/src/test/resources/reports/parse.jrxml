@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jasperReport name="parse" language="java" pageWidth="595" pageHeight="842" columnWidth="555"
+    leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+  <parameter name="number" class="java.lang.String"/>
+  <title height="30">
+    <element kind="textField" x="0" y="0" width="555" height="30">
+      <expression><![CDATA[Integer.parseInt($P{number})]]></expression>
+    </element>
+  </title>
+</jasperReport>
