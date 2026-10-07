@@ -9,6 +9,8 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.Executor;
 import javax.sql.DataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -20,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.jta.JtaTransactionManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -50,6 +53,8 @@ import tools.jackson.databind.json.JsonMapper;
 @ConditionalOnSingleCandidate(DataSource.class)
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditJdbcAutoConfiguration {
+
+  private static final Logger log = LoggerFactory.getLogger(AuditJdbcAutoConfiguration.class);
 
   private static final String EXECUTOR = "auditTaskExecutor";
   private static final String JSON_MAPPER = "auditJsonMapper";
@@ -120,7 +125,7 @@ public class AuditJdbcAutoConfiguration {
     var chain =
         new Chain(
             new AuditEventJdbcAdapter(dataSource, jsonMapper, true),
-            isolatedWriter(dataSource, jsonMapper, transactionManager.getIfUnique()),
+            isolatedWriter(dataSource, jsonMapper, transactionManager),
             new Listeners(
                 rejectionListener.getIfUnique(() -> event -> {}),
                 failureListener.getIfUnique(() -> event -> {})),
@@ -129,12 +134,27 @@ public class AuditJdbcAutoConfiguration {
   }
 
   private static AuditEventPublisherPort isolatedWriter(
-      DataSource dataSource, JsonMapper jsonMapper, PlatformTransactionManager transactionManager) {
-    if (transactionManager != null) {
+      DataSource dataSource,
+      JsonMapper jsonMapper,
+      ObjectProvider<PlatformTransactionManager> transactionManagers) {
+    PlatformTransactionManager unique = transactionManagers.getIfUnique();
+    if (unique != null) {
       return new RequiresNewAuditEventPublisher(
-          new AuditEventJdbcAdapter(dataSource, jsonMapper, true), transactionManager);
+          new AuditEventJdbcAdapter(dataSource, jsonMapper, true), unique);
     }
+    warnIfJtaWouldEnlist(transactionManagers);
     return new AuditEventJdbcAdapter(new AutoCommitDataSource(dataSource), jsonMapper, true);
+  }
+
+  private static void warnIfJtaWouldEnlist(
+      ObjectProvider<PlatformTransactionManager> transactionManagers) {
+    if (transactionManagers.stream().anyMatch(JtaTransactionManager.class::isInstance)) {
+      log.warn(
+          "A JTA transaction manager is defined, but no single or primary transaction manager:"
+              + " audit events of failed calls are written on an auto-commit connection, which a"
+              + " JTA transaction still enlists, so they roll back with the caller. Mark the JTA"
+              + " transaction manager as primary.");
+    }
   }
 
   private record Listeners(
