@@ -150,6 +150,41 @@ class DeviceAutoConfigurationTest {
   }
 
   @Test
+  void should_fail_startup_when_the_cached_headers_could_exceed_64_mb() {
+    web.withPropertyValues(
+            "codehunters.device.user-agent.max-length=8192",
+            "codehunters.device.user-agent.cache-size=4097")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessage(
+                        "codehunters.device.user-agent.max-length x cache-size must not exceed"
+                            + " 33554432 characters (64 MB of cached headers)"));
+  }
+
+  @Test
+  void should_accept_the_largest_cache_that_fits_in_64_mb() {
+    web.withPropertyValues(
+            "codehunters.device.user-agent.max-length=8192",
+            "codehunters.device.user-agent.cache-size=4096")
+        .run(context -> assertThat(context).hasNotFailed());
+  }
+
+  @Test
+  void should_start_without_servlet_or_spring_web_on_the_classpath() {
+    plain
+        .withClassLoader(new FilteredClassLoader("jakarta.servlet", "org.springframework.web"))
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).hasSingleBean(ClientIpResolver.class);
+              assertThat(context).doesNotHaveBean(ClientContextResolver.class);
+            });
+  }
+
+  @Test
   void should_fail_startup_when_the_cache_size_is_out_of_range() {
     web.withPropertyValues("codehunters.device.user-agent.cache-size=-1")
         .run(

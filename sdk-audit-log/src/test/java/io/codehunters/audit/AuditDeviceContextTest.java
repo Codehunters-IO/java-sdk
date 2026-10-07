@@ -135,6 +135,21 @@ class AuditDeviceContextTest {
                     .isInstanceOf(NoOpAuditContextProvider.class));
   }
 
+  @Test
+  void should_use_the_no_op_provider_without_servlet_or_spring_web_on_the_classpath() {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(AuditAutoConfiguration.class, DeviceAutoConfiguration.class))
+        .withClassLoader(new FilteredClassLoader("jakarta.servlet", "org.springframework.web"))
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context)
+                  .getBean(AuditContextProvider.class)
+                  .isInstanceOf(NoOpAuditContextProvider.class);
+            });
+  }
+
   private static void bindRequest() {
     var request = new MockHttpServletRequest();
     request.setRemoteAddr("10.0.0.2");
