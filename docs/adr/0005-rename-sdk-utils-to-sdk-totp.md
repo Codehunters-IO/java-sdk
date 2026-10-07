@@ -29,7 +29,10 @@ Chosen option: **Option A**, because the artifact name then states its single re
 
 ### Confirmation
 
-- `sdk-totp` publishes the capability `io.codehunters:sdk-utils`, so both cannot be resolved together.
+- `sdk-totp` publishes the capability `io.codehunters:sdk-utils`, so Gradle cannot resolve both
+  together. Capabilities live in Gradle Module Metadata only: Maven, or Gradle with that metadata
+  turned off, puts both jars and the same classes on the classpath without an error. Maven
+  consumers exclude `io.codehunters:sdk-utils` themselves.
 
 ## More Information
 
