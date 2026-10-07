@@ -43,7 +43,9 @@ class DeviceAutoConfigurationTest {
         context -> {
           assertThat(context).hasSingleBean(ClientIpResolver.class);
           assertThat(context).hasSingleBean(ClientContextResolver.class);
-          assertThat(context).getBean(UserAgentParser.class).isInstanceOf(CachingUserAgentParser.class);
+          assertThat(context)
+              .getBean(UserAgentParser.class)
+              .isInstanceOf(CachingUserAgentParser.class);
         });
   }
 
@@ -83,7 +85,8 @@ class DeviceAutoConfigurationTest {
                 assertThat(
                         context
                             .getBean(ClientIpResolver.class)
-                            .resolve(new ProxyChain("10.0.0.2", List.of(), List.of("198.51.100.4"))))
+                            .resolve(
+                                new ProxyChain("10.0.0.2", List.of(), List.of("198.51.100.4"))))
                     .map(InetAddress::getHostAddress)
                     .contains("198.51.100.4"));
   }
@@ -125,7 +128,8 @@ class DeviceAutoConfigurationTest {
                 assertThat(context)
                     .getFailure()
                     .rootCause()
-                    .hasMessage("codehunters.device.user-agent.max-length must be between 16 and 8192"));
+                    .hasMessage(
+                        "codehunters.device.user-agent.max-length must be between 16 and 8192"));
   }
 
   @Test
@@ -136,6 +140,7 @@ class DeviceAutoConfigurationTest {
                 assertThat(context)
                     .getFailure()
                     .rootCause()
-                    .hasMessage("codehunters.device.user-agent.cache-size must be between 0 and 100000"));
+                    .hasMessage(
+                        "codehunters.device.user-agent.cache-size must be between 0 and 100000"));
   }
 }
