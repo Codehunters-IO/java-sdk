@@ -6,9 +6,7 @@ import io.codehunters.parameter.domain.exception.ParameterException;
 import io.codehunters.parameter.domain.model.Parameter;
 import io.codehunters.parameter.domain.model.ParameterModule;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -141,7 +139,7 @@ public class JdbcParameterAdapter implements ParameterClient {
    */
   @Override
   public Map<String, String> asMap(ParameterModule module, String submodule) {
-    return byName(findByModule(module, submodule), Parameter::value);
+    return ParameterMaps.byName(findByModule(module, submodule), Parameter::value);
   }
 
   /**
@@ -153,20 +151,7 @@ public class JdbcParameterAdapter implements ParameterClient {
    */
   @Override
   public Map<String, Parameter> asMapByName(ParameterModule module, String submodule) {
-    return byName(findByModule(module, submodule), Function.identity());
-  }
-
-  private static <V> Map<String, V> byName(List<Parameter> rows, Function<Parameter, V> value) {
-    Map<String, V> result = new LinkedHashMap<>();
-    for (Parameter row : rows) {
-      if (result.containsKey(row.name())) {
-        throw new ParameterException(
-            "Parameter name appears in more than one submodule; narrow by submodule: "
-                + row.name());
-      }
-      result.put(row.name(), value.apply(row));
-    }
-    return Collections.unmodifiableMap(result);
+    return ParameterMaps.byName(findByModule(module, submodule), Function.identity());
   }
 
   private static Map<String, Object> baseParams(ParameterModule module) {
