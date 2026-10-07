@@ -80,7 +80,8 @@ class BarcodeAutoConfigurationTest {
 
               assertThatIllegalArgumentException()
                   .isThrownBy(
-                      () -> context.getBean(BarcodeReader.class).read(new ByteArrayInputStream(png)))
+                      () ->
+                          context.getBean(BarcodeReader.class).read(new ByteArrayInputStream(png)))
                   .withMessage("the image exceeds the limit of 100 pixels");
             });
   }

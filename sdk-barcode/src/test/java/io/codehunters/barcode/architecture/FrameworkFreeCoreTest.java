@@ -21,7 +21,8 @@ class FrameworkFreeCoreTest {
         .resideInAPackage("io.codehunters.barcode")
         .should()
         .onlyDependOnClassesThat()
-        .resideInAnyPackage("java..", "javax.imageio..", "com.google.zxing..", "io.codehunters.barcode")
+        .resideInAnyPackage(
+            "java..", "javax.imageio..", "com.google.zxing..", "io.codehunters.barcode")
         .check(CLASSES);
   }
 }
