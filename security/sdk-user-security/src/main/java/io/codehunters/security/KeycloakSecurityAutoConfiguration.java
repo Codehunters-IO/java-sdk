@@ -63,7 +63,9 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @AutoConfiguration(
     beforeName = {
       "org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration",
-      "org.springframework.boot.security.oauth2.server.resource.autoconfigure.servlet.OAuth2ResourceServerAutoConfiguration",
+      "org.springframework.boot.security.oauth2.server.resource.autoconfigure.OAuth2ResourceServerAutoConfiguration",
+      "org.springframework.boot.security.oauth2.server.resource.autoconfigure.web"
+          + ".OAuth2ResourceServerWebSecurityAutoConfiguration",
       "org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration",
       "org.springframework.boot.security.autoconfigure.actuate.web.servlet.ManagementWebSecurityAutoConfiguration"
     })
