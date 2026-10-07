@@ -764,7 +764,7 @@ sus claves viejas (`time-step`, `digits`, `algorithm`) para la nueva API de `Leg
 y un test fija la forma `VITXO_TOTP_TIME_STEP`. `sdk-totp` queda con 143 tests; `./gradlew clean
 build` y `./gradlew -p build-logic test` en verde.
 
-## Fase 11 — Cierre
+## Fase 11 — Cierre ✅ (rama `feature/release-closeout`, sobre `feature/sdk-totp-v2`)
 
 1. `sdk-bom` 1.0.0 con las versiones finales de las Fases 2 a 10.
 2. Comprobar que ningún módulo sobrescribe `coverage.branch.minimum`.
@@ -773,6 +773,40 @@ build` y `./gradlew -p build-logic test` en verde.
 4. `CHANGELOG.md` raíz como índice de los CHANGELOG por módulo; tags `sdk-<módulo>/vX.Y.Z` y
    `bom/vX.Y.Z` creados por `publish.yml` después de publicar.
 5. `CONTRIBUTING.md` con las convenciones reales (ramas, commits, TDD, definición de terminado, ADR).
+
+**Estado: hecha.** Commits:
+
+- `5532a80` → `9207806`: nuevo plugin `codehunters.bom` (publica la plataforma y agrega
+  `verifyBomConstraints` a `check`: falla si falta un módulo publicado o si hay uno `-SNAPSHOT`).
+  `sdk-bom` 1.0.0 fija las versiones finales, incluye `sdk-support` (dependencia transitiva de los
+  módulos, para que Maven también la alinee) y saca `sdk-geo-validation`. El gate de ramas queda
+  fijo en 0.80: `verifyCoverageGates` (en `check`) falla si `coverage.branch.minimum` está definido
+  en cualquier lado. Ningún módulo lo definía.
+- `bf56326` → `932dccc`: tarea `releaseTag` (imprime `sdk-<módulo>/vX.Y.Z`, `bom/vX.Y.Z` para el
+  BOM, nada para `-SNAPSHOT`) y paso nuevo en `publish.yml`: después de publicar, crea y empuja solo
+  los tags que no existen. `contents: write` y `fetch-depth: 0`.
+- `853e97a`: `README.md` (tabla real, uso del BOM en Gradle y Maven, guía de migración por
+  servicio), `CHANGELOG.md` como índice y `CONTRIBUTING.md` con las convenciones del repo.
+
+Tests de `build-logic`: 9 (TestKit). `./gradlew clean build` y `./gradlew -p build-logic test` en
+verde.
+
+**Desvíos:**
+- El BOM no necesitó un test de "versiones iguales a las del proyecto": las restricciones son
+  `project(...)` y toman la versión del módulo, así que no pueden divergir. Lo que sí puede divergir
+  es la lista, y eso cubre `verifyBomConstraints`.
+- El tag marca la primera publicación por ausencia: un módulo publicado antes de existir el paso de
+  tags recibiría su tag en el siguiente merge a `main`, apuntando a ese commit. Hoy no aplica (nada
+  de esta migración se publicó todavía).
+- Los tags no se crearon localmente; los crea CI.
+
+**Pendiente (fuera del repo o de quien lo mantiene):**
+1. Confirmar la organización (`codehunters` o `Codehunters-IO`) en `repository.url`,
+   `github_packages_url` y la clave y organización de Sonar; configurar el remoto.
+2. Push y PRs en el orden de la pila (ver abajo), cada uno contra el anterior.
+3. Dueño de `sdk-geo-validation` en el servicio de rifas (Fase 10, geo 1 y 2).
+4. Sacar `codehuntersio-java-commons-support/` del directorio del repo (está en `.git/info/exclude`)
+   y borrar el resto sin versionar de `sdk-utils/` (`build/`, `src/main` vacío).
 
 ---
 
@@ -794,7 +828,7 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
-`feature/sdk-i18n-v1` → `feature/sdk-totp-v2`. Se integran en ese orden.
+`feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout`. Se integran en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
@@ -814,7 +848,8 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-parameter` | 1.2.1 | 2.0.0 |
 | `sdk-i18n` | 0.2.2 | 1.0.0 |
 | `sdk-utils` → `sdk-totp` | 1.0.4 | 2.0.0 |
-| `sdk-geo-validation` | 0.2.0 | (retirado) |
+| `sdk-geo-validation` | 0.2.0 | (sale del SDK; no está en el BOM, `0.2.1-SNAPSHOT` local sin publicar) |
+| `sdk-support` | — | 1.0.0 (interno) |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
