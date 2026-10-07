@@ -2,6 +2,8 @@ package io.codehunters.i18n.config;
 
 import io.codehunters.i18n.LocaleMdcFilter;
 import io.codehunters.i18n.XLocaleAwareLocaleResolver;
+import jakarta.servlet.DispatcherType;
+import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -83,9 +85,12 @@ public class I18nAutoConfiguration {
   @ConditionalOnClass({LocaleResolver.class, FilterRegistrationBean.class})
   static class ServletConfiguration {
 
+    private static final Logger LOG = LoggerFactory.getLogger(I18nAutoConfiguration.class);
+
     @Bean
     @ConditionalOnMissingBean(name = DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME)
-    LocaleResolver localeResolver(I18nProperties properties) {
+    LocaleResolver localeResolver(I18nProperties properties, Environment environment) {
+      warnWhenBootLocaleIsConfigured(environment);
       return new XLocaleAwareLocaleResolver(
           properties.defaultLocale(), properties.headerName(), properties.supportedLocales());
     }
@@ -98,7 +103,20 @@ public class I18nAutoConfiguration {
       registration.addUrlPatterns("/*");
       registration.setOrder(LOCALE_MDC_FILTER_ORDER);
       registration.setName("localeMdcFilter");
+      registration.setDispatcherTypes(
+          DispatcherType.REQUEST, DispatcherType.ASYNC, DispatcherType.ERROR);
       return registration;
+    }
+
+    private static void warnWhenBootLocaleIsConfigured(Environment environment) {
+      Stream.of("spring.web.locale", "spring.web.locale-resolver")
+          .filter(environment::containsProperty)
+          .forEach(
+              key ->
+                  LOG.warn(
+                      "{} is ignored: the locale is resolved by codehunters.i18n.* from request"
+                          + " headers",
+                      key));
     }
   }
 }
