@@ -27,6 +27,7 @@ include("sdk-commons")
 include("sdk-web-errors")
 include("sdk-device")
 include("sdk-barcode")
+include("sdk-jasper")
 include("sdk-support")
 include("sdk-bom")
 
