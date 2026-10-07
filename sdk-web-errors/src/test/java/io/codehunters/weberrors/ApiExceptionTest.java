@@ -3,6 +3,9 @@ package io.codehunters.weberrors;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.io.ByteArrayOutputStream;
+import java.io.NotSerializableException;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -24,6 +27,34 @@ class ApiExceptionTest {
     public int status() {
       return 404;
     }
+  }
+
+  record CodeOnly(String code) implements ErrorCode {
+    @Override
+    public int status() {
+      return 400;
+    }
+  }
+
+  @Test
+  void should_reject_an_error_code_without_code() {
+    assertThatThrownBy(() -> new ApiException(new CodeOnly(null)))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void should_reject_an_error_code_with_a_blank_code() {
+    assertThatThrownBy(() -> new ApiException(new CodeOnly(" ")))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void should_refuse_serialization_because_the_code_and_arguments_cannot_travel() {
+    var exception = new ApiException(SampleCode.ORDER_NOT_FOUND, List.of(ORDER_ID));
+
+    assertThatThrownBy(
+            () -> new ObjectOutputStream(new ByteArrayOutputStream()).writeObject(exception))
+        .isInstanceOf(NotSerializableException.class);
   }
 
   @Test

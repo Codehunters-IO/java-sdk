@@ -1,6 +1,7 @@
 package io.codehunters.weberrors.web;
 
 import static io.codehunters.weberrors.web.WebMvcFixture.mvc;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
@@ -8,10 +9,14 @@ import io.codehunters.tracing.config.TracingAutoConfiguration;
 import io.codehunters.weberrors.web.fixture.FixedTraceContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.slf4j.MDC;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
+@ExtendWith(OutputCaptureExtension.class)
 class TraceIdExtensionTest {
 
   private static final String MDC_TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
@@ -80,5 +85,29 @@ class TraceIdExtensionTest {
                 mvc(context)
                     .perform(get("/orders/order-42"))
                     .andExpect(jsonPath("$.traceId").doesNotExist()));
+  }
+
+  @Test
+  void should_omit_a_blank_trace_id_reported_by_the_tracing_sdk() {
+    MDC.put("traceId", " ");
+
+    runner
+        .withConfiguration(AutoConfigurations.of(TracingAutoConfiguration.class))
+        .run(
+            context ->
+                mvc(context)
+                    .perform(get("/orders/order-42"))
+                    .andExpect(jsonPath("$.traceId").doesNotExist()));
+  }
+
+  @Test
+  void should_keep_the_trace_id_in_logs_when_it_is_left_out_of_the_body(CapturedOutput output) {
+    MDC.put("traceId", MDC_TRACE_ID);
+
+    runner
+        .withPropertyValues("codehunters.web-errors.include-trace-id=false")
+        .run(context -> mvc(context).perform(get("/boom")));
+
+    assertThat(output).contains("traceId=" + MDC_TRACE_ID);
   }
 }
