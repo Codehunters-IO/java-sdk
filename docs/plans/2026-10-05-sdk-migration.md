@@ -23,7 +23,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 |---|---|---|
 | D1 | Partir `sdk-event-messaging` en `-core`, `-jdbc`, `-rabbit` y `-kafka` | `docs/adr/0001-event-messaging-split.md` |
 | D2 | Sacar el PEP de autorización a `sdk-user-security-authz` | `docs/adr/0002-user-security-authz-split.md` |
-| D3 | Retirar `sdk-geo-validation` del SDK y moverlo al servicio de rifas | `docs/adr/0003-geo-validation-out.md` |
+| D3 | ~~Retirar `sdk-geo-validation` del SDK y moverlo al servicio de rifas~~ Reemplazada por D14 (2026-10-07) | `docs/adr/0003-retire-geo-validation-from-the-sdk.md` (superseded) |
 | D4 | Un solo prefijo, `codehunters.<sdk>.*`, con alias deprecados por una versión mayor | `docs/adr/0004-property-prefix.md` |
 | D5 | Renombrar `sdk-utils` a `sdk-totp` | `docs/adr/0005-utils-to-totp.md` |
 | D6 | Crear `sdk-bom` (`java-platform`) y dejar de exportar el BOM de Boot a los consumidores | `docs/adr/0006-sdk-bom.md` |
@@ -34,6 +34,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D11 | Los utilitarios sueltos de `codehuntersio-java-commons-support` van a un módulo nuevo `sdk-commons`, solo JDK; no se reusa `sdk-utils` porque `sdk-totp` publica esa capability (2026-10-07) | `docs/adr/0010-sdk-commons-for-framework-free-helpers.md` |
 | D12 | Lo que queda de `codehuntersio-java-commons-support` se extrae en módulos propios, en este orden: `sdk-web-errors`, `sdk-device`, `sdk-barcode`, `sdk-jpa` (con converters y specifications) y `sdk-jasper`. Lo que ya cubren Boot, Spring o los SDK actuales se omite. `ClientIpResolver` va a `sdk-device`, junto al user agent, y no a `sdk-user-security` (2026-10-07) | — |
 | D13 | Los errores HTTP se responden con RFC 9457 `ProblemDetail` y una extensión `code` estable que sale de un enum `ErrorCode` por contexto (2026-10-07) | `docs/adr/0011-problem-details-with-stable-error-codes.md` |
+| D14 | `sdk-geo-validation` se queda en el SDK como geofencing agnóstico de dominio: sin conceptos de rifas, el servicio que lo usa define el scope (`ZoneRef` opaco) y es dueño del procedimiento o de las zonas. Reemplaza a D3 (2026-10-07) | `docs/adr/0015-domain-agnostic-geofencing.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -943,8 +944,8 @@ Review independiente (2 HIGH, 5 MEDIUM, 9 LOW), todo corregido con TDD (`4392a42
   `ApiException` exige código y no se serializa; el detalle por defecto ya no pierde apóstrofos.
 - Nuevo: `ProblemErrorController` reemplaza el `BasicErrorController` de Boot;
   `ProblemAuthenticationEntryPoint` y `ProblemAccessDeniedHandler` (mantienen el challenge bearer)
-  para el filter chain de la app, más `ProblemWriter`. `sdk-user-security` todavía no los usa en su
-  chain: queda como seguimiento.
+  para el filter chain de la app, más `ProblemWriter`. ~~`sdk-user-security` todavía no los usa en su
+  chain: queda como seguimiento.~~ Cerrado en la pasada final: `sdk-user-security` 3.1.0 los usa.
 
 ## Fase 14 — `sdk-device` 1.0.0 ✅ (rama `feature/sdk-device-v1`, sobre `feature/sdk-web-errors-v1`)
 
@@ -1242,7 +1243,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-parameter` | 1.2.1 | 2.0.0 |
 | `sdk-i18n` | 0.2.2 | 1.0.0 |
 | `sdk-utils` → `sdk-totp` | 1.0.4 | 2.0.0 |
-| `sdk-geo-validation` | 0.2.0 | (sale del SDK; no está en el BOM, `0.2.1-SNAPSHOT` local sin publicar) |
+| `sdk-geo-validation` | 0.2.0 | 1.0.0 (agnóstico de dominio, D14) |
 | `sdk-support` | — | 1.0.0 (interno) |
 | `sdk-commons` | `commons-util` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-web-errors` | `commons-web` 5.1.0 (otro repo) | 1.0.0 |
@@ -1250,7 +1251,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-barcode` | `commons-util-barcode-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-jasper` | `commons-util-jasperreport-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-jpa` | `commons-repository`, `commons-jpa-mapper-support`, `commons-jpa-converter-support` 5.1.0 (otro repo) | 1.0.0 |
-| `sdk-bom` | — | 1.0.0 |
+| `sdk-bom` | — | 1.0.0 → 1.1.0 (suma `sdk-geo-validation`) |
 
 ## Prefijos de propiedades
 
@@ -1264,7 +1265,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `vitxo.i18n.*` | `codehunters.i18n.*` |
 | `vitxo.totp.*` | `codehunters.totp.*` |
 | (no había) | `codehunters.tracing.*`, `codehunters.measure.*`, `codehunters.parameter.*`, `codehunters.jpa.*` |
-| `geo.validation.*` | (se retira con el módulo) |
+| `geo.validation.enabled` | `codehunters.geo.enabled` (alias hasta 2.0); nuevos `codehunters.geo.adapter` y `codehunters.geo.sql-server.*` |
 
 ---
 
@@ -1310,5 +1311,57 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
    borrar el resto sin versionar de `sdk-utils/`.
 3. Confirmar la clave de la organización de Sonar en SonarCloud (`sonar.organization` en
    `build.gradle.kts`).
-4. Dueño de `sdk-geo-validation` en el servicio de rifas (Fase 10, geo 1 y 2).
-5. Push de `master` y de las 19 ramas en orden, y PRs encadenados, cada uno contra el anterior.
+4. ~~Dueño de `sdk-geo-validation` en el servicio de rifas (Fase 10, geo 1 y 2).~~ Ya no aplica:
+   D14 lo deja en el SDK como geofencing agnóstico (Fase 18).
+5. ~~Push de `master` y de las 19 ramas en orden, y PRs encadenados, cada uno contra el anterior.~~
+   Hecho; ver "Integración en `master`".
+
+Estado de los pendientes (2026-10-07):
+
+1. Tokens del repo legado: pendiente de revocar por el usuario.
+2. ✅ El usuario borró `codehuntersio-java-commons-support/` y el resto de `sdk-utils/`; la línea de
+   `.git/info/exclude` también se quitó.
+3. Clave de la organización de Sonar: pendiente.
+
+## Integración en `master` (2026-10-07)
+
+- Se pushearon `master` y las 19 ramas a `Codehunters-IO/java-sdk` y se abrieron los PRs #1–#19,
+  cada uno contra la rama anterior. La rama por defecto del repo se fijó en `master`.
+- Lección: el #1 se mergeó a `master` con **squash** y después el #2–#19 se mergearon en orden de
+  tabla, cada uno contra su rama base. Como esas bases ya no apuntaban a `master` (GitHub no reapunta
+  un PR a menos que se borre la rama mergeada), `master` quedó solo con la Fase 1. Como cada rama
+  del stack contiene a las anteriores, `chore/final-pass` tenía todo: se abrió el #20
+  (`chore/final-pass` → `master`). El squash del #1 hizo que el #20 tuviera conflictos (mismo
+  contenido, historia sin relación); se resolvió con un merge `-s ours` de `master` en
+  `chore/final-pass` (`c69f203`, árbol sin cambios). El #20 también se mergeó con squash (`756c5c2`),
+  así que la historia por fase vive en las PRs, no en `master`.
+- El `publish.yml` del commit de la Fase 1 solo escuchaba `main`, así que no se publicó ningún estado
+  intermedio. El merge del #20 publicó los 21 módulos una sola vez y creó sus tags.
+- Las 19 ramas mergeadas se borraron del remoto y en local.
+- Para la próxima pila: mergear de arriba hacia abajo en las bases (o reapuntar cada PR a `master`) y
+  usar merge commit, no squash. Queda en `CONTRIBUTING.md`.
+
+## Fase 18 — `sdk-geo-validation` 1.0.0, agnóstico de dominio ✅ (rama `feature/sdk-geo-validation-v1`, sobre `master`)
+
+D14 revierte D3: el módulo se queda, sin conceptos de rifas
+([ADR 0015](../adr/0015-domain-agnostic-geofencing.md), que reemplaza a la 0003).
+
+- `e51e62b` → `48d4709`: modelo neutro. `GeoFenceValidator.validate(ZoneRef, GeoPoint[, Coverage])`,
+  `GeoDecision` (permitido con `MatchedZone`, sin restricción, o denegado con `OUTSIDE_ZONE` /
+  `ZONE_NOT_FOUND`), `MatchedZone` con el tipo como texto, `ZoneRef` opaco (1–128 caracteres, sin
+  controles). `PolygonGeoFence` sobre un `GeoZoneSource`: punto en polígono con huecos, el borde es
+  de la zona, aristas que cruzan el antimeridiano rechazadas. Solo JDK (ArchUnit).
+- `3ed4d70` → `5b4c086`: `SqlServerGeoFence` sobre un procedimiento configurable
+  (`SqlServerProcedure`: nombre y nombres de parámetros validados como identificadores). `allowed`
+  `NULL` → `ZONE_NOT_FOUND`; permitido sin `zone-id` → denegado; tipos desconocidos como texto (antes
+  `MatchedZoneType.valueOf` lanzaba). IT en SQL Server con procedimientos de ejemplo genéricos.
+- `bcadbe3` → `ea67db0`: `codehunters.geo.*`. `adapter` elige `polygon` o `sql-server`; sin adapter
+  no se registra nada; faltantes (zone source, procedimiento, spring-jdbc, `DataSource` ambiguo)
+  fallan al arrancar; un `GeoFenceValidator` de la app gana. `geo.validation.enabled` sigue como
+  alias hasta 2.0.
+- `af05066`: `sdk-bom` 1.1.0 (la 1.0.0 ya está publicada) con `sdk-geo-validation` 1.0.0; se quita
+  de `excludedModules` y se regenera el lock.
+- `35d63ae`: README, CHANGELOG, MIGRATION-1.0, ADR 0015, ADR 0003 marcada superseded, sin HANDOFF.
+
+**Abierto:** el polígono es plano sobre grados (bien para ciudades y regiones, no para continentes);
+un adaptador PostGIS queda como posible siguiente paso.
