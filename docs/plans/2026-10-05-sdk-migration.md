@@ -795,10 +795,38 @@ verde.
 - El BOM no necesitó un test de "versiones iguales a las del proyecto": las restricciones son
   `project(...)` y toman la versión del módulo, así que no pueden divergir. Lo que sí puede divergir
   es la lista, y eso cubre `verifyBomConstraints`.
-- El tag marca la primera publicación por ausencia: un módulo publicado antes de existir el paso de
-  tags recibiría su tag en el siguiente merge a `main`, apuntando a ese commit. Hoy no aplica (nada
-  de esta migración se publicó todavía).
+- (Superado en la review) El tag marcaba la primera publicación por ausencia; ahora marca lo que la
+  corrida subió.
 - Los tags no se crearon localmente; los crea CI.
+
+**Correcciones de la review** (cada fix con su test en rojo antes):
+
+- `ba55aa1` → `6fb72da`: `verifyCoverageGates` lee la propiedad del proyecto (`findProperty`), así
+  que también ve un `coverage.branch.minimum` en el `gradle.properties` del módulo; el mensaje nombra
+  el módulo, no la tarea.
+- `f53ee9d` → `95d91c2`: exclusiones explícitas en `codehuntersBom.excludedModules`
+  (`:sdk-geo-validation`), así que geo queda fuera aunque tenga versión de release. Nuevo
+  `verifyBomLock` (en `check`) contra `platform/sdk-bom/bom-lock.properties`: falla si cambia la
+  versión de una librería y la del BOM no. `updateBomLock` reescribe el lock y se niega a hacerlo
+  para una versión del BOM ya registrada con otras versiones. Las listas se calculan en providers que
+  se leen al ejecutar, compatibles con configuration cache (lo prueba un test).
+- `d4d3484` → `c91154b`: cada subida a GitHub Packages escribe su tag en
+  `build/released-tags/<módulo>.txt`; las saltadas o fallidas no escriben nada. Reemplaza la tarea
+  `releaseTag`, que listaba todo módulo no `-SNAPSHOT`. Un repo `file:` se comprueba en disco y no
+  lleva credenciales, para poder probarlo con TestKit.
+- `47e6692`: `publish.yml` con `concurrency: publish-main`; el job `publish` queda con
+  `contents: read` y sin credenciales persistidas, y sube los tags registrados como artefacto (también
+  tras un fallo parcial). Un job `tag` aparte, con `contents: write` y sin Gradle, valida cada nombre
+  y crea solo los que no existen en el remoto, tolerando uno empujado por otra corrida. Sin
+  `fetch-depth: 0`. `ci.yml` también corre en `fix/**` y `refactor/**`.
+- `ca49f9e`: README, CHANGELOG y CONTRIBUTING describen el tag por subida real, el lock del BOM
+  (toda release de librería sube también `sdk-bom`) y las exclusiones; geo figura como
+  `0.2.0 (published; 0.2.1-SNAPSHOT local)`; la tabla de alias suma `keycloak.host`/`keycloak.realm`;
+  el HANDOFF apunta a `excludedModules`.
+
+Tests de `build-logic`: 25 (TestKit). `./gradlew clean build` y `./gradlew -p build-logic test` en
+verde. Sin cambio: un merge a `main` con release de librería y sin bump del BOM falla en `check`
+antes de publicar nada.
 
 **Pendiente (fuera del repo o de quien lo mantiene):**
 1. Confirmar la organización (`codehunters` o `Codehunters-IO`) en `repository.url`,
