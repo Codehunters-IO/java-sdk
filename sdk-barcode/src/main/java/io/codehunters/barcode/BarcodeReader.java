@@ -73,13 +73,26 @@ public final class BarcodeReader {
       try {
         reader.setInput(stream, true, true);
         requireWithinLimit((long) reader.getWidth(0) * reader.getHeight(0));
-        return reader.read(0);
+        return pixels(reader);
       } finally {
         reader.dispose();
       }
-    } catch (IOException | IllegalStateException | IndexOutOfBoundsException e) {
-      throw new IllegalArgumentException("the image could not be read", e);
+    } catch (IOException e) {
+      throw unreadable(e);
     }
+  }
+
+  /** Decodes the pixels; ImageIO decoders signal some malformed files with runtime exceptions. */
+  private static BufferedImage pixels(ImageReader reader) throws IOException {
+    try {
+      return reader.read(0);
+    } catch (RuntimeException e) {
+      throw unreadable(e);
+    }
+  }
+
+  private static IllegalArgumentException unreadable(Exception cause) {
+    return new IllegalArgumentException("the image could not be read", cause);
   }
 
   /**

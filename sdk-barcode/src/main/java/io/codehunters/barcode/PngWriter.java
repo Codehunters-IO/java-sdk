@@ -18,10 +18,11 @@ final class PngWriter {
   private PngWriter() {}
 
   static Layout layout(Symbol symbol, int width, int height) {
-    int scale = Math.max(1, Math.min(width / symbol.columns(), height / symbol.rows()));
-    if (symbol.isLinear()) {
-      scale = Math.max(1, width / symbol.columns());
-    }
+    int fit =
+        symbol.isLinear()
+            ? width / symbol.columns()
+            : Math.min(width / symbol.columns(), height / symbol.rows());
+    int scale = Math.max(1, fit);
     int imageWidth = Math.max(width, symbol.columns() * scale);
     int imageHeight = symbol.isLinear() ? height : Math.max(height, symbol.rows() * scale);
     return new Layout(imageWidth, imageHeight, scale);
