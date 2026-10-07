@@ -14,6 +14,11 @@ class GeoPointTest {
   }
 
   @Test
+  void should_build_point_from_decimal_degrees_when_using_the_factory() {
+    assertEquals(new GeoPoint(new Latitude(6.2442), new Longitude(-75.5812)), GeoPoint.of(6.2442, -75.5812));
+  }
+
+  @Test
   void should_reject_latitude_out_of_range() {
     assertThrows(IllegalArgumentException.class, () -> new Latitude(91.0));
   }
