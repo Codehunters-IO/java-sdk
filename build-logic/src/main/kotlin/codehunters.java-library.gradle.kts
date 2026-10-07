@@ -30,6 +30,12 @@ listOf(
 
 dependencies {
     "bootPlatform"(platform(libs.findLibrary("spring-boot-dependencies").get()))
+    // Security floors above what Boot manages; the highest recommendation wins.
+    "bootPlatform"(platform(libs.findLibrary("jackson3-bom").get()))
+    "bootPlatform"(platform(libs.findLibrary("jackson2-bom").get()))
+    constraints {
+        "bootPlatform"(libs.findLibrary("tomcat-embed-core").get())
+    }
 
     "compileOnly"("org.springframework.boot:spring-boot-autoconfigure")
     "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
