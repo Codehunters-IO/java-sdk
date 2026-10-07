@@ -1020,8 +1020,15 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
 `feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1` →
-`feature/sdk-web-errors-v1`.
+`feature/sdk-web-errors-v1` → `feature/sdk-device-v1`.
 Se integran en ese orden.
+
+`feature/sdk-device-v1` se construyó en paralelo en un worktree aparte y se rebaseó sobre
+`feature/sdk-web-errors-v1` ya con sus correcciones de review (antes `ee3859a`). El único conflicto fue
+este plan (secciones de las Fases 13 y 14), resuelto conservando ambas. En la misma rama, `2c8c704`
+vuelve determinista el test asíncrono de `sdk-audit-log` (`getTaskCount()` es aproximado y fallaba de
+forma intermitente): ahora retiene al único worker con un latch y comprueba que la fila no existe hasta
+liberarlo.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
