@@ -1001,6 +1001,37 @@ Review independiente: 2 HIGH, 3 MEDIUM, 7 LOW. Corregidos con TDD (`5576058` →
 Abierto: sin soporte WebFlux (solo el `ClientIpResolver` en Java plano). Las IPv6 salen en la forma
 larga del JDK.
 
+## Fase 15 — `sdk-barcode` 1.0.0 ✅ (rama `feature/sdk-barcode-v1`, sobre `feature/sdk-device-v1`)
+
+Origen: `commons-util-barcode-support` (`BarcodeUtil`, `BarcodeProperties`): barcode4j 2.1 (sin
+mantenimiento desde 2012) para los 1D a 160 dpi fijos, ZXing 3.4.0 para QR, lectura desde un `File`
+que nunca se cerraba y escritura a una ruta tomada de propiedades.
+
+Hecho con TDD (cada `feat` con su `test` en rojo antes: `178c37f` → `f98fbb7`, `2d95679` → `b956b7b`,
+`6b4c20f` → `f362cf0`; luego `f18c9cd` refactor):
+- Solo ZXing `core` 3.5.4 (última versión, sin advisories en OSV); sin `javase` (traía jcommander y
+  jai-imageio) ni barcode4j. La luminancia se arma con `RGBLuminanceSource`.
+- `BarcodeFormat` propio (QR, Data Matrix, PDF417, Code 128, Code 39, EAN-13, UPC-A, ITF),
+  `BarcodeRequest` (contenido validado por formato, dígito verificador GS1 en EAN-13/UPC-A, margen en
+  módulos por lado igual para todos los formatos, `ErrorCorrection` solo QR) y `BarcodeLimits`
+  (4096 x 4096 renderizado, 16 MP decodificado por defecto).
+- `BarcodeRenderer`: PNG (píxeles enteros por módulo, centrado) o SVG en unidades de módulo (un
+  `rect` por tramo oscuro). ZXing codifica el símbolo sin margen y el SDK pone el margen, así significa
+  lo mismo en todos los formatos. Tamaño pedido y PNG resultante se comparan contra los límites.
+- `BarcodeReader`: lee ancho x alto del header con ImageIO y rechaza antes de decodificar píxeles
+  (bomba de descompresión); vacío si no hay código; `IllegalArgumentException` si el formato no se
+  conoce o el archivo no se puede leer.
+- Mensajes y `toString()` nunca muestran el contenido. Sin display ni disco: imágenes `java.awt` en
+  memoria (tests con `java.awt.headless=true`) y sin la caché en archivo de ImageIO.
+- `config`: `codehunters.barcode.{enabled, max-width, max-height, max-decode-pixels}` validado al
+  arrancar; cada bean se aparta ante uno de la app. ArchUnit: el paquete core depende solo del JDK,
+  `javax.imageio` y ZXing.
+- `sdk-bom` 1.0.0 incluye `sdk-barcode` (lock actualizado a mano como en `sdk-device`; BOM sin
+  publicar).
+
+Abierto: los límites cubren píxeles, no el tamaño comprimido del upload (el README pide limitar el
+body). `ITF` decodifica solo los largos que ZXing acepta por defecto (6 a 14 dígitos pares).
+
 ## Orden y dependencias
 
 ```
@@ -1020,7 +1051,7 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
 `feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1` →
-`feature/sdk-web-errors-v1` → `feature/sdk-device-v1`.
+`feature/sdk-web-errors-v1` → `feature/sdk-device-v1` → `feature/sdk-barcode-v1`.
 Se integran en ese orden.
 
 `feature/sdk-device-v1` se construyó en paralelo en un worktree aparte y se rebaseó sobre
@@ -1053,6 +1084,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-commons` | `commons-util` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-web-errors` | `commons-web` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-device` | `commons-util-ip-support`, `commons-util-device-support` 5.1.0 (otro repo) | 1.0.0 |
+| `sdk-barcode` | `commons-util-barcode-support` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
