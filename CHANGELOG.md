@@ -26,6 +26,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-device` | 1.0.0 | [CHANGELOG](sdk-device/CHANGELOG.md) | [from commons-support](sdk-device/MIGRATION-from-commons-support.md) |
 | `sdk-barcode` | 1.0.0 | [CHANGELOG](sdk-barcode/CHANGELOG.md) | [from commons-support](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | 1.0.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
+| `sdk-jpa` | 1.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
 | `sdk-geo-validation` | 0.2.0 (published; 0.2.1-SNAPSHOT local) | leaving the SDK, see [HANDOFF](sdk-geo-validation/HANDOFF.md) | — |
 
@@ -38,6 +39,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 - Includes `sdk-device` 1.0.0 ([ADR 0012](docs/adr/0012-trusted-proxy-client-ip.md)).
 - Includes `sdk-barcode` 1.0.0.
 - Includes `sdk-jasper` 1.0.0 ([ADR 0014](docs/adr/0014-jasper-reports-from-the-classpath-only.md)).
+- Includes `sdk-jpa` 1.0.0 ([ADR 0013](docs/adr/0013-jpa-building-blocks.md)).
 - `sdk-geo-validation` is not part of it ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)).
 
 ## Build

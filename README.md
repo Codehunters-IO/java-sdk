@@ -34,6 +34,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-device` | `io.codehunters.device` | 1.0.0 | [README](sdk-device/README.md) · [MIGRATION](sdk-device/MIGRATION-from-commons-support.md) |
 | `sdk-barcode` | `io.codehunters.barcode` | 1.0.0 | [README](sdk-barcode/README.md) · [MIGRATION](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | `io.codehunters.jasper` | 1.0.0 | [README](sdk-jasper/README.md) · [MIGRATION](sdk-jasper/MIGRATION-from-commons-support.md) |
+| `sdk-jpa` | `io.codehunters.jpa` | 1.0.0 | [README](sdk-jpa/README.md) · [MIGRATION](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | `io.codehunters.support` | 1.0.0, internal | Legacy property aliases; brought in transitively |
 | `sdk-geo-validation` | `io.codehunters.geo` | 0.2.0 (published; 0.2.1-SNAPSHOT local), leaving the SDK | [handoff](sdk-geo-validation/HANDOFF.md) ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)); not in the BOM |
 
