@@ -38,6 +38,9 @@ First release as `sdk-totp`; 1.x was published as `sdk-utils`.
   lower-case secret containing `i`.
 - `verify` compares candidates in constant time and returns `false` for a `null` code instead of
   throwing `NullPointerException`.
+- Legacy `vitxo.totp.*` keys set as environment variables are honoured in both forms
+  (`VITXO_TOTP_TIME_STEP` and `VITXO_TOTP_TIMESTEP`). Only the documented keys (`time-step`,
+  `digits`, `algorithm`) are aliased.
 
 ### Added
 - `TotpSecret.fromHex(String)`, `TotpSecret.generate(TotpAlgorithm)`, `TotpSecret.MIN_KEY_LENGTH`

@@ -1,6 +1,7 @@
 package io.codehunters.totp.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
+import java.util.List;
 import java.util.Map;
 import org.apache.commons.logging.Log;
 import org.springframework.boot.EnvironmentPostProcessor;
@@ -18,7 +19,11 @@ import org.springframework.core.env.ConfigurableEnvironment;
 public class TotpLegacyProperties implements EnvironmentPostProcessor, Ordered {
 
   private static final LegacyPropertyAliases ALIASES =
-      new LegacyPropertyAliases("totp", Map.of("vitxo.totp", "codehunters.totp"), Map.of());
+      new LegacyPropertyAliases(
+          "totp",
+          Map.of("vitxo.totp", "codehunters.totp"),
+          Map.of(),
+          List.of("vitxo.totp.time-step", "vitxo.totp.digits", "vitxo.totp.algorithm"));
 
   private final Log log;
 
