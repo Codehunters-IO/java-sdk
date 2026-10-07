@@ -610,9 +610,36 @@ Tareas planificadas:
    decorator de caché opcional.
 6. Se elimina Lombok y el `compileOnly` de `spring-boot-starter-jdbc`.
 
-## Fase 9 — `sdk-i18n` 1.0.0
+## Fase 9 — `sdk-i18n` 1.0.0 ✅ (rama `feature/sdk-i18n-v1`, sobre `feature/sdk-parameter-v2`)
 
-Rama: `feature/sdk-i18n-v1`.
+Commits (cada test en rojo seguido de su cambio):
+
+- `a85ead3` → `3c6aa46`: `XLocaleAwareLocaleResolver` acepta `en_US`, ignora valores de más de 35
+  caracteres y cruza `X-Locale` y `Accept-Language` con `supportedLocales` igual que
+  `AcceptHeaderLocaleResolver` (exacto, o mismo idioma sin país). `LocaleMdcFilter` corre también
+  en dispatch async y de error, y registra los fallos del resolver solo con la clase de la
+  excepción.
+- `4c454ee` → `d90659c`: `I18nProperties` pasa a record validado bajo `codehunters.i18n`
+  (`enabled`, varias `basename`, `supported-locales`, `encoding` como `Charset`); los `vitxo.i18n.*`
+  siguen hasta 2.0 con metadata de deprecación. Tres configuraciones anidadas, antes de las de
+  Boot: mensajes (cede solo ante un bean llamado `messageSource`, avisa si hay
+  `spring.messages.basename`), servlet (solo apps servlet) y validación (solo con proveedor; cede
+  ante cualquier `jakarta.validation.Validator`; resuelve mensajes a través del contexto).
+  Versión 1.0.0.
+- `1164ae4`: README, CHANGELOG, MIGRATION-1.0 y la fila del README raíz.
+
+Verificación: 57 tests, cobertura 100 % líneas / 100 % ramas; `./gradlew clean build` y
+`./gradlew -p build-logic test` en verde.
+
+**Desvíos del plan:**
+- `before` va por `beforeName`, para no exigir en compilación los módulos de validación y Web MVC.
+- Se añadieron, fuera del plan: `codehunters.i18n.enabled`, varias base names, validación de
+  propiedades al arrancar, el aviso por `spring.messages.*`, el tope de longitud de `X-Locale` y el
+  filtro en dispatch async/error.
+- El validador usa el `ApplicationContext` como fuente de mensajes, no el bean del SDK, para
+  funcionar también con un `messageSource` propio de la aplicación.
+
+Tareas planificadas:
 
 1. Tres configuraciones anidadas: MessageSource, Servlet web (`@ConditionalOnWebApplication(SERVLET)`)
    y Validation (`@ConditionalOnClass(jakarta.validation.Validator)` + `@ConditionalOnResource` del
@@ -671,8 +698,8 @@ Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
 Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
-`feature/sdk-audit-log-v3`. Se integran
-en ese orden.
+`feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
+`feature/sdk-i18n-v1`. Se integran en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
