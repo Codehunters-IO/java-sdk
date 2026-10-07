@@ -25,6 +25,7 @@ dependencies {
         api(project(":sdk-event-messaging-rabbit"))
         api(project(":sdk-file-share"))
         api(project(":sdk-i18n"))
+        api(project(":sdk-jasper"))
         api(project(":sdk-measure-micrometer"))
         api(project(":sdk-parameter"))
         api(project(":sdk-support"))
