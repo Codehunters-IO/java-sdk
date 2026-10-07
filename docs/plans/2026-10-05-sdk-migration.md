@@ -637,7 +637,30 @@ Verificación: 57 tests, cobertura 100 % líneas / 100 % ramas; `./gradlew clean
   propiedades al arrancar, el aviso por `spring.messages.*`, el tope de longitud de `X-Locale` y el
   filtro en dispatch async/error.
 - El validador usa el `ApplicationContext` como fuente de mensajes, no el bean del SDK, para
-  funcionar también con un `messageSource` propio de la aplicación.
+  funcionar también con un `messageSource` propio de la aplicación. La review lo quitó (ver abajo).
+
+**Correcciones de la review** (cada test en rojo seguido de su cambio):
+
+- `1a7c7cb` → `30b7112` (`platform/sdk-support`, afecta a todos los módulos con alias): una
+  variable de entorno que parte con `_` un nombre con guion (`VITXO_I18N_DEFAULT_LOCALE`) se
+  copiaba a un nombre que nunca enlaza. Cada `*LegacyProperties` declara ahora sus claves viejas, y
+  el helper las busca como lo hace Boot (las dos formas de env), recorre por índice las listas y
+  sigue recorriendo las fuentes para los campos anidados (`paths[0].methods[0]`). Las claves viejas
+  no declaradas ya no se copian, y un segundo aviso lista las ignoradas porque la nueva está
+  puesta. El arreglo entra con esta rama; los CHANGELOG de user-security, authz, event-messaging,
+  file-share y audit-log lo mencionan en su versión.
+- `97a6177` → `89dc1ff`: el SDK ya no registra validador. El `defaultValidator` de Boot resuelve
+  `{key}` con el `messageSource` del SDK, aplica los `ValidationConfigurationCustomizer`, cae a un
+  interpolador sin EL y mantiene `ValidationMessages.properties`.
+- `1aea76a` → `41efd84`: sin `supported-locales`, un `Accept-Language` `*`, con todos los rangos a
+  peso cero o ilegible resuelve al `default-locale` (antes, al locale raíz o al de la JVM).
+  `X-Locale` pierde las extensiones Unicode; `setLocale` lanza con un mensaje que lo explica.
+- `c2d9d8b` → `6491349`: aviso al arrancar por `spring.web.locale` y `spring.web.locale-resolver`;
+  el filtro se registra explícitamente para REQUEST, ASYNC y ERROR.
+- `3ecbddc`: README, CHANGELOG y MIGRATION-1.0.
+
+Verificación: i18n 66 tests (100 % líneas / 100 % ramas), sdk-support 13 tests; `./gradlew clean
+build` y `./gradlew -p build-logic test` en verde.
 
 Tareas planificadas:
 
