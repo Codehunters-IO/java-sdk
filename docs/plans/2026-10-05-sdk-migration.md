@@ -31,6 +31,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D9 | `user-security` 3.0 verifica el JWT localmente (JWKS); los headers del gateway solo se aceptan si coinciden (2026-10-05) | (en el CHANGELOG del módulo) |
 | D8 | Mantener `@Measured` y su aspecto propio; no se reemplaza por `@Timed`/`@Counted` de Micrometer (2026-10-05) | `docs/adr/0008-keep-measured.md` |
 | D10 (A4) | `file-share` se autentica con client credentials por defecto; un bean `FileShareRequestInterceptor` lo reemplaza (2026-10-06) | `docs/adr/0009-file-share-outbound-client-credentials.md` |
+| D11 | Los utilitarios sueltos de `codehuntersio-java-commons-support` van a un módulo nuevo `sdk-commons`, solo JDK; no se reusa `sdk-utils` porque `sdk-totp` publica esa capability (2026-10-07) | `docs/adr/0010-sdk-commons-for-framework-free-helpers.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -838,6 +839,36 @@ antes de publicar nada.
 
 ---
 
+## Fase 12 — `sdk-commons` 1.0.0 ✅ (rama `feature/sdk-commons-v1`, sobre `feature/release-closeout`)
+
+Origen: los utilitarios sueltos de `codehuntersio-java-commons-support` (`commons-util` 5.1.0, Java 11,
+Lombok, sin tests). Decisión D11 / [ADR 0010](../adr/0010-sdk-commons-for-framework-free-helpers.md):
+módulo nuevo `sdk-commons`, porque `sdk-totp` 2.0 publica la capability `io.codehunters:sdk-utils` y un
+artefacto con ese nombre chocaría con él en Gradle.
+
+Alcance elegido: enmascarado y simplificación de texto, contraseñas corregidas, y de fechas, cron,
+archivos y streams solo lo que la JDK no cubre. Los conversores JPA quedan fuera.
+
+Hecho, reescrito con TDD (cada `feat` con su `test` en rojo antes):
+- `Masking` (`keep`, `keepFirst`, `keepLast`, `email`, `pan`): enmascara todo cuando lo visible
+  cubriría el valor entero; cuenta code points.
+- `TextNormalizer.simplify`: `Locale.ROOT`, quita diacríticos latinos y recompone (NFC), deletrea
+  `ß æ ø œ ł ð đ þ`, todo lo demás que no es letra, dígito o marca pasa a un único `_`.
+- `PasswordPolicy` / `PasswordCheck` / `CharacterClass` / `PasswordViolation`, y `PasswordGenerator`
+  (12–128, por defecto 16, `SecureRandom` compartido, una clase de cada tipo por construcción, sin
+  bucle de reintento).
+- `RelativeTime` (pasado y futuro, en inglés o como cantidad + unidad para i18n),
+  `CronExpressions.quartzAt`, `FileNames` (`extension` como `Optional`, `withBaseName`),
+  `Predicates.distinctByKey` (acepta claves `null`).
+- Solo JDK: un test de ArchUnit falla si aparece otra dependencia. Las excepciones nunca repiten la
+  entrada.
+- `sdk-commons/MIGRATION-from-commons-support.md`: cada función vieja con su reemplazo, o la API de la
+  JDK que la sustituye, o por qué no se migra (`ErrorException`, `BigDecimalMoneySerializer`).
+- `sdk-bom` 1.0.0 incluye `sdk-commons`. Como el BOM no se había publicado, se regeneró su lock en vez
+  de subirlo a 1.1.0.
+
+Pendiente: review independiente; sacar `codehuntersio-java-commons-support/` del directorio del repo.
+
 ## Orden y dependencias
 
 ```
@@ -856,7 +887,8 @@ Las ramas hechas forman una pila lineal, cada una sobre la anterior:
 `feature/build-foundations` → `feature/build-logic` → `feature/sdk-user-security-v3` →
 `feature/sdk-tracing-v1` → `feature/sdk-event-messaging-v6` → `feature/sdk-file-share-v2` →
 `feature/sdk-audit-log-v3` → `feature/sdk-measure-v3` → `feature/sdk-parameter-v2` →
-`feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout`. Se integran en ese orden.
+`feature/sdk-i18n-v1` → `feature/sdk-totp-v2` → `feature/release-closeout` → `feature/sdk-commons-v1`.
+Se integran en ese orden.
 
 Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
 2, 4, 3, 6, 5, 8, 7, 9, 10.
@@ -878,6 +910,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `sdk-utils` → `sdk-totp` | 1.0.4 | 2.0.0 |
 | `sdk-geo-validation` | 0.2.0 | (sale del SDK; no está en el BOM, `0.2.1-SNAPSHOT` local sin publicar) |
 | `sdk-support` | — | 1.0.0 (interno) |
+| `sdk-commons` | `commons-util` 5.1.0 (otro repo) | 1.0.0 |
 | `sdk-bom` | — | 1.0.0 |
 
 ## Prefijos de propiedades
