@@ -10,7 +10,8 @@
   `AuditEventJdbcAdapter` is synchronous, without `@Async` or `@Transactional`.
 - The auto-configuration no longer applies `@EnableAsync` or `@EnableAspectJAutoProxy` to the
   application. Boot's AOP auto-configuration applies the aspect; with `spring.aop.auto=false`,
-  auditing needs AspectJ proxying enabled by the application.
+  auditing needs AspectJ proxying enabled by the application. A startup check warns when no
+  AspectJ auto-proxy creator is registered, and fails startup when `fail-on-error=true`.
 - The JDBC publisher needs a single `DataSource` candidate; with several and no primary it is not
   created (2.x failed startup).
 - Without `fail-on-error`, the success event of a transactional call is written after the

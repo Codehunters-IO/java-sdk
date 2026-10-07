@@ -154,7 +154,9 @@ The scripts have no Flyway version prefix, so the SDK never runs them.
 
 The aspect is applied by Boot's AOP auto-configuration (`spring.aop.auto`, on by default with
 AspectJ on the classpath); the SDK does not enable proxying itself. With `spring.aop.auto=false`,
-enable AspectJ proxying in your configuration or `@Auditable` has no effect.
+enable AspectJ proxying in your configuration or `@Auditable` has no effect. Startup checks for
+an AspectJ auto-proxy creator: without one it logs a warning, or fails when
+`codehunters.audit.fail-on-error=true`.
 
 Invalid sizes fail at startup. The 2.x key `vitxo.audit.fail-on-error` works until 4.0.0 and logs
 a deprecation warning.

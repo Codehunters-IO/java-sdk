@@ -65,9 +65,7 @@ class AuditAutoConfigurationProxyTest {
   void should_fail_startup_without_proxy_creator_when_fail_on_error_is_set() {
     runner
         .withPropertyValues("spring.aop.auto=false", "codehunters.audit.fail-on-error=true")
-        .run(
-            context ->
-                assertThat(context).getFailure().rootCause().hasMessageContaining(PROXY_WARNING));
+        .run(context -> assertThat(context).getFailure().hasMessageContaining(PROXY_WARNING));
   }
 
   @Test
