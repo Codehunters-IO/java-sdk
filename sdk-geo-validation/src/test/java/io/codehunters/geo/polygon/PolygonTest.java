@@ -56,11 +56,7 @@ class PolygonTest {
   void should_accept_the_ring_when_it_repeats_the_first_vertex_at_the_end() {
     Polygon closed =
         Polygon.of(
-            List.of(
-                GeoPoint.of(0, 0),
-                GeoPoint.of(0, 10),
-                GeoPoint.of(10, 10),
-                GeoPoint.of(0, 0)));
+            List.of(GeoPoint.of(0, 0), GeoPoint.of(0, 10), GeoPoint.of(10, 10), GeoPoint.of(0, 0)));
 
     assertThat(closed.contains(GeoPoint.of(3, 7))).isTrue();
   }

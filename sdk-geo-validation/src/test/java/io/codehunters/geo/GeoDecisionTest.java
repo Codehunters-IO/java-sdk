@@ -47,8 +47,7 @@ class GeoDecisionTest {
   @Test
   void should_reject_an_allowed_decision_when_it_has_a_reason() {
     assertThatThrownBy(
-            () ->
-                new GeoDecision(true, Optional.of(ZONE), Optional.of(DenialReason.OUTSIDE_ZONE)))
+            () -> new GeoDecision(true, Optional.of(ZONE), Optional.of(DenialReason.OUTSIDE_ZONE)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("An allowed decision has no reason");
   }
