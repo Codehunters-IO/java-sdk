@@ -7,9 +7,11 @@ import io.codehunters.device.useragent.UserAgentInfo;
 import io.codehunters.device.useragent.UserAgentParser;
 import io.codehunters.device.useragent.UserAgents;
 import jakarta.servlet.http.HttpServletRequest;
+import java.lang.System.Logger.Level;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -21,6 +23,8 @@ public final class ClientContextResolver {
 
   /** Request attribute holding the resolved context. */
   public static final String ATTRIBUTE = ClientContextResolver.class.getName() + ".CONTEXT";
+
+  private static final System.Logger LOG = System.getLogger(ClientContextResolver.class.getName());
 
   private final ClientIpResolver ipResolver;
   private final UserAgentParser userAgentParser;
@@ -67,11 +71,22 @@ public final class ClientContextResolver {
    * @return the client context, empty outside a servlet request
    */
   public Optional<ClientContext> current() {
-    if (RequestContextHolder.getRequestAttributes()
-        instanceof ServletRequestAttributes attributes) {
+    if (RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes
+        && isActive(attributes)) {
       return Optional.of(resolve(attributes.getRequest()));
     }
     return Optional.empty();
+  }
+
+  // With inherited request attributes a child thread can outlive the request, whose recycled
+  // object may already serve another client. Spring refuses request-scope reads once it completed.
+  private static boolean isActive(ServletRequestAttributes attributes) {
+    try {
+      attributes.getAttribute(ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+      return true;
+    } catch (IllegalStateException e) {
+      return false;
+    }
   }
 
   private ClientContext compute(HttpServletRequest request) {
@@ -81,9 +96,19 @@ public final class ClientContextResolver {
             headerLines(request, "Forwarded"),
             headerLines(request, "X-Forwarded-For"));
     var rawUserAgent = UserAgents.sanitize(request.getHeader("User-Agent"), maxUserAgentLength);
-    var userAgent =
-        rawUserAgent.isEmpty() ? UserAgentInfo.UNKNOWN : userAgentParser.parse(rawUserAgent);
+    var userAgent = rawUserAgent.isEmpty() ? UserAgentInfo.UNKNOWN : parse(rawUserAgent);
     return new ClientContext(ipResolver.resolve(chain), userAgent, rawUserAgent);
+  }
+
+  // Any parser, including one the application defines, answers UNKNOWN rather than failing the
+  // request; the cached uap parser already does so on its own.
+  private UserAgentInfo parse(String rawUserAgent) {
+    try {
+      return Optional.ofNullable(userAgentParser.parse(rawUserAgent)).orElse(UserAgentInfo.UNKNOWN);
+    } catch (RuntimeException e) {
+      LOG.log(Level.WARNING, "User-Agent parser failed: {0}", e.getClass().getName());
+      return UserAgentInfo.UNKNOWN;
+    }
   }
 
   private static List<String> headerLines(HttpServletRequest request, String name) {

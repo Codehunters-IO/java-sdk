@@ -7,8 +7,10 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * Caches parsed headers in a bounded least-recently-used map. Concurrent callers of the same header
- * share one parse. A failing delegate answers {@link UserAgentInfo#UNKNOWN}, which is cached like
- * any other answer because parsing is deterministic.
+ * share one parse. A delegate that throws an exception answers {@link UserAgentInfo#UNKNOWN}, which
+ * is cached like any other answer because parsing is deterministic. A delegate that throws an
+ * {@link Error} releases the callers waiting on it with {@code UNKNOWN}, is not cached, and the
+ * error reaches the caller that triggered the parse.
  */
 public final class CachingUserAgentParser implements UserAgentParser {
 
@@ -49,8 +51,27 @@ public final class CachingUserAgentParser implements UserAgentParser {
     if (existing != null) {
       return existing.join();
     }
-    claim.complete(parseSafely(userAgent));
-    return claim.join();
+    return fulfil(userAgent, claim);
+  }
+
+  // An Error (a StackOverflowError in the regex engine, say) must not leave the claim pending:
+  // waiters would block forever and so would every later caller of the same header.
+  private UserAgentInfo fulfil(String userAgent, CompletableFuture<UserAgentInfo> claim) {
+    try {
+      var info = parseSafely(userAgent);
+      claim.complete(info);
+      return info;
+    } catch (Throwable e) {
+      release(userAgent, claim);
+      throw e;
+    }
+  }
+
+  private void release(String userAgent, CompletableFuture<UserAgentInfo> claim) {
+    synchronized (entries) {
+      entries.remove(userAgent, claim);
+    }
+    claim.complete(UserAgentInfo.UNKNOWN);
   }
 
   private CompletableFuture<UserAgentInfo> claimOrGet(
