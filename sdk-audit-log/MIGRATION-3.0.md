@@ -37,3 +37,12 @@
     `AsyncAuditEventPublisher` for the old behaviour. The constructor no longer carries
     `@Qualifier`. With `fail-on-error=false` it now stores `null`, not `toString()`, for a map it
     cannot serialize.
+12. **Asynchronous return types.** Methods returning a `CompletionStage`, `Mono` or `Flux` are now
+    recorded when the work finishes, with its real outcome: a failed future is `ERROR`, not
+    `SUCCESS`. Each subscription to a `Mono` or `Flux` records one event; a cancelled one records
+    none.
+13. **`AuditPersistenceException`.** Its cause no longer carries the database message. Code that
+    inspected `getCause()` for the SQL error should read `sqlState()`, `vendorCode()` and
+    `failureClass()` instead.
+14. **JTA.** If the application has several transaction managers and one is a
+    `JtaTransactionManager`, mark that one as primary; the SDK warns at startup otherwise.

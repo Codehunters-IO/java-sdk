@@ -30,6 +30,10 @@
 - PostgreSQL reference DDL.
 - `AuditAspect(publisher, contextProvider, Clock)`; the application's `Clock` bean is used.
 - `AuditEvent.withOutcome(status, success, errorMessage)`.
+- Methods returning a `CompletionStage`, or a Reactor `Mono` or `Flux`, are audited when the work
+  finishes, with its outcome and duration.
+- `AuditPersistenceException.redacted(...)`, `failureClass()`, `sqlState()` and `vendorCode()`.
+- A startup warning when one of several transaction managers is a `JtaTransactionManager`.
 
 ### Fixed
 - `fail-on-error=true` never failed the audited call: the insert ran on another thread and the
@@ -43,7 +47,10 @@
 - An asynchronous `SUCCESS` could be written for a transaction that then failed to commit.
 - Payload objects were serialized later on the worker thread, racing with the caller and failing
   on closed persistence sessions; a failed serialization stored `toString()`.
-- A failed insert logged the database message, which can contain the row's personal data.
+- A failed insert logged the database message, which can contain the row's personal data. In
+  fail-on-error mode the `AuditPersistenceException` carried that message in its cause; it is now
+  redacted.
+- Asynchronous return types were recorded as `SUCCESS` when the work started.
 - An `Error` from the publisher replaced the method's own exception.
 - `#result` resolved to a parameter named `result` when the method threw.
 - On SQL Server, `event_created_at` was shifted by the JVM's UTC offset.

@@ -31,10 +31,18 @@ Declare an `AuditContextProvider` bean to fill the actor, IP, user agent, HTTP m
 and source service from the security context or the request. Values set on the annotation win. A
 provider method that throws leaves its field `null`.
 
-The event is recorded when the method returns. For a method returning `CompletableFuture`, `Mono`
-or another asynchronous type, that is when the work was started, not finished: it is recorded as
-`SUCCESS` with the time it took to start, even if the work fails later. Audit the code that
-completes the work instead.
+The event is recorded when the method returns. A method returning a `CompletionStage` (such as
+`CompletableFuture`), or a Reactor `Mono` or `Flux`, is recorded when that work finishes instead,
+with its outcome and its duration. `#result` is the stage's value or the `Mono`'s element (`null`
+for a `Flux`).
+
+- The stage is returned to the caller unchanged. Its duration runs from the method call.
+- A `Mono` or `Flux` is returned decorated. Each subscription records one event, its duration
+  runs from the subscription, and a cancelled subscription records none. Reactor is optional.
+- Other asynchronous types are recorded when the method returns.
+- The event is published on the thread that completes the work, outside the caller's transaction.
+  A failure to write it is logged, even with `fail-on-error=true`: the caller already has its
+  result.
 
 ### What is recorded
 
@@ -94,7 +102,8 @@ When the audited method runs in a Spring transaction, the audit row follows what
 A transaction of its own means `REQUIRES_NEW` on the application's transaction manager when it has
 exactly one (or a primary one). Otherwise the row is written on a separate auto-commit connection
 from the same data source; that works for `DataSourceTransactionManager` and JPA, but a JTA
-transaction would still enlist it.
+transaction would still enlist it. When one of several transaction managers is a
+`JtaTransactionManager`, the SDK logs a warning at startup: mark it as primary.
 
 When a commit fails, Spring reports the outcome as unknown, so such a call is recorded as
 `UNKNOWN`, never as `SUCCESS`.
@@ -137,4 +146,7 @@ a deprecation warning.
   are lost. Use `fail-on-error=true` where every event must be durable.
 - An event held until its transaction completes is lost if the process dies before the
   transaction ends.
-- Asynchronous return types are recorded when the work starts, not when it finishes.
+- A cancelled `Mono` or `Flux` subscription is not recorded.
+- With `fail-on-error=true`, the cause of an `AuditPersistenceException` is redacted: it keeps
+  the failure class, SQLState, vendor code and stack trace, never the database message, which can
+  echo the row. Read them from `failureClass()`, `sqlState()` and `vendorCode()`.
