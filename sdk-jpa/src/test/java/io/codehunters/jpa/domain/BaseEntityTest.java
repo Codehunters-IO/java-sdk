@@ -38,8 +38,8 @@ class BaseEntityTest {
     var customer = new Customer("Ada");
 
     assertThat(customer.isNew()).isTrue();
-    assertThat(customer.getId()).isEmpty();
-    assertThat(customer.getVersion()).isEmpty();
+    assertThat(customer.id()).isEmpty();
+    assertThat(customer.version()).isEmpty();
   }
 
   @Test

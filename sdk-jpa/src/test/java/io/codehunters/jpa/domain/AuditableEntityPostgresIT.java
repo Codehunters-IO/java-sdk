@@ -36,14 +36,14 @@ class AuditableEntityPostgresIT {
     runner.run(
         context -> {
           var orders = context.getBean(OrderRepository.class);
-          var id = orders.save(new Order("A-1")).getId().orElseThrow();
+          var id = orders.save(new Order("A-1")).id().orElseThrow();
 
           var stored = orders.findById(id).orElseThrow();
 
-          assertThat(stored.getCreatedAt()).contains(CREATED);
-          assertThat(stored.getCreatedBy()).contains("alice");
-          assertThat(stored.getUpdatedAt()).contains(CREATED);
-          assertThat(stored.getUpdatedBy()).contains("alice");
+          assertThat(stored.createdAt()).contains(CREATED);
+          assertThat(stored.createdBy()).contains("alice");
+          assertThat(stored.updatedAt()).contains(CREATED);
+          assertThat(stored.updatedBy()).contains("alice");
         });
   }
 
@@ -54,7 +54,7 @@ class AuditableEntityPostgresIT {
     runner.run(
         context -> {
           var orders = context.getBean(OrderRepository.class);
-          var id = orders.save(new Order("A-1")).getId().orElseThrow();
+          var id = orders.save(new Order("A-1")).id().orElseThrow();
           var order = orders.findById(id).orElseThrow();
           order.changeReference("A-2");
           clock.moveTo(UPDATED);
@@ -63,10 +63,10 @@ class AuditableEntityPostgresIT {
           orders.save(order);
           var stored = orders.findById(id).orElseThrow();
 
-          assertThat(stored.getCreatedAt()).contains(CREATED);
-          assertThat(stored.getCreatedBy()).contains("alice");
-          assertThat(stored.getUpdatedAt()).contains(UPDATED);
-          assertThat(stored.getUpdatedBy()).contains("bob");
+          assertThat(stored.createdAt()).contains(CREATED);
+          assertThat(stored.createdBy()).contains("alice");
+          assertThat(stored.updatedAt()).contains(UPDATED);
+          assertThat(stored.updatedBy()).contains("bob");
         });
   }
 
@@ -75,12 +75,12 @@ class AuditableEntityPostgresIT {
     runner.run(
         context -> {
           var orders = context.getBean(OrderRepository.class);
-          var id = orders.save(new Order("A-1")).getId().orElseThrow();
+          var id = orders.save(new Order("A-1")).id().orElseThrow();
 
           var stored = orders.findById(id).orElseThrow();
 
-          assertThat(stored.getCreatedBy()).isEmpty();
-          assertThat(stored.getCreatedAt()).contains(CREATED);
+          assertThat(stored.createdBy()).isEmpty();
+          assertThat(stored.createdAt()).contains(CREATED);
         });
   }
 

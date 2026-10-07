@@ -25,7 +25,7 @@ class JsonConvertersPostgresIT {
           var orders = context.getBean(OrderRepository.class);
           var order = new Order("A-1");
           order.describe(List.of("gift", "fragile"), Map.of("size", "XL"), ADDRESS);
-          var id = orders.save(order).getId().orElseThrow();
+          var id = orders.save(order).id().orElseThrow();
 
           var stored = orders.findById(id).orElseThrow();
 
@@ -60,7 +60,7 @@ class JsonConvertersPostgresIT {
           var orders = context.getBean(OrderRepository.class);
           var order = new Order("A-1");
           order.describe(List.of("gift"), Map.of(), ADDRESS);
-          var id = orders.save(order).getId().orElseThrow();
+          var id = orders.save(order).id().orElseThrow();
           var loaded = orders.findById(id).orElseThrow();
           loaded.describe(List.of("express"), Map.of(), ADDRESS);
 

@@ -28,7 +28,7 @@ class BaseEntityPostgresIT {
         context -> {
           var saved = customers(context).save(new Customer("Ada"));
 
-          assertThat(saved.getId()).hasValueSatisfying(id -> assertThat(id.version()).isEqualTo(7));
+          assertThat(saved.id()).hasValueSatisfying(id -> assertThat(id.version()).isEqualTo(7));
           assertThat(saved.isNew()).isFalse();
         });
   }
@@ -36,8 +36,7 @@ class BaseEntityPostgresIT {
   @Test
   void should_start_the_version_at_zero_when_persisted() {
     runner.run(
-        context ->
-            assertThat(customers(context).save(new Customer("Ada")).getVersion()).contains(0L));
+        context -> assertThat(customers(context).save(new Customer("Ada")).version()).contains(0L));
   }
 
   @Test
@@ -112,7 +111,7 @@ class BaseEntityPostgresIT {
 
           assertThat(proxy.equals(loaded)).isTrue();
           assertThat(proxy.hashCode()).isEqualTo(loaded.hashCode());
-          assertThat(proxy.getId()).contains(id);
+          assertThat(proxy.id()).contains(id);
         });
   }
 
@@ -128,7 +127,7 @@ class BaseEntityPostgresIT {
                   em -> {
                     var customer = new Customer("Ada");
                     customers(context).save(customer);
-                    return new SaveView(customer.getId().isPresent(), em.contains(customer));
+                    return new SaveView(customer.id().isPresent(), em.contains(customer));
                   });
 
           assertThat(view.idAssigned()).isTrue();
@@ -168,7 +167,7 @@ class BaseEntityPostgresIT {
 
           customers(context).save(customer);
 
-          assertThat(customer.getId()).isPresent();
+          assertThat(customer.id()).isPresent();
           assertThat(set).contains(customer);
         });
   }
@@ -178,7 +177,7 @@ class BaseEntityPostgresIT {
   }
 
   private static UUID idOf(Customer customer) {
-    return customer.getId().orElseThrow();
+    return customer.id().orElseThrow();
   }
 
   private static <T> T inTransaction(

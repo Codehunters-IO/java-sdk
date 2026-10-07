@@ -58,7 +58,7 @@ class JpaAuditingAutoConfigurationTest {
   void should_read_the_time_from_the_application_clock() {
     runner
         .withBean(Clock.class, () -> Clock.fixed(NOW, ZoneOffset.UTC))
-        .run(context -> assertThat(savedOrder(context).getCreatedAt()).contains(NOW));
+        .run(context -> assertThat(savedOrder(context).createdAt()).contains(NOW));
   }
 
   @Test
@@ -68,7 +68,7 @@ class JpaAuditingAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).doesNotHaveBean(SecurityContextAuditorAware.class);
-              assertThat(savedOrder(context).getCreatedBy()).contains("system");
+              assertThat(savedOrder(context).createdBy()).contains("system");
             });
   }
 
@@ -90,7 +90,7 @@ class JpaAuditingAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).doesNotHaveBean("jpaAuditingHandler");
-              assertThat(savedOrder(context).getCreatedAt()).isEmpty();
+              assertThat(savedOrder(context).createdAt()).isEmpty();
             });
   }
 
@@ -101,7 +101,7 @@ class JpaAuditingAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).doesNotHaveBean(AuditorAware.class);
-              assertThat(savedOrder(context).getCreatedAt()).isPresent();
+              assertThat(savedOrder(context).createdAt()).isPresent();
             });
   }
 
@@ -114,6 +114,6 @@ class JpaAuditingAutoConfigurationTest {
 
   private static Order savedOrder(AssertableApplicationContext context) {
     var orders = context.getBean(OrderRepository.class);
-    return orders.findById(orders.save(new Order("A-1")).getId().orElseThrow()).orElseThrow();
+    return orders.findById(orders.save(new Order("A-1")).id().orElseThrow()).orElseThrow();
   }
 }

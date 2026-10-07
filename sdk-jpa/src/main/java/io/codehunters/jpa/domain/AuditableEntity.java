@@ -18,7 +18,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
  *
  * <p>Columns are {@code created_at} and {@code updated_at} ({@code timestamp with time zone}),
  * {@code created_by} and {@code updated_by} ({@code varchar(255)}). The creation columns are never
- * updated. Rename them in a subclass with {@code @AttributeOverride}.
+ * updated. Rename them in a subclass with {@code @AttributeOverride}. Accessors are record style,
+ * like {@link BaseEntity}'s.
  */
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener.class)
@@ -48,7 +49,7 @@ public abstract class AuditableEntity extends BaseEntity {
    *
    * @return the creation instant, empty until persisted or when auditing is off
    */
-  public Optional<Instant> getCreatedAt() {
+  public Optional<Instant> createdAt() {
     return Optional.ofNullable(createdAt);
   }
 
@@ -57,7 +58,7 @@ public abstract class AuditableEntity extends BaseEntity {
    *
    * @return the author, empty when nobody was signed in
    */
-  public Optional<String> getCreatedBy() {
+  public Optional<String> createdBy() {
     return Optional.ofNullable(createdBy);
   }
 
@@ -66,7 +67,7 @@ public abstract class AuditableEntity extends BaseEntity {
    *
    * @return the last modification instant, empty until persisted or when auditing is off
    */
-  public Optional<Instant> getUpdatedAt() {
+  public Optional<Instant> updatedAt() {
     return Optional.ofNullable(updatedAt);
   }
 
@@ -75,7 +76,7 @@ public abstract class AuditableEntity extends BaseEntity {
    *
    * @return the last author, empty when nobody was signed in
    */
-  public Optional<String> getUpdatedBy() {
+  public Optional<String> updatedBy() {
     return Optional.ofNullable(updatedBy);
   }
 }
