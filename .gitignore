@@ -236,3 +236,6 @@ replay_pid*
 
 # macOS
 .DS_Store
+
+# Last rule wins: keep the wrapper jar versioned so a clean clone can run ./gradlew
+!gradle/wrapper/gradle-wrapper.jar

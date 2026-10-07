@@ -7,24 +7,109 @@ allprojects {
     group = "io.codehunters"
 }
 
+// GitHub Packages rejects re-publishing a version (409), so publish only what isn't there yet.
+fun isAlreadyPublished(repositoryUrl: java.net.URI, group: String, artifact: String, version: String): Boolean {
+    val pom = "${group.replace('.', '/')}/$artifact/$version/$artifact-$version.pom"
+    val token = System.getenv("GH_PACKAGES_TOKEN")
+        ?: throw GradleException("GH_PACKAGES_TOKEN is required to check whether $artifact $version exists")
+    val credentials = java.util.Base64.getEncoder()
+        .encodeToString("${System.getenv("GH_PACKAGES_USERNAME") ?: "token"}:$token".toByteArray())
+    val request = java.net.http.HttpRequest.newBuilder(repositoryUrl.resolve("${repositoryUrl.path.trimEnd('/')}/$pom"))
+        .method("HEAD", java.net.http.HttpRequest.BodyPublishers.noBody())
+        .header("Authorization", "Basic $credentials")
+        .timeout(java.time.Duration.ofSeconds(30))
+        .build()
+    val status = java.net.http.HttpClient.newHttpClient()
+        .send(request, java.net.http.HttpResponse.BodyHandlers.discarding())
+        .statusCode()
+    return when (status) {
+        200 -> true
+        404 -> false
+        else -> throw GradleException("Cannot check $pom in $repositoryUrl: HTTP $status")
+    }
+}
+
+val libraries = subprojects.filter { it.name != "sdk-bom" }
+
+// Publishing shared by the libraries and the sdk-bom platform.
 subprojects {
-    apply(plugin = "java")
-    apply(plugin = "com.diffplug.spotless")
     apply(plugin = "maven-publish")
+
+    tasks.withType<PublishToMavenRepository>().configureEach {
+        onlyIf("version is a release not yet in the target repository") {
+            val version = publication.version
+            if (version == Project.DEFAULT_VERSION) {
+                throw GradleException("${project.name} has no version; set `version` in its build script")
+            }
+            !version.endsWith("-SNAPSHOT") &&
+                !isAlreadyPublished(repository.url, publication.groupId, publication.artifactId, version)
+        }
+    }
+
+    configure<PublishingExtension> {
+        repositories {
+            maven {
+                name = "GitHubPackages"
+                url = uri("${rootProject.findProperty("github_packages_url")}")
+                credentials {
+                    username = System.getenv("GH_PACKAGES_USERNAME")
+                    password = System.getenv("GH_PACKAGES_TOKEN")
+                }
+            }
+        }
+
+        publications.withType<MavenPublication>().configureEach {
+            pom {
+                val repositoryUrl = rootProject.property("repository.url").toString()
+                name.set(project.name)
+                description.set(provider { project.description })
+                url.set(repositoryUrl)
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/licenses/MIT")
+                    }
+                }
+                scm {
+                    url.set(repositoryUrl)
+                    connection.set("scm:git:$repositoryUrl.git")
+                }
+            }
+        }
+    }
+}
+
+configure(libraries) {
+    apply(plugin = "java-library")
+    apply(plugin = "com.diffplug.spotless")
     apply(plugin = "jacoco")
 
     repositories {
         mavenCentral()
     }
 
+    // Boot's BOM aligns versions inside this build only. It is kept out of apiElements and
+    // runtimeElements so consumers don't inherit Boot constraints; published metadata carries
+    // the resolved versions instead (see versionMapping below).
+    val bootPlatform = configurations.create("bootPlatform") {
+        isCanBeConsumed = false
+        isCanBeResolved = false
+    }
+    listOf(
+        "compileClasspath",
+        "runtimeClasspath",
+        "annotationProcessor",
+        "testCompileClasspath",
+        "testRuntimeClasspath",
+        "testAnnotationProcessor",
+    ).forEach { configurations.named(it) { extendsFrom(bootPlatform) } }
+
     dependencies {
-        "implementation"(platform("org.springframework.boot:spring-boot-dependencies:${property("spring.boot.version")}"))
-        "annotationProcessor"(platform("org.springframework.boot:spring-boot-dependencies:${property("spring.boot.version")}"))
+        "bootPlatform"(platform("org.springframework.boot:spring-boot-dependencies:${property("spring.boot.version")}"))
 
         "compileOnly"("org.springframework.boot:spring-boot-autoconfigure")
         "annotationProcessor"("org.springframework.boot:spring-boot-configuration-processor")
 
-        "testImplementation"(platform("org.junit:junit-bom:${property("junit.version")}"))
         "testImplementation"("org.junit.jupiter:junit-jupiter")
         "testRuntimeOnly"("org.junit.platform:junit-platform-launcher")
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
@@ -56,6 +141,7 @@ subprojects {
         }
     }
 
+    // Property records are pure binding; keep this list in sync with sonar.coverage.exclusions.
     val jacocoExclusions = listOf("**/*Properties*")
 
     fun org.gradle.testing.jacoco.tasks.JacocoReportBase.applyExclusions() {
@@ -81,6 +167,12 @@ subprojects {
                 limit {
                     counter = "LINE"
                     minimum = "0.90".toBigDecimal()
+                }
+                // A module below the bar sets coverage.branch.minimum in its own gradle.properties
+                // until its next release raises it.
+                limit {
+                    counter = "BRANCH"
+                    minimum = (findProperty("coverage.branch.minimum") as String? ?: "0.80").toBigDecimal()
                 }
             }
         }
@@ -152,23 +244,14 @@ subprojects {
     }
 
     configure<PublishingExtension> {
-        repositories {
-            maven {
-                name = "GitHubPackages"
-                url = uri("${rootProject.findProperty("github_packages_url")}")
-                credentials {
-                    username = System.getenv("GH_PACKAGES_USERNAME")
-                    password = System.getenv("GH_PACKAGES_TOKEN")
-                }
-            }
-        }
-
         publications {
+            // groupId/artifactId/version default to the project's, read lazily: setting them here
+            // runs before each module's script assigns `version`, which published "unspecified".
             create<MavenPublication>("mavenJava") {
                 from(components["java"])
-                groupId = project.group.toString()
-                artifactId = project.name
-                version = project.version.toString()
+                versionMapping {
+                    allVariants { fromResolutionResult() }
+                }
             }
         }
     }
@@ -184,10 +267,10 @@ sonar {
         property("sonar.gradle.skipCompile", "true")
         property(
             "sonar.coverage.jacoco.xmlReportPaths",
-            subprojects.joinToString(",") { "${it.layout.buildDirectory.get()}/reports/jacoco/test/jacocoTestReport.xml" }
+            libraries.joinToString(",") { "${it.layout.buildDirectory.get()}/reports/jacoco/test/jacocoTestReport.xml" }
         )
         property("sonar.exclusions", "**/src/test/**,**/*Test.java,**/*IT.java")
-        property("sonar.coverage.exclusions", "**/config/**")
+        property("sonar.coverage.exclusions", "**/*Properties.java")
         property("sonar.cpd.exclusions", "**/*Config*")
     }
 }

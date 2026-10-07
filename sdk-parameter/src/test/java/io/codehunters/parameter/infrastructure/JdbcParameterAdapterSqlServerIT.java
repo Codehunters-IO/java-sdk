@@ -9,23 +9,23 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.testcontainers.containers.MSSQLServerContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.mssqlserver.MSSQLServerContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
  * Regression test for the {@code DATETIMEOFFSET} mapping bug. Against a real SQL Server the driver
  * returns those columns as {@code microsoft.sql.DateTimeOffset}; the previous row mapper failed to
- * parse them. Uses azure-sql-edge for ARM compatibility.
+ * parse them. Uses azure-sql-edge for ARM compatibility, pinned to its final release.
  */
 @Testcontainers
 class JdbcParameterAdapterSqlServerIT {
 
   @Container
-  static final MSSQLServerContainer<?> SQL =
-      new MSSQLServerContainer<>(
-              DockerImageName.parse("mcr.microsoft.com/azure-sql-edge:latest")
+  static final MSSQLServerContainer SQL =
+      new MSSQLServerContainer(
+              DockerImageName.parse("mcr.microsoft.com/azure-sql-edge:1.0.7")
                   .asCompatibleSubstituteFor("mcr.microsoft.com/mssql/server"))
           .acceptLicense();
 

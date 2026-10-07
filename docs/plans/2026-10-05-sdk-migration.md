@@ -1,0 +1,402 @@
+# Plan de migración de los SDK — java-sdk
+
+**Objetivo:** reorganizar los 10 SDK (separar, renombrar, retirar), unificar prefijos de propiedades
+bajo `codehunters.*`, corregir los hallazgos de la revisión del 2026-10-05 y publicar todo alineado
+por un `sdk-bom`.
+
+**Enfoque:** primero los cimientos del build, que desbloquean el resto. Después, una versión mayor
+por módulo que agrupa en un solo release su separación, su renombre, sus correcciones y sus nuevos
+prefijos, para que cada consumidor migre una sola vez por módulo. Al final, el BOM fija el conjunto.
+
+**Stack:** Java 21, Spring Boot 4.0.2, Gradle Kotlin DSL, JUnit 6 (vía BOM de Boot), Testcontainers
+2.x, GitHub Packages.
+
+**Tipo de documento:** hoja de ruta. Cada fase genera su propio plan detallado con TDD (test que
+falla, implementación mínima, test en verde, commit) en `docs/plans/<fecha>-<fase>.md` **al
+empezar esa fase**. El contenido de los tests se escribe entonces, contra el código de ese momento.
+
+---
+
+## Decisiones aprobadas (2026-10-05)
+
+| # | Decisión | ADR |
+|---|---|---|
+| D1 | Partir `sdk-event-messaging` en `-core`, `-jdbc`, `-rabbit` y `-kafka` | `docs/adr/0001-event-messaging-split.md` |
+| D2 | Sacar el PEP de autorización a `sdk-user-security-authz` | `docs/adr/0002-user-security-authz-split.md` |
+| D3 | Retirar `sdk-geo-validation` del SDK y moverlo al servicio de rifas | `docs/adr/0003-geo-validation-out.md` |
+| D4 | Un solo prefijo, `codehunters.<sdk>.*`, con alias deprecados por una versión mayor | `docs/adr/0004-property-prefix.md` |
+| D5 | Renombrar `sdk-utils` a `sdk-totp` | `docs/adr/0005-utils-to-totp.md` |
+| D6 | Crear `sdk-bom` (`java-platform`) y dejar de exportar el BOM de Boot a los consumidores | `docs/adr/0006-sdk-bom.md` |
+| D7 | Solo Spring Boot 4. Los `afterName` apuntan solo a paquetes de Boot 4 y el README lo declara (2026-10-05) | `docs/adr/0007-boot4-only.md` |
+| D8 | Mantener `@Measured` y su aspecto propio; no se reemplaza por `@Timed`/`@Counted` de Micrometer (2026-10-05) | `docs/adr/0008-keep-measured.md` |
+
+## Decisiones abiertas (bloquean la fase indicada)
+
+| # | Pregunta | Recomendación | Bloquea |
+|---|---|---|---|
+| A1 | `user-security`: ¿verificar el JWT localmente (JWKS) o exigir por red que solo el gateway llegue al pod? | Verificación local; los headers del gateway quedan como pista | Fase 2 |
+| A4 | `file-share`: auth saliente, ¿reenviar el token del usuario o usar client credentials? | Hook `ClientHttpRequestInterceptor`; client credentials por defecto | Fase 5 |
+| A5 | Modelo mutable de `event-messaging` (`@Setter` en `OutboxMessage` y `EventMessage`) | Fuera de este plan; se aborda en la 7.0 | — |
+
+---
+
+## Restricciones globales
+
+- Cada versión mayor agrupa **todos** los cambios incompatibles de su módulo. No hay dos mayores
+  seguidas del mismo módulo dentro de este plan.
+- Los paquetes Java **no cambian** al partir un módulo (D1, D2). Solo cambia el artefacto. Excepción:
+  `io.codehunters.sdk.security` pasa a `io.codehunters.security` en la 3.0.0, porque esa versión ya
+  rompe la API.
+- Cuando un artefacto se reemplaza por otro, el nuevo declara la *capability* Gradle del viejo. Así
+  Gradle rechaza tener ambos jars en el classpath (ver Fase 1, tarea 1.6).
+- Alias de propiedades viejas: un `EnvironmentPostProcessor` por módulo copia la clave vieja a la
+  nueva si la nueva no está definida, y emite un WARN una sola vez. Cada alias se declara deprecado en
+  `META-INF/additional-spring-configuration-metadata.json`, con su `replacement`. Se eliminan en la
+  siguiente versión mayor.
+- Cobertura JaCoCo: LINE ≥ 0.90 y BRANCH ≥ 0.80 (desde la Fase 1). Un módulo por debajo baja su umbral
+  con `coverage.branch.minimum` en su `gradle.properties` hasta su siguiente mayor.
+- Commits Conventional, uno por asunto, con el test antes de la implementación. Cada fase en su rama
+  `feature/sdk-<módulo>-vN` con PR hacia `develop`.
+
+## Definición de terminado por módulo (aplica a las Fases 2 a 10)
+
+Cada fase de módulo debe cumplir todo esto además de sus tareas propias:
+
+- [ ] La autoconfiguración usa clases `@Configuration(proxyBeanMethods = false)` anidadas, con
+      `@ConditionalOnClass` **a nivel de clase**, para cada dependencia opcional.
+- [ ] Los beans de tipos de infraestructura (`JsonMapper`, `Executor`, `JdbcClient`, `RestClient`,
+      `MessageConverter`) son `@Bean(defaultCandidate = false)` y se inyectan con `@Qualifier`.
+- [ ] `@ConditionalOnMissingBean` en cada bean público del SDK.
+- [ ] Toggle `codehunters.<sdk>.enabled` (`@ConditionalOnBooleanProperty`, `matchIfMissing = true`).
+- [ ] Ningún `@EnableAsync`, `@EnableScheduling` ni `@EnableAspectJAutoProxy` sin condición. Si es
+      necesario, va detrás de una propiedad y queda documentado.
+- [ ] Propiedades con prefijo `codehunters.<sdk>`, record con validación en el constructor compacto,
+      y el `EnvironmentPostProcessor` de alias registrado en `META-INF/spring.factories`.
+- [ ] Tests de autoconfiguración: `FilteredClassLoader` sin cada dependencia opcional; arranque
+      junto con la autoconfiguración real de Boot que corresponda (Jackson, TaskExecution, JDBC,
+      Metrics); el bean del consumidor desplaza al nuestro; `enabled=false`; una clave vieja produce
+      el mismo binding que la nueva.
+- [ ] Las dependencias usadas en firmas públicas van en `api`; las opcionales, en `compileOnly`.
+- [ ] `README.md` del módulo con propiedades y valores por defecto, dependencias que el consumidor
+      debe traer, la tabla de migración desde la versión anterior y su semántica de fallos.
+- [ ] Entrada en `CHANGELOG.md` y bump de `version` en el `build.gradle.kts` del módulo.
+- [ ] `./gradlew :<módulo>:check` en verde.
+
+---
+
+## Fase 0 — Cerrar lo que está en curso ✅
+
+- [x] `e0ad9c2 feat(event-messaging): add publisher, claim dialect and purge properties`. Es el
+      paso GREEN de `4fcd891`. El cableado de Kafka, el dialecto y el purge se hace en la Fase 3,
+      sobre los módulos ya separados, para no hacerlo dos veces.
+
+## Fase 1 — Cimientos del build ✅ (rama `feature/build-foundations`)
+
+Ningún módulo cambió de versión. Las clases de los 10 jars son idénticas byte a byte a la línea base
+(comparación de CRC tras `publishToMavenLocal`).
+
+| Tarea | Commit | Resultado |
+|---|---|---|
+| 1.0 (nueva) | `9189cab` | **Bug encontrado al tomar la línea base:** todos los artefactos se publicaban con versión `unspecified`, porque `publications` leía `project.version` antes de que cada módulo la asignara. Se usan los valores por defecto perezosos de la publicación |
+| 1.1 + 1.2 | `3c54664` | `java-library`; BOM de Boot en la configuración no publicable `bootPlatform`; `versionMapping` publica versiones concretas. Los POM ya no importan `spring-boot-dependencies` |
+| 1.3 + 1.7 | `653eb9a` | Fuera el BOM de JUnit 5 (Boot resuelve JUnit 6.0.2) y las propiedades sin uso. El IT de SQL Server pasa a Testcontainers 2.x, con `azure-sql-edge:1.0.7` fijada (se mantiene azure-sql-edge por ARM). **Cambio respecto al plan:** sin source set `integrationTest` ni `disabledWithoutDocker`. Las ITs aportan cobertura, así que sin Docker el gate de JaCoCo fallaría igual; Docker queda como requisito del build, documentado en el README |
+| 1.4 | `f2754c9` | **Cambio respecto al plan:** `BRANCH ≥ 0.80` global desde ya, no 0.60. Solo `sdk-measure-micrometer` (0.63) baja a 0.60 con `coverage.branch.minimum` en su `gradle.properties`. Sonar excluye lo mismo que JaCoCo (`*Properties`) |
+| 1.5 | `a232bac` | `pom {}` con name, description (una por módulo), url, licencia MIT y scm. La URL vive en la propiedad `repository.url` |
+| 1.8 | `0428b8c` | `onlyIf` en cada tarea `PublishToMavenRepository`: `HEAD` autenticado al POM; 200 → omite, 404 → publica, otro código → falla. Omite SNAPSHOT y falla si la versión es `unspecified`. Probado contra un registro falso local. El workflow no cambia (`build publish`) |
+| 1.9 | `a0af28f` | `sdk-bom` (`java-platform`, `1.0.0-SNAPSHOT`, no se publica todavía). La publicación compartida pasa a un bloque común para librerías y BOM |
+| 1.10 | `4236a6f` | ADR 0001–0008 en `docs/adr/` con índice; README con el requisito de Boot 4 y de Docker |
+| 1.11 | — | `codehuntersio-java-commons-support/` agregado a `.git/info/exclude`. **Moverlo fuera del árbol queda pendiente de ti**: es un repo git propio |
+| 1.6 | — | **Movida a la Fase 2.** El helper de capability se escribe junto a su primer uso (`sdk-user-security-authz`), con su test |
+
+**Pendiente de confirmar:** el repo `codehunters/java-sdk` no existe en GitHub, o el token local no
+tiene acceso. `github_packages_url` y `repository.url` apuntan ahí. Si la org es `Codehunters-IO`,
+hay que cambiar las dos propiedades en `gradle.properties`.
+
+## Fase 2 — `sdk-user-security` 3.0.0 + `sdk-user-security-authz` 3.0.0 (prioridad: seguridad)
+
+Bloqueada por A1. Rama: `feature/sdk-user-security-v3`.
+
+**Tarea 2.0 (movida desde la Fase 1):** helper `replacesArtifact(oldName)` en el build raíz, que agrega
+`outgoing.capability("io.codehunters:<old>:<version>")` a `apiElements` y `runtimeElements` además de
+la capability propia. Test: un proyecto de prueba que pide `sdk-user-security:2.6.0` y
+`sdk-user-security-authz` falla la resolución por conflicto de capability.
+
+**Estructura:**
+- `sdk-user-security`: `io.codehunters.security`. Contiene `KeycloakSecurityFilter`, `SessionIntrospector`,
+  `KeycloakPrincipal`, `CurrentPrincipal`, su argument resolver, las utilidades, las propiedades y la
+  autoconfiguración.
+- `sdk-user-security-authz` (nuevo): `io.codehunters.security.authz`. Contiene `KeycloakAuthzFilter`,
+  sus propiedades y su autoconfiguración. `api(project(":sdk-user-security"))`. Declara la capability
+  `io.codehunters:sdk-user-security:2.x` para que Gradle rechace tener el 2.6 junto con el 3.0.
+
+**Prefijos:** `keycloak.security.*` → `codehunters.security.*`; `keycloak.policy-enforcer.*` →
+`codehunters.security.authz.*`. Se eliminan `@Value("${keycloak.host}")` y `${keycloak.realm}`, porque
+la URL y el realm salen de una sola fuente: `codehunters.security.url` y `.realm`.
+
+**Tareas propias:**
+1. Roles y sujeto salen de claims verificados (según A1). Los headers `x-user-*` deben coincidir o se
+   rechaza con 401.
+2. `failOpen=false` por defecto. Validar al arrancar `url`, `realm`, `clientId` y `clientSecret`.
+   Nunca fail-open sin firma verificada.
+3. Introspección: `RestClient.Builder` con timeouts de conexión y lectura; caché LRU acotada (por
+   defecto 10k), con clave SHA-256 del token; no se cachean los errores. Devuelve el record
+   `IntrospectionResult(active, roles)`.
+4. Se elimina `@Profile`, que se reemplaza por el toggle. `securityMatcher` y `@Order` explícitos para
+   coexistir con el `SecurityFilterChain` del consumidor.
+5. PEP: un path que coincide con un método no listado se deniega; los patrones se ordenan por
+   especificidad; `enforcementMode` se implementa (`ENFORCING`/`PERMISSIVE`/`DISABLED`) y
+   `lazyLoadPaths` se elimina.
+6. Arreglos menores: `Locale.ROOT`, `Bearer` sin distinguir mayúsculas, rechazo de JSON de roles
+   malformado, sanitización de logs, `ProblemDetail`, `createEmptyContext()`.
+7. Dependencias: se quitan aspectj, micrometer, aop y expression. `keycloak-authz-client` 26.x solo
+   en `-authz`. Servlet, webmvc y security pasan a `compileOnly`.
+
+**Tests clave:** `x-user-roles: ["ADMIN"]` con un token sin ese rol devuelve 401. Un token sin firma
+válida con Keycloak caído devuelve 401. El arranque sin `realm` falla. Con 10.001 tokens distintos, la
+caché tiene ≤ 10.000. DELETE sobre un path que solo lista GET devuelve 403.
+
+**Migración del consumidor:** cambiar los imports `io.codehunters.sdk.security` →
+`io.codehunters.security`; agregar `sdk-user-security-authz` si usa el PEP; documentar en el README
+que el gateway debe eliminar los `x-user-*` entrantes.
+
+## Fase 3 — `sdk-event-messaging-*` 6.0.0
+
+Rama: `feature/sdk-event-messaging-v6`.
+
+**Estructura** (los paquetes `io.codehunters.messaging.*` se mantienen):
+
+| Artefacto | Contenido | Dependencias |
+|---|---|---|
+| `sdk-event-messaging-core` | `domain/**`, `application/**`, `MessagePublishException` y propiedades comunes (`origin`) | `api` slf4j; `compileOnly` Jackson, `sdk-tracing` |
+| `sdk-event-messaging-jdbc` | `drivenadapters/jdbc/**`, `entrypoint/scheduler/**`, `metrics/OutboxFailedGauge`, SQL de `db/migration/outbox/**` y su autoconfiguración | `api` core; `api` ShedLock; `compileOnly` spring-jdbc, spring-tx, micrometer |
+| `sdk-event-messaging-rabbit` | `drivenadapters/rabbitmq/**` y su autoconfiguración | `api` core; `compileOnly` spring-rabbit |
+| `sdk-event-messaging-kafka` | `drivenadapters/kafka/**` y su autoconfiguración | `api` core; `compileOnly` spring-kafka |
+
+`-core` declara la capability `io.codehunters:sdk-event-messaging`. El transporte lo decide el
+artefacto presente. `codehunters.outbox.publisher.type` (`rabbit` | `kafka`, validado en el
+constructor compacto) solo hace falta para desempatar cuando están los dos artefactos. Si están los
+dos y la propiedad no está definida, el arranque falla con un mensaje explícito.
+
+**Prefijo:** `outbox.*` → `codehunters.outbox.*` (incluye `outbox.task.*` y los placeholders de
+`@Scheduled` del purge).
+
+**Tareas propias:**
+1. Mover las clases a los 4 módulos (commit de solo movimiento, sin cambios). Los tests se mueven
+   con su clase.
+2. `-jdbc`: `OutboxDialectResolver.resolve(ds, props.claim().dialect())`; `OutboxPurgeScheduler`
+   con `OutboxPurgeSettings`; `OutboxFailedGauge` cacheado (el valor se refresca cada N segundos,
+   no en cada scrape).
+3. `-jdbc`: un reclamo de fila IN_FLIGHT vencida incrementa `attempts` (3 dialectos). Al arrancar,
+   se valida que `claim.ttl > batchSize × sendTimeout`. El caso de uso corta el lote cuando pasa
+   `claimTtl/2`.
+4. `-rabbit`: publisher confirms (`waitForConfirmsOrDie`), `mandatory=true`, override de
+   `publish(OutboxMessage)` con `messageId` y header `outbox-message-id`. Se eliminan los beans
+   globales `JacksonJsonMessageConverter` y `RabbitTemplate`, y el MPP de traza (ahora es de
+   `sdk-tracing`).
+5. `-kafka`: `KafkaTemplate` dedicado `outboxKafkaTemplate` (`StringSerializer`, `acks=all`,
+   `enable.idempotence=true`), con `defaultCandidate = false`.
+6. `-core`: decorator `MeteredMessagePublisher` (`outbox_published_total`,
+   `outbox_publish_failures_total{final}`, timer `outbox_publish`).
+7. `-core`: `traceId` desde `TraceContextPort` si `sdk-tracing` está presente; si no, de la clave
+   MDC pública de `sdk-tracing`, copiada como constante.
+8. Test ArchUnit en `-core`: `domain` y `application` sin Spring, JDBC, AMQP ni Kafka.
+9. README: dialectos, DDL a copiar (y que el `seq` de SQL Server debe aplicarse **antes** del
+   deploy), semántica at-least-once, cómo deduplicar con `outbox-message-id`, y bloqueo head-of-line
+   por clave.
+
+**Migración del consumidor:** `sdk-event-messaging:5.x` → `sdk-event-messaging-jdbc` +
+`sdk-event-messaging-rabbit` (o `-kafka`). Prefijo `outbox.*` → `codehunters.outbox.*`. DDL `seq` en
+SQL Server.
+
+## Fase 4 — `sdk-tracing` 1.0.0
+
+Rama: `feature/sdk-tracing-v1`. Va antes de liberar la Fase 3 si se usa la tarea 3.7. Si no, se
+puede hacer en paralelo.
+
+1. Nueva clase pública `TraceHeaders`, con las constantes de MDC y de headers. Las 4 clases la usan.
+2. Headers W3C `traceparent` y `tracestate` al escribir; se acepta `x-traceparent` al leer (alias
+   documentado, se elimina en 2.0). Se rechaza el trace id todo en cero. Se valida el formato del
+   trace id tomado del body.
+3. `WebTracingAutoConfiguration`: `@ConditionalOnWebApplication(SERVLET)` y
+   `@ConditionalOnMissingClass("io.micrometer.tracing.Tracer")`.
+4. Rabbit: el BPP recibe `ObjectProvider`s. `@ConditionalOnBean(JsonMapper.class)`. Es el único dueño
+   del MPP de traza.
+5. `TraceContextPort` devuelve `Optional<String>`.
+6. Prefijo nuevo `codehunters.tracing.*` (solo `enabled`).
+
+## Fase 5 — `sdk-file-share` 2.0.0
+
+Bloqueada por A4. Rama: `feature/sdk-file-share-v2`.
+
+1. `connectTimeout` real (`JdkClientHttpRequestFactory` + `HttpClient.connectTimeout`); `RestClient`
+   construido desde `ObjectProvider<RestClient.Builder>`; `defaultCandidate = false`.
+2. Mapeo de respuesta dentro de `execute`: un `presignedUrl` faltante, una URI inválida o un UUID
+   inválido lanzan `FileShareException`. El body de error se trunca a 512 caracteres en UTF-8, y el
+   status queda como campo de la excepción.
+3. `UploadRequest` y `FileRef`: validación en el constructor compacto (`referenceId`
+   `^[A-Za-z0-9._-]+$`, `filename` sin separadores ni controles, `size ≥ 0`, `contentType` parseable),
+   y `Map.copyOf`.
+4. Tickets: `expiresAt` como `Instant`; `toString()` oculta la query string; se exige `https` y un
+   host de `allowedPresignedHosts`.
+5. `download(FileRef, OutputStream)` en streaming, y `maxDownloadSize` para el `byte[]`.
+6. `FileStatus.UNKNOWN`; se elimina el código muerto y Lombok.
+7. Hook de auth saliente según A4.
+8. Prefijo: `vitxo.file-share.*` → `codehunters.file-share.*`.
+
+## Fase 6 — `sdk-audit-log` 3.0.0
+
+Rama: `feature/sdk-audit-log-v3`.
+
+1. `auditTaskExecutor` de tipo `ThreadPoolTaskExecutor` con `defaultCandidate = false` y
+   `TaskDecorator` MDC. `auditJsonMapper` con `defaultCandidate = false` y `@Qualifier` aplicado de
+   verdad.
+2. `AuditEventJdbcAdapter` síncrono, sin `@Async` ni `@Transactional`; nuevo decorator
+   `AsyncAuditEventPublisher`. Con `failOnError=true`, se publica de forma síncrona.
+3. `AuditAspect`: guarda la clase de la excepción, no el mensaje. Un `correlationId` inválido queda
+   en `null`. Se inyecta `Clock` y la duración se mide con `nanoTime`.
+4. `AuditSpelEvaluator`: `MethodBasedEvaluationContext` y caché de expresiones.
+5. SQL de referencia para Postgres, además del de SQL Server.
+6. Prefijo: `vitxo.audit.*` → `codehunters.audit.*`.
+
+## Fase 7 — `sdk-measure-micrometer` 3.0.0
+
+Rama: `feature/sdk-measure-v3`. Según D8, `@Measured` y `MeasureAspect` se mantienen y se corrigen.
+
+1. `@AutoConfiguration(afterName = ...MetricsAutoConfiguration / CompositeMeterRegistryAutoConfiguration)`.
+   Se elimina `@EnableAspectJAutoProxy`.
+2. Los errores de SpEL (en tags y en `countCondition`) se registran en el log y usan `"unknown"`;
+   nunca afectan la llamada. Las claves de tags son estables (`"none"` para nulos). Un número impar
+   de `tags` falla al arrancar.
+3. `@Measured` a nivel de clase (`@within`). Soporte de `CompletionStage`.
+4. `SimpleEvaluationContext` y caché de expresiones.
+5. Nombres según la convención de Micrometer: un timer con tags `class`, `method`, `exception` y
+   `outcome`. Es un cambio incompatible y va documentado en el README con la tabla de nombres viejos
+   y nuevos.
+6. `MeterFilter` con `codehunters.measure.max-tag-values` para contener la cardinalidad.
+7. Borrar `sdk-measure-micrometer/gradle.properties` (`coverage.branch.minimum=0.60`): el módulo vuelve
+   al 0.80 por defecto.
+
+## Fase 8 — `sdk-parameter` 2.0.0
+
+Rama: `feature/sdk-parameter-v2`.
+
+1. `JdbcClient` interno con `defaultCandidate = false`.
+2. `asMap` acepta valores nulos y conserva el orden; un nombre duplicado lanza
+   `ParameterException`. Un `submodule` en blanco se normaliza.
+3. `Parameter`: accesores null-safe; `asBoolean` estricto; overflow envuelto; el mensaje de error no
+   incluye el valor.
+4. `ParameterModule` pasa de enum a `record ParameterModule(String code)`, con constantes para los
+   valores actuales.
+5. Nuevo `ParameterProperties` (`codehunters.parameter.*`: `enabled`, `table-name`, `cache-ttl`) y
+   decorator de caché opcional.
+6. Se elimina Lombok y el `compileOnly` de `spring-boot-starter-jdbc`.
+
+## Fase 9 — `sdk-i18n` 1.0.0
+
+Rama: `feature/sdk-i18n-v1`.
+
+1. Tres configuraciones anidadas: MessageSource, Servlet web (`@ConditionalOnWebApplication(SERVLET)`)
+   y Validation (`@ConditionalOnClass(jakarta.validation.Validator)` + `@ConditionalOnResource` del
+   proveedor).
+2. `before = {MessageSourceAutoConfiguration, ValidationAutoConfiguration, WebMvcAutoConfiguration}`,
+   con la precedencia sobre `spring.messages.*` documentada.
+3. `supportedLocales`; `_` se normaliza a `-`. `LocaleMdcFilter` registra los errores en el log.
+4. `I18nProperties` pasa a record. Prefijo: `vitxo.i18n.*` → `codehunters.i18n.*`.
+
+## Fase 10 — `sdk-totp` 2.0.0 (antes `sdk-utils`) y retiro de `sdk-geo-validation`
+
+Rama: `feature/sdk-totp-v2`.
+
+**TOTP:**
+1. Renombrar el directorio y el artefacto `sdk-utils` → `sdk-totp`, con la capability
+   `io.codehunters:sdk-utils`. El paquete `io.codehunters.totp` no cambia.
+2. `Locale.ROOT` en el padding y en Base32; comparación de tiempo constante; `floorDiv`; variance
+   ≤ 10; el paso debe ser de segundos enteros y ≥ 1 s; `SecureRandom` estático; `fromHex`.
+3. Tests con los vectores del RFC 6238, apéndice B (SHA1, SHA256, SHA512).
+4. Prefijo: `vitxo.totp.*` → `codehunters.totp.*`.
+
+**geo-validation** (D3), rama `chore/remove-geo-validation`:
+1. Entregar el código al equipo del servicio de rifas, que es quien lo adopta. **Es trabajo de otro
+   repo y necesita un dueño.**
+2. Una vez adoptado, eliminar `sdk-geo-validation` de `settings.gradle.kts` y su directorio. La 0.2.0
+   sigue disponible en GitHub Packages.
+3. Antes de entregarlo, se corrigen en el SDK los NaN de `Latitude`/`Longitude` y `SET NOCOUNT ON`,
+   para no entregar los bugs. Ese arreglo no se publica.
+
+## Fase 11 — Cierre
+
+1. `sdk-bom` 1.0.0 con las versiones finales de las Fases 2 a 10.
+2. Comprobar que ningún módulo sobrescribe `coverage.branch.minimum`.
+3. `README.md` raíz: tabla de módulos con su estado real, el BOM y una guía de migración por
+   consumidor (artefactos, imports, prefijos, DDL).
+4. `CHANGELOG.md` consolidado.
+
+---
+
+## Orden y dependencias
+
+```
+Fase 1 ──┬─> Fase 2 (security, bloqueada por A1)
+         ├─> Fase 4 (tracing) ──> Fase 3 (event-messaging)
+         ├─> Fase 5 (file-share, bloqueada por A4)
+         ├─> Fase 6 (audit)
+         ├─> Fase 7 (measure)
+         ├─> Fase 8 (parameter)
+         ├─> Fase 9 (i18n)
+         └─> Fase 10 (totp + geo)
+                                   todas ──> Fase 11 (BOM)
+```
+
+Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerido es por riesgo:
+2, 4, 3, 6, 5, 8, 7, 9, 10.
+
+## Versiones resultantes
+
+| Artefacto | Antes | Después |
+|---|---|---|
+| `sdk-user-security` | 2.6.0 | 3.0.0 |
+| `sdk-user-security-authz` | — | 3.0.0 |
+| `sdk-event-messaging` | 5.1.5 | (reemplazado) |
+| `sdk-event-messaging-core` / `-jdbc` / `-rabbit` / `-kafka` | — | 6.0.0 |
+| `sdk-tracing` | 0.2.3 | 1.0.0 |
+| `sdk-file-share` | 1.0.3 | 2.0.0 |
+| `sdk-audit-log` | 2.1.4 | 3.0.0 |
+| `sdk-measure-micrometer` | 2.1.2 | 3.0.0 |
+| `sdk-parameter` | 1.2.1 | 2.0.0 |
+| `sdk-i18n` | 0.2.2 | 1.0.0 |
+| `sdk-utils` → `sdk-totp` | 1.0.4 | 2.0.0 |
+| `sdk-geo-validation` | 0.2.0 | (retirado) |
+| `sdk-bom` | — | 1.0.0 |
+
+## Prefijos de propiedades
+
+| Antes | Después |
+|---|---|
+| `keycloak.security.*` | `codehunters.security.*` |
+| `keycloak.policy-enforcer.*`, `keycloak.host`, `keycloak.realm` | `codehunters.security.authz.*` (URL y realm desde `codehunters.security`) |
+| `outbox.*` | `codehunters.outbox.*` |
+| `vitxo.audit.*` | `codehunters.audit.*` |
+| `vitxo.file-share.*` | `codehunters.file-share.*` |
+| `vitxo.i18n.*` | `codehunters.i18n.*` |
+| `vitxo.totp.*` | `codehunters.totp.*` |
+| (no había) | `codehunters.tracing.*`, `codehunters.measure.*`, `codehunters.parameter.*` |
+| `geo.validation.*` | (se retira con el módulo) |
+
+---
+
+## Puntos críticos de revisión (fallos que ninguna tarea cubre por sí sola)
+
+1. **Jars viejo y nuevo juntos en el classpath** (`sdk-event-messaging:5.x` con `-core:6.0`,
+   `sdk-user-security:2.6` con `-authz:3.0`, `sdk-utils` con `sdk-totp`): clases duplicadas, y gana
+   una al azar. El consumidor espera que el build falle. Se cubre con la capability (1.6) y con un
+   test en `sdk-bom` que resuelve ambas coordenadas y espera el conflicto.
+2. **Un consumidor que actualiza sin cambiar sus propiedades:** espera que todo siga funcionando, con
+   un WARN. El test de alias en la Definición de terminado lo cubre en cada módulo.
+3. **Una app con solo uno de los transportes, o un worker sin web:** espera que arranque. Lo cubren
+   los tests de `FilteredClassLoader` de cada módulo, y en la Fase 3 un test de contexto por
+   artefacto con solo ese artefacto.
+4. **Una app que define su propio `JsonMapper`, `Executor`, `JdbcClient`, `RestClient` o
+   `SecurityFilterChain`:** espera que el suyo gane y que el nuestro no rompa la inyección por tipo.
+   Lo cubre el test "arranque junto a la autoconfiguración real de Boot" de cada módulo.
+5. **Un pod alcanzable sin pasar por el gateway:** espera que un header forjado no dé privilegios.
+   Lo cubre el test de la Fase 2 (`x-user-roles` forjado → 401).

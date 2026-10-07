@@ -1,4 +1,5 @@
 version = "2.1.4"
+description = "Declarative @Auditable audit trail with SpEL context and an async JDBC adapter."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")

@@ -1,4 +1,5 @@
 version = "1.0.3"
+description = "HTTP client for the file-share service: presigned upload and download tickets."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")

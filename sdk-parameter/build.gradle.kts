@@ -1,4 +1,5 @@
 version = "1.2.1"
+description = "Typed read access to the shared parameters table over JDBC."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")
@@ -14,9 +15,7 @@ dependencies {
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.mockito:mockito-core")
     testImplementation("com.h2database:h2")
-    testImplementation(platform("org.testcontainers:testcontainers-bom:${property("testcontainers.version")}"))
-    testImplementation("org.testcontainers:testcontainers")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:mssqlserver")
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-mssqlserver")
     testImplementation("com.microsoft.sqlserver:mssql-jdbc")
 }

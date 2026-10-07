@@ -1,4 +1,5 @@
 version = "2.6.0"
+description = "Keycloak-backed request authentication and optional policy enforcement."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")

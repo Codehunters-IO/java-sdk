@@ -1,4 +1,5 @@
 version = "5.1.5"
+description = "Transactional outbox with claim-based dispatch to RabbitMQ or Kafka."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")

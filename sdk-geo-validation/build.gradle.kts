@@ -1,4 +1,5 @@
 version = "0.2.0"
+description = "Raffle purchase geo validation backed by a SQL Server stored procedure."
 
 dependencies {
     implementation("org.slf4j:slf4j-api")
