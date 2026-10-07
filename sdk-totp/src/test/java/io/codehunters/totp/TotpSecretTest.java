@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class TotpSecretTest {
 
@@ -75,10 +78,34 @@ class TotpSecretTest {
   }
 
   @Test
-  void should_generate_random_secret() {
+  void should_generate_key_as_long_as_default_algorithm_hash_when_no_length_given() {
     var secret = TotpSecret.generate();
 
-    assertEquals(20, secret.key().length);
+    assertEquals(64, secret.key().length);
+  }
+
+  @ParameterizedTest
+  @CsvSource({"HMAC_SHA1, 20", "HMAC_SHA256, 32", "HMAC_SHA512, 64"})
+  void should_generate_key_as_long_as_hash_when_algorithm_given(
+      TotpAlgorithm algorithm, int expectedLength) {
+    assertEquals(expectedLength, TotpSecret.generate(algorithm).key().length);
+  }
+
+  @Test
+  void should_generate_key_when_length_is_the_minimum() {
+    assertEquals(
+        TotpSecret.MIN_KEY_LENGTH, TotpSecret.generate(TotpSecret.MIN_KEY_LENGTH).key().length);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {-1, 0, 4, 15})
+  void should_reject_generated_key_when_shorter_than_sixteen_bytes(int keyLength) {
+    assertThrows(TotpException.class, () -> TotpSecret.generate(keyLength));
+  }
+
+  @Test
+  void should_accept_short_imported_key_when_it_is_not_empty() {
+    assertEquals(1, TotpSecret.fromBytes(new byte[] {7}).key().length);
   }
 
   @Test

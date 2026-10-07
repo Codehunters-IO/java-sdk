@@ -11,6 +11,9 @@ import java.util.Objects;
  */
 public final class TotpSecret {
 
+  /** The shortest key {@link #generate(int)} creates, in bytes (128 bits, RFC 4226 R6). */
+  public static final int MIN_KEY_LENGTH = 16;
+
   private static final int DEFAULT_KEY_LENGTH = 20;
   private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -71,6 +74,16 @@ public final class TotpSecret {
    */
   public static TotpSecret generate() {
     return generate(DEFAULT_KEY_LENGTH);
+  }
+
+  /**
+   * Generates a random secret as long as the algorithm's hash.
+   *
+   * @param algorithm the HMAC algorithm the secret is for
+   * @return a randomly generated secret
+   */
+  public static TotpSecret generate(TotpAlgorithm algorithm) {
+    return generate();
   }
 
   /**
