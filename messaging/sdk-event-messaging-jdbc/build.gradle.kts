@@ -28,6 +28,8 @@ dependencies {
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-mssqlserver")
     testRuntimeOnly("com.h2database:h2")
     testRuntimeOnly("org.postgresql:postgresql")
+    testRuntimeOnly("com.microsoft.sqlserver:mssql-jdbc")
 }

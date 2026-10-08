@@ -89,6 +89,11 @@ class OutboxFailedGaugeTest {
     }
 
     @Override
+    public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void update(OutboxMessage<String> outboxMessage) {
       throw new UnsupportedOperationException();
     }

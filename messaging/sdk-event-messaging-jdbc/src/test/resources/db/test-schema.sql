@@ -14,6 +14,7 @@ CREATE TABLE outbox_message (
     published_at TIMESTAMP,
     claimed_at TIMESTAMP,
     claimed_by VARCHAR(255),
+    send_started_at TIMESTAMP,
     created_by VARCHAR(255),
     created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     modified_by VARCHAR(255),

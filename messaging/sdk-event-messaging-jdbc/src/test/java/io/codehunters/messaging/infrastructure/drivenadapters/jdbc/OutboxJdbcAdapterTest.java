@@ -633,11 +633,12 @@ class OutboxJdbcAdapterTest {
   }
 
   @Test
-  void should_increment_attempts_when_reclaiming_stale_in_flight_row() {
+  void should_increment_attempts_when_reclaiming_stale_row_whose_send_had_started() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
     recordOneFailedAttempt(id);
     markStaleInFlight(id);
+    markSendStartedByDeadInstance(id);
 
     var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
 
@@ -655,6 +656,88 @@ class OutboxJdbcAdapterTest {
 
     assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  @Test
+  void should_keep_attempts_when_reclaiming_stale_row_that_was_never_sent() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    recordOneFailedAttempt(id);
+    markStaleInFlight(id);
+
+    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
+    assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  @Test
+  void should_clear_send_mark_when_row_is_reclaimed() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    markStaleInFlight(id);
+    markSendStartedByDeadInstance(id);
+
+    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getSendStartedAt).isNull();
+    assertThat(sendStartedAtOf(id)).isNull();
+  }
+
+  @Test
+  void should_stamp_send_mark_when_claim_is_still_held() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+
+    boolean marked = adapter.markSendStarted(claimed);
+
+    assertThat(marked).isTrue();
+    assertThat(sendStartedAtOf(id)).isNotNull();
+    assertThat(claimed.getSendStartedAt()).isNotNull();
+  }
+
+  @Test
+  void should_refuse_send_mark_when_claim_was_taken_over() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var stale = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    markStaleInFlight(id);
+
+    boolean marked = adapter.markSendStarted(stale);
+
+    assertThat(marked).isFalse();
+    assertThat(sendStartedAtOf(id)).isNull();
+  }
+
+  @Test
+  void should_clear_send_mark_when_update_ends_the_claim() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    adapter.markSendStarted(claimed);
+
+    claimed.setStatus(OutboxStatus.PUBLISHED);
+    adapter.update(claimed);
+
+    assertThat(sendStartedAtOf(id)).isNull();
+  }
+
+  private void markSendStartedByDeadInstance(UUID id) {
+    jdbcClient
+        .sql("UPDATE outbox_message SET send_started_at = :old WHERE id = :id")
+        .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(9))
+        .param("id", id)
+        .update();
+  }
+
+  private Object sendStartedAtOf(UUID id) {
+    return jdbcClient
+        .sql("SELECT send_started_at FROM outbox_message WHERE id = :id")
+        .param("id", id)
+        .query()
+        .singleRow()
+        .get("send_started_at");
   }
 
   private void markStaleInFlight(UUID id) {

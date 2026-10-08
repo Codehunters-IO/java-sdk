@@ -129,7 +129,9 @@ class OutboxDialectTest {
   }
 
   private static final String ATTEMPTS_ON_RECLAIM =
-      "attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END";
+      "attempts = CASE WHEN status = 'IN_FLIGHT' AND send_started_at IS NOT NULL"
+          + " THEN attempts + 1 ELSE attempts END";
+  private static final String SEND_MARK_RESET = "send_started_at = NULL";
 
   @Test
   void should_count_reclaim_as_attempt_when_dialect_is_postgres() {
@@ -144,5 +146,30 @@ class OutboxDialectTest {
   @Test
   void should_count_reclaim_as_attempt_when_dialect_is_generic() {
     assertThat(generic.claimSql()).contains(ATTEMPTS_ON_RECLAIM);
+  }
+
+  @Test
+  void should_reset_send_mark_on_claim_when_dialect_is_postgres() {
+    assertThat(postgres.claimSql()).contains(SEND_MARK_RESET);
+  }
+
+  @Test
+  void should_reset_send_mark_on_claim_when_dialect_is_sql_server() {
+    assertThat(sqlServer.claimSql()).contains(SEND_MARK_RESET);
+  }
+
+  @Test
+  void should_reset_send_mark_on_claim_when_dialect_is_generic() {
+    assertThat(generic.claimSql()).contains(SEND_MARK_RESET);
+  }
+
+  @Test
+  void should_return_send_mark_column_when_dialect_is_postgres() {
+    assertThat(postgres.claimSql()).contains("m.send_started_at");
+  }
+
+  @Test
+  void should_return_send_mark_column_when_dialect_is_sql_server() {
+    assertThat(sqlServer.claimSql()).contains("inserted.send_started_at");
   }
 }

@@ -36,6 +36,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
     clock = new MutableClock(START);
     repository = new FakeRepository(clock);
     publisher = new SlowPublisher(clock, PUBLISH_TIME);
+    publisher.repository = repository;
     useCase =
         new SendOutboxMessagesUseCase(
             repository,
@@ -115,6 +116,38 @@ class SendOutboxMessagesUseCaseGuardsTest {
     assertReleased(only, 0, START.plusMillis(CLAIM_TTL_MS / 2));
   }
 
+  @Test
+  void should_not_mark_send_started_when_reclaimed_message_reached_max_attempts() {
+    OutboxMessage<String> exhausted = claimed(MAX_ATTEMPTS);
+    repository.willClaim(List.of(exhausted));
+
+    useCase.execute();
+
+    assertThat(repository.started).isEmpty();
+  }
+
+  @Test
+  void should_mark_only_published_messages_as_started_when_half_claim_ttl_elapsed() {
+    OutboxMessage<String> first = claimed(0);
+    OutboxMessage<String> second = claimed(0);
+    OutboxMessage<String> third = claimed(0);
+    repository.willClaim(List.of(first, second, third));
+
+    useCase.execute();
+
+    assertThat(repository.started).containsExactly(first, second);
+  }
+
+  @Test
+  void should_mark_send_started_before_publisher_is_called_when_message_is_dispatched() {
+    OutboxMessage<String> only = claimed(0);
+    repository.willClaim(List.of(only));
+
+    useCase.execute();
+
+    assertThat(publisher.startedBeforePublish).containsExactly(true);
+  }
+
   private static void assertReleased(OutboxMessage<String> message, int attempts, Instant at) {
     assertThat(message.getStatus()).isEqualTo(OutboxStatus.PENDING);
     assertThat(message.getAttempts()).isEqualTo(attempts);
@@ -170,6 +203,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
   private static final class FakeRepository implements OutboxRepositoryPort {
     private final MutableClock clock;
     private final List<OutboxMessage<String>> updated = new ArrayList<>();
+    private final List<OutboxMessage<String>> started = new ArrayList<>();
     private List<OutboxMessage<String>> toClaim = List.of();
     private Duration claimDuration = Duration.ZERO;
 
@@ -198,6 +232,12 @@ class SendOutboxMessagesUseCaseGuardsTest {
     }
 
     @Override
+    public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+      started.add(outboxMessage);
+      return true;
+    }
+
+    @Override
     public void update(OutboxMessage<String> outboxMessage) {
       updated.add(outboxMessage);
     }
@@ -218,6 +258,8 @@ class SendOutboxMessagesUseCaseGuardsTest {
     private final MutableClock clock;
     private final Duration publishTime;
     private final List<OutboxMessage<String>> published = new ArrayList<>();
+    private final List<Boolean> startedBeforePublish = new ArrayList<>();
+    private FakeRepository repository;
 
     SlowPublisher(MutableClock clock, Duration publishTime) {
       this.clock = clock;
@@ -236,6 +278,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
 
     @Override
     public void publish(OutboxMessage<String> message) {
+      startedBeforePublish.add(repository.started.contains(message));
       published.add(message);
       clock.advance(publishTime);
     }
