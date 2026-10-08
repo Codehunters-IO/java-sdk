@@ -65,14 +65,6 @@ jobs:
       contents: read
     uses: Codehunters-IO/ci-templates/.github/workflows/security-trufflehog.yml@v2
 
-  dependency-review:
-    if: ${{ github.event_name == 'pull_request' }}
-    permissions:
-      contents: read
-    uses: Codehunters-IO/ci-templates/.github/workflows/security-dependency-review.yml@v2
-    with:
-      fail_on_severity: 'high'
-
   commit-lint:
     if: ${{ github.event_name == 'pull_request' }}
     permissions:

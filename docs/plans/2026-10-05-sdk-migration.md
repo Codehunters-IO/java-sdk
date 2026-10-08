@@ -1408,7 +1408,8 @@ calculan con lo que haya en `master` en cada merge.
   esté en `master` antes de ejecutar nada del árbol etiquetado, que algún módulo declare esa
   versión, y que un BOM no salga antes que sus librerías. Publica solo ese módulo.
 - `ci.yml`: actions fijadas por commit, cache de Gradle y los workflows compartidos de
-  `ci-templates@v2` (TruffleHog, dependency review, commit lint). `commitlint.config.js` sube los
+  `ci-templates@v2` (TruffleHog, commit lint; dependency review se quitó después porque en un repo
+  privado exige GitHub Advanced Security). `commitlint.config.js` sube los
   límites a 120.
 - `security-scan.yml`: OWASP dependency check semanal (plugin `org.owasp.dependencycheck` 13.0.0
   en la raíz, reporte agregado, falla con CVSS ≥ 7).
