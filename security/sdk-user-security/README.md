@@ -66,7 +66,7 @@ Missing or invalid required keys fail startup. Path patterns use Spring's `PathP
 | `x-user-id` / `x-user-roles` disagree with the token | 401, `application/problem+json` |
 | `@PreAuthorize` denies | 403 |
 
-With `sdk-web-errors` on the classpath, 401 and 403 bodies are `application/problem+json` with
+With `sdk-web` (its errors part) on the classpath, 401 and 403 bodies are `application/problem+json` with
 `code` and `traceId`, and the 401 keeps the bearer `WWW-Authenticate` challenge. Any application
 that defines exactly one `AuthenticationEntryPoint` and one `AccessDeniedHandler` bean gets the same
 wiring with its own handlers. Without them the bodies are empty, as before.
