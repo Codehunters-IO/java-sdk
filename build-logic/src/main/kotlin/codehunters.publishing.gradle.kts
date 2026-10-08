@@ -46,12 +46,6 @@ fun isAlreadyPublished(repositoryUrl: java.net.URI, group: String, artifact: Str
     }
 }
 
-// Each upload to GitHub Packages records its git tag (`sdk-<module>/vX.Y.Z`, or `bom/vX.Y.Z`) in
-// build/released-tags/, one file per module. Skipped and failed uploads record nothing, so the
-// publish workflow tags exactly what this build released, at the commit that built it.
-val tagName = if (name == "sdk-bom") "bom" else name
-val releasedTagFile = rootProject.layout.buildDirectory.file("released-tags/$tagName.txt")
-
 tasks.withType<PublishToMavenRepository>().configureEach {
     onlyIf("version is a release not yet in the target repository") {
         val version = publication.version
@@ -61,11 +55,33 @@ tasks.withType<PublishToMavenRepository>().configureEach {
         !version.endsWith("-SNAPSHOT") &&
             !isAlreadyPublished(repository.url, publication.groupId, publication.artifactId, version)
     }
-    val tag = tagName
-    val tagFile = releasedTagFile
+}
+
+// Releases are cut by publishing a GitHub release whose tag is `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z`).
+// `releaseCandidate` writes `<tag> <gradle path> <project dir>` to build/release-candidates/, one file
+// per module with a release version: the release-drafts workflow drafts a release for each tag that
+// doesn't exist yet, and the publish workflow maps a published tag back to the module to upload.
+val tagPrefix = if (name == "sdk-bom") "bom" else name
+val candidateFile = rootProject.layout.buildDirectory.file("release-candidates/$tagPrefix.txt")
+val gradlePath = path
+val relativeDir = projectDir.relativeTo(rootDir).invariantSeparatorsPath
+val moduleVersion = provider { version.toString() }
+
+tasks.register("releaseCandidate") {
+    group = "publishing"
+    description = "Writes this module's release tag, Gradle path and directory for the release workflows."
+    outputs.file(candidateFile)
+    outputs.upToDateWhen { false }
     doLast {
-        if (repository.name == "GitHubPackages") {
-            tagFile.get().asFile.apply { parentFile.mkdirs() }.writeText("$tag/v${publication.version}\n")
+        val version = moduleVersion.get()
+        if (version == Project.DEFAULT_VERSION) {
+            throw GradleException("$gradlePath has no version; set `version` in its build script")
+        }
+        val file = candidateFile.get().asFile
+        if (version.endsWith("-SNAPSHOT")) {
+            file.delete()
+        } else {
+            file.apply { parentFile.mkdirs() }.writeText("$tagPrefix/v$version $gradlePath $relativeDir\n")
         }
     }
 }
