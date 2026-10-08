@@ -6,8 +6,9 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
  * due, or {@code IN_FLIGHT} with a claim older than the TTL boundary, and no earlier row (by {@code
  * seq}) with the same {@code (origin, topic, message_key)} is still {@code PENDING}, {@code
  * IN_FLIGHT} or {@code FAILED}. Reclaiming a stale {@code IN_FLIGHT} row increments its {@code
- * attempts}, because the previous dispatcher may have published it before dying; claiming a {@code
- * PENDING} row leaves {@code attempts} unchanged.
+ * attempts} only when {@code send_started_at} is set, because only then may the previous dispatcher
+ * have published it before dying; rows it never reached, and {@code PENDING} rows, keep their
+ * {@code attempts}. Every claim clears {@code send_started_at}.
  *
  * <p>The claim SQL binds only these named parameters: {@code :origin}, {@code :now}, {@code
  * :ttlBoundary}, {@code :limit} and {@code :claimedBy}. Rows returned by the claim come back in no

@@ -21,8 +21,9 @@ import tools.jackson.databind.json.JsonMapper;
  * JDBC-backed {@link OutboxRepositoryPort}. Claims a batch of claimable rows through the
  * database-specific {@link OutboxDialect}, so concurrent dispatch workers receive disjoint rows and
  * a row is held back while an earlier row with the same {@code (origin, topic, message_key)} is
- * unresolved. Updates of a claimed row are fenced by its claim marker, so a worker whose claim was
- * taken over after the TTL cannot overwrite the new owner's state.
+ * unresolved. Updates of a claimed row, including the send mark written before each publish, are
+ * fenced by its claim marker, so a worker whose claim was taken over after the TTL cannot overwrite
+ * the new owner's state.
  */
 @Slf4j
 public class OutboxJdbcAdapter implements OutboxRepositoryPort {
@@ -38,7 +39,8 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   private static final String SELECT_CLAIMED_SQL =
       """
       SELECT id, origin, routing_key, topic, message_key, payload, status, attempts,
-          error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by, seq
+          error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by, seq,
+          send_started_at
       FROM outbox_message
       WHERE origin = :origin AND claimed_by = :claimedBy AND status = 'IN_FLIGHT'
       """;
@@ -48,7 +50,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
       UPDATE outbox_message
       SET status = :status, attempts = :attempts, error = :error,
           published_at = :publishedAt, next_attempt_at = :nextAttemptAt,
-          claimed_at = :claimedAt, claimed_by = :claimedBy
+          claimed_at = :claimedAt, claimed_by = :claimedBy, send_started_at = :sendStartedAt
       WHERE id = :id
       """;
 
@@ -57,8 +59,15 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
       UPDATE outbox_message
       SET status = :status, attempts = :attempts, error = :error,
           published_at = :publishedAt, next_attempt_at = :nextAttemptAt,
-          claimed_at = :claimedAt, claimed_by = :claimedBy
+          claimed_at = :claimedAt, claimed_by = :claimedBy, send_started_at = :sendStartedAt
       WHERE id = :id AND claimed_by = :expectedClaimedBy
+      """;
+
+  private static final String MARK_SEND_STARTED_SQL =
+      """
+      UPDATE outbox_message
+      SET send_started_at = :now
+      WHERE id = :id AND claimed_by = :claimedBy AND status = 'IN_FLIGHT'
       """;
 
   private static final String COUNT_FAILED_SQL =
@@ -82,6 +91,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
               .claimedAt(rs.getObject("claimed_at", LocalDateTime.class))
               .claimedBy(rs.getString("claimed_by"))
               .seq(readSeq(rs))
+              .sendStartedAt(rs.getObject("send_started_at", LocalDateTime.class))
               .build();
 
   private static final Comparator<OutboxMessage<String>> BY_SEQ =
@@ -169,6 +179,23 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   }
 
   @Override
+  public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+    LocalDateTime now = LocalDateTime.now(settings.clock());
+    int marked =
+        jdbcClient
+            .sql(MARK_SEND_STARTED_SQL)
+            .param("now", now)
+            .param("id", outboxMessage.getId())
+            .param("claimedBy", outboxMessage.getClaimedBy())
+            .update();
+    if (marked == 0) {
+      return false;
+    }
+    outboxMessage.setSendStartedAt(now);
+    return true;
+  }
+
+  @Override
   public void update(OutboxMessage<String> outboxMessage) {
     log.debug("[START] - update outbox message {}", outboxMessage.getId());
     String expectedClaimedBy = outboxMessage.getClaimedBy();
@@ -232,7 +259,8 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
         .param("publishedAt", outboxMessage.getPublishedAt())
         .param("nextAttemptAt", outboxMessage.getNextAttemptAt())
         .param("claimedAt", keepsClaim ? outboxMessage.getClaimedAt() : null)
-        .param("claimedBy", keepsClaim ? outboxMessage.getClaimedBy() : null);
+        .param("claimedBy", keepsClaim ? outboxMessage.getClaimedBy() : null)
+        .param("sendStartedAt", keepsClaim ? outboxMessage.getSendStartedAt() : null);
   }
 
   private static Long readSeq(ResultSet rs) throws SQLException {

@@ -26,13 +26,13 @@ public final class PostgresOutboxDialect implements OutboxDialect {
         FOR UPDATE OF o SKIP LOCKED
       )
       UPDATE outbox_message m
-      SET attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END,
-          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
+      SET attempts = CASE WHEN status = 'IN_FLIGHT' AND send_started_at IS NOT NULL THEN attempts + 1 ELSE attempts END,
+          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy, send_started_at = NULL
       FROM candidates c
       WHERE m.id = c.id
       RETURNING m.id, m.origin, m.routing_key, m.topic, m.message_key, m.payload, m.status,
           m.attempts, m.error, m.occurred_at, m.next_attempt_at, m.published_at, m.claimed_at,
-          m.claimed_by, m.seq
+          m.claimed_by, m.seq, m.send_started_at
       """;
 
   private static final String PURGE_PUBLISHED_SQL =

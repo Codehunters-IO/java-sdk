@@ -5,6 +5,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.testcontainers.mssqlserver.MSSQLServerContainer;
 import org.testcontainers.utility.DockerImageName;
 
@@ -32,9 +33,16 @@ final class SqlServerTestSupport {
       dataSource =
           new DriverManagerDataSource(
               CONTAINER.getJdbcUrl(), CONTAINER.getUsername(), CONTAINER.getPassword());
-      new ResourceDatabasePopulator(new ClassPathResource(REFERENCE_DDL)).execute(dataSource);
+      loadReferenceDdl(dataSource);
     }
     return dataSource;
+  }
+
+  // The reference DDL is one T-SQL batch without statement separators: run it whole.
+  private static void loadReferenceDdl(DataSource target) {
+    var populator = new ResourceDatabasePopulator(new ClassPathResource(REFERENCE_DDL));
+    populator.setSeparator(ScriptUtils.EOF_STATEMENT_SEPARATOR);
+    populator.execute(target);
   }
 
   static void truncate() {

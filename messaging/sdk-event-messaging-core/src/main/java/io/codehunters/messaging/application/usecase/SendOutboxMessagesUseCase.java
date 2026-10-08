@@ -23,6 +23,10 @@ import lombok.extern.slf4j.Slf4j;
  * without being published. Publishing stops once half the claim TTL has elapsed since the claim;
  * the remaining messages are released back to {@code PENDING} before their claim can go stale, so
  * no other instance reclaims a message this one may still be sending.
+ *
+ * <p>Each message is marked as started right before it is published. A reclaim after a crash
+ * charges an attempt only to marked rows, and a message whose mark is refused (its claim was taken
+ * over) is neither published nor updated.
  */
 @Slf4j
 public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
@@ -125,21 +129,27 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
         outboxRepositoryPort.claimPendingMessages(origin, batchSize, instanceId, claimTtl);
 
     for (OutboxMessage<String> message : claimed) {
-      dispatch(message, claimStart);
-      outboxRepositoryPort.update(message);
+      if (dispatch(message, claimStart)) {
+        outboxRepositoryPort.update(message);
+      }
     }
 
     log.debug("[END] - send outbox messages, processed {} messages", claimed.size());
   }
 
-  private void dispatch(OutboxMessage<String> message, Instant claimStart) {
+  // Returns whether the message's new state must be written; false when the claim was lost.
+  private boolean dispatch(OutboxMessage<String> message, Instant claimStart) {
     if (isBudgetExhausted(claimStart)) {
       release(message);
     } else if (message.getAttempts() >= maxAttempts) {
       markExhausted(message);
-    } else {
+    } else if (outboxRepositoryPort.markSendStarted(message)) {
       processMessage(message);
+    } else {
+      log.warn("Outbox message id={} skipped: its claim was taken over", message.getId());
+      return false;
     }
+    return true;
   }
 
   private boolean isBudgetExhausted(Instant claimStart) {

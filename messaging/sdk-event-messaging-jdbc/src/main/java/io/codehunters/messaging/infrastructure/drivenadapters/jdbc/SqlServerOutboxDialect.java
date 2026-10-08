@@ -6,8 +6,8 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
  * lock hint sits on the outer candidate scan only; the per-key ordering subquery carries no hint,
  * so an earlier same-key row being claimed elsewhere is still visible and blocks later rows.
  *
- * <p>Not executable on arm64 development hosts: pinned here by string tests and verified by an
- * opt-in amd64 integration test before publishing.
+ * <p>Pinned by string tests and exercised against the SQL Server reference DDL on azure-sql-edge,
+ * which also runs on arm64 hosts.
  */
 public final class SqlServerOutboxDialect implements OutboxDialect {
 
@@ -27,12 +27,12 @@ public final class SqlServerOutboxDialect implements OutboxDialect {
         ORDER BY o.seq
       )
       UPDATE candidates
-      SET attempts = CASE WHEN status = 'IN_FLIGHT' THEN attempts + 1 ELSE attempts END,
-          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy
+      SET attempts = CASE WHEN status = 'IN_FLIGHT' AND send_started_at IS NOT NULL THEN attempts + 1 ELSE attempts END,
+          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy, send_started_at = NULL
       OUTPUT inserted.id, inserted.origin, inserted.routing_key, inserted.topic,
           inserted.message_key, inserted.payload, inserted.status, inserted.attempts,
           inserted.error, inserted.occurred_at, inserted.next_attempt_at, inserted.published_at,
-          inserted.claimed_at, inserted.claimed_by, inserted.seq
+          inserted.claimed_at, inserted.claimed_by, inserted.seq, inserted.send_started_at
       """;
 
   private static final String PURGE_PUBLISHED_SQL =
