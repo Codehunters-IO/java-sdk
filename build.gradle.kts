@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.sonarqube)
+    alias(libs.plugins.dependency.check)
 }
 
 // Build conventions live in build-logic/ (codehunters.java-library, codehunters.publishing).
@@ -21,4 +22,22 @@ sonar {
         property("sonar.coverage.exclusions", "**/*Properties.java")
         property("sonar.cpd.exclusions", "**/*Config*")
     }
+}
+
+// OWASP dependency check over every module's dependencies, in one report at
+// build/reports/dependency-check-report.json. The shared java-owasp workflow runs
+// `dependencyCheckAnalyze` at the root, so that task delegates to the aggregate one: the root
+// project has no dependencies of its own to analyze.
+dependencyCheck {
+    failBuildOnCVSS = 7.0f
+    formats = listOf("HTML", "JSON")
+    suppressionFile = file("config/dependency-check/suppressions.xml").path
+    nvd {
+        apiKey = System.getProperty("nvdApiKey") ?: System.getenv("NVD_API_KEY")
+    }
+}
+
+tasks.named("dependencyCheckAnalyze") {
+    enabled = false
+    dependsOn("dependencyCheckAggregate")
 }

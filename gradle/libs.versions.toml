@@ -6,6 +6,7 @@ shedlock = "7.2.0"
 google-java-format = "1.28.0"
 spotless = "8.1.0"
 sonarqube = "7.1.0.6387"
+dependency-check = "13.0.0"
 junit = "6.0.3"
 archunit = "1.5.1"
 uap-java = "1.6.1"
@@ -44,3 +45,4 @@ spotless-gradle-plugin = { module = "com.diffplug.spotless:spotless-plugin-gradl
 
 [plugins]
 sonarqube = { id = "org.sonarqube", version.ref = "sonarqube" }
+dependency-check = { id = "org.owasp.dependencycheck", version.ref = "dependency-check" }

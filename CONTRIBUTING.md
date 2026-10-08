@@ -6,11 +6,11 @@ Discuss a change with the repository owners (issue or message) before starting o
 
 - Branch from the target branch with a prefix: `feature/`, `fix/`, `refactor/`, `docs/` or `chore/`.
   CI builds every push to those branches and every pull request to `master`, `main` and `develop`.
-  `master` is the base branch; merging to it publishes.
+  `master` is the base branch; merging to it drafts releases but publishes nothing
+  (see [README](README.md#releasing)).
 - One concern per pull request. A change that needs another one first is stacked on that branch and
   merged after it, in order.
-- Merging to `master` (or `main`) publishes (see [README](README.md#publish)); they only receive
-  reviewed pull requests.
+- `master` only receives reviewed pull requests.
 
 ### Stacked pull requests
 
@@ -19,7 +19,7 @@ not retarget a pull request when its base is merged unless that base branch is d
 them one after another in table order leaves everything above the first one outside `master`.
 
 - Either merge top-down: the top pull request into its base, then the next one down, and so on, and
-  the bottom one into `master` last. Only that last merge publishes, once, with the final versions.
+  the bottom one into `master` last. Only that last merge drafts the releases, once, with the final versions.
 - Or, after each merge into `master`, delete the merged branch (GitHub then retargets the next pull
   request to `master`) or retarget it by hand before merging it.
 - Use **merge commits** for stack pull requests, not squash. A squash creates a commit unrelated to
@@ -69,8 +69,18 @@ A change is done when, on its branch:
 - Semantic versioning per module; the version lives in the module's `build.gradle.kts`.
 - A version is published once. Bump it in the same pull request as the change; work in progress
   may use `-SNAPSHOT`, which is never published and must not be listed in the BOM.
-- After publishing, CI tags each module that run uploaded `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z`), at
-  the commit that built it.
+- Releasing a merged version:
+  1. After the merge, *Releases* shows a draft per new version (`sdk-<module>/vX.Y.Z`,
+     `bom/vX.Y.Z`), with that version's `CHANGELOG.md` section as notes.
+  2. Check the notes and that the target is the merge commit, then *Publish release*. Publishing
+     creates the tag and uploads that module only.
+  3. Publish the libraries first and the BOM last: a BOM release fails while a version it lists is
+     not in GitHub Packages.
+  4. A failed upload is retried with *Actions → Publish → Run workflow* and the tag.
+- Never push release tags by hand, and never create a release on a commit that is not on `master`:
+  the publish workflow rejects it.
+- Commit messages are linted on pull requests (`commitlint.config.js`): Conventional Commits,
+  header and body lines up to 120 characters.
 
 ## Configuration properties
 
