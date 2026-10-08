@@ -112,11 +112,10 @@ Every bean backs off when the application defines its own: `Clock` (UTC by defau
 
 ## Known limits
 
-- **A reclaim counts against every row of the abandoned batch.** When a dispatcher crashes or stalls
-  past `claim.ttl-ms`, the next claim adds one attempt to each `IN_FLIGHT` row it takes over,
-  including rows that were never sent: the table does not record which rows of a batch were tried.
-  With a low `max-attempts`, repeated crashes can mark unsent rows `FAILED`. Fixing it needs a
-  schema change, planned for 7.0.
+- **A reclaim counts only rows whose send had started.** The dispatcher marks each row right before
+  publishing it; when it crashes or stalls past `claim.ttl-ms`, the next claim adds one attempt to
+  marked rows only. A row that crashes the dispatcher while being sent is charged on every reclaim,
+  so a poison message still ends up `FAILED` (fixed in 7.0; 6.x charged every row of the batch).
 - **Maven builds get no artifact-alignment protection.** The Gradle capability that makes a build
   fail when the 5.x `sdk-event-messaging` jar is still resolved, or when artifacts of different
   versions meet, is invisible to Maven. Import `io.codehunters:sdk-bom` so all

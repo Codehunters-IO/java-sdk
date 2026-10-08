@@ -63,10 +63,16 @@ changeset author and id; including them from the jar would change checksums on e
 | `db/migration/outbox/postgresql/outbox_message_create.sql` | PostgreSQL: `outbox_message` with `seq`, indexes, `shedlock` |
 | `db/migration/outbox/outbox_message_create.sql` | SQL Server: same, for new installs |
 | `db/migration/outbox/sqlserver/outbox_message_add_seq.sql` | SQL Server tables created before 6.0 |
+| `db/migration/outbox/sqlserver/outbox_message_add_send_started_at.sql` | SQL Server tables created by 6.x (or after `add_seq`) |
+| `db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql` | PostgreSQL tables created by 6.x |
 
 **SQL Server:** apply `outbox_message_add_seq.sql` **before** deploying 6.0. The claim orders by
 `seq`; without the column every dispatch fails. Existing rows get `seq` in physical order, so drain
 the outbox first if the order of queued rows matters.
+
+**7.0:** apply `outbox_message_add_send_started_at.sql` **before** deploying 7.0. The claim reads and
+clears `send_started_at`, the mark written before each publish; without it every claim fails. The
+column is nullable and ignored by 6.x ([MIGRATION-7.0](../MIGRATION-7.0.md)).
 
 ## Configuration
 

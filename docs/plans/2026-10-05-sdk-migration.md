@@ -37,6 +37,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D14 | `sdk-geo-validation` se queda en el SDK como geofencing agnóstico de dominio: sin conceptos de rifas, el servicio que lo usa define el scope (`ZoneRef` opaco) y es dueño del procedimiento o de las zonas. Reemplaza a D3 (2026-10-07) | `docs/adr/0015-domain-agnostic-geofencing.md` |
 | D15 | Fusionar artefactos mientras ningún servicio migró: `sdk-web` 1.0.0 = `sdk-web-errors` + `sdk-device` + `sdk-i18n`; `sdk-commons` 1.1.0 absorbe `sdk-totp`. Paquetes, propiedades y alias no cambian; cada parte conserva su auto-configuración y su switch. Se quedan aparte barcode, jasper, jpa (dependencias pesadas), tracing (lo usa messaging), parameter, geo, measure, messaging y security (2026-10-08) | `docs/adr/0016-consolidate-web-and-commons-artifacts.md` |
 | D16 | Los paquetes se publican solo al publicar un release de GitHub, uno por módulo. Cada merge a `master` crea borradores automáticos; una persona los revisa y publica, y el BOM va último (2026-10-08) | `docs/adr/0017-publish-on-release-tags.md` |
+| D17 | `sdk-event-messaging` 7.0: el despachador marca cada fila (`send_started_at`) justo antes de publicarla y un reclamo solo cobra intento a las filas marcadas. Los cuatro artefactos van a 7.0.0 y los alias `outbox.*` siguen hasta 8.0 porque ningún servicio migró desde 5.x (2026-10-08) | `docs/adr/0018-charge-attempts-only-for-started-sends.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1415,3 +1416,20 @@ calculan con lo que haya en `master` en cada merge.
 
 **Pendiente del usuario:** crear el secret `NVD_API_KEY` (sin él el escaneo semanal tarda mucho más)
 y, si hay reglas de protección que exigen los checks `publish` o `tag`, cambiarlas.
+
+## Fase 21 — `sdk-event-messaging` 7.0.0: intentos solo para envíos iniciados ✅ (rama `feature/sdk-event-messaging-v7`, sobre `master`)
+
+Decisión D17 ([ADR 0018](../adr/0018-charge-attempts-only-for-started-sends.md)). Cierra el límite
+conocido de la 6.0: un reclamo tras una caída sumaba un intento a todo el lote abandonado.
+
+- `OutboxRepositoryPort.markSendStarted`: escribe `send_started_at` con cerco por `claimed_by` justo
+  antes de cada publicación; si el reclamo se perdió, la fila no se publica ni se actualiza.
+- Claim de los tres dialectos: `attempts + 1` solo para `IN_FLIGHT` con `send_started_at`, y lo
+  limpia; los updates que terminan el reclamo también.
+- DDL: columna nueva en los scripts de creación y `outbox_message_add_send_started_at.sql` para SQL
+  Server y PostgreSQL. Se aplica antes del deploy; la 6.x la ignora.
+- Tests: use case (marca antes de publicar, reclamo perdido, filas agotadas y liberadas sin marca),
+  SQL de los dialectos, adaptador en H2 y un contrato contra el DDL de referencia en PostgreSQL y en
+  SQL Server (azure-sql-edge, primer IT del outbox en SQL Server).
+- Versiones: `-core`, `-jdbc`, `-rabbit`, `-kafka` 7.0.0; `sdk-bom` 1.3.0. Alias `outbox.*` hasta 8.0.
+- Costo: un `UPDATE` extra por fila publicada.

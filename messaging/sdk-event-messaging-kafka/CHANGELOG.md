@@ -1,5 +1,10 @@
 # Changelog — sdk-event-messaging-kafka
 
+## 7.0.0
+
+No changes of its own: versioned with `-core` and `-jdbc` 7.0.0, which charge reclaim attempts only
+for rows whose send had started. Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
+
 ## 6.0.0
 
 First release; the Kafka publisher of `sdk-event-messaging` 5.1.5. Migration guide:

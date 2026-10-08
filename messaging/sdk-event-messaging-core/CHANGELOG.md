@@ -1,5 +1,24 @@
 # Changelog — sdk-event-messaging-core
 
+## 7.0.0
+
+Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
+
+### Breaking
+- `OutboxRepositoryPort.markSendStarted(OutboxMessage<String>)` is new: implementations write the
+  send mark while they hold the claim and report whether they did
+  ([ADR 0018](../../docs/adr/0018-charge-attempts-only-for-started-sends.md)).
+
+### Changed
+- `SendOutboxMessagesUseCase` marks each row right before publishing it. A row whose mark is
+  refused (its claim was taken over) is neither published nor updated.
+- `OutboxMessage` has a `sendStartedAt` property.
+- The old `outbox.*` keys are honoured until 8.0 (were due to go in 7.0).
+
+### Fixed
+- A reclaim after a crash or stall no longer adds an attempt to rows of the abandoned batch that
+  were never sent.
+
 ## 6.0.0
 
 First release of the split artifacts; replaces `sdk-event-messaging` 5.1.5. Migration guide:
