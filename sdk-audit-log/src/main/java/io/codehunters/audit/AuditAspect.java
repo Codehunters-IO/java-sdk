@@ -40,7 +40,9 @@ import org.springframework.core.Ordered;
  * return a subclass such as {@code ConnectableFlux} is audited when it returns. The completion
  * event is published {@linkplain AuditEventPublisherPort#publishDetached detached} from any
  * transaction on the completing thread, with the caller's MDC, and cannot fail the call: a failure
- * to publish it is logged, even in fail-on-error mode.
+ * to publish it is logged, even in fail-on-error mode. When neither the annotation nor the provider
+ * names an actor and Spring Security is present, a {@code Mono} or {@code Flux} event takes the
+ * authenticated user of the subscriber's Reactor context, where WebFlux keeps it.
  *
  * <p>The aspect is {@link Ordered}. With the default {@link Ordered#LOWEST_PRECEDENCE} it runs
  * inside the transaction of a {@code @Transactional} method, so a synchronous write of a success
@@ -165,8 +167,9 @@ public class AuditAspect implements Ordered {
   }
 
   private AsyncResults.Completion completion(CapturedCall call) {
-    return (value, failure, startNanos) -> {
-      Outcome outcome = failure == null ? success(value) : failure(failure);
+    return (value, failure, startNanos, subscriberActor) -> {
+      Outcome outcome =
+          (failure == null ? success(value) : failure(failure)).withActor(subscriberActor);
       Map<String, String> previous = MDC.getCopyOfContextMap();
       AuditMdcTaskDecorator.replaceMdc(call.mdc());
       try {
@@ -185,12 +188,12 @@ public class AuditAspect implements Ordered {
   }
 
   private static Outcome success(Object result) {
-    return new Outcome(result, STATUS_SUCCESS, true, null);
+    return new Outcome(result, STATUS_SUCCESS, true, null, null);
   }
 
   private static Outcome failure(Throwable failure) {
     String status = failure instanceof CancellationException ? STATUS_CANCELLED : STATUS_ERROR;
-    return new Outcome(null, status, false, failure.getClass().getName());
+    return new Outcome(null, status, false, failure.getClass().getName(), null);
   }
 
   private static void publishAfterFailure(Throwable methodFailure, Runnable publish) {
@@ -246,7 +249,7 @@ public class AuditAspect implements Ordered {
         auditable.entityType(),
         resolved.entityId(),
         auditable.action(),
-        firstNonBlank(resolved.actorId(), provider.actorId()),
+        firstNonBlank(firstNonBlank(resolved.actorId(), provider.actorId()), outcome.actor()),
         firstNonBlank(auditable.actorType(), provider.actorType()),
         provider.ipAddress(),
         resolved.payload(),
@@ -297,5 +300,17 @@ public class AuditAspect implements Ordered {
    */
   public record Options(Clock clock, boolean failOnError, int order) {}
 
-  private record Outcome(Object result, String status, boolean success, String error) {}
+  /**
+   * How the call ended.
+   *
+   * @param actor the authenticated user of a Reactor subscriber, used when the annotation and the
+   *     {@link AuditContextProvider} name none
+   */
+  private record Outcome(
+      Object result, String status, boolean success, String error, String actor) {
+
+    Outcome withActor(String subscriberActor) {
+      return new Outcome(result, status, success, error, subscriberActor);
+    }
+  }
 }
