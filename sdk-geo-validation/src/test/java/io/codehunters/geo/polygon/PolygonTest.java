@@ -86,4 +86,17 @@ class PolygonTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("A polygon ring must not be null or contain null vertices");
   }
+
+  @Test
+  void should_reject_the_ring_when_its_vertices_are_collinear() {
+    assertThatThrownBy(
+            () -> Polygon.of(List.of(GeoPoint.of(0, 0), GeoPoint.of(1, 1), GeoPoint.of(2, 2))))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("A polygon ring must enclose an area");
+  }
+
+  @Test
+  void should_report_outside_when_the_point_is_beyond_the_bounding_box() {
+    assertThat(L_SHAPE.contains(GeoPoint.of(-45, 120))).isFalse();
+  }
 }

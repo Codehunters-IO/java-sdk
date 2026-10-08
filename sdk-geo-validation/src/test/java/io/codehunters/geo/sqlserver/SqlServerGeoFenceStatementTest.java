@@ -21,7 +21,7 @@ class SqlServerGeoFenceStatementTest {
                 "ref", "latitude", "longitude", "is_allowed", "id", "kind", "label", "owner"));
 
     assertThat(SqlServerGeoFence.statement(procedure))
-        .contains("EXEC geo.sp_fence_check @ref = :scope, @latitude = :lat, @longitude = :lon,")
+        .contains("EXEC [geo].[sp_fence_check] @ref = :scope, @latitude = :lat, @longitude = :lon,")
         .contains("@is_allowed = @r_allowed OUTPUT, @id = @r_zone_id OUTPUT")
         .contains("@kind = @r_zone_type OUTPUT")
         .contains("@label = @r_zone_name OUTPUT")
@@ -41,5 +41,11 @@ class SqlServerGeoFenceStatementTest {
         .doesNotContain("@r_zone_type OUTPUT")
         .doesNotContain("@r_zone_name OUTPUT")
         .doesNotContain("@r_zone_parent OUTPUT");
+  }
+
+  @Test
+  void should_quote_an_unqualified_procedure_name() {
+    assertThat(SqlServerGeoFence.statement(SqlServerProcedure.named("sp_check")))
+        .contains("EXEC [sp_check] @scope_ref = :scope");
   }
 }

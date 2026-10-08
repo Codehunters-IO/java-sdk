@@ -10,6 +10,7 @@ import io.codehunters.geo.polygon.GeoZoneSource;
 import io.codehunters.geo.polygon.PolygonGeoFence;
 import io.codehunters.geo.sqlserver.SqlServerGeoFence;
 import io.codehunters.geo.sqlserver.SqlServerProcedure;
+import java.time.Duration;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
@@ -218,5 +219,47 @@ class GeoAutoConfigurationTest {
                 assertThat(context)
                     .doesNotHaveBean(GeoFenceValidator.class)
                     .doesNotHaveBean(GeoProperties.class));
+  }
+
+  @Test
+  void should_default_the_query_timeout_to_two_seconds() {
+    runner
+        .withUserConfiguration(OneDataSource.class)
+        .withPropertyValues(
+            "codehunters.geo.adapter=sql-server", "codehunters.geo.sql-server.procedure=geo.sp")
+        .run(
+            context ->
+                assertThat(context.getBean(GeoProperties.class).sqlServer().queryTimeout())
+                    .isEqualTo(Duration.ofSeconds(2)));
+  }
+
+  @Test
+  void should_bind_the_query_timeout_when_it_is_configured() {
+    runner
+        .withUserConfiguration(OneDataSource.class)
+        .withPropertyValues(
+            "codehunters.geo.adapter=sql-server",
+            "codehunters.geo.sql-server.procedure=geo.sp",
+            "codehunters.geo.sql-server.query-timeout=5s")
+        .run(
+            context ->
+                assertThat(context.getBean(GeoProperties.class).sqlServer().queryTimeout())
+                    .isEqualTo(Duration.ofSeconds(5)));
+  }
+
+  @Test
+  void should_fail_startup_when_the_query_timeout_is_not_positive() {
+    runner
+        .withUserConfiguration(OneDataSource.class)
+        .withPropertyValues(
+            "codehunters.geo.adapter=sql-server",
+            "codehunters.geo.sql-server.procedure=geo.sp",
+            "codehunters.geo.sql-server.query-timeout=0s")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessage("codehunters.geo.sql-server.query-timeout must be positive"));
   }
 }
