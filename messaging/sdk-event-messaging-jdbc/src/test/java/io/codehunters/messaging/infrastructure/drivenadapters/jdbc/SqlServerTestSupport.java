@@ -10,9 +10,11 @@ import org.testcontainers.mssqlserver.MSSQLServerContainer;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * One SQL Server container per test JVM, loaded once with the SDK's SQL Server reference DDL. Uses
- * azure-sql-edge, pinned to its final release, so it also runs on ARM hosts. Tests call {@link
- * #truncate()} in {@code @BeforeEach} to start from empty tables.
+ * One SQL Server container per test JVM, loaded once with the SDK's SQL Server reference DDL. On
+ * x86-64 hosts (CI) it runs SQL Server 2022, the engine services deploy to. SQL Server has no ARM
+ * image, so ARM hosts fall back to azure-sql-edge 1.0.7: Microsoft retired Azure SQL Edge on
+ * 2025-09-30 and that is its final image. Tests call {@link #truncate()} in {@code @BeforeEach} to
+ * start from empty tables.
  */
 final class SqlServerTestSupport {
 
@@ -22,15 +24,22 @@ final class SqlServerTestSupport {
 
   private static final String UPGRADE_DATABASE = "upgraded_from_6x";
 
+  private static final DockerImageName SQL_SERVER =
+      DockerImageName.parse("mcr.microsoft.com/mssql/server:2022-latest");
+  private static final DockerImageName SQL_EDGE =
+      DockerImageName.parse("mcr.microsoft.com/azure-sql-edge:1.0.7")
+          .asCompatibleSubstituteFor("mcr.microsoft.com/mssql/server");
   private static final MSSQLServerContainer CONTAINER =
-      new MSSQLServerContainer(
-              DockerImageName.parse("mcr.microsoft.com/azure-sql-edge:1.0.7")
-                  .asCompatibleSubstituteFor("mcr.microsoft.com/mssql/server"))
-          .acceptLicense();
+      new MSSQLServerContainer(isArmHost() ? SQL_EDGE : SQL_SERVER).acceptLicense();
   private static DataSource dataSource;
   private static DataSource upgradedDataSource;
 
   private SqlServerTestSupport() {}
+
+  private static boolean isArmHost() {
+    String arch = System.getProperty("os.arch");
+    return arch.startsWith("aarch64") || arch.startsWith("arm");
+  }
 
   static synchronized DataSource dataSource() {
     if (dataSource == null) {
