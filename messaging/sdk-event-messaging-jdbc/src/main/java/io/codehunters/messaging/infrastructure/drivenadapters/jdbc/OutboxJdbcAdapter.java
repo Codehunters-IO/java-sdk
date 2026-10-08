@@ -10,11 +10,13 @@ import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -100,6 +102,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   private final JdbcClient jdbcClient;
   private final JsonMapper outboxJsonMapper;
   private final OutboxAdapterSettings settings;
+  private final AtomicBoolean transactionalMarkWarned = new AtomicBoolean();
 
   /**
    * Creates the adapter with the dialect auto-detected from {@code dataSource} and a UTC clock.
@@ -180,6 +183,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
 
   @Override
   public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+    warnOnceIfInCallerTransaction();
     LocalDateTime now = LocalDateTime.now(settings.clock());
     int marked =
         jdbcClient
@@ -193,6 +197,17 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
     }
     outboxMessage.setSendStartedAt(now);
     return true;
+  }
+
+  // The mark must commit before the publish: inside a caller transaction it commits only after the
+  // whole dispatch, so a crash loses it and the row is never charged.
+  private void warnOnceIfInCallerTransaction() {
+    if (TransactionSynchronizationManager.isActualTransactionActive()
+        && transactionalMarkWarned.compareAndSet(false, true)) {
+      log.warn(
+          "Outbox send marks are running inside a caller transaction; dispatch must run outside"
+              + " one, or a crash after publishing leaves the row uncharged");
+    }
   }
 
   @Override

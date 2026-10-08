@@ -26,7 +26,8 @@ import lombok.extern.slf4j.Slf4j;
  *
  * <p>Each message is marked as started right before it is published. A reclaim after a crash
  * charges an attempt only to marked rows, and a message whose mark is refused (its claim was taken
- * over) is neither published nor updated.
+ * over) is neither published nor updated. A mark that fails, for example on a transient database
+ * error, skips only that message.
  */
 @Slf4j
 public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
@@ -143,13 +144,29 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
       release(message);
     } else if (message.getAttempts() >= maxAttempts) {
       markExhausted(message);
-    } else if (outboxRepositoryPort.markSendStarted(message)) {
+    } else if (markSendStarted(message)) {
       processMessage(message);
     } else {
-      log.warn("Outbox message id={} skipped: its claim was taken over", message.getId());
       return false;
     }
     return true;
+  }
+
+  // A row whose mark is refused or fails stays IN_FLIGHT and unmarked: a reclaim after the TTL
+  // picks it up without charging an attempt, and the rest of the batch goes on.
+  private boolean markSendStarted(OutboxMessage<String> message) {
+    try {
+      if (outboxRepositoryPort.markSendStarted(message)) {
+        return true;
+      }
+      log.warn("Outbox message id={} skipped: its claim was taken over", message.getId());
+    } catch (RuntimeException e) {
+      log.warn(
+          "Outbox message id={} skipped: marking its send failed with {}",
+          message.getId(),
+          e.getClass().getName());
+    }
+    return false;
   }
 
   private boolean isBudgetExhausted(Instant claimStart) {
