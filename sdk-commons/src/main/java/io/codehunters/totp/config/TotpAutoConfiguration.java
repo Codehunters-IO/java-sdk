@@ -5,15 +5,19 @@ import io.codehunters.totp.TotpGenerator;
 import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 /**
  * Spring Boot auto-configuration exposing a {@link TotpGenerator} bean built from {@link
- * TotpProperties}. Consumers may override the bean to customize behavior.
+ * TotpProperties}. Consumers may override the bean to customize behavior, or set {@code
+ * codehunters.totp.enabled=false} to leave TOTP out of an application that only uses the other
+ * sdk-commons helpers.
  */
 @AutoConfiguration
+@ConditionalOnBooleanProperty(name = "codehunters.totp.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(TotpProperties.class)
 public class TotpAutoConfiguration {
 

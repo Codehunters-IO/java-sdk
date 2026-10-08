@@ -1,6 +1,12 @@
 {
   "properties": [
     {
+      "name": "codehunters.totp.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether to auto-configure the TotpGenerator bean.",
+      "defaultValue": true
+    },
+    {
       "name": "vitxo.totp.time-step",
       "type": "java.time.Duration",
       "deprecation": {
