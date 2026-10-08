@@ -24,6 +24,11 @@ supersedes ADR 0003). Upgrade notes: [MIGRATION-1.0.md](MIGRATION-1.0.md).
 - `PolygonGeoFence` over a `GeoZoneSource`: point-in-polygon with holes, borders inside,
   antimeridian edges rejected. Pure JDK.
 - `SqlServerGeoFence` with a configurable procedure and parameter names (`SqlServerProcedure`).
+  The procedure name is bracket-quoted in the statement.
+- `codehunters.geo.sql-server.query-timeout` (default `2s`): the procedure runs on a template of
+  its own with that query timeout.
+- Polygon rings keep a bounding box, so distant points are rejected without walking the edges.
+- Polygon rings that enclose no area (collinear vertices) are rejected.
 - `GeoPoint.of(latitude, longitude)` and `ZoneRef`.
 
 ### Fixed

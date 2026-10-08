@@ -26,8 +26,10 @@ procedure.
    | `department()` | `zone().flatMap(MatchedZone::parent)` |
    | `denialReason()` (`OUTSIDE_ALLOWED_ZONE`, or `null`) | `denialReason()` (`Optional`, `OUTSIDE_ZONE` or `ZONE_NOT_FOUND`) |
 
-3. **Configuration.** The adapter is no longer registered just because a `DataSource` exists.
-   To keep calling the existing procedure:
+3. **Configuration.** No `GeoFenceValidator` bean is registered unless `codehunters.geo.adapter`
+   is set; in 0.x the adapter was registered just because a `DataSource` existed. The call now
+   also has a 2 s query timeout (`codehunters.geo.sql-server.query-timeout`). To keep calling the
+   existing procedure:
 
    ```yaml
    codehunters:
