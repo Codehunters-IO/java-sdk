@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0015
 date: 2026-10-05
 decision-makers: [andres]
 ---

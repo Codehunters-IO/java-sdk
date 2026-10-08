@@ -9,8 +9,22 @@ Discuss a change with the repository owners (issue or message) before starting o
   `master` is the base branch; merging to it publishes.
 - One concern per pull request. A change that needs another one first is stacked on that branch and
   merged after it, in order.
-- Merging to `main` publishes (see [README](README.md#publish)); `main` only receives reviewed pull
-  requests.
+- Merging to `master` (or `main`) publishes (see [README](README.md#publish)); they only receive
+  reviewed pull requests.
+
+### Stacked pull requests
+
+A stack is a chain of pull requests, each one based on the branch of the previous one. GitHub does
+not retarget a pull request when its base is merged unless that base branch is deleted, so merging
+them one after another in table order leaves everything above the first one outside `master`.
+
+- Either merge top-down: the top pull request into its base, then the next one down, and so on, and
+  the bottom one into `master` last. Only that last merge publishes, once, with the final versions.
+- Or, after each merge into `master`, delete the merged branch (GitHub then retargets the next pull
+  request to `master`) or retarget it by hand before merging it.
+- Use **merge commits** for stack pull requests, not squash. A squash creates a commit unrelated to
+  the branch history, so every pull request above it conflicts with `master` and has to be
+  reconciled.
 
 ## Commits
 

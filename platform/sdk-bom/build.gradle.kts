@@ -2,13 +2,8 @@ plugins {
     id("codehunters.bom")
 }
 
-version = "1.0.0"
+version = "1.1.0"
 description = "Bill of materials aligning the versions of every io.codehunters SDK module."
-
-// sdk-geo-validation is leaving the SDK (ADR 0003): it stays out even if it gets a release version.
-codehuntersBom {
-    excludedModules.add(":sdk-geo-validation")
-}
 
 // Every released library, and nothing else: `verifyBomConstraints` (part of `check`) fails when a
 // module is missing, or a SNAPSHOT or excluded one is listed. `verifyBomLock` fails when a library
@@ -24,6 +19,7 @@ dependencies {
         api(project(":sdk-event-messaging-kafka"))
         api(project(":sdk-event-messaging-rabbit"))
         api(project(":sdk-file-share"))
+        api(project(":sdk-geo-validation"))
         api(project(":sdk-i18n"))
         api(project(":sdk-jasper"))
         api(project(":sdk-jpa"))

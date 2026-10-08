@@ -7,7 +7,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 1.0.0 | [below](#sdk-bom-100) | — |
+| `sdk-bom` | 1.1.0 | [below](#sdk-bom-110) | — |
 | `sdk-user-security` | 3.1.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
 | `sdk-user-security-authz` | 3.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
 | `sdk-tracing` | 1.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | in the changelog |
@@ -28,7 +28,12 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-jasper` | 1.0.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
 | `sdk-jpa` | 1.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
-| `sdk-geo-validation` | 0.2.0 (published; 0.2.1-SNAPSHOT local) | leaving the SDK, see [HANDOFF](sdk-geo-validation/HANDOFF.md) | — |
+| `sdk-geo-validation` | 1.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [1.0](sdk-geo-validation/MIGRATION-1.0.md) |
+
+## sdk-bom 1.1.0
+
+- Includes `sdk-geo-validation` 1.0.0, now domain-agnostic geofencing
+  ([ADR 0015](docs/adr/0015-domain-agnostic-geofencing.md), superseding ADR 0003).
 
 ## sdk-bom 1.0.0
 
@@ -40,7 +45,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 - Includes `sdk-barcode` 1.0.0.
 - Includes `sdk-jasper` 1.0.0 ([ADR 0014](docs/adr/0014-jasper-reports-from-the-classpath-only.md)).
 - Includes `sdk-jpa` 1.0.0 ([ADR 0013](docs/adr/0013-jpa-building-blocks.md)).
-- `sdk-geo-validation` is not part of it ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md)).
+- `sdk-geo-validation` was not part of it ([ADR 0003](docs/adr/0003-retire-geo-validation-from-the-sdk.md), since superseded).
 
 ## Build
 
