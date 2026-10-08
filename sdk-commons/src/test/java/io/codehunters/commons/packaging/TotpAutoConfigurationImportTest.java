@@ -10,7 +10,7 @@ import org.springframework.boot.context.annotation.ImportCandidates;
 class TotpAutoConfigurationImportTest {
 
   @Test
-  void should_register_the_totp_auto_configuration() {
+  void should_register_totp_auto_configuration_when_imports_are_loaded() {
     var candidates =
         ImportCandidates.load(AutoConfiguration.class, getClass().getClassLoader()).getCandidates();
 

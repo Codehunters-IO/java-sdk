@@ -11,7 +11,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.annotation.ImportCandidates;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.context.MessageSource;
 import org.springframework.web.servlet.LocaleResolver;
 
 /** sdk-web ships three auto-configurations; each must still load and switch off on its own. */
@@ -26,7 +28,7 @@ class WebAutoConfigurationsTest {
                   I18nAutoConfiguration.class));
 
   @Test
-  void should_register_the_three_auto_configurations() {
+  void should_register_three_auto_configurations_when_imports_are_loaded() {
     var candidates =
         ImportCandidates.load(AutoConfiguration.class, getClass().getClassLoader()).getCandidates();
 
@@ -38,13 +40,33 @@ class WebAutoConfigurationsTest {
   }
 
   @Test
-  void should_load_every_part_together() {
+  void should_load_every_part_when_all_are_enabled() {
     contextRunner.run(
         context ->
             assertThat(context)
                 .hasSingleBean(WebErrorsExceptionHandler.class)
                 .hasSingleBean(ClientIpResolver.class)
                 .hasBean("localeResolver"));
+  }
+
+  @Test
+  void should_keep_device_and_message_source_when_application_is_not_a_servlet_app() {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                WebErrorsAutoConfiguration.class,
+                DeviceAutoConfiguration.class,
+                I18nAutoConfiguration.class))
+        .run(
+            context ->
+                assertThat(context)
+                    .doesNotHaveBean(WebErrorsExceptionHandler.class)
+                    .doesNotHaveBean("localeResolver")
+                    .doesNotHaveBean("localeMdcFilterRegistration")
+                    .hasSingleBean(ClientIpResolver.class)
+                    .hasBean("messageSource")
+                    .getBean("messageSource", MessageSource.class)
+                    .isNotNull());
   }
 
   @Test

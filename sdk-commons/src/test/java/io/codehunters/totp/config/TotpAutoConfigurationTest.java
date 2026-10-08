@@ -30,6 +30,18 @@ class TotpAutoConfigurationTest {
   }
 
   @Test
+  void should_create_no_totp_bean_when_disabled() {
+    contextRunner
+        .withPropertyValues("codehunters.totp.enabled=false", "codehunters.totp.time-step=1h")
+        .run(
+            context ->
+                assertThat(context)
+                    .hasNotFailed()
+                    .doesNotHaveBean(TotpGenerator.class)
+                    .doesNotHaveBean(TotpProperties.class));
+  }
+
+  @Test
   void should_not_create_bean_when_already_defined() {
     contextRunner
         .withBean(TotpGenerator.class, TotpGenerator::new)

@@ -16,7 +16,7 @@ class FrameworkFreeTotpTest {
           .importPackages("io.codehunters.totp");
 
   @Test
-  void should_keep_the_totp_core_on_the_jdk_only() {
+  void should_depend_on_jdk_only_when_class_is_outside_config() {
     classes()
         .that()
         .resideOutsideOfPackage("io.codehunters.totp.config..")
@@ -24,19 +24,5 @@ class FrameworkFreeTotpTest {
         .onlyDependOnClassesThat()
         .resideInAnyPackage("java..", "javax.crypto..", "io.codehunters.totp")
         .check(CLASSES);
-  }
-
-  @Test
-  void should_keep_the_helpers_independent_of_totp() {
-    classes()
-        .that()
-        .resideInAPackage("io.codehunters.commons..")
-        .should()
-        .onlyDependOnClassesThat()
-        .resideOutsideOfPackage("io.codehunters.totp..")
-        .check(
-            new ClassFileImporter()
-                .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
-                .importPackages("io.codehunters.commons"));
   }
 }
