@@ -54,6 +54,11 @@ for a `Flux`).
   not name `#result` are taken on the calling thread when the method returns. Only `#result`
   expressions wait for the outcome. A provider backed by `SecurityContextHolder` or
   `RequestContextHolder` therefore works even when the work completes on a pool thread.
+- In WebFlux the user is not on the calling thread: it travels in the subscriber's Reactor
+  context. When Spring Security is on the classpath and neither the annotation nor the provider
+  names an actor, a `Mono` or `Flux` event takes the authenticated, non-anonymous user that
+  `ReactiveSecurityContextHolder` holds for that subscription (since 3.1.0). The annotation's
+  `actorId` and the provider still win.
 - The event is written detached from any transaction on the thread that completes the work
   (`AuditEventPublisherPort#publishDetached`), so completing a future inside another
   transaction neither joins nor waits for it. A completion signalled on a non-blocking thread,
@@ -125,6 +130,14 @@ transaction would still enlist it. When one of several transaction managers is a
 the only transaction manager is a `JtaTransactionManager` without a JTA `TransactionManager`,
 which cannot suspend a transaction: configure the `TransactionManager` on it.
 
+With JTA, then:
+
+| Transaction managers | Write of a failed call |
+|---|---|
+| One (or primary) `JtaTransactionManager` with a JTA `TransactionManager` | Suspends the global transaction, commits in its own, resumes it: survives the rollback |
+| One `JtaTransactionManager` without a JTA `TransactionManager` | Cannot suspend: the write fails and the event is lost (startup warning) |
+| Several, a `JtaTransactionManager` among them, none primary | Auto-commit connection that JTA enlists: rolls back with the caller (startup warning) |
+
 When a commit fails, Spring reports the outcome as unknown, so such a call is recorded as
 `UNKNOWN`, never as `SUCCESS`.
 
@@ -173,6 +186,10 @@ a deprecation warning.
 - An event held until its transaction completes is lost if the process dies before the
   transaction ends.
 - Failures are logged with the exception class only, never its message.
+- The completion event of a `CompletionStage`, `Mono` or `Flux` cannot fail the call, even with
+  `fail-on-error=true`: the caller already has its result. A failed write is logged.
+- If Reactor's `boundedElastic` scheduler is already shut down (application stopping), a
+  completion signalled on a non-blocking thread is written on that thread.
 - With `fail-on-error=true`, the cause of an `AuditPersistenceException` is redacted: it keeps
   the failure class, SQLState, vendor code and stack trace, never the database message, which can
   echo the row. Read them from `failureClass()`, `sqlState()` and `vendorCode()`.

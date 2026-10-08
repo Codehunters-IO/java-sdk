@@ -38,6 +38,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D15 | Fusionar artefactos mientras ningún servicio migró: `sdk-web` 1.0.0 = `sdk-web-errors` + `sdk-device` + `sdk-i18n`; `sdk-commons` 1.1.0 absorbe `sdk-totp`. Paquetes, propiedades y alias no cambian; cada parte conserva su auto-configuración y su switch. Se quedan aparte barcode, jasper, jpa (dependencias pesadas), tracing (lo usa messaging), parameter, geo, measure, messaging y security (2026-10-08) | `docs/adr/0016-consolidate-web-and-commons-artifacts.md` |
 | D16 | Los paquetes se publican solo al publicar un release de GitHub, uno por módulo. Cada merge a `master` crea borradores automáticos; una persona los revisa y publica, y el BOM va último (2026-10-08) | `docs/adr/0017-publish-on-release-tags.md` |
 | D17 | `sdk-event-messaging` 7.0: el despachador marca cada fila (`send_started_at`) justo antes de publicarla y un reclamo solo cobra intento a las filas marcadas. Los cuatro artefactos van a 7.0.0 y los alias `outbox.*` siguen hasta 8.0 porque ningún servicio migró desde 5.x (2026-10-08) | `docs/adr/0018-charge-attempts-only-for-started-sends.md` |
+| D18 | `sdk-audit-log` 3.1.0: en WebFlux, sin actor de la anotación ni del provider, un `Mono` o `Flux` toma el usuario autenticado del contexto Reactor del suscriptor (`ReactiveSecurityContextHolder`); Spring Security sigue opcional. JTA y cancelación ya eran correctos: solo se fijan con tests (2026-10-08) | — |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1434,3 +1435,23 @@ conocido de la 6.0: un reclamo tras una caída sumaba un intento a todo el lote 
   SQL Server (azure-sql-edge, primer IT del outbox en SQL Server).
 - Versiones: `-core`, `-jdbc`, `-rabbit`, `-kafka` 7.0.0; `sdk-bom` 1.3.0. Alias `outbox.*` hasta 8.0.
 - Costo: un `UPDATE` extra por fila publicada.
+
+## Fase 22 — `sdk-audit-log` 3.1.0: Reactor y JTA ✅ (rama `feature/sdk-audit-log-v3.1`, sobre `master`)
+
+Decisión D18. Se revisaron cuatro casos de borde; cada uno se confirmó o descartó con un test antes
+de tocar código.
+
+- Escritura bloqueante en un event loop: descartado. 3.0.0 ya pasa la escritura a
+  `boundedElastic` (test existente). Con `fail-on-error` la finalización asíncrona no falla la
+  llamada por diseño; queda en "Known limits".
+- Actor en WebFlux: confirmado (los tests fallaban en 3.0.0). Sin actor de la anotación ni del
+  provider, el evento toma el usuario autenticado, no anónimo, del contexto Reactor de cada
+  suscripción. Un contexto ilegible deja el actor vacío.
+- JTA: descartado. Con un `JtaTransactionManager` que tiene `TransactionManager`, la escritura
+  aislada suspende la transacción global y sobrevive al rollback; los otros dos casos ya avisan al
+  arrancar. Se fija con un test sobre un JTA de prueba y se documenta en una tabla.
+- Cancelación: descartado. `timeout(...)` que compite con la finalización y `take(n)` registran un
+  solo evento; quedan como tests de regresión.
+
+`sdk-bom` 1.4.0 (1.3.0 es de la Fase 21). El lock se regenera; al mergear después de la Fase 21 hay
+que resolver el conflicto del lock y del número de versión.
