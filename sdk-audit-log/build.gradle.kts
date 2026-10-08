@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "3.1.0"
 description = "Declarative @Auditable audit trail with SpEL context and an async JDBC adapter."
 
 dependencies {
