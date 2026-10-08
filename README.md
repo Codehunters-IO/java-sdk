@@ -141,14 +141,27 @@ has the full checklist. What every service has to look at:
 
 Integration tests (`*IT`) use Testcontainers, so `./gradlew build` needs a running Docker daemon.
 
-## Publish
+## Releasing
 
-Publishes to GitHub Packages (`https://maven.pkg.github.com/Codehunters-IO/java-sdk`) on merge to
-`master` (the base branch; `main` also triggers it). A version is published once: versions already in the repository and `-SNAPSHOT` versions
-are skipped. Each module the run actually uploads is then tagged `sdk-<module>/vX.Y.Z`
-(`bom/vX.Y.Z` for the BOM) at the commit that built it, by a separate job that alone can write to
-the repository; existing tags are left alone, and runs never overlap. Publishing locally needs
-`GH_PACKAGES_USERNAME` / `GH_PACKAGES_TOKEN`.
+Packages go to GitHub Packages (`https://maven.pkg.github.com/Codehunters-IO/java-sdk`) only when a
+GitHub release is published ([ADR 0017](docs/adr/0017-publish-on-release-tags.md)). Merging to
+`master` publishes nothing.
+
+1. **Merge.** The pull request bumps the module's version and its `CHANGELOG.md` (and `sdk-bom`).
+2. **Draft.** `release-drafts.yml` builds the merge and drafts one release per module version that
+   has no tag yet: `sdk-<module>/vX.Y.Z`, or `bom/vX.Y.Z`. The notes are that version's section of
+   the module's `CHANGELOG.md`. A later merge moves an unpublished draft to the newer commit.
+   `-SNAPSHOT` versions get no draft.
+3. **Review and publish.** Under *Releases*, check the draft's notes and target, then
+   *Publish release*. That creates the tag.
+4. **Upload.** `publish.yml` checks the tag is on `master`, finds the module that declares that
+   version, and builds and publishes that module only.
+
+Publish libraries before the BOM: `publish.yml` refuses a `bom/vX.Y.Z` while any version in
+`platform/sdk-bom/bom-lock.properties` is missing from GitHub Packages. To retry a failed upload,
+run *Publish* by hand (`workflow_dispatch`) with the tag; versions already uploaded are skipped.
+`./gradlew releaseCandidate` writes the tags a commit would draft to `build/release-candidates/`.
+Publishing locally needs `GH_PACKAGES_USERNAME` / `GH_PACKAGES_TOKEN`.
 
 ## Quality gates
 
@@ -161,5 +174,10 @@ the repository; existing tags are left alone, and runs never overlap. Publishing
   `./gradlew :sdk-bom:updateBomLock`, which records the versions in
   `platform/sdk-bom/bom-lock.properties`.
 - SonarCloud — single project `codehunters_java-sdk`, org `codehunters`
+- Pull requests also run the shared TruffleHog secret scan, GitHub dependency review (fails on
+  high) and commit lint (`commitlint.config.js`) from `Codehunters-IO/ci-templates@v2`.
+- OWASP dependency check — `./gradlew dependencyCheckAnalyze` (aggregate report in
+  `build/reports/`, fails on CVSS ≥ 7, suppressions in `config/dependency-check/suppressions.xml`).
+  `security-scan.yml` runs it weekly; set the `NVD_API_KEY` secret to keep it fast.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commits and the definition of done.

@@ -35,6 +35,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D12 | Lo que queda de `codehuntersio-java-commons-support` se extrae en módulos propios, en este orden: `sdk-web-errors`, `sdk-device`, `sdk-barcode`, `sdk-jpa` (con converters y specifications) y `sdk-jasper`. Lo que ya cubren Boot, Spring o los SDK actuales se omite. `ClientIpResolver` va a `sdk-device`, junto al user agent, y no a `sdk-user-security` (2026-10-07) | — |
 | D13 | Los errores HTTP se responden con RFC 9457 `ProblemDetail` y una extensión `code` estable que sale de un enum `ErrorCode` por contexto (2026-10-07) | `docs/adr/0011-problem-details-with-stable-error-codes.md` |
 | D14 | `sdk-geo-validation` se queda en el SDK como geofencing agnóstico de dominio: sin conceptos de rifas, el servicio que lo usa define el scope (`ZoneRef` opaco) y es dueño del procedimiento o de las zonas. Reemplaza a D3 (2026-10-07) | `docs/adr/0015-domain-agnostic-geofencing.md` |
+| D16 | Los paquetes se publican solo al publicar un release de GitHub, uno por módulo. Cada merge a `master` crea borradores automáticos; una persona los revisa y publica, y el BOM va último (2026-10-08) | `docs/adr/0017-publish-on-release-tags.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1365,3 +1366,26 @@ D14 revierte D3: el módulo se queda, sin conceptos de rifas
 
 **Abierto:** el polígono es plano sobre grados (bien para ciudades y regiones, no para continentes);
 un adaptador PostGIS queda como posible siguiente paso.
+
+## Fase 20 — Publicar solo por release ✅ (rama `chore/ci-release-tags`, sobre `master`)
+
+Decisión D16 ([ADR 0017](../adr/0017-publish-on-release-tags.md)). La rama sale de `master` y no
+depende de la fase 19 (consolidación, PR #22): se mergean en cualquier orden, porque los borradores se
+calculan con lo que haya en `master` en cada merge.
+
+- `build-logic`: la tarea `releaseCandidate` escribe `<tag> <ruta gradle> <directorio>` en
+  `build/release-candidates/` por cada módulo con versión de release. Reemplaza a
+  `build/released-tags/` y al job de tags.
+- `release-drafts.yml`: en cada push a `master` compila y crea o mueve un release borrador por cada
+  versión sin tag, con la sección del `CHANGELOG.md` como notas.
+- `publish.yml`: corre al publicar un release (o a mano con el tag). Valida el formato, que el tag
+  esté en `master` antes de ejecutar nada del árbol etiquetado, que algún módulo declare esa
+  versión, y que un BOM no salga antes que sus librerías. Publica solo ese módulo.
+- `ci.yml`: actions fijadas por commit, cache de Gradle y los workflows compartidos de
+  `ci-templates@v2` (TruffleHog, dependency review, commit lint). `commitlint.config.js` sube los
+  límites a 120.
+- `security-scan.yml`: OWASP dependency check semanal (plugin `org.owasp.dependencycheck` 13.0.0
+  en la raíz, reporte agregado, falla con CVSS ≥ 7).
+
+**Pendiente del usuario:** crear el secret `NVD_API_KEY` (sin él el escaneo semanal tarda mucho más)
+y, si hay reglas de protección que exigen los checks `publish` o `tag`, cambiarlas.

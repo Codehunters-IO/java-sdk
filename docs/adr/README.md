@@ -19,3 +19,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0013](0013-jpa-building-blocks.md) | JPA building blocks: UUID v7 entities, Spring Data auditing and whitelisted queries | accepted |
 | [0014](0014-jasper-reports-from-the-classpath-only.md) | Render JasperReports templates from the classpath only | accepted |
 | [0015](0015-domain-agnostic-geofencing.md) | Keep sdk-geo-validation as domain-agnostic geofencing | accepted |
+| [0017](0017-publish-on-release-tags.md) | Publish packages only from published GitHub releases | accepted |
