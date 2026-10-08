@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: accepted, amended by 0016
 date: 2026-10-07
 decision-makers: [andres]
 ---

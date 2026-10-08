@@ -1,6 +1,24 @@
-# Changelog — sdk-web-errors
+# Changelog — sdk-web
 
 ## 1.0.0
+
+First release ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)).
+
+### Breaking
+- One artifact, `io.codehunters:sdk-web`, replaces `sdk-web-errors` 1.0.0, `sdk-device` 1.0.0 and
+  `sdk-i18n` 1.0.0. It declares their Gradle capabilities, so Gradle refuses a graph holding
+  `sdk-web` and any of them; Maven builds must exclude them. See [MIGRATION-1.0.md](MIGRATION-1.0.md).
+
+### Unchanged
+- Packages (`io.codehunters.weberrors`, `io.codehunters.device`, `io.codehunters.i18n`), classes,
+  properties, legacy `vitxo.i18n.*` aliases and behaviour are those of the three 1.0.0 releases
+  below.
+- Each part keeps its auto-configuration and its switch (`codehunters.web-errors.enabled`,
+  `codehunters.device.enabled`, `codehunters.i18n.enabled`).
+
+## Before 1.0.0: `sdk-web-errors`
+
+### sdk-web-errors 1.0.0
 
 First release ([ADR 0011](../docs/adr/0011-problem-details-with-stable-error-codes.md)).
 
@@ -32,4 +50,82 @@ First release ([ADR 0011](../docs/adr/0011-problem-details-with-stable-error-cod
   `ResponseEntityExceptionHandler` and with `codehunters.web-errors.enabled=false`.
 - `codehunters.web-errors.type-base-uri` and `include-trace-id`, validated at startup.
 - Replaces `commons-web` from `codehuntersio-java-commons-support`; see
-  [MIGRATION-from-commons-support.md](MIGRATION-from-commons-support.md).
+  [MIGRATION-1.0.md](MIGRATION-1.0.md#from-codehuntersio-java-commons-support).
+
+## Before 1.0.0: `sdk-device`
+
+### sdk-device 1.0.0
+
+First release ([ADR 0012](../docs/adr/0012-trusted-proxy-client-ip.md)).
+
+- `ClientIpResolver`: client address behind trusted proxies (`TrustedProxies`, CIDR, IPv4 and
+  IPv6), reading only the configured `ForwardingHeader` (`X-Forwarded-For` by default, or RFC 7239
+  `Forwarded`) right to left. No trusted proxies means the remote address. Unparseable hops stop the
+  walk. Literals are parsed without DNS (`IpLiterals`).
+- `UserAgentParser` port with `UapUserAgentParser` (optional `uap-java`), `UnknownUserAgentParser`
+  and `CachingUserAgentParser` (bounded LRU, one parse per header in flight). `UserAgents.sanitize`
+  replaces control characters and caps the length before parsing.
+- `ClientContext` and, for servlet requests, `ClientContextResolver` (once per request; `current()`
+  for the request bound to the thread).
+- `GeoIpLookup` port and `GeoLocation`, without an implementation.
+- `codehunters.device.*` properties, validated at startup.
+- `ip`, `useragent` and `geo` depend on the JDK only; an ArchUnit test enforces it.
+- Replaces `commons-util-ip-support` and `commons-util-device-support` from
+  `codehuntersio-java-commons-support`; see
+  [MIGRATION-1.0.md](MIGRATION-1.0.md#from-codehuntersio-java-commons-support).
+
+Hardened before release, after review:
+
+- A client-sent quote can no longer swallow the hop a proxy appends to its line: `X-Forwarded-For`
+  is split on every comma, and a `Forwarded` line with unbalanced quotes is too.
+- IPv6 literals must start with a hex digit or `:`, so no input reaches the system resolver.
+- Trusted entries reject ports and `/0` blocks, and accept IPv4-mapped CIDRs (`::ffff:10.0.0.0/104`).
+- The connection's link-local remote address drops its zone id instead of being lost.
+- `max-length x cache-size` is capped at 33554432 characters (64 MB).
+- An `Error` while parsing releases waiting requests with `UNKNOWN` and is not cached.
+- Any `UserAgentParser`, including the application's, gives `UNKNOWN` instead of failing the
+  request when it throws or returns `null`.
+- `ClientContextResolver.current()` ignores a request that has already completed.
+- README and ADR 0012: only `server.forward-headers-strategy=native` with `internal-proxies`
+  replaces `trusted-proxies`; `framework` trusts the leftmost value.
+
+## Before 1.0.0: `sdk-i18n`
+
+### sdk-i18n 1.0.0
+
+#### Breaking
+- Properties moved from `vitxo.i18n.*` to `codehunters.i18n.*`. The old keys are still read
+  until 2.0.0 and are marked deprecated in the configuration metadata.
+- `I18nProperties` is a record: `getBasename()` and the other getters become `basename()`,
+  `defaultLocale()`, `headerName()`, `encoding()` and `fallbackToSystemLocale()`. `basename()`
+  returns a `List<String>` and `encoding()` a `Charset`. There are no setters.
+- Invalid settings fail at startup (empty or blank base name, a locale without a language, a header
+  name that is not an HTTP token, an unknown charset, a default locale missing from a non-empty
+  `supported-locales`).
+- `localeResolver` and the MDC filter are only registered in servlet web applications (0.x
+  registered them in any application with the servlet API on the classpath).
+- The SDK's `messageSource` backs off only when a bean named `messageSource` exists (0.x backed off
+  on any `MessageSource` bean, even one Spring would never use as the context's message source).
+- No validator is registered: Boot's `defaultValidator` resolves `{key}` constraint messages through
+  the SDK's message source, applies `ValidationConfigurationCustomizer` beans and keeps
+  `ValidationMessages.properties`. 0.x registered `validatorFactoryBean`.
+- Without `supported-locales`, an `Accept-Language` of `*`, with every range at weight zero, or
+  unparseable resolves to `default-locale` instead of the container's root or JVM locale.
+- Unicode extensions are dropped from `X-Locale`.
+- `XLocaleAwareLocaleResolver.setLocale` throws `UnsupportedOperationException` with an explanation.
+- `LocaleMdcFilter` now also runs on async and error dispatches.
+- An `X-Locale` value longer than 35 characters is ignored.
+
+#### Added
+- `codehunters.i18n.enabled` to turn the auto-configuration off.
+- `codehunters.i18n.supported-locales`, applied to both `X-Locale` and `Accept-Language`, and
+  the `XLocaleAwareLocaleResolver(Locale, String, List<Locale>)` constructor.
+- Several base names in `codehunters.i18n.basename`.
+- `X-Locale` accepts Java's `en_US` form.
+- `LocaleMdcFilter` logs resolver failures (exception class only) instead of swallowing them.
+- A startup warning when `spring.messages.basename`, `spring.web.locale` or
+  `spring.web.locale-resolver` is set, since the SDK's beans ignore them.
+- Legacy keys set as environment variables may spell dashed names with underscores
+  (`VITXO_I18N_DEFAULT_LOCALE` as well as `VITXO_I18N_DEFAULTLOCALE`); startup also lists old keys
+  ignored because the new key is set.
+- Runs before Boot's message source and Web MVC auto-configurations.

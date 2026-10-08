@@ -25,7 +25,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D2 | Sacar el PEP de autorización a `sdk-user-security-authz` | `docs/adr/0002-user-security-authz-split.md` |
 | D3 | ~~Retirar `sdk-geo-validation` del SDK y moverlo al servicio de rifas~~ Reemplazada por D14 (2026-10-07) | `docs/adr/0003-retire-geo-validation-from-the-sdk.md` (superseded) |
 | D4 | Un solo prefijo, `codehunters.<sdk>.*`, con alias deprecados por una versión mayor | `docs/adr/0004-property-prefix.md` |
-| D5 | Renombrar `sdk-utils` a `sdk-totp` | `docs/adr/0005-utils-to-totp.md` |
+| D5 | Renombrar `sdk-utils` a `sdk-totp`. TOTP pasa a `sdk-commons` por D15 | `docs/adr/0005-utils-to-totp.md` |
 | D6 | Crear `sdk-bom` (`java-platform`) y dejar de exportar el BOM de Boot a los consumidores | `docs/adr/0006-sdk-bom.md` |
 | D7 | Solo Spring Boot 4. Los `afterName` apuntan solo a paquetes de Boot 4 y el README lo declara (2026-10-05) | `docs/adr/0007-boot4-only.md` |
 | D9 | `user-security` 3.0 verifica el JWT localmente (JWKS); los headers del gateway solo se aceptan si coinciden (2026-10-05) | (en el CHANGELOG del módulo) |
@@ -35,6 +35,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D12 | Lo que queda de `codehuntersio-java-commons-support` se extrae en módulos propios, en este orden: `sdk-web-errors`, `sdk-device`, `sdk-barcode`, `sdk-jpa` (con converters y specifications) y `sdk-jasper`. Lo que ya cubren Boot, Spring o los SDK actuales se omite. `ClientIpResolver` va a `sdk-device`, junto al user agent, y no a `sdk-user-security` (2026-10-07) | — |
 | D13 | Los errores HTTP se responden con RFC 9457 `ProblemDetail` y una extensión `code` estable que sale de un enum `ErrorCode` por contexto (2026-10-07) | `docs/adr/0011-problem-details-with-stable-error-codes.md` |
 | D14 | `sdk-geo-validation` se queda en el SDK como geofencing agnóstico de dominio: sin conceptos de rifas, el servicio que lo usa define el scope (`ZoneRef` opaco) y es dueño del procedimiento o de las zonas. Reemplaza a D3 (2026-10-07) | `docs/adr/0015-domain-agnostic-geofencing.md` |
+| D15 | Fusionar artefactos mientras ningún servicio migró: `sdk-web` 1.0.0 = `sdk-web-errors` + `sdk-device` + `sdk-i18n`; `sdk-commons` 1.1.0 absorbe `sdk-totp`. Paquetes, propiedades y alias no cambian; cada parte conserva su auto-configuración y su switch. Se quedan aparte barcode, jasper, jpa (dependencias pesadas), tracing (lo usa messaging), parameter, geo, measure, messaging y security (2026-10-08) | `docs/adr/0016-consolidate-web-and-commons-artifacts.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1365,3 +1366,28 @@ D14 revierte D3: el módulo se queda, sin conceptos de rifas
 
 **Abierto:** el polígono es plano sobre grados (bien para ciudades y regiones, no para continentes);
 un adaptador PostGIS queda como posible siguiente paso.
+
+## Fase 19 — Fusión de artefactos: `sdk-web` 1.0.0 y `sdk-commons` 1.1.0 ✅ (rama `feature/sdk-consolidation`, sobre `feature/sdk-geo-validation-v1`)
+
+D15 ([ADR 0016](../adr/0016-consolidate-web-and-commons-artifacts.md), que reemplaza a la 0005 y
+enmienda la 0010). Ningún servicio había migrado a los artefactos nuevos, así que cambiar
+coordenadas ahora no rompe a nadie.
+
+- `cf7f07a` → `a1bf60c`: `codehuntersPublishing { replaces(...) }` acepta varios artefactos.
+- `24062c3`: `git mv` de `sdk-web-errors`, `sdk-device` y `sdk-i18n` a `sdk-web`, y de `sdk-totp` a
+  `sdk-commons`. Paquetes, propiedades, alias `vitxo.*` y auto-configuraciones (cada una con su
+  `enabled`) sin cambios; un solo `AutoConfiguration.imports` y un solo `spring.factories` por
+  artefacto. Capabilities: `sdk-web` → `sdk-web-errors`, `sdk-device`, `sdk-i18n`; `sdk-commons` →
+  `sdk-totp`, `sdk-utils`. `sdk-commons` gana `sdk-support` en runtime (alias de TOTP); Boot sigue
+  `compileOnly`. `sdk-audit-log` y `sdk-user-security` apuntan a `sdk-web`. `sdk-bom` 1.2.0 y lock
+  regenerado.
+- `e0172db`: tests que fijan que las tres auto-configuraciones de `sdk-web` están registradas y se
+  apagan por separado, que el núcleo de TOTP sigue solo JDK, que los helpers no dependen de TOTP y
+  que la auto-configuración de TOTP está registrada.
+- Docs: README de `sdk-web` (una sección por parte) y de `sdk-commons` (sección TOTP), CHANGELOG con
+  la historia de los módulos absorbidos, `sdk-web/MIGRATION-1.0.md` (cambio de coordenadas, desde
+  `sdk-i18n` 0.x y desde `commons-support`), `sdk-commons/MIGRATION-1.1.md` (desde `sdk-totp` 2.0 y
+  `sdk-utils` 1.x), README y CHANGELOG raíz, ADR 0016.
+
+**Pendiente del usuario:** `sdk-web-errors`, `sdk-device`, `sdk-i18n` 1.0.0 y `sdk-totp` 2.0.0
+siguen publicados en GitHub Packages; nadie los usa y se pueden borrar a mano.

@@ -12,9 +12,9 @@ import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
- * Honours the 1.x {@code vitxo.totp.*} keys under their {@code codehunters.totp.*} names until 3.0.
- * Runs right after the application's configuration files are loaded; a key set under the new name
- * always wins.
+ * Honours the 1.x {@code vitxo.totp.*} keys under their {@code codehunters.totp.*} names until
+ * sdk-commons 2.0. Runs right after the application's configuration files are loaded; a key set
+ * under the new name always wins.
  */
 public class TotpLegacyProperties implements EnvironmentPostProcessor, Ordered {
 
