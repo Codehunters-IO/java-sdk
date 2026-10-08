@@ -3,11 +3,15 @@
 `io.codehunters:sdk-commons` 1.1.0 contains TOTP (`io.codehunters.totp`), which shipped as
 `sdk-totp` 2.0.0 and, before that, as `sdk-utils` 1.x
 ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)). Code using the
-`io.codehunters.commons.*` helpers of 1.0.0 needs no change.
+`io.codehunters.commons.*` helpers of 1.0.0 needs no change, but a Spring Boot application using
+them now also gets the TOTP auto-configuration: a `TotpGenerator` bean and the binding of
+`codehunters.totp.*`, where an invalid value stops startup. Set `codehunters.totp.enabled=false` to
+leave it out.
 
 ## From sdk-totp 2.0.0
 
-Only the coordinates change; imports, properties and behaviour are those of 2.0.0.
+Imports, properties and behaviour are those of 2.0.0; the coordinates change and the auto-configuration
+gains a switch, `codehunters.totp.enabled` (default `true`).
 
 | Before | Now |
 |---|---|
@@ -17,7 +21,20 @@ Only the coordinates change; imports, properties and behaviour are those of 2.0.
    `io.codehunters:sdk-commons` without a version.
 2. **Gradle.** `sdk-commons` declares the capabilities `io.codehunters:sdk-totp` and
    `io.codehunters:sdk-utils`. If another library still brings either, the build fails with a
-   capability conflict: upgrade that library or resolve it with `capabilitiesResolution`.
+   capability conflict. Prefer excluding the old module from that library or upgrading it. If you
+   need `capabilitiesResolution`, select `sdk-commons` explicitly:
+
+   ```kotlin
+   configurations.all {
+       resolutionStrategy.capabilitiesResolution.withCapability("io.codehunters:sdk-totp") {
+           select("io.codehunters:sdk-commons:1.1.0")
+       }
+   }
+   ```
+
+   Do not use `selectHighestVersion()`: `sdk-totp` 2.0.0 is higher than the capability version
+   1.1.0, so it would win and evict `sdk-commons`, and the `io.codehunters.commons.*` helpers would
+   fail with `NoClassDefFoundError`. The same applies to `sdk-utils`.
 3. **Maven.** Add an `<exclusion>` for `io.codehunters:sdk-totp` and `io.codehunters:sdk-utils` to any
    dependency that still brings them, or the same classes end up on the classpath twice.
 4. **New runtime dependency.** `sdk-commons` now brings `io.codehunters:sdk-support` (internal; it

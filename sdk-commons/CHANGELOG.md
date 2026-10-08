@@ -9,6 +9,8 @@ Absorbs `sdk-totp` ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-arti
 - Declares the Gradle capabilities `io.codehunters:sdk-totp` and `io.codehunters:sdk-utils`: Gradle
   refuses a graph that also holds either. Maven builds must exclude them. See
   [MIGRATION-1.1.md](MIGRATION-1.1.md).
+- New switch `codehunters.totp.enabled` (default `true`): a Boot application that only uses the
+  helpers can leave the TOTP auto-configuration out.
 - New runtime dependency: `sdk-support`, for the TOTP property aliases. Spring Boot stays
   `compileOnly`; the helpers in `io.codehunters.commons` still depend on the JDK only, and so does
   the TOTP core (ArchUnit).

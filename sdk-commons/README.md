@@ -123,6 +123,7 @@ test vectors). `toString()` never shows the key, and an invalid Base32 or hex in
 
 | Property | Default | Notes |
 |---|---|---|
+| `codehunters.totp.enabled` | `true` | `false` leaves the auto-configuration out, for applications that only use the helpers. |
 | `codehunters.totp.time-step` | `30s` | Whole seconds, from `1s` to `10m`. Anything else fails startup. |
 | `codehunters.totp.digits` | `six` | `six` or `eight`; `four` is deprecated (below RFC 4226). |
 | `codehunters.totp.algorithm` | `hmac-sha512` | `hmac-sha1`, `hmac-sha256` or `hmac-sha512`. |

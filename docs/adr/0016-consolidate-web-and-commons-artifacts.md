@@ -17,9 +17,9 @@ same HTTP services. `sdk-totp` is 350 lines of JDK-only crypto, next to the pass
 `sdk-commons`. Every extra artifact is one more coordinate in each service, one more BOM entry and
 one more release to track.
 
-No service has moved to the new artifacts yet (the `MIGRATION-*.md` guides are still pending), so
-changing coordinates now costs nothing; after the first migrations every merge would be another
-breaking change for consumers.
+The replaced artifacts are already published in GitHub Packages, but no service consumes them
+yet, so changing coordinates now costs only the migration notes; after the first migrations every
+merge would be another breaking change for consumers.
 
 ## Decision Drivers
 
@@ -66,10 +66,15 @@ Stay separate:
 ### Consequences
 
 - Good: 21 artifacts become 18; a typical HTTP service declares one web dependency instead of three.
-- Good: imports and configuration do not change; only coordinates do.
+- Good: imports and property keys do not change.
 - Bad: `sdk-web` releases as one unit, so a fix in i18n also bumps the error handling version.
-- Bad: services that used only `sdk-device` (for example a batch job reading IPs) now carry the
-  web-errors and i18n classes too; their auto-configurations stay inactive outside a servlet app
-  or behind their switches.
+- Bad: a service that used one part now gets the other two, on by default. The web-errors handler
+  and the locale resolver only activate in servlet applications, but the i18n `messageSource` is
+  registered in any application: a service that used only `sdk-web-errors` or `sdk-device` (a batch
+  job reading IPs, too) has Boot's message source replaced and `spring.messages.*` ignored until it
+  moves its bundles or sets `codehunters.i18n.enabled=false`. `sdk-web/MIGRATION-1.0.md` calls this
+  out as breaking.
+- Bad: every Boot application using the `sdk-commons` helpers gets the TOTP auto-configuration;
+  `codehunters.totp.enabled=false` leaves it out.
 - Neutral: `sdk-web-errors`, `sdk-device`, `sdk-i18n` 1.0.0 and `sdk-totp` 2.0.0 stay in GitHub
   Packages until someone removes them; nothing builds them any more.

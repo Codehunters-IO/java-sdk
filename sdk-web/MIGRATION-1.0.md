@@ -6,8 +6,9 @@ for where the service comes from.
 
 ## From sdk-web-errors, sdk-device or sdk-i18n 1.0.0
 
-Only the coordinates change. Packages, classes, properties, legacy aliases and behaviour are those of
-the 1.0.0 releases.
+Packages, classes, properties and legacy aliases are those of the 1.0.0 releases. What changes is
+that the three auto-configurations now ship together: a service that used only one of them also
+gets the other two (see step 4, which can break a service that used only web-errors or device).
 
 | Before | Now |
 |---|---|
@@ -19,12 +20,46 @@ the 1.0.0 releases.
    declare `io.codehunters:sdk-web` without a version.
 2. **Gradle.** `sdk-web` declares the capabilities `io.codehunters:sdk-web-errors`,
    `io.codehunters:sdk-device` and `io.codehunters:sdk-i18n`. If another library still brings one of
-   them, the build fails with a capability conflict instead of loading the classes twice: upgrade
-   that library or resolve it with `capabilitiesResolution`.
+   them, the build fails with a capability conflict instead of loading the classes twice. Prefer
+   excluding the old module from that library (`exclude(group = "io.codehunters", module =
+   "sdk-device")`) or upgrading it. If you need `capabilitiesResolution`, select `sdk-web`
+   explicitly:
+
+   ```kotlin
+   configurations.all {
+       resolutionStrategy.capabilitiesResolution.withCapability("io.codehunters:sdk-device") {
+           select("io.codehunters:sdk-web:1.0.0")
+       }
+   }
+   ```
+
+   Do not use `selectHighestVersion()`: it compares the old artifact's version with the capability
+   version and can pick the old module, which evicts `sdk-web` and everything else in it.
 3. **Maven.** Maven does not check capabilities. Add an `<exclusion>` for the three old artifacts to
    any dependency that still brings them, or the same classes end up on the classpath twice.
-4. **Parts you did not use before.** A service that had only one of the three now also gets the
-   other two auto-configurations. Turn off what you do not want:
+4. **Breaking for services that used only sdk-web-errors or sdk-device.** The i18n
+   auto-configuration is on by default and now comes with them:
+
+   - **Message source.** The SDK registers `messageSource` (in any application, web or not) with the
+     base name `classpath:i18n/messages`, not Boot's `messages`. It replaces Boot's message source,
+     and `spring.messages.*` is ignored (startup logs a warning). Bundles in `messages*.properties`
+     stop being read, so `error.<CODE>` details fall back to the default text.
+   - **Locale.** Servlet applications get the SDK's `localeResolver` (`X-Locale` header, then
+     `Accept-Language`) and the `localeMdcFilter`; `spring.web.locale` and
+     `spring.web.locale-resolver` are ignored.
+
+   Either keep the SDK's i18n and move the bundles to `i18n/messages*.properties` (or set
+   `codehunters.i18n.basename: classpath:messages`), or turn it off and keep Boot's:
+
+   ```yaml
+   codehunters:
+     i18n:
+       enabled: false # messageSource, localeResolver, locale MDC filter
+   ```
+
+   A service that used only sdk-i18n or sdk-device gets the web-errors handler in servlet
+   applications, and one that used only sdk-web-errors or sdk-i18n gets `ClientIpResolver`,
+   `UserAgentParser` and `ClientContextResolver`. Turn off what you do not want:
 
    ```yaml
    codehunters:
@@ -32,12 +67,10 @@ the 1.0.0 releases.
        enabled: false # problem-detail handler, error controller, security handlers
      device:
        enabled: false # ClientIpResolver, UserAgentParser, ClientContextResolver
-     i18n:
-       enabled: false # messageSource, localeResolver, locale MDC filter
    ```
 
-   Errors and the i18n locale resolver only activate in servlet web applications. The i18n
-   `messageSource` is registered in any application unless a bean named `messageSource` exists.
+   Outside a servlet application only the device beans and the i18n `messageSource` are
+   registered; the errors handler and the locale resolver are not.
 
 ## From sdk-i18n 0.x
 
@@ -87,7 +120,7 @@ class was rewritten; none is source compatible.
 
 #### Error responses
 
-| commons-web | sdk-web-errors |
+| commons-web | sdk-web (errors part) |
 |---|---|
 | `ApiError` / `ApiMessage` / `Api` (own JSON envelope with `code`, `message`, `timestamp`, `trace`, `errors`) | RFC 9457 `ProblemDetail` built by `WebErrorsExceptionHandler`: `code`, `detail`, `instance`, `traceId`, `errors` |
 | `ApiError.trace` (the serialized `Throwable`) | Dropped. The exception is logged with the `traceId`; the client gets the `traceId` only |
@@ -97,7 +130,7 @@ class was rewritten; none is source compatible.
 
 #### Exceptions
 
-| commons-web | sdk-web-errors |
+| commons-web | sdk-web (errors part) |
 |---|---|
 | `ContractException(message, code, HttpStatus, errors)` | `ApiException(ErrorCode, arguments)`; the code enum carries the status |
 | `RestException(message, HttpStatus, errors)` (code fixed to `API-ERR`) | `ApiException` with a code of your own; validation errors are produced by the handler |
@@ -120,7 +153,7 @@ class was rewritten; none is source compatible.
 (`codehuntersio-java-commons-support`) are replaced by the device part of `io.codehunters:sdk-web` 1.0.0. Every class
 was rewritten; none is source compatible.
 
-| commons-support | sdk-device |
+| commons-support | sdk-web (device part) |
 |---|---|
 | `IpUtil.extractIp(request)` | `ClientContextResolver.resolve(request).ipAddress()`, or `ClientIpResolver.resolve(ProxyChain)` |
 | `IpUtil.extractLocation(ip)`, `IpApiLocationHttpClient`, `IpLocation` | `GeoIpLookup` port, no implementation (see below) |

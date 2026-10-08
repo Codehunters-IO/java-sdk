@@ -11,10 +11,17 @@ First release ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts
 
 ### Unchanged
 - Packages (`io.codehunters.weberrors`, `io.codehunters.device`, `io.codehunters.i18n`), classes,
-  properties, legacy `vitxo.i18n.*` aliases and behaviour are those of the three 1.0.0 releases
-  below.
+  properties, legacy `vitxo.i18n.*` aliases and the behaviour of each part are those of the three
+  1.0.0 releases below; what changes is that the parts now ship together (next section).
 - Each part keeps its auto-configuration and its switch (`codehunters.web-errors.enabled`,
   `codehunters.device.enabled`, `codehunters.i18n.enabled`).
+
+### Breaking for services that used only one part
+- All three auto-configurations are on by default. A service that used only `sdk-web-errors` or
+  `sdk-device` now gets the i18n `messageSource` (base name `classpath:i18n/messages`), which
+  replaces Boot's and ignores `spring.messages.*`, and in servlet applications the `X-Locale`
+  `localeResolver` and `localeMdcFilter`. Move the bundles or set `codehunters.i18n.enabled=false`;
+  see [MIGRATION-1.0.md](MIGRATION-1.0.md).
 
 ## Before 1.0.0: `sdk-web-errors`
 
