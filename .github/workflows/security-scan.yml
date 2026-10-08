@@ -1,0 +1,25 @@
+name: Security scan
+
+# OWASP dependency check of every module, weekly and on demand. It downloads the NVD database, so
+# it stays out of the pull-request build; pull requests get the faster dependency review instead.
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: security-scan
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  owasp:
+    permissions:
+      contents: read
+      packages: read
+    uses: Codehunters-IO/ci-templates/.github/workflows/java-owasp.yml@v2
+    with:
+      owasp_fail_on_cvss: 7
+    secrets:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
