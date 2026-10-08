@@ -11,7 +11,8 @@ Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
 
 ### Changed
 - `SendOutboxMessagesUseCase` marks each row right before publishing it. A row whose mark is
-  refused (its claim was taken over) is neither published nor updated.
+  refused (its claim was taken over) is neither published nor updated, and a mark that fails skips
+  only that row instead of aborting the batch.
 - `OutboxMessage` has a `sendStartedAt` property.
 - The old `outbox.*` keys are honoured until 8.0 (were due to go in 7.0).
 

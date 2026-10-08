@@ -16,8 +16,9 @@ Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
 
 ### Added
 - `OutboxJdbcAdapter.markSendStarted`, fenced by the claim marker. Updates that end a claim clear
-  the mark.
-- Integration tests against the SQL Server reference DDL (azure-sql-edge).
+  the mark. It warns once when it runs inside a caller transaction: dispatch must run outside one.
+- Integration tests against the SQL Server reference DDL and the 7.0 upgrade scripts (SQL Server
+  2022 on x86-64, azure-sql-edge on ARM).
 
 ## 6.0.0
 

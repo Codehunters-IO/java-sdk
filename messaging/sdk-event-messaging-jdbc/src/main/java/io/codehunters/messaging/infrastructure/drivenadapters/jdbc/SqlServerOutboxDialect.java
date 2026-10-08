@@ -6,8 +6,8 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
  * lock hint sits on the outer candidate scan only; the per-key ordering subquery carries no hint,
  * so an earlier same-key row being claimed elsewhere is still visible and blocks later rows.
  *
- * <p>Pinned by string tests and exercised against the SQL Server reference DDL on azure-sql-edge,
- * which also runs on arm64 hosts.
+ * <p>Pinned by string tests and exercised against the SQL Server reference DDL on SQL Server 2022
+ * (x86-64 hosts) or azure-sql-edge (arm64 hosts).
  */
 public final class SqlServerOutboxDialect implements OutboxDialect {
 

@@ -51,4 +51,12 @@ Option 3.
   a row and before its update still sends it twice.
 - Services must add `send_started_at` before deploying 7.0; the column is nullable and ignored by
   6.x, so adding it early is safe.
-- SQL Server integration tests now run against the reference DDL on azure-sql-edge.
+- The mark is fenced only when it is written. A publish that blocks past the rest of the claim TTL
+  can still be sent by two dispatchers; at-least-once delivery and consumer deduplication on
+  `outbox-message-id` still apply.
+- The mark must commit before the publish, so dispatch must run outside a caller transaction. The
+  adapter warns once when it does not; a failed mark skips only its row.
+- SQL Server integration tests run the reference DDL and the 7.0 upgrade script on SQL Server 2022
+  on x86-64 hosts (CI). ARM hosts, which have no SQL Server image, use azure-sql-edge 1.0.7:
+  Microsoft retired Azure SQL Edge on 2025-09-30, so that image is final and may drift from the
+  engines services run.

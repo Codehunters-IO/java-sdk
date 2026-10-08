@@ -74,6 +74,11 @@ the outbox first if the order of queued rows matters.
 clears `send_started_at`, the mark written before each publish; without it every claim fails. The
 column is nullable and ignored by 6.x ([MIGRATION-7.0](../MIGRATION-7.0.md)).
 
+**Transactions:** `SendOutboxMessagesPort.execute()` must run outside any caller transaction. The
+send mark has to commit before the broker call; inside a transaction it commits only afterwards,
+and a crash in between leaves the row uncharged. The adapter warns once when a mark runs inside
+one. `save` is the opposite: it joins the caller's transaction on purpose.
+
 ## Configuration
 
 Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-messaging-core/README.md).
