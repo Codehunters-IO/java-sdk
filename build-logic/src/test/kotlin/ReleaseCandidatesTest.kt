@@ -6,49 +6,61 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import org.gradle.testkit.runner.GradleRunner
 
-class ReleasedTagsTest {
+class ReleaseCandidatesTest {
 
     @TempDir
     lateinit var projectDir: File
 
     @BeforeEach
     fun writeBuild() {
-        write("settings.gradle.kts", """include("sdk-foo", "sdk-bar", "sdk-bom")""")
+        write(
+            "settings.gradle.kts",
+            """
+            include("sdk-foo", "sdk-bar", "sdk-bom")
+            project(":sdk-foo").projectDir = file("group/sdk-foo")
+            """.trimIndent()
+        )
         write("gradle.properties", rootProperties())
-        write("sdk-foo/build.gradle.kts", module("2.1.0"))
+        write("group/sdk-foo/build.gradle.kts", module("2.1.0"))
         write("sdk-bar/build.gradle.kts", module("0.3.0-SNAPSHOT"))
         write("sdk-bom/build.gradle.kts", BOM_SCRIPT)
     }
 
     @Test
-    fun should_record_one_tag_per_module_uploaded_in_this_build() {
-        runner().build()
+    fun should_list_tag_gradle_path_and_directory_when_module_has_a_release_version() {
+        runner("releaseCandidate").build()
 
-        assertEquals("sdk-foo/v2.1.0\n", read("build/released-tags/sdk-foo.txt"))
-        assertEquals("bom/v1.0.0\n", read("build/released-tags/bom.txt"))
+        assertEquals("sdk-foo/v2.1.0 :sdk-foo group/sdk-foo\n", read("build/release-candidates/sdk-foo.txt"))
     }
 
     @Test
-    fun should_not_record_a_snapshot_module() {
-        runner().build()
+    fun should_tag_the_bom_as_bom_when_listing_it() {
+        runner("releaseCandidate").build()
 
-        assertFalse(File(projectDir, "build/released-tags/sdk-bar.txt").exists())
+        assertEquals("bom/v1.0.0 :sdk-bom sdk-bom\n", read("build/release-candidates/bom.txt"))
     }
 
     @Test
-    fun should_not_record_a_module_already_in_the_repository() {
+    fun should_not_list_a_module_when_its_version_is_a_snapshot() {
+        runner("releaseCandidate").build()
+
+        assertFalse(File(projectDir, "build/release-candidates/sdk-bar.txt").exists())
+    }
+
+    @Test
+    fun should_skip_the_upload_when_the_version_is_already_in_the_repository() {
         write("repo/io/codehunters/sdk-foo/2.1.0/sdk-foo-2.1.0.pom", "<project/>")
 
-        runner().build()
+        runner(":sdk-foo:publish").build()
 
-        assertFalse(File(projectDir, "build/released-tags/sdk-foo.txt").exists())
+        assertEquals("<project/>", read("repo/io/codehunters/sdk-foo/2.1.0/sdk-foo-2.1.0.pom"))
     }
 
-    private fun runner(): GradleRunner =
+    private fun runner(task: String): GradleRunner =
         GradleRunner.create()
             .withProjectDir(projectDir)
             .withPluginClasspath()
-            .withArguments("publish", "--stacktrace")
+            .withArguments(task, "--stacktrace")
 
     private fun write(path: String, content: String) {
         File(projectDir, path).apply { parentFile.mkdirs() }.writeText(content)
