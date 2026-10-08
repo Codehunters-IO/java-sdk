@@ -23,6 +23,19 @@ class CodehuntersPublishingPluginTest {
     }
 
     @Test
+    fun should_publish_every_artifact_replaced_in_one_call() {
+        write("settings.gradle.kts", """rootProject.name = "new-lib"""")
+        write("gradle.properties", ROOT_PROPERTIES)
+        write("build.gradle.kts", libraryScript("replaces(\"legacy-lib\", \"other-legacy-lib\")"))
+
+        val output = runner("outgoingVariants").build().output
+
+        assertTrue(output.contains("io.codehunters:legacy-lib:6.0.0"), output)
+        assertTrue(output.contains("io.codehunters:other-legacy-lib:6.0.0"), output)
+        assertTrue(output.contains("io.codehunters:new-lib:6.0.0"), output)
+    }
+
+    @Test
     fun should_fail_resolution_when_old_and_new_artifacts_are_both_requested() {
         writeLegacyArtifact()
         write("settings.gradle.kts", """include("lib", "app")""")
@@ -52,7 +65,7 @@ class CodehuntersPublishingPluginTest {
         JarOutputStream(File(projectDir, "$dir/legacy-lib-1.0.0.jar").outputStream()).close()
     }
 
-    private fun libraryScript() =
+    private fun libraryScript(replacement: String = "replaces(\"legacy-lib\")") =
         """
         plugins {
             `java-library`
@@ -62,7 +75,7 @@ class CodehuntersPublishingPluginTest {
         version = "6.0.0"
 
         codehuntersPublishing {
-            replaces("legacy-lib")
+            $replacement
         }
         """.trimIndent()
 

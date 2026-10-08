@@ -15,7 +15,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 
 | Module | Package | Version | Docs |
 |---|---|---|---|
-| `sdk-bom` | — (BOM, `java-platform`) | 1.1.0 | [below](#using-the-bom) |
+| `sdk-bom` | — (BOM, `java-platform`) | 1.2.0 | [below](#using-the-bom) |
 | `sdk-user-security` | `io.codehunters.security` | 3.1.0 | [README](security/sdk-user-security/README.md) · [CHANGELOG](security/sdk-user-security/CHANGELOG.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 | [README](security/sdk-user-security-authz/README.md) · [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 | [README](sdk-tracing/README.md) · [CHANGELOG](sdk-tracing/CHANGELOG.md) |
@@ -27,11 +27,8 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-audit-log` | `io.codehunters.audit` | 3.0.0 | [README](sdk-audit-log/README.md) · [MIGRATION](sdk-audit-log/MIGRATION-3.0.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 3.0.0 | [README](sdk-measure-micrometer/README.md) · [MIGRATION](sdk-measure-micrometer/MIGRATION-3.0.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | 2.0.0 | [README](sdk-parameter/README.md) · [MIGRATION](sdk-parameter/MIGRATION-2.0.md) |
-| `sdk-i18n` | `io.codehunters.i18n` | 1.0.0 | [README](sdk-i18n/README.md) · [MIGRATION](sdk-i18n/MIGRATION-1.0.md) |
-| `sdk-totp` (was `sdk-utils`) | `io.codehunters.totp` | 2.0.0 | [README](sdk-totp/README.md) · [MIGRATION](sdk-totp/MIGRATION-2.0.md) |
-| `sdk-commons` | `io.codehunters.commons` | 1.0.0 | [README](sdk-commons/README.md) · [CHANGELOG](sdk-commons/CHANGELOG.md) |
-| `sdk-web-errors` | `io.codehunters.weberrors` | 1.0.0 | [README](sdk-web-errors/README.md) · [MIGRATION](sdk-web-errors/MIGRATION-from-commons-support.md) |
-| `sdk-device` | `io.codehunters.device` | 1.0.0 | [README](sdk-device/README.md) · [MIGRATION](sdk-device/MIGRATION-from-commons-support.md) |
+| `sdk-commons` (includes the former `sdk-totp`) | `io.codehunters.commons`, `io.codehunters.totp` | 1.1.0 | [README](sdk-commons/README.md) · [MIGRATION](sdk-commons/MIGRATION-1.1.md) |
+| `sdk-web` (former `sdk-web-errors`, `sdk-device`, `sdk-i18n`) | `io.codehunters.weberrors`, `io.codehunters.device`, `io.codehunters.i18n` | 1.0.0 | [README](sdk-web/README.md) · [MIGRATION](sdk-web/MIGRATION-1.0.md) |
 | `sdk-barcode` | `io.codehunters.barcode` | 1.0.0 | [README](sdk-barcode/README.md) · [MIGRATION](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | `io.codehunters.jasper` | 1.0.0 | [README](sdk-jasper/README.md) · [MIGRATION](sdk-jasper/MIGRATION-from-commons-support.md) |
 | `sdk-jpa` | `io.codehunters.jpa` | 1.0.0 | [README](sdk-jpa/README.md) · [MIGRATION](sdk-jpa/MIGRATION-from-commons-support.md) |
@@ -50,7 +47,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.codehunters:sdk-bom:1.1.0"))
+    implementation(platform("io.codehunters:sdk-bom:1.2.0"))
     implementation("io.codehunters:sdk-user-security")
     implementation("io.codehunters:sdk-event-messaging-jdbc")
     implementation("io.codehunters:sdk-event-messaging-rabbit")
@@ -65,7 +62,7 @@ Maven:
     <dependency>
       <groupId>io.codehunters</groupId>
       <artifactId>sdk-bom</artifactId>
-      <version>1.1.0</version>
+      <version>1.2.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -82,20 +79,23 @@ but Maven's nearest-wins mediation can still mix versions of `sdk-support` and
 Do it one module at a time; each module's `MIGRATION-*.md` (or CHANGELOG, for security and tracing)
 has the full checklist. What every service has to look at:
 
-1. **Coordinates.** Import `sdk-bom:1.1.0` and drop explicit SDK versions.
+1. **Coordinates.** Import `sdk-bom:1.2.0` and drop explicit SDK versions.
 
    | Before | Now |
    |---|---|
    | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 6.0.0 (`-core` alone for the model) |
    | `sdk-user-security:2.x` with the policy enforcer | `sdk-user-security` + `sdk-user-security-authz` 3.0.0 |
-   | `sdk-utils:1.x` | `sdk-totp:2.0.0` |
+   | `sdk-utils:1.x`, `sdk-totp:2.0.0` | `sdk-commons:1.1.0` |
+   | `sdk-i18n:0.x` or `1.0.0` | `sdk-web:1.0.0` |
+   | `sdk-web-errors:1.0.0`, `sdk-device:1.0.0` | `sdk-web:1.0.0` |
    | `sdk-geo-validation:0.2.0` (raffle port) | `sdk-geo-validation:1.0.0`, domain-agnostic: see its MIGRATION-1.0 |
 
-2. **Duplicate classes (Maven only).** `sdk-event-messaging-core` replaces `sdk-event-messaging` and
-   `sdk-totp` replaces `sdk-utils` through Gradle capabilities, so Gradle fails the build when the
-   old artifact is still on the graph. Maven does not check capabilities: add an `<exclusion>` for
-   `io.codehunters:sdk-event-messaging` and `io.codehunters:sdk-utils` to any dependency that still
-   brings them.
+2. **Duplicate classes (Maven only).** `sdk-event-messaging-core` replaces `sdk-event-messaging`,
+   `sdk-commons` replaces `sdk-totp` and `sdk-utils`, and `sdk-web` replaces `sdk-web-errors`,
+   `sdk-device` and `sdk-i18n` through Gradle capabilities, so Gradle fails the build when an old
+   artifact is still on the graph ([ADR 0016](docs/adr/0016-consolidate-web-and-commons-artifacts.md)).
+   Maven does not check capabilities: add an `<exclusion>` for each old artifact to any dependency
+   that still brings it.
 3. **Imports.** Only security moves: `io.codehunters.sdk.security.*` → `io.codehunters.security.*`
    and `io.codehunters.sdk.security.authz.*` → `io.codehunters.security.authz.*`. Tracing constants
    move to `TraceHeaders`. Every other package is unchanged.

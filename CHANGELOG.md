@@ -7,7 +7,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 1.1.0 | [below](#sdk-bom-110) | — |
+| `sdk-bom` | 1.2.0 | [below](#sdk-bom-120) | — |
 | `sdk-user-security` | 3.1.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
 | `sdk-user-security-authz` | 3.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
 | `sdk-tracing` | 1.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | in the changelog |
@@ -19,16 +19,20 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-audit-log` | 3.0.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) |
 | `sdk-measure-micrometer` | 3.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) |
 | `sdk-parameter` | 2.0.0 | [CHANGELOG](sdk-parameter/CHANGELOG.md) | [2.0](sdk-parameter/MIGRATION-2.0.md) |
-| `sdk-i18n` | 1.0.0 | [CHANGELOG](sdk-i18n/CHANGELOG.md) | [1.0](sdk-i18n/MIGRATION-1.0.md) |
-| `sdk-totp` | 2.0.0 | [CHANGELOG](sdk-totp/CHANGELOG.md) | [2.0](sdk-totp/MIGRATION-2.0.md) |
-| `sdk-commons` | 1.0.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
-| `sdk-web-errors` | 1.0.0 | [CHANGELOG](sdk-web-errors/CHANGELOG.md) | [from commons-support](sdk-web-errors/MIGRATION-from-commons-support.md) |
-| `sdk-device` | 1.0.0 | [CHANGELOG](sdk-device/CHANGELOG.md) | [from commons-support](sdk-device/MIGRATION-from-commons-support.md) |
+| `sdk-commons` | 1.1.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [1.1](sdk-commons/MIGRATION-1.1.md) · [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
+| `sdk-web` | 1.0.0 | [CHANGELOG](sdk-web/CHANGELOG.md) | [1.0](sdk-web/MIGRATION-1.0.md) |
 | `sdk-barcode` | 1.0.0 | [CHANGELOG](sdk-barcode/CHANGELOG.md) | [from commons-support](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | 1.0.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
 | `sdk-jpa` | 1.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
 | `sdk-geo-validation` | 1.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [1.0](sdk-geo-validation/MIGRATION-1.0.md) |
+
+## sdk-bom 1.2.0
+
+- Includes `sdk-web` 1.0.0, which replaces `sdk-web-errors`, `sdk-device` and `sdk-i18n`, and
+  `sdk-commons` 1.1.0, which absorbs `sdk-totp`
+  ([ADR 0016](docs/adr/0016-consolidate-web-and-commons-artifacts.md)).
+- No longer lists `sdk-web-errors`, `sdk-device`, `sdk-i18n` or `sdk-totp`.
 
 ## sdk-bom 1.1.0
 
@@ -56,6 +60,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 - `verifyBomConstraints` keeps `sdk-bom` in step with the released modules; exclusions are explicit.
 - `verifyBomLock` fails when a library version changes under an unchanged `sdk-bom` version
   (`platform/sdk-bom/bom-lock.properties`, rewritten with `:sdk-bom:updateBomLock`).
+- `codehuntersPublishing { replaces(...) }` takes several artifacts at once.
 - Publishing skips versions already in GitHub Packages and `-SNAPSHOT`s, then tags exactly the
   modules the run uploaded, from a separate job; publish runs never overlap.
 - Built against Spring Boot 4.1.1 (Spring 7.0.9, Security 7.1.1). The internal platform raises

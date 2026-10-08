@@ -7,10 +7,11 @@ abstract class CodehuntersPublishingExtension {
     abstract val replacedArtifacts: ListProperty<String>
 
     /**
-     * Declares that this module replaces [artifact], so a consumer that resolves both fails
-     * with a capability conflict instead of loading the same classes twice.
+     * Declares that this module replaces each of [artifacts], so a consumer that resolves this
+     * module and any of them fails with a capability conflict instead of loading the same classes
+     * twice.
      */
-    fun replaces(artifact: String) {
-        replacedArtifacts.add(artifact)
+    fun replaces(vararg artifacts: String) {
+        replacedArtifacts.addAll(*artifacts)
     }
 }
