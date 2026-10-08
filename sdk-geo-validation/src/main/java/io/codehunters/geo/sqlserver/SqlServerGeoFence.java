@@ -58,7 +58,7 @@ public final class SqlServerGeoFence implements GeoFenceValidator {
         + "DECLARE @r_allowed BIT, @r_zone_id NVARCHAR(128), @r_zone_type NVARCHAR(200),"
         + " @r_zone_name NVARCHAR(200), @r_zone_parent NVARCHAR(200);\n"
         + "EXEC "
-        + procedure.name()
+        + quoted(procedure.name())
         + " @"
         + p.scope()
         + " = :scope, @"
@@ -70,6 +70,11 @@ public final class SqlServerGeoFence implements GeoFenceValidator {
         + ";\n"
         + "SELECT @r_allowed AS allowed, @r_zone_id AS zone_id, @r_zone_type AS zone_type,"
         + " @r_zone_name AS zone_name, @r_zone_parent AS zone_parent;";
+  }
+
+  /** Brackets each part; the parts are validated identifiers, so they hold no {@code ]}. */
+  private static String quoted(String name) {
+    return "[" + name.replace(".", "].[") + "]";
   }
 
   private static String output(String parameter, String variable) {

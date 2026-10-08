@@ -2,6 +2,7 @@ package io.codehunters.geo.polygon;
 
 import io.codehunters.geo.GeoPoint;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -71,7 +72,8 @@ public final class Polygon {
     return holes.stream().noneMatch(hole -> hole.strictlyContains(x, y));
   }
 
-  private record Ring(double[] xs, double[] ys) {
+  private record Ring(
+      double[] xs, double[] ys, double minX, double maxX, double minY, double maxY) {
 
     static Ring of(List<GeoPoint> points) {
       if (points == null || points.stream().anyMatch(Objects::isNull)) {
@@ -82,8 +84,18 @@ public final class Polygon {
       if (open.stream().distinct().count() < 3) {
         throw new IllegalArgumentException("A polygon ring needs at least 3 distinct vertices");
       }
-      Ring ring = new Ring(coordinates(open, true), coordinates(open, false));
+      double[] xs = coordinates(open, true);
+      double[] ys = coordinates(open, false);
+      Ring ring =
+          new Ring(
+              xs,
+              ys,
+              Arrays.stream(xs).min().orElseThrow(),
+              Arrays.stream(xs).max().orElseThrow(),
+              Arrays.stream(ys).min().orElseThrow(),
+              Arrays.stream(ys).max().orElseThrow());
       ring.rejectAntimeridianEdges();
+      ring.rejectZeroArea();
       return ring;
     }
 
@@ -107,12 +119,30 @@ public final class Polygon {
       }
     }
 
+    private void rejectZeroArea() {
+      double twiceArea = 0;
+      for (int i = 0; i < xs.length; i++) {
+        twiceArea += xs[i] * ys[next(i)] - xs[next(i)] * ys[i];
+      }
+      if (Math.abs(twiceArea) <= EPSILON) {
+        throw new IllegalArgumentException("A polygon ring must enclose an area");
+      }
+    }
+
     boolean coversOrTouches(double x, double y) {
-      return touches(x, y) || crossings(x, y);
+      return inBoundingBox(x, y) && (touches(x, y) || crossings(x, y));
     }
 
     boolean strictlyContains(double x, double y) {
-      return !touches(x, y) && crossings(x, y);
+      return inBoundingBox(x, y) && !touches(x, y) && crossings(x, y);
+    }
+
+    /** Cheap rejection before walking the edges. */
+    private boolean inBoundingBox(double x, double y) {
+      return x >= minX - EPSILON
+          && x <= maxX + EPSILON
+          && y >= minY - EPSILON
+          && y <= maxY + EPSILON;
     }
 
     private boolean touches(double x, double y) {

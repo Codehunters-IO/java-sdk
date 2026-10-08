@@ -76,6 +76,7 @@ public class GeoAutoConfiguration {
       throw new IllegalStateException(
           "codehunters.geo.adapter=sql-server needs exactly one DataSource bean, or a primary one");
     }
-    return SqlServerGeoFences.create(dataSource, properties.sqlServer().procedure());
+    return SqlServerGeoFences.create(
+        dataSource, properties.sqlServer().procedure(), properties.sqlServer().queryTimeout());
   }
 }

@@ -1,6 +1,7 @@
 package io.codehunters.geo.config;
 
 import io.codehunters.geo.sqlserver.SqlServerProcedure;
+import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.boot.context.properties.bind.Name;
@@ -32,11 +33,19 @@ public record GeoProperties(
    *
    * @param name the procedure, {@code name} or {@code schema.name}; bound from {@code procedure}
    * @param parameters the procedure's parameter names, without {@code @}
+   * @param queryTimeout the longest the procedure may run, rounded up to whole seconds; positive
    */
-  public record SqlServer(@Name("procedure") String name, @DefaultValue Parameters parameters) {
+  public record SqlServer(
+      @Name("procedure") String name,
+      @DefaultValue Parameters parameters,
+      @DefaultValue("2s") Duration queryTimeout) {
 
-    /** Validates the names; messages never repeat them. */
+    /** Validates the names and the timeout; messages never repeat the names. */
     public SqlServer {
+      if (queryTimeout == null || queryTimeout.isNegative() || queryTimeout.isZero()) {
+        throw new IllegalArgumentException(
+            "codehunters.geo.sql-server.query-timeout must be positive");
+      }
       name = name == null || name.isBlank() ? null : name;
       if (name != null) {
         try {
