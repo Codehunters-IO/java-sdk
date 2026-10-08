@@ -27,6 +27,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
   private static final String CLAIM_MARKER = "instance-1:marker";
 
   private MutableClock clock;
+  private List<String> calls;
   private FakeRepository repository;
   private SlowPublisher publisher;
   private SendOutboxMessagesUseCase useCase;
@@ -34,9 +35,9 @@ class SendOutboxMessagesUseCaseGuardsTest {
   @BeforeEach
   void setUp() {
     clock = new MutableClock(START);
-    repository = new FakeRepository(clock);
-    publisher = new SlowPublisher(clock, PUBLISH_TIME);
-    publisher.repository = repository;
+    calls = new ArrayList<>();
+    repository = new FakeRepository(clock, calls);
+    publisher = new SlowPublisher(clock, PUBLISH_TIME, calls);
     useCase =
         new SendOutboxMessagesUseCase(
             repository,
@@ -145,7 +146,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
 
     useCase.execute();
 
-    assertThat(publisher.startedBeforePublish).containsExactly(true);
+    assertThat(calls).containsExactly("mark " + only.getId(), "publish " + only.getId());
   }
 
   private static void assertReleased(OutboxMessage<String> message, int attempts, Instant at) {
@@ -202,13 +203,15 @@ class SendOutboxMessagesUseCaseGuardsTest {
   /** Repository that hands out a prepared batch and records updates in order. */
   private static final class FakeRepository implements OutboxRepositoryPort {
     private final MutableClock clock;
+    private final List<String> calls;
     private final List<OutboxMessage<String>> updated = new ArrayList<>();
     private final List<OutboxMessage<String>> started = new ArrayList<>();
     private List<OutboxMessage<String>> toClaim = List.of();
     private Duration claimDuration = Duration.ZERO;
 
-    FakeRepository(MutableClock clock) {
+    FakeRepository(MutableClock clock, List<String> calls) {
       this.clock = clock;
+      this.calls = calls;
     }
 
     void willClaim(List<OutboxMessage<String>> messages) {
@@ -234,6 +237,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
     @Override
     public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
       started.add(outboxMessage);
+      calls.add("mark " + outboxMessage.getId());
       return true;
     }
 
@@ -258,12 +262,12 @@ class SendOutboxMessagesUseCaseGuardsTest {
     private final MutableClock clock;
     private final Duration publishTime;
     private final List<OutboxMessage<String>> published = new ArrayList<>();
-    private final List<Boolean> startedBeforePublish = new ArrayList<>();
-    private FakeRepository repository;
+    private final List<String> calls;
 
-    SlowPublisher(MutableClock clock, Duration publishTime) {
+    SlowPublisher(MutableClock clock, Duration publishTime, List<String> calls) {
       this.clock = clock;
       this.publishTime = publishTime;
+      this.calls = calls;
     }
 
     @Override
@@ -278,7 +282,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
 
     @Override
     public void publish(OutboxMessage<String> message) {
-      startedBeforePublish.add(repository.started.contains(message));
+      calls.add("publish " + message.getId());
       published.add(message);
       clock.advance(publishTime);
     }

@@ -47,8 +47,8 @@ class OutboxJdbcAdapterPostgresIT {
     var seqIdentity =
         jdbcClient
             .sql(
-                "SELECT is_identity FROM information_schema.columns"
-                    + " WHERE table_name = 'outbox_message' AND column_name = 'seq'")
+                "SELECT is_identity FROM information_schema.columns WHERE table_schema = 'public'"
+                    + " AND table_name = 'outbox_message' AND column_name = 'seq'")
             .query(String.class)
             .single();
 

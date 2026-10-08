@@ -17,6 +17,10 @@ import org.testcontainers.utility.DockerImageName;
 final class SqlServerTestSupport {
 
   static final String REFERENCE_DDL = "db/migration/outbox/outbox_message_create.sql";
+  static final String UPGRADE_DDL =
+      "db/migration/outbox/sqlserver/outbox_message_add_send_started_at.sql";
+
+  private static final String UPGRADE_DATABASE = "upgraded_from_6x";
 
   private static final MSSQLServerContainer CONTAINER =
       new MSSQLServerContainer(
@@ -24,6 +28,7 @@ final class SqlServerTestSupport {
                   .asCompatibleSubstituteFor("mcr.microsoft.com/mssql/server"))
           .acceptLicense();
   private static DataSource dataSource;
+  private static DataSource upgradedDataSource;
 
   private SqlServerTestSupport() {}
 
@@ -38,14 +43,45 @@ final class SqlServerTestSupport {
     return dataSource;
   }
 
-  // The reference DDL is one T-SQL batch without statement separators: run it whole.
+  /**
+   * A separate database shaped like a 6.x install: the reference DDL without {@code
+   * send_started_at}, then the 7.0 upgrade script applied twice to prove it is idempotent.
+   */
+  static synchronized DataSource upgradedDataSource() {
+    if (upgradedDataSource == null) {
+      JdbcClient.create(dataSource()).sql("CREATE DATABASE " + UPGRADE_DATABASE).update();
+      DataSource upgraded =
+          new DriverManagerDataSource(
+              CONTAINER.getJdbcUrl() + ";databaseName=" + UPGRADE_DATABASE,
+              CONTAINER.getUsername(),
+              CONTAINER.getPassword());
+      loadReferenceDdl(upgraded);
+      JdbcClient.create(upgraded)
+          .sql("ALTER TABLE outbox_message DROP COLUMN send_started_at")
+          .update();
+      runScript(upgraded, UPGRADE_DDL);
+      runScript(upgraded, UPGRADE_DDL);
+      upgradedDataSource = upgraded;
+    }
+    return upgradedDataSource;
+  }
+
   private static void loadReferenceDdl(DataSource target) {
-    var populator = new ResourceDatabasePopulator(new ClassPathResource(REFERENCE_DDL));
+    runScript(target, REFERENCE_DDL);
+  }
+
+  // The SDK's T-SQL scripts are single batches without statement separators: run each one whole.
+  private static void runScript(DataSource target, String script) {
+    var populator = new ResourceDatabasePopulator(new ClassPathResource(script));
     populator.setSeparator(ScriptUtils.EOF_STATEMENT_SEPARATOR);
     populator.execute(target);
   }
 
   static void truncate() {
     JdbcClient.create(dataSource()).sql("TRUNCATE TABLE outbox_message").update();
+  }
+
+  static void truncateUpgraded() {
+    JdbcClient.create(upgradedDataSource()).sql("TRUNCATE TABLE outbox_message").update();
   }
 }

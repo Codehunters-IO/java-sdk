@@ -3,6 +3,10 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
 import java.time.Duration;
@@ -11,11 +15,15 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 class OutboxJdbcAdapterTest {
@@ -26,9 +34,13 @@ class OutboxJdbcAdapterTest {
   private JdbcClient jdbcClient;
   private JsonMapper jsonMapper;
   private OutboxJdbcAdapter adapter;
+  private ListAppender<ILoggingEvent> adapterLogs;
 
   @BeforeEach
   void setUp() {
+    adapterLogs = new ListAppender<>();
+    adapterLogs.start();
+    adapterLogger().addAppender(adapterLogs);
     dataSource =
         new EmbeddedDatabaseBuilder()
             .setType(EmbeddedDatabaseType.H2)
@@ -38,6 +50,15 @@ class OutboxJdbcAdapterTest {
     jdbcClient = JdbcClient.create(dataSource);
     jsonMapper = JsonMapper.builder().build();
     adapter = new OutboxJdbcAdapter(dataSource, jsonMapper, ORIGIN);
+  }
+
+  @AfterEach
+  void tearDown() {
+    adapterLogger().detachAppender(adapterLogs);
+  }
+
+  private static Logger adapterLogger() {
+    return (Logger) LoggerFactory.getLogger(OutboxJdbcAdapter.class);
   }
 
   @Test
@@ -723,6 +744,44 @@ class OutboxJdbcAdapterTest {
     assertThat(sendStartedAtOf(id)).isNull();
   }
 
+  @Test
+  void should_warn_once_when_send_mark_runs_inside_caller_transaction() {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+    adapter.save(unsent(first));
+    adapter.save(unsent(second, "other-key"));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5));
+
+    inCallerTransaction(
+        () -> {
+          adapter.markSendStarted(claimed.get(0));
+          adapter.markSendStarted(claimed.get(1));
+        });
+
+    assertThat(adapterLogs.list)
+        .filteredOn(event -> event.getLevel() == Level.WARN)
+        .singleElement()
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .asString()
+        .contains("transaction");
+  }
+
+  @Test
+  void should_not_warn_when_send_mark_runs_outside_a_transaction() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+
+    adapter.markSendStarted(claimed);
+
+    assertThat(adapterLogs.list).noneMatch(event -> event.getLevel() == Level.WARN);
+  }
+
+  private void inCallerTransaction(Runnable work) {
+    new TransactionTemplate(new DataSourceTransactionManager(dataSource))
+        .executeWithoutResult(status -> work.run());
+  }
+
   private void markSendStartedByDeadInstance(UUID id) {
     jdbcClient
         .sql("UPDATE outbox_message SET send_started_at = :old WHERE id = :id")
@@ -766,10 +825,14 @@ class OutboxJdbcAdapterTest {
   }
 
   private static OutboxMessage<String> unsent(UUID id) {
+    return unsent(id, "k");
+  }
+
+  private static OutboxMessage<String> unsent(UUID id, String key) {
     return OutboxMessage.<String>builder()
         .id(id)
         .topic("t")
-        .key("k")
+        .key(key)
         .message("p")
         .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
         .build();

@@ -315,4 +315,48 @@ class SendOutboxMessagesUseCaseTest {
     verify(repo).update(held);
     assertThat(held.getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
   }
+
+  @Test
+  void should_neither_publish_nor_update_when_send_mark_fails() {
+    OutboxMessage<String> msg = claimed();
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    when(repo.markSendStarted(msg)).thenThrow(new IllegalStateException(PII_SENTINEL));
+
+    useCase.execute();
+
+    verify(publisher, never()).publish(any());
+    verify(repo, never()).update(any());
+    assertThat(msg.getStatus()).isEqualTo(OutboxStatus.IN_FLIGHT);
+    assertThat(msg.getAttempts()).isZero();
+  }
+
+  @Test
+  void should_keep_dispatching_next_message_when_send_mark_of_previous_fails() {
+    OutboxMessage<String> broken = claimed();
+    OutboxMessage<String> held = claimed();
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any()))
+        .thenReturn(List.of(broken, held));
+    when(repo.markSendStarted(broken)).thenThrow(new IllegalStateException(PII_SENTINEL));
+
+    useCase.execute();
+
+    verify(publisher).publish(held);
+    verify(repo).update(held);
+    assertThat(held.getStatus()).isEqualTo(OutboxStatus.PUBLISHED);
+  }
+
+  @Test
+  void should_log_message_id_without_exception_message_when_send_mark_fails() {
+    OutboxMessage<String> msg = claimed();
+    when(repo.claimPendingMessages(any(), anyInt(), any(), any())).thenReturn(List.of(msg));
+    when(repo.markSendStarted(msg)).thenThrow(new IllegalStateException(PII_SENTINEL));
+
+    useCase.execute();
+
+    assertThat(logAppender.list)
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .anyMatch(line -> line.contains(msg.getId().toString()))
+        .noneMatch(line -> line.contains("PII-SENTINEL"));
+    assertThat(logAppender.list).allMatch(event -> event.getThrowableProxy() == null);
+  }
 }

@@ -50,10 +50,12 @@ abstract class SendStartedReclaimContract {
     UUID notSentA = save("k2");
     UUID notSentB = save("k3");
     var abandoned = adapter.claimPendingMessages(ORIGIN, 10, "dead", TTL);
-    adapter.markSendStarted(abandoned.get(0));
+    boolean marked = adapter.markSendStarted(byId(abandoned, started));
     ageClaims();
 
     adapter.claimPendingMessages(ORIGIN, 10, "live", TTL);
+
+    assertThat(marked).isTrue();
 
     assertThat(attemptsOf(started)).isEqualTo(1);
     assertThat(attemptsOf(notSentA)).isZero();
@@ -65,11 +67,12 @@ abstract class SendStartedReclaimContract {
     UUID id = save("k1");
     setAttempts(id, MAX_ATTEMPTS - 1);
     var abandoned = adapter.claimPendingMessages(ORIGIN, 10, "dead", TTL);
-    adapter.markSendStarted(abandoned.get(0));
+    boolean marked = adapter.markSendStarted(byId(abandoned, id));
     ageClaims();
 
     useCase().execute();
 
+    assertThat(marked).isTrue();
     assertThat(publisher.published).isEmpty();
     assertThat(rowOf(id))
         .containsEntry("status", "FAILED")
@@ -101,9 +104,41 @@ abstract class SendStartedReclaimContract {
     assertThat(rowOf(id).get("send_started_at")).isNull();
   }
 
+  @Test
+  void should_schedule_retry_and_clear_send_mark_when_publish_fails() {
+    UUID id = save("k1");
+
+    useCase(new FailingPublisher()).execute();
+
+    assertThat(rowOf(id)).containsEntry("status", "PENDING").containsEntry("attempts", 1);
+    assertThat(rowOf(id).get("send_started_at")).isNull();
+  }
+
+  @Test
+  void should_mark_failed_and_clear_send_mark_when_last_publish_attempt_fails() {
+    UUID id = save("k1");
+    setAttempts(id, MAX_ATTEMPTS - 1);
+
+    useCase(new FailingPublisher()).execute();
+
+    assertThat(rowOf(id)).containsEntry("status", "FAILED").containsEntry("attempts", MAX_ATTEMPTS);
+    assertThat(rowOf(id).get("send_started_at")).isNull();
+  }
+
   private SendOutboxMessagesUseCase useCase() {
+    return useCase(publisher);
+  }
+
+  private SendOutboxMessagesUseCase useCase(MessagePublisherPort sender) {
     return new SendOutboxMessagesUseCase(
-        adapter, publisher, 10, MAX_ATTEMPTS, "live", ORIGIN, TTL.toMillis(), 1_000L, 60_000L);
+        adapter, sender, 10, MAX_ATTEMPTS, "live", ORIGIN, TTL.toMillis(), 1_000L, 60_000L);
+  }
+
+  private static OutboxMessage<String> byId(List<OutboxMessage<String>> messages, UUID id) {
+    return messages.stream()
+        .filter(message -> id.equals(message.getId()))
+        .findFirst()
+        .orElseThrow();
   }
 
   private UUID save(String key) {
@@ -148,6 +183,25 @@ abstract class SendStartedReclaimContract {
         .param("id", id)
         .query()
         .singleRow();
+  }
+
+  /** Publisher whose every send fails, as a broker outage would. */
+  private static final class FailingPublisher implements MessagePublisherPort {
+
+    @Override
+    public void publish(String topic, String routingKey, String payload) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void publish(String topic, String payload) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void publish(OutboxMessage<String> message) {
+      throw new IllegalStateException("broker unavailable");
+    }
   }
 
   /** Publisher that records every message handed to it. */

@@ -14,10 +14,15 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 final class PostgresTestSupport {
 
   static final String REFERENCE_DDL = "db/migration/outbox/postgresql/outbox_message_create.sql";
+  static final String UPGRADE_DDL =
+      "db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql";
+
+  private static final String UPGRADE_SCHEMA = "upgraded_from_6x";
 
   private static final PostgreSQLContainer CONTAINER =
       new PostgreSQLContainer("postgres:17-alpine");
   private static DataSource dataSource;
+  private static DataSource upgradedDataSource;
 
   private PostgresTestSupport() {}
 
@@ -34,16 +39,49 @@ final class PostgresTestSupport {
     JdbcClient.create(dataSource()).sql("TRUNCATE outbox_message, shedlock").update();
   }
 
+  /**
+   * A separate schema shaped like a 6.x install: the reference DDL without {@code send_started_at},
+   * then the 7.0 upgrade script applied twice to prove it is idempotent.
+   */
+  static synchronized DataSource upgradedDataSource() {
+    if (upgradedDataSource == null) {
+      JdbcClient.create(dataSource()).sql("CREATE SCHEMA " + UPGRADE_SCHEMA).update();
+      DataSource upgraded = createDataSource(UPGRADE_SCHEMA);
+      loadReferenceDdl(upgraded);
+      JdbcClient.create(upgraded)
+          .sql("ALTER TABLE outbox_message DROP COLUMN send_started_at")
+          .update();
+      runScript(upgraded, UPGRADE_DDL);
+      runScript(upgraded, UPGRADE_DDL);
+      upgradedDataSource = upgraded;
+    }
+    return upgradedDataSource;
+  }
+
+  static void truncateUpgraded() {
+    JdbcClient.create(upgradedDataSource()).sql("TRUNCATE outbox_message, shedlock").update();
+  }
+
   private static DataSource createDataSource() {
+    return createDataSource("public");
+  }
+
+  // The container URL may already carry query parameters, so the schema goes in the properties.
+  private static DataSource createDataSource(String schema) {
     var ds = new DriverManagerDataSource();
     ds.setDriverClassName("org.postgresql.Driver");
     ds.setUrl(CONTAINER.getJdbcUrl());
+    ds.setSchema(schema);
     ds.setUsername(CONTAINER.getUsername());
     ds.setPassword(CONTAINER.getPassword());
     return ds;
   }
 
   private static void loadReferenceDdl(DataSource target) {
-    new ResourceDatabasePopulator(new ClassPathResource(REFERENCE_DDL)).execute(target);
+    runScript(target, REFERENCE_DDL);
+  }
+
+  private static void runScript(DataSource target, String script) {
+    new ResourceDatabasePopulator(new ClassPathResource(script)).execute(target);
   }
 }
