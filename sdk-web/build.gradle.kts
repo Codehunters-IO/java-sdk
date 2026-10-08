@@ -3,21 +3,30 @@ plugins {
 }
 
 version = "1.0.0"
-description = "RFC 9457 problem details for Spring MVC: stable error codes, localized messages, no leaks."
+description = "Servlet web toolkit: RFC 9457 problem details, client IP and User-Agent, X-Locale i18n."
+
+// One artifact for what were sdk-web-errors, sdk-device and sdk-i18n (ADR 0016). Each part keeps
+// its own auto-configuration, package, properties and on/off switch.
+codehuntersPublishing {
+    replaces("sdk-web-errors", "sdk-device", "sdk-i18n")
+}
 
 dependencies {
+    implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
+    compileOnly("org.springframework:spring-context")
     compileOnly("org.springframework:spring-web")
     compileOnly("org.springframework:spring-webmvc")
+    compileOnly("org.springframework.boot:spring-boot-webmvc")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
     compileOnly("jakarta.validation:jakarta.validation-api")
-    compileOnly("org.springframework.boot:spring-boot-webmvc")
     compileOnly("org.springframework.security:spring-security-core")
     compileOnly("org.springframework.security:spring-security-web")
     compileOnly("org.springframework.security:spring-security-oauth2-resource-server")
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly(project(":sdk-tracing"))
+    compileOnly(libs.uap.java)
 
     testImplementation(project(":sdk-tracing"))
     testImplementation("org.springframework.boot:spring-boot-webmvc")
@@ -31,10 +40,8 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-web")
     testImplementation("org.springframework.security:spring-security-oauth2-resource-server")
     testImplementation("jakarta.servlet:jakarta.servlet-api")
+    testImplementation(libs.uap.java)
     testImplementation(libs.archunit.junit5)
-}
-
-// Spring MVC binds @RequestParam/@PathVariable by parameter name, and violations report it.
-tasks.withType<JavaCompile>().configureEach {
-    options.compilerArgs.add("-parameters")
+    testImplementation("org.awaitility:awaitility")
+    testImplementation("org.mockito:mockito-core")
 }
