@@ -26,8 +26,9 @@ class JdbcParameterAdapterPostgresIT {
   private static final ParameterModule ORDERS = ParameterModule.of("ORDERS");
   private static final UUID OPERATOR = UUID.fromString("00000000-0000-0000-0000-000000000001");
 
-  @Container
-  static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17-alpine");
+  private static final String POSTGRES_IMAGE = "postgres:17-alpine";
+
+  @Container static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer(POSTGRES_IMAGE);
 
   private static DriverManagerDataSource dataSource;
   private JdbcClient jdbcClient;
@@ -49,7 +50,7 @@ class JdbcParameterAdapterPostgresIT {
   }
 
   @Test
-  void should_read_a_row_inserted_with_the_reference_ddl_defaults() {
+  void should_read_row_when_inserted_with_reference_ddl_defaults() {
     insert("MAX", "100");
 
     Parameter parameter = adapter.lookup(ORDERS, "tickets", "MAX").orElseThrow();
@@ -64,7 +65,7 @@ class JdbcParameterAdapterPostgresIT {
   }
 
   @Test
-  void should_read_the_empty_submodule_when_none_is_given() {
+  void should_read_empty_submodule_when_none_is_given() {
     jdbcClient
         .sql(
             "INSERT INTO parameters (module, name, value, type, created_by)"
@@ -76,7 +77,7 @@ class JdbcParameterAdapterPostgresIT {
   }
 
   @Test
-  void should_skip_soft_deleted_rows() {
+  void should_skip_row_when_soft_deleted() {
     insert("MAX", "100");
     jdbcClient.sql("UPDATE parameters SET deleted_at = now()").update();
 
@@ -84,7 +85,7 @@ class JdbcParameterAdapterPostgresIT {
   }
 
   @Test
-  void should_reject_a_second_live_row_with_the_same_module_submodule_and_name() {
+  void should_reject_second_live_row_when_module_submodule_and_name_repeat() {
     insert("MAX", "100");
 
     assertThatThrownBy(() -> insert("MAX", "200"))
@@ -92,7 +93,7 @@ class JdbcParameterAdapterPostgresIT {
   }
 
   @Test
-  void should_reject_a_type_the_sdk_does_not_know() {
+  void should_reject_type_when_sdk_does_not_know_it() {
     assertThatThrownBy(
             () ->
                 jdbcClient

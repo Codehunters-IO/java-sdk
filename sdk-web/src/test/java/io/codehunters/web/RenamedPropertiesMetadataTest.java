@@ -14,8 +14,7 @@ import tools.jackson.databind.json.JsonMapper;
 
 class RenamedPropertiesMetadataTest {
 
-  private static final String METADATA =
-      "/META-INF/additional-spring-configuration-metadata.json";
+  private static final String METADATA = "/META-INF/additional-spring-configuration-metadata.json";
 
   @ParameterizedTest
   @CsvSource({
