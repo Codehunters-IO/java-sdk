@@ -14,6 +14,7 @@ import org.keycloak.adapters.authorization.integration.jakarta.ServletPolicyEnfo
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -26,9 +27,11 @@ import org.springframework.security.oauth2.server.resource.web.DefaultBearerToke
  *
  * <p>Requests Spring Security left unauthenticated (public and excluded paths) are not enforced:
  * protected paths already answered 401 before reaching this filter. Error dispatches are not
- * enforced again. The bearer token is read with Spring Security's own resolver, so the enforcer
- * sees the token that was authenticated. The Keycloak enforcer is built on the first enforced
- * request; when Keycloak cannot be reached then, the request answers 503 and the next one retries.
+ * enforced again, and neither are requests without a bearer token, which another application chain
+ * (basic auth on actuator, for example) authenticated. The bearer token is read with Spring
+ * Security's own resolver, so the enforcer sees the token that was authenticated. The Keycloak
+ * enforcer is built on the first enforced request; when Keycloak cannot be reached then, the
+ * request answers 503 and the next one retries.
  */
 public class KeycloakPolicyEnforcerFilter extends ServletPolicyEnforcerFilter {
 
@@ -92,8 +95,16 @@ public class KeycloakPolicyEnforcerFilter extends ServletPolicyEnforcerFilter {
 
   private boolean isEnforceable(HttpServletRequest request) {
     return request.getDispatcherType() == DispatcherType.REQUEST
+        && hasBearerToken(request)
         && trust.isAuthenticated(
             SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication());
+  }
+
+  // The customizer reaches every HttpSecurity, so a chain that authenticates otherwise (basic
+  // auth on actuator, for example) must pass through untouched.
+  private static boolean hasBearerToken(HttpServletRequest request) {
+    String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+    return header != null && header.regionMatches(true, 0, "Bearer ", 0, 7);
   }
 
   /** Building the enforcer failed, which means Keycloak could not be reached or rejected us. */

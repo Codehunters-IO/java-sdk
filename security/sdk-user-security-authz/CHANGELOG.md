@@ -32,6 +32,8 @@
   or an enforcement mode is unknown.
 
 ### Behaviour changes
+- Only requests with a `Bearer` token are enforced; a request another chain authenticated without
+  one (basic auth on actuator, for example) passes through.
 - Unauthenticated requests are answered by Spring Security (401 on protected paths) before
   Keycloak is asked; anonymous requests on public and excluded paths are not enforced.
 - Authenticated requests to paths not in the catalog are denied (403) under `ENFORCING`;

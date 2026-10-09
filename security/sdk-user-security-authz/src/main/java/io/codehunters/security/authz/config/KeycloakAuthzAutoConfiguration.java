@@ -29,7 +29,8 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
  * <p>The enforcer is placed right after Spring Security's {@link AuthorizationFilter}, through a
  * {@code Customizer<HttpSecurity>} bean that Spring Security applies to every {@link HttpSecurity}
  * it builds: the sdk-user-security chains and any chain the application defines. Requests are
- * therefore authenticated (or rejected with 401) before Keycloak is asked.
+ * therefore authenticated (or rejected with 401) before Keycloak is asked; requests without a
+ * bearer token, authenticated by another chain, pass through untouched.
  *
  * <p>The enforcer is built on the first enforced request, so a service starts while Keycloak is
  * unreachable. Calls to Keycloak have connect and read timeouts and a bounded connection pool.

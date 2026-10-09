@@ -19,7 +19,8 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
 - **Placement.** The enforcer runs right after Spring Security's `AuthorizationFilter`, in every
   `SecurityFilterChain`: the sdk-user-security chains and any chain the application defines. It
   is added by a `Customizer<HttpSecurity>` bean, which Spring Security applies to each
-  `HttpSecurity` it builds.
+  `HttpSecurity` it builds. Only requests carrying a `Bearer` token are enforced, so a chain that
+  authenticates otherwise (basic auth on actuator, for example) is left alone.
 - **Authentication first.** A protected path without a valid token answers 401 from Spring
   Security; Keycloak is not asked. Requests Spring Security lets through unauthenticated (public
   and excluded paths) are not enforced. An authenticated request is enforced on every path,
