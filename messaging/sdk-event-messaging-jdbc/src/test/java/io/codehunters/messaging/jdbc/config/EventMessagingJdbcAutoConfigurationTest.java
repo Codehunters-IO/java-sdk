@@ -2,7 +2,6 @@ package io.codehunters.messaging.jdbc.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxRepositoryPort;
@@ -13,9 +12,6 @@ import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
 import io.codehunters.messaging.jdbc.scheduler.OutboxScheduler;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.SQLException;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Test;
@@ -202,7 +198,7 @@ class EventMessagingJdbcAutoConfigurationTest {
   @Test
   void should_fail_startup_when_datasource_is_not_postgresql() {
     contextRunner
-        .withBean(DataSource.class, () -> reporting("H2"))
+        .withBean(DataSource.class, () -> DataSources.reporting("H2"))
         .run(
             context ->
                 assertThat(context)
@@ -212,22 +208,14 @@ class EventMessagingJdbcAutoConfigurationTest {
                     .hasMessageContaining("H2"));
   }
 
-  // A mock that cannot connect: the PostgreSQL check skips it, so wiring runs without a database.
-  private DataSource createDataSource() {
-    return mock(DataSource.class);
+  @Test
+  void should_start_when_database_is_unreachable_at_startup() {
+    contextRunner
+        .withBean(DataSource.class, DataSources::unreachable)
+        .run(context -> assertThat(context).hasNotFailed());
   }
 
-  private static DataSource reporting(String product) {
-    try {
-      DataSource dataSource = mock(DataSource.class);
-      Connection connection = mock(Connection.class);
-      DatabaseMetaData metaData = mock(DatabaseMetaData.class);
-      when(dataSource.getConnection()).thenReturn(connection);
-      when(connection.getMetaData()).thenReturn(metaData);
-      when(metaData.getDatabaseProductName()).thenReturn(product);
-      return dataSource;
-    } catch (SQLException e) {
-      throw new IllegalStateException(e);
-    }
+  private DataSource createDataSource() {
+    return DataSources.postgres();
   }
 }

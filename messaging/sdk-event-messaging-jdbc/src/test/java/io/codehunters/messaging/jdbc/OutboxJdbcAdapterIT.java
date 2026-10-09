@@ -23,7 +23,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
-class OutboxJdbcAdapterTest {
+class OutboxJdbcAdapterIT {
 
   private static final String ORIGIN = "orders-ms-test";
 

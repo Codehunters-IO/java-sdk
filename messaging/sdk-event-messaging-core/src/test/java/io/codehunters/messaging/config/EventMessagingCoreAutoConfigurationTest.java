@@ -171,6 +171,17 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
+  void should_ignore_previous_prefix_when_only_old_keys_are_set() {
+    contextRunner
+        .withPropertyValues("outbox.batch-size=7", "outbox.enabled=false")
+        .run(
+            context -> {
+              assertThat(context.getBean(EventMessagingProperties.class).batchSize()).isEqualTo(50);
+              assertThat(context.getBean(EventMessagingProperties.class).enabled()).isTrue();
+            });
+  }
+
+  @Test
   void should_bind_overridden_properties_when_configured() {
     contextRunner
         .withPropertyValues(

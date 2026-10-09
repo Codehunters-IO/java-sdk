@@ -17,6 +17,8 @@ dependencies {
     compileOnly("org.springframework:spring-context")
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
+    testCompileOnly(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 
     testImplementation(project(":sdk-event-messaging-jdbc"))
     testImplementation(project(":sdk-event-messaging-kafka"))

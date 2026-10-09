@@ -290,8 +290,8 @@ class EventMessagingKafkaAutoConfigurationTest {
     return producerFactory;
   }
 
-  // Wiring never opens a connection, so a mock stands in for the outbox database.
+  // The outbox startup check reads the driver metadata, so the mock reports PostgreSQL.
   private DataSource createDataSource() {
-    return mock(DataSource.class);
+    return PostgresDataSource.create();
   }
 }
