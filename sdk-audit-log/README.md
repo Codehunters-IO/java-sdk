@@ -9,6 +9,10 @@ implementation(platform("io.codehunters:sdk-bom:<version>"))
 implementation("io.codehunters:sdk-audit-log")
 ```
 
+API types live in `io.codehunters.audit`; auto-configuration in `io.codehunters.audit.config` and the
+JDBC adapter and publishers in `io.codehunters.audit.persistence`. Coming from 3.x:
+[MIGRATION-4.0.md](MIGRATION-4.0.md).
+
 ## Usage
 
 ```java
@@ -31,7 +35,7 @@ Declare an `AuditContextProvider` bean to fill the actor, IP, user agent, HTTP m
 and source service from the security context or the request. Values set on the annotation win. A
 provider method that throws leaves its field `null`.
 
-Without one, the default provider fills nothing, unless [`sdk-web`](../sdk-web/README.md#device--iocodehuntersdevice)
+Without one, the default provider fills nothing, unless [`sdk-web`](../sdk-web/README.md#device--iocodehunterswebdevice)
 (its device part) is on the classpath of a servlet application: then it records the IP of the current request, resolved
 behind the device SDK's trusted proxies, and its sanitized `User-Agent`. The actor and the rest stay
 empty; declare your own provider to fill them.
@@ -176,7 +180,7 @@ enable AspectJ proxying in your configuration or `@Auditable` has no effect. Sta
 an AspectJ auto-proxy creator: without one it logs a warning, or fails when
 `codehunters.audit.fail-on-error=true`.
 
-Invalid sizes fail at startup. The 2.x key `vitxo.audit.fail-on-error` works until 4.0.0 and logs
+Invalid sizes fail at startup. The 2.x key `vitxo.audit.fail-on-error` works until 5.0.0 and logs
 a deprecation warning.
 
 ## Known limits
