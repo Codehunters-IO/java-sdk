@@ -23,8 +23,14 @@ The only things the platform does not provide are reading the gateway's legacy h
   composes with its own W3C/B3 propagators. It extracts from the legacy headers only when no
   standard context is present; it injects `x-traceparent` only when
   `codehunters.tracing.legacy-headers.inject=true`. Brave is not supported for legacy headers.
+- `x-traceparent` keeps the flags it carries. A legacy `x-trace-id` (with or without `x-span-id`)
+  carries no sampling decision, so it is sampled by trace-id ratio with
+  `management.tracing.sampling.probability` (0.1 when Boot's properties are absent) — the decision
+  Boot's root sampler would make — instead of always.
 - `TraceContextPort` is backed by the Micrometer `Tracer`; the MDC adapter remains only when there is
-  no tracer (or only `Tracer.NOOP`).
+  no tracer (or only `Tracer.NOOP`). It reports a trace as sampled only when the MDC carries trace
+  flags that say so. The SDK no longer writes the MDC, so without a tracer bridge the trace id is
+  empty in logs, problem responses and events.
 - The servlet filter, the task decorator and the RabbitMQ post-processor and interceptors are
   removed; `MIGRATION-3.0.md` maps each one to the Boot property or bean that replaces it.
 

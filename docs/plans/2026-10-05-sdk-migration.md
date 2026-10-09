@@ -1602,3 +1602,23 @@ Decisión D24 ([ADR 0022](../adr/0022-tracing-on-micrometer-tracing.md),
 - Cuatro ramas paralelas, integradas en una sola.
 - Abierto: el enforcer de Keycloak no cachea decisiones (una llamada UMA por request enforced salvo
   RPT); Brave no soporta los headers legacy.
+
+### Fase 28 — arreglos de la revisión
+
+Cuatro ramas paralelas sobre la del PR, integradas en ella; versiones sin cambios.
+
+- `sdk-user-security-authz`: el enforcer se decide por la autenticación (token OAuth2 o
+  `KeycloakPrincipal`), no por el header, así que un `BearerTokenResolver` propio de la app no lo
+  saltea; sin token resoluble, 403. El filtro llama al `PolicyEnforcer` sin heredar de
+  `ServletPolicyEnforcerFilter`: un build fallido responde 503 durante `retry-backoff` (10 s) y un
+  solo request reconstruye. Los paths se comparan decodificados. Cliente HTTP como bean cerrado con
+  el contexto; contador `codehunters.authz.enforcer.failures`.
+- `sdk-tracing`: `x-trace-id` sin flags se muestrea por ratio del trace id
+  (`management.tracing.sampling.probability`); el fallback MDC sin flags no se reporta muestreado;
+  documentado el `traceId` vacío sin bridge y que el MDC no viaja a `@Async` sin
+  `Slf4jThreadLocalAccessor`.
+- `sdk-web`: `messageSource` de respaldo con el bundle del SDK cuando la app no tiene bundle, bundle
+  en inglés explícito, resolver que siempre devuelve un locale soportado y aviso al arrancar si las
+  claves del SDK no se resuelven.
+- `sdk-event-messaging-*`: chequeo W3C compartido (`W3cTraceParent`); un `traceparent` inválido se
+  guarda como `NULL` y no se publica; el trace id del llamador se compara exacto.

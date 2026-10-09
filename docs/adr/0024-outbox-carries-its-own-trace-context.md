@@ -15,12 +15,17 @@ post-processor, which preferred the scheduler's MDC; Kafka records got no `trace
 
 - The full W3C `traceparent` of the writing request is stored with the row (nullable column
   `traceparent`, captured when the row is built from `TraceContextPort` when `sdk-tracing` is present).
+- Every value is checked once with the shared W3C check (`W3cTraceParent`: 55 characters, lowercase
+  hex, version not `ff`, non-zero ids) before it is stored or sent. An invalid value is stored as
+  `NULL` (never failing the business transaction) and no header is written for it; the caller's trace
+  id must equal the current trace id exactly.
 - Both transports write the stored value as the `traceparent` header on publish (`x-traceparent`
   only with `codehunters.outbox.publisher.legacy-traceparent-header=true`). The SDK-owned outbox
   templates keep Boot's observation off, so nothing overwrites it.
 - When a Micrometer `Tracer` exists, the stored context is made current around each publish, so logs
   and any span started inside it belong to the request's trace; the dispatcher's context is restored
-  afterwards. Without a tracer the stored value is sent unchanged.
+  afterwards. Without a tracer the stored value is sent unchanged. Without a tracer bridge nothing is
+  captured, because `sdk-tracing` 3.0 no longer writes the MDC.
 
 ## Consequences
 

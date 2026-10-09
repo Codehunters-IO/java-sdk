@@ -131,13 +131,17 @@ service has to look at when moving to `sdk-bom` 5.0.0:
     ([ADR 0022](docs/adr/0022-tracing-on-micrometer-tracing.md)): add a tracing bridge
     (OpenTelemetry for the legacy gateway headers) and turn on Boot's observation for Rabbit and
     Kafka; the removed filter, task decorator and Rabbit instrumentation map to Boot properties in
-    its [MIGRATION-3.0](sdk-tracing/MIGRATION-3.0.md). Outbox messages carry the writing request's
+    its [MIGRATION-3.0](sdk-tracing/MIGRATION-3.0.md). Legacy `x-trace-id` requests are sampled by
+    trace-id ratio (`management.tracing.sampling.probability`), and without a bridge the trace id is
+    empty in logs, problems and events. Outbox messages carry the writing request's validated
     `traceparent` ([ADR 0024](docs/adr/0024-outbox-carries-its-own-trace-context.md)).
 12. **i18n.** `sdk-web` uses Boot's message source (`spring.messages.*`) and has no default locale;
-    set `spring.web.locale=es` to keep the old default
+    set `spring.web.locale=es` to keep the old default. Without an application bundle the SDK still
+    registers a message source for its own error texts
     ([ADR 0025](docs/adr/0025-i18n-on-boot-message-source.md)).
 13. **Authorization.** `sdk-user-security-authz` runs Keycloak's official policy enforcer with
-    Keycloak's semantics (an unmapped path is denied under `ENFORCING`)
+    Keycloak's semantics (an unmapped path is denied under `ENFORCING`) on every request authenticated
+    from an OAuth2 token, and answers 503 during `retry-backoff` after a failed enforcer build
     ([ADR 0023](docs/adr/0023-authz-on-keycloak-policy-enforcer.md),
     [MIGRATION-5.0](security/sdk-user-security-authz/MIGRATION-5.0.md)).
 

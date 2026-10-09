@@ -34,15 +34,22 @@ published:
 - `sdk-tracing` 3.0.0: built on Micrometer Tracing; keeps only the OpenTelemetry propagator for the
   legacy gateway headers and a `TraceContextPort` backed by the `Tracer`
   ([ADR 0022](docs/adr/0022-tracing-on-micrometer-tracing.md)). The servlet filter, task decorator
-  and RabbitMQ instrumentation are removed in favour of Boot's.
+  and RabbitMQ instrumentation are removed in favour of Boot's. Legacy `x-trace-id` requests are
+  sampled by trace-id ratio instead of always; the MDC fallback reports unsampled traces when it has
+  no flags, and the trace id is empty without a tracer bridge.
 - `sdk-event-messaging-*` 9.0.0: outbox rows store the writing request's `traceparent` (new column,
   `postgresql/outbox_message_add_traceparent.sql`) and both transports publish it
-  ([ADR 0024](docs/adr/0024-outbox-carries-its-own-trace-context.md)).
+  ([ADR 0024](docs/adr/0024-outbox-carries-its-own-trace-context.md)). Values pass the shared
+  `W3cTraceParent` check first; invalid ones are stored as `NULL` and never sent.
 - `sdk-user-security-authz` 5.0.0: Keycloak's official policy enforcer inside the Spring Security
-  chain, only for requests with a bearer token
+  chain for every request authenticated from an OAuth2 token, whatever bearer resolver the
+  application uses; paths match on the decoded path; a failed enforcer build answers 503 during
+  `retry-backoff`; failures are counted as `codehunters.authz.enforcer.failures`
   ([ADR 0023](docs/adr/0023-authz-on-keycloak-policy-enforcer.md)).
-- `sdk-web` 3.0.0: i18n on Boot's message source and an `X-Locale` resolver with Boot's defaults;
-  401/403 details follow the application's locale resolver
+- `sdk-web` 3.0.0: i18n on Boot's message source and an `X-Locale` resolver with Boot's defaults
+  that always answers a supported locale; 401/403 details follow the application's locale
+  resolver; without an application bundle the errors part registers a message source with the SDK
+  bundle, which now ships an explicit English file
   ([ADR 0025](docs/adr/0025-i18n-on-boot-message-source.md)).
 
 ## sdk-bom 4.0.0 (not published on its own)
