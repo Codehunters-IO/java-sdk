@@ -19,7 +19,13 @@ public enum ErrorCorrection {
     this.zxing = zxing;
   }
 
-  ErrorCorrectionLevel zxing() {
+  /**
+   * The ZXing level this one maps to, read by the SDK's render package. Not API: ZXing is not on
+   * the consumer's compile classpath, and this may change in any release.
+   *
+   * @return the ZXing error correction level
+   */
+  public ErrorCorrectionLevel zxing() {
     return zxing;
   }
 }

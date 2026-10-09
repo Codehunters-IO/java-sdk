@@ -1,5 +1,7 @@
 package io.codehunters.barcode;
 
+import io.codehunters.barcode.render.ContentRules;
+
 /**
  * What to render. Content is checked against the rules of its format on construction; whether it
  * fits the symbol (QR, Data Matrix and PDF417 capacity) is checked when rendering. Text is encoded

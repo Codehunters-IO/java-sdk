@@ -1,4 +1,4 @@
-package io.codehunters.barcode;
+package io.codehunters.barcode.read;
 
 /**
  * How an image will be decoded, worked out from its header before any pixel is read.
@@ -14,7 +14,7 @@ package io.codehunters.barcode;
  * @param bytesPerPixel bytes per pixel of the image ImageIO allocates
  * @param jpeg whether the image is a JPEG
  */
-record DecodePlan(int width, int height, int bytesPerPixel, boolean jpeg) {
+public record DecodePlan(int width, int height, int bytesPerPixel, boolean jpeg) {
 
   /** Images are subsampled down to about this many pixels: 2048 x 2048. */
   static final long TARGET_PIXELS = 4_194_304L;
@@ -29,7 +29,7 @@ record DecodePlan(int width, int height, int bytesPerPixel, boolean jpeg) {
   }
 
   /** Keeps one pixel in {@code factor x factor}. */
-  int subsampling() {
+  public int subsampling() {
     return Math.max(1, (int) Math.ceil(Math.sqrt((double) sourcePixels() / TARGET_PIXELS)));
   }
 
@@ -38,7 +38,7 @@ record DecodePlan(int width, int height, int bytesPerPixel, boolean jpeg) {
     return (long) Math.ceilDiv(width, factor) * Math.ceilDiv(height, factor);
   }
 
-  long bytes() {
+  public long bytes() {
     long decoded = decodedPixels() * (bytesPerPixel + GREY_BYTES_PER_PIXEL);
     return jpeg ? decoded + sourcePixels() * JPEG_BUFFER_BYTES_PER_PIXEL : decoded;
   }

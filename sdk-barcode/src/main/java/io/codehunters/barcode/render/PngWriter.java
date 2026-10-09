@@ -1,4 +1,4 @@
-package io.codehunters.barcode;
+package io.codehunters.barcode.render;
 
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -13,11 +13,11 @@ import javax.imageio.stream.MemoryCacheImageOutputStream;
  * Draws a {@link Symbol} into a black and white image: whole pixels per module, centred, at least
  * the requested size. ImageIO's file cache is bypassed, so nothing is written to disk.
  */
-final class PngWriter {
+public final class PngWriter {
 
   private PngWriter() {}
 
-  static Layout layout(Symbol symbol, int width, int height) {
+  public static Layout layout(Symbol symbol, int width, int height) {
     int fit =
         symbol.isLinear()
             ? width / symbol.columns()
@@ -28,7 +28,7 @@ final class PngWriter {
     return new Layout(imageWidth, imageHeight, scale);
   }
 
-  static void write(Symbol symbol, Layout layout, OutputStream out) throws IOException {
+  public static void write(Symbol symbol, Layout layout, OutputStream out) throws IOException {
     BufferedImage image = draw(symbol, layout);
     ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next();
     try (MemoryCacheImageOutputStream stream = new MemoryCacheImageOutputStream(out)) {
@@ -66,5 +66,5 @@ final class PngWriter {
   }
 
   /** Image size and pixels per module. */
-  record Layout(int width, int height, int scale) {}
+  public record Layout(int width, int height, int scale) {}
 }

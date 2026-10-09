@@ -1,4 +1,4 @@
-package io.codehunters.barcode;
+package io.codehunters.barcode.read;
 
 import com.google.zxing.LuminanceSource;
 import com.google.zxing.PlanarYUVLuminanceSource;
@@ -8,11 +8,11 @@ import java.awt.image.BufferedImage;
  * The grey levels ZXing searches, built one row at a time: one byte per pixel, with no full ARGB
  * copy of the image.
  */
-final class Luminance {
+public final class Luminance {
 
   private Luminance() {}
 
-  static LuminanceSource of(BufferedImage image) {
+  public static LuminanceSource of(BufferedImage image) {
     int width = image.getWidth();
     int height = image.getHeight();
     byte[] grey = new byte[width * height];

@@ -1,5 +1,6 @@
-package io.codehunters.barcode;
+package io.codehunters.barcode.render;
 
+import io.codehunters.barcode.BarcodeFormat;
 import java.util.regex.Pattern;
 
 /**
@@ -9,7 +10,7 @@ import java.util.regex.Pattern;
  * <p>The 2D maxima are the longest all-digit content each symbol holds (QR Code at error correction
  * L); text and non-ASCII content fill a symbol sooner, which only encoding can tell.
  */
-final class ContentRules {
+public final class ContentRules {
 
   private static final Pattern DIGITS = Pattern.compile("[0-9]+");
   private static final Pattern CODE_39 = Pattern.compile("[0-9A-Z \\-.$/+%]+");
@@ -18,7 +19,7 @@ final class ContentRules {
 
   private ContentRules() {}
 
-  static void check(BarcodeFormat format, String content) {
+  public static void check(BarcodeFormat format, String content) {
     switch (format) {
       case EAN_13 -> gtin("EAN-13", content, 12);
       case UPC_A -> gtin("UPC-A", content, 11);

@@ -1,10 +1,12 @@
-package io.codehunters.barcode;
+package io.codehunters.barcode.render;
 
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.pdf417.encoder.Dimensions;
+import io.codehunters.barcode.BarcodeFormat;
+import io.codehunters.barcode.BarcodeRequest;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -16,7 +18,7 @@ import java.util.Map;
  * margin means the same for every format: modules on each side. A linear symbol has one row, which
  * the writers stretch to the image height.
  */
-final class Symbol {
+public final class Symbol {
 
   /** The whole PDF417 range (1 to 30 data columns, 3 to 90 rows); ZXing stops at 30 rows. */
   private static final Dimensions PDF417_DIMENSIONS = new Dimensions(1, 30, 3, 90);
@@ -31,7 +33,7 @@ final class Symbol {
     this.linear = linear;
   }
 
-  static Symbol encode(BarcodeRequest request) {
+  public static Symbol encode(BarcodeRequest request) {
     BarcodeFormat format = request.format();
     try {
       BitMatrix modules =

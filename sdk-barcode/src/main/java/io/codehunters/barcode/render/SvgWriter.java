@@ -1,4 +1,4 @@
-package io.codehunters.barcode;
+package io.codehunters.barcode.render;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -11,11 +11,12 @@ import java.nio.charset.StandardCharsets;
  * to the requested size by the viewer. 2D symbols keep their proportions; linear bars stretch to
  * the height.
  */
-final class SvgWriter {
+public final class SvgWriter {
 
   private SvgWriter() {}
 
-  static void write(Symbol symbol, int width, int height, OutputStream out) throws IOException {
+  public static void write(Symbol symbol, int width, int height, OutputStream out)
+      throws IOException {
     Writer writer = new OutputStreamWriter(out, StandardCharsets.UTF_8);
     writer.write(header(symbol, width, height));
     for (Symbol.Run run : symbol.runs()) {

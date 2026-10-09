@@ -39,7 +39,13 @@ public enum BarcodeFormat {
     return twoDimensional;
   }
 
-  com.google.zxing.BarcodeFormat zxing() {
+  /**
+   * The ZXing format this one maps to, read by the SDK's render package. Not API: ZXing is not on
+   * the consumer's compile classpath, and this may change in any release.
+   *
+   * @return the ZXing format
+   */
+  public com.google.zxing.BarcodeFormat zxing() {
     return zxing;
   }
 
