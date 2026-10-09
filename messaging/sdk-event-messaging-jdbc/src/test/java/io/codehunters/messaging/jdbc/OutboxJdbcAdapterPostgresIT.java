@@ -22,6 +22,8 @@ class OutboxJdbcAdapterPostgresIT {
 
   private static final String ORIGIN = "sentinel-ms-test";
   private static final Duration TTL = Duration.ofMinutes(5);
+  private static final String TRACEPARENT =
+      "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
   private DataSource dataSource;
   private JdbcClient jdbcClient;
@@ -126,7 +128,7 @@ class OutboxJdbcAdapterPostgresIT {
 
   private Map<String, Object> rowOf(UUID id) {
     return jdbcClient
-        .sql("SELECT status, claimed_by FROM outbox_message WHERE id = :id")
+        .sql("SELECT status, claimed_by, traceparent FROM outbox_message WHERE id = :id")
         .param("id", id)
         .query()
         .singleRow();
@@ -172,6 +174,35 @@ class OutboxJdbcAdapterPostgresIT {
 
     assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  @Test
+  void should_return_stored_traceparent_when_message_is_claimed() {
+    adapter.save(unsent(UUID.randomUUID()).toBuilder().traceparent(TRACEPARENT).build());
+
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL);
+
+    assertThat(claimed)
+        .singleElement()
+        .extracting(OutboxMessage::getTraceparent)
+        .isEqualTo(TRACEPARENT);
+  }
+
+  @Test
+  void should_persist_traceparent_column_when_message_is_saved() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id).toBuilder().traceparent(TRACEPARENT).build());
+
+    assertThat(rowOf(id).get("traceparent")).isEqualTo(TRACEPARENT);
+  }
+
+  @Test
+  void should_claim_null_traceparent_when_message_was_saved_without_one() {
+    adapter.save(unsent(UUID.randomUUID()));
+
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL);
+
+    assertThat(claimed).singleElement().extracting(OutboxMessage::getTraceparent).isNull();
   }
 
   private void markSendStartedByDeadInstance(UUID id) {
