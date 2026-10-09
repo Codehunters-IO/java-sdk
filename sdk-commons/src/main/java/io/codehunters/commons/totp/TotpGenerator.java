@@ -179,8 +179,28 @@ public final class TotpGenerator {
    */
   public OptionalLong verifyAfter(
       TotpSecret secret, String code, int variance, long lastAcceptedStep) {
-    var window = new Window(computeCounter(clock.instant()), lastAcceptedStep);
-    return match(secret, code, variance, window);
+    return verifyAfter(secret, code, variance, lastAcceptedStep, clock.instant());
+  }
+
+  /**
+   * Verifies a code against a specific instant, accepting it only for a time step after {@code
+   * lastAcceptedStep}. See {@link #verifyAfter(TotpSecret, String, int, long)}.
+   *
+   * @param secret the shared secret
+   * @param code the code to verify
+   * @param variance the number of steps of drift tolerated on each side, {@code 0} to {@value
+   *     #MAX_VARIANCE}
+   * @param lastAcceptedStep the step returned by the last successful call for this secret, or
+   *     {@link #NO_ACCEPTED_STEP}
+   * @param at the instant to verify against
+   * @return the matched time step, or empty if the code is invalid, {@code null} or not after
+   *     {@code lastAcceptedStep}
+   * @throws IllegalArgumentException if {@code variance} is outside {@code 0..}{@value
+   *     #MAX_VARIANCE}
+   */
+  public OptionalLong verifyAfter(
+      TotpSecret secret, String code, int variance, long lastAcceptedStep, Instant at) {
+    return match(secret, code, variance, new Window(computeCounter(at), lastAcceptedStep));
   }
 
   /**
@@ -189,12 +209,12 @@ public final class TotpGenerator {
    * digits and period. Every component is percent-encoded as UTF-8 (RFC 3986).
    *
    * @param secret the shared secret
-   * @param issuer the service name shown in the app; not blank, no {@code ':'}, no control
-   *     characters
+   * @param issuer the service name shown in the app; not blank, no {@code ':'}, no control or
+   *     invisible format characters (such as bidi overrides or zero-width spaces)
    * @param account the user's account name, such as an e-mail address; same rules as {@code issuer}
    * @return the key URI; it contains the secret, so never log it
    * @throws IllegalArgumentException if {@code issuer} or {@code account} is blank or contains a
-   *     {@code ':'} or a control character; the message never repeats the value
+   *     {@code ':'}, a control or a format character; the message never repeats the value
    */
   public String provisioningUri(TotpSecret secret, String issuer, String account) {
     return TotpUri.of(config, secret, new TotpUri.Label(issuer, account));
