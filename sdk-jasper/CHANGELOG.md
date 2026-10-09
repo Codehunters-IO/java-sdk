@@ -2,15 +2,30 @@
 
 ## 2.1.0
 
+### Behaviour changes
+
+- Parameters holding a `URL`, `URI`, `File`, `Path`, stream or reader below the first level of a
+  collection, map or array, which 2.0.0 let through, are now rejected.
+- A parameter whose collection, map or array contains itself is now rejected (2.0.0 accepted it, and
+  the request's `equals` and `hashCode` then overflowed the stack).
+- A value nesting collections, maps or arrays more than 8 levels deep is now rejected.
+- Nested collections, maps and arrays in parameters are now copied into unmodifiable containers;
+  code that changed them after building the request no longer affects it.
+
+### Changes
+
 - **Fix (security):** `ReportRequest` now looks for `URL`, `URI`, `File`, `Path`, stream and reader
   values at any depth: inside nested collections, map keys and values, and object arrays. Before, the
   check stopped one level down, so a `Map<String, List<URL>>` or a `List<Object[]>` holding a `File`
-  reached JasperReports, which could load a template resource from disk or the network. Cyclic
-  structures are visited once; a value nesting collections, maps or arrays more than 8 levels deep is
-  rejected with a message naming the parameter, never its value.
-- **Metrics:** the `report.render` timer gains a `template` tag (the template name). Its cardinality
-  is bounded by the templates the application ships. Dashboards or alerts that match the exact tag
-  set of `report.render` may need updating.
+  reached JasperReports, which could load a template resource from disk or the network. Containers
+  are copied as they are checked, so the request cannot be changed afterwards. Rejections name the
+  parameter, never its value. The check is best effort: `Optional`, `Map.Entry`, other `Iterable`s
+  and beans are not looked into.
+- **Metrics:** the `report.render` timer gains a `template` tag. It holds the template name once that
+  template has rendered successfully and `unknown` for failures of a template that never did, so
+  names taken from requests cannot grow it; its cardinality is bounded by the templates the
+  application ships. Dashboards or alerts that match the exact tag set of `report.render` may need
+  updating.
 - The auto-configuration declares the renderer in a single bean method, wrapped with metrics when
   Micrometer and a single `MeterRegistry` are present; back-off on an application `ReportRenderer`
   is unchanged.

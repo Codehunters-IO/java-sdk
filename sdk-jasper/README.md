@@ -36,8 +36,13 @@ byte[] pdf = renderer.toBytes(request);                     // capped at max-out
   `InputStream` or `Reader`, directly or at any depth inside collections, maps (keys and values) or
   object arrays, is rejected: JasperReports would load an image, subreport or style from it directly,
   around the classpath-only repository (and deserialize a subreport stream). Pass resource locations
-  as `String`s. Cyclic structures are fine; a value that nests collections, maps or arrays more than
-  8 levels deep is rejected, the message naming the parameter but never its value. `REPORT_LOCALE`,
+  as `String`s. A collection, map or array that contains itself is rejected, and so is a value that
+  nests them more than 8 levels deep; the message names the parameter but never its value. Nested
+  collections, maps and arrays are copied as they are checked (into unmodifiable lists, sets and
+  maps, and new arrays), so changing yours afterwards changes nothing in the request. The check is
+  best effort: only `Collection`, `Map` and `Object[]` are looked into, not `Optional`, `Map.Entry`,
+  other `Iterable`s or beans; a lazily loaded collection is loaded, and one modified concurrently
+  fails with `ConcurrentModificationException`. `REPORT_LOCALE`,
   `REPORT_TIME_ZONE` and `REPORT_RESOURCE_BUNDLE` work as in JasperReports; the parameters the SDK manages or that would
   bypass its loading (`REPORT_VIRTUALIZER`, `REPORT_CLASS_LOADER`, `REPORT_CONNECTION`,
   `REPORT_DATA_SOURCE`, `REPORT_CONTEXT`, `REPORT_URL_HANDLER_FACTORY`, `REPORT_FILE_RESOLVER`,
@@ -133,9 +138,11 @@ covered by the rule above.
 
 The auto-configuration registers a `ReportRenderer` that reads templates through the application's
 class loader. With Micrometer and a single `MeterRegistry` it is wrapped in `MeteredReportRenderer`,
-which times every render in `report.render`, tagged `template` (the template name, such as
-`sales/monthly.jasper`), `format` (`pdf`, `xlsx`, `csv`) and `outcome` (`SUCCESS`, `ERROR`). The
-`template` tag's cardinality is the number of templates the application ships; dashboards that sum
+which times every render in `report.render`, tagged `template`, `format` (`pdf`, `xlsx`, `csv`) and
+`outcome` (`SUCCESS`, `ERROR`). `template` holds the template name (such as `sales/monthly.jasper`)
+once that template has rendered successfully, and `unknown` for failures of a template that never
+did, so a name taken from a request that matches no template adds no tag value: the tag's
+cardinality stays the number of templates the application ships. Dashboards that sum
 `report.render` across tags are unaffected, those that match the exact tag set need the new tag. It
 backs off when the application defines its own `ReportRenderer`, without
 JasperReports on the classpath, and with `codehunters.jasper.enabled=false`.
