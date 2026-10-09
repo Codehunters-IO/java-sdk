@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "7.0.0"
+version = "8.0.0"
 description = "JDBC outbox store, claim dialects and ShedLock-protected dispatch and purge schedulers."
 
 dependencies {
