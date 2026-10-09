@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "4.0.0"
+version = "4.1.0"
 description = "Keycloak-backed request authentication for servlet applications."
 
 codehuntersPackages {

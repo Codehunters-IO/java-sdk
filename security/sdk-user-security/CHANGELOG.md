@@ -1,5 +1,33 @@
 # Changelog — sdk-user-security
 
+## 4.1.0
+
+### Fixed
+- `Authentication.getName()`, `HttpServletRequest.getRemoteUser()` and `authentication.name` in
+  `@PreAuthorize` are the user id. `KeycloakPrincipal` now implements `AuthenticatedPrincipal`;
+  before, Spring Security fell back to the record's `toString()`, so the name carried the gateway
+  IP, geolocation and User-Agent into security events and access logs, and
+  `@PreAuthorize("authentication.name == #id")` never matched.
+- `KeycloakPrincipal.toString()` prints the user id only.
+- The 401 for gateway headers that disagree with the token goes through the application's
+  `AuthenticationEntryPoint`, so with `sdk-web` it carries `code`, `instance` and `traceId` like the
+  other 401s. Without an entry point it is a problem detail with `code: UNAUTHORIZED` and
+  `instance`, plus the bearer `WWW-Authenticate` challenge.
+
+### Added
+- `GatewayContext`: the gateway's `x-geo-*` and `User-Agent` values, documented as client-supplied
+  and not verified. Read it with `KeycloakSecurityUtils.getGatewayContext()` or
+  `KeycloakPrincipal.gatewayContext()`; its `toString()` prints no value.
+- `GatewayHeadersFilter(AuthenticationEntryPoint)` for applications that wire the filter into their
+  own chain.
+
+### Deprecated
+- `KeycloakSecurityUtils.getCurrentIp()`, `getCurrentCountry()`, `getCurrentCity()`,
+  `getCurrentLatitude()`, `getCurrentLongitude()` and the `KeycloakPrincipal` accessors `ip()`,
+  `country()`, `city()`, `latitude()`, `longitude()`, `userAgent()`, for removal. Use
+  `getGatewayContext()`, or `sdk-web`'s `ClientContextResolver` for a trusted client IP. See the
+  README's trust model.
+
 ## 4.0.0
 
 ### Breaking
