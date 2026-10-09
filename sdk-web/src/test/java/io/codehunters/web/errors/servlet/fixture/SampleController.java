@@ -33,8 +33,11 @@ public class SampleController {
   /** The message of the cause behind a client error, meant for the server log only. */
   public static final String CAUSE = "ledger row locked";
 
-  /** The code of the client input the sample rejects without a bundle message. */
-  public static final String CLIENT_INPUT_CODE = "INVALID_SORT";
+  /** The code of the client input the sample rejects without any bundle message. */
+  public static final String CLIENT_INPUT_CODE = "INVALID_COUPON";
+
+  /** A code the SDK ships default English and Spanish messages for. */
+  public static final String DEFAULT_CLIENT_INPUT_CODE = "INVALID_SORT";
 
   /** The code of the client input the sample bundle has a message for. */
   public static final String LOCALIZED_CLIENT_INPUT_CODE = "INVALID_SEARCH";
@@ -197,6 +200,22 @@ public class SampleController {
   String wrappedClientInput() {
     var rejected = new ClientInputException(CLIENT_INPUT_CODE, CLIENT_INPUT_MESSAGE);
     throw new InvalidDataAccessApiUsageException(SECRET, rejected);
+  }
+
+  @GetMapping("/default-coded-client-input")
+  String defaultCodedClientInput() {
+    throw new ClientInputException(DEFAULT_CLIENT_INPUT_CODE, CLIENT_INPUT_MESSAGE);
+  }
+
+  @GetMapping("/state-wrapped-client-input")
+  String stateWrappedClientInput() {
+    var rejected = new ClientInputException(CLIENT_INPUT_CODE, CLIENT_INPUT_MESSAGE);
+    throw new IllegalStateException(SECRET, rejected);
+  }
+
+  @GetMapping("/conflict-wrapped-client-input")
+  String conflictWrappedClientInput() {
+    throw new ConflictException(new ClientInputException(CLIENT_INPUT_CODE, CLIENT_INPUT_MESSAGE));
   }
 
   @GetMapping("/localized-client-input")

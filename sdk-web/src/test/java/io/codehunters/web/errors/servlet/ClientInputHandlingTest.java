@@ -94,6 +94,47 @@ class ClientInputHandlingTest {
   }
 
   @Test
+  void should_answer_500_when_an_unknown_exception_wraps_the_client_input() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(get("/state-wrapped-client-input"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(content().string(not(containsString(SampleController.SECRET)))));
+  }
+
+  @Test
+  void should_keep_the_annotated_status_when_the_wrapper_declares_one() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(get("/conflict-wrapped-client-input"))
+                .andExpect(status().isConflict()));
+  }
+
+  @Test
+  void should_use_the_sdk_default_message_when_the_application_bundle_has_none() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(
+                    get("/default-coded-client-input").header(HttpHeaders.ACCEPT_LANGUAGE, "en"))
+                .andExpect(jsonPath("$.code").value(SampleController.DEFAULT_CLIENT_INPUT_CODE))
+                .andExpect(jsonPath("$.detail").value("The requested sort is not allowed.")));
+  }
+
+  @Test
+  void should_use_the_sdk_default_message_in_spanish_when_the_client_asks_for_it() {
+    runner.run(
+        context ->
+            mvc(context)
+                .perform(
+                    get("/default-coded-client-input").header(HttpHeaders.ACCEPT_LANGUAGE, "es"))
+                .andExpect(jsonPath("$.detail").value("El orden solicitado no está permitido.")));
+  }
+
+  @Test
   void should_keep_answering_a_plain_illegal_argument_with_500() {
     runner.run(
         context ->
