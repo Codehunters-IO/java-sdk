@@ -1,6 +1,7 @@
 package io.codehunters.tracing.otel;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import io.codehunters.tracing.TraceHeaders;
 import io.opentelemetry.api.trace.Span;
@@ -25,6 +26,11 @@ class LegacyTraceHeadersPropagatorTest {
   private static final String SAMPLED_PARENT = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
   private static final String UNSAMPLED_PARENT = "00-" + TRACE_ID + "-" + SPAN_ID + "-00";
   private static final String OTHER_PARENT = "00-" + OTHER_TRACE_ID + "-" + OTHER_SPAN_ID + "-01";
+  private static final String LOW_TRACE_ID = "4bf92f3577b34da60000000000000001";
+  private static final String HIGH_TRACE_ID = "4bf92f3577b34da67fffffffffffffff";
+  private static final double ALWAYS = 1.0;
+  private static final double NEVER = 0.0;
+  private static final double HALF = 0.5;
 
   private static final TextMapGetter<Map<String, String>> GETTER =
       new TextMapGetter<>() {
@@ -41,7 +47,7 @@ class LegacyTraceHeadersPropagatorTest {
 
   private static final TextMapSetter<Map<String, String>> SETTER = Map::put;
 
-  private final LegacyTraceHeadersPropagator propagator = new LegacyTraceHeadersPropagator(false);
+  private final LegacyTraceHeadersPropagator propagator = new LegacyTraceHeadersPropagator(false, ALWAYS);
 
   @Test
   void should_extract_the_remote_parent_when_only_x_traceparent_is_present() {
@@ -67,16 +73,91 @@ class LegacyTraceHeadersPropagatorTest {
 
     assertThat(parent.getTraceId()).isEqualTo(TRACE_ID);
     assertThat(parent.getSpanId()).isEqualTo(SPAN_ID);
-    assertThat(parent.isSampled()).isTrue();
+    assertThat(parent.isRemote()).isTrue();
   }
 
   @Test
-  void should_extract_x_trace_id_with_a_new_sampled_parent_span_when_x_span_id_is_absent() {
+  void should_extract_x_trace_id_with_a_new_parent_span_when_x_span_id_is_absent() {
     SpanContext parent = extract(Map.of(TraceHeaders.TRACE_ID, TRACE_ID));
 
     assertThat(parent.getTraceId()).isEqualTo(TRACE_ID);
     assertThat(parent.isValid()).isTrue();
+  }
+
+  @Test
+  void should_sample_x_trace_id_and_x_span_id_when_the_probability_is_one() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, ALWAYS),
+            Map.of(TraceHeaders.TRACE_ID, TRACE_ID, TraceHeaders.SPAN_ID, SPAN_ID));
+
     assertThat(parent.isSampled()).isTrue();
+  }
+
+  @Test
+  void should_not_sample_x_trace_id_and_x_span_id_when_the_probability_is_zero() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, NEVER),
+            Map.of(TraceHeaders.TRACE_ID, TRACE_ID, TraceHeaders.SPAN_ID, SPAN_ID));
+
+    assertThat(parent.isSampled()).isFalse();
+  }
+
+  @Test
+  void should_not_sample_x_trace_id_alone_when_the_probability_is_zero() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, NEVER), Map.of(TraceHeaders.TRACE_ID, TRACE_ID));
+
+    assertThat(parent.isValid()).isTrue();
+    assertThat(parent.isSampled()).isFalse();
+  }
+
+  @Test
+  void should_sample_x_trace_id_when_its_random_part_falls_within_the_probability() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, HALF),
+            Map.of(TraceHeaders.TRACE_ID, LOW_TRACE_ID));
+
+    assertThat(parent.isSampled()).isTrue();
+  }
+
+  @Test
+  void should_not_sample_x_trace_id_when_its_random_part_falls_outside_the_probability() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, HALF),
+            Map.of(TraceHeaders.TRACE_ID, HIGH_TRACE_ID, TraceHeaders.SPAN_ID, SPAN_ID));
+
+    assertThat(parent.isSampled()).isFalse();
+  }
+
+  @Test
+  void should_keep_the_sampled_flag_of_x_traceparent_when_the_probability_is_zero() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, NEVER),
+            Map.of(TraceHeaders.LEGACY_TRACEPARENT, SAMPLED_PARENT));
+
+    assertThat(parent.isSampled()).isTrue();
+  }
+
+  @Test
+  void should_keep_the_unsampled_flag_of_x_traceparent_when_the_probability_is_one() {
+    SpanContext parent =
+        extractWith(
+            new LegacyTraceHeadersPropagator(false, ALWAYS),
+            Map.of(TraceHeaders.LEGACY_TRACEPARENT, UNSAMPLED_PARENT));
+
+    assertThat(parent.isSampled()).isFalse();
+  }
+
+  @Test
+  void should_reject_a_probability_outside_zero_and_one() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new LegacyTraceHeadersPropagator(false, 1.5));
   }
 
   @Test
@@ -178,7 +259,7 @@ class LegacyTraceHeadersPropagatorTest {
   void should_inject_x_traceparent_when_injection_is_enabled() {
     Map<String, String> carrier = new HashMap<>();
 
-    new LegacyTraceHeadersPropagator(true)
+    new LegacyTraceHeadersPropagator(true, ALWAYS)
         .inject(Context.root().with(Span.wrap(remoteParent())), carrier, SETTER);
 
     assertThat(carrier).containsExactly(Map.entry(TraceHeaders.LEGACY_TRACEPARENT, SAMPLED_PARENT));
@@ -188,7 +269,7 @@ class LegacyTraceHeadersPropagatorTest {
   void should_not_inject_when_the_context_has_no_valid_span() {
     Map<String, String> carrier = new HashMap<>();
 
-    new LegacyTraceHeadersPropagator(true).inject(Context.root(), carrier, SETTER);
+    new LegacyTraceHeadersPropagator(true, ALWAYS).inject(Context.root(), carrier, SETTER);
 
     assertThat(carrier).isEmpty();
   }

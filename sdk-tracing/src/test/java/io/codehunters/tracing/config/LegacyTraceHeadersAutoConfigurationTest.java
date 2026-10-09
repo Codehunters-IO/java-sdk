@@ -33,6 +33,8 @@ class LegacyTraceHeadersAutoConfigurationTest {
   private static final String LEGACY_PARENT = "00-" + TRACE_ID + "-" + SPAN_ID + "-01";
   private static final String W3C_TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
   private static final String W3C_PARENT = "00-" + W3C_TRACE_ID + "-b7ad6b7169203331-01";
+  private static final String LOW_TRACE_ID = "4bf92f3577b34da60000000000000001";
+  private static final String HIGH_TRACE_ID = "4bf92f3577b34da67fffffffffffffff";
 
   private static final TextMapGetter<Map<String, String>> GETTER =
       new TextMapGetter<>() {
@@ -148,6 +150,47 @@ class LegacyTraceHeadersAutoConfigurationTest {
   }
 
   @Test
+  void should_sample_x_trace_id_by_boot_sampling_probability() {
+    withOpenTelemetry
+        .withPropertyValues("management.tracing.sampling.probability=1.0")
+        .run(context -> assertThat(sampled(context, HIGH_TRACE_ID)).isTrue());
+  }
+
+  @Test
+  void should_not_sample_x_trace_id_when_boot_sampling_probability_is_zero() {
+    withOpenTelemetry
+        .withPropertyValues("management.tracing.sampling.probability=0.0")
+        .run(context -> assertThat(sampled(context, LOW_TRACE_ID)).isFalse());
+  }
+
+  @Test
+  void should_sample_x_trace_id_within_boot_default_probability() {
+    withOpenTelemetry.run(context -> assertThat(sampled(context, LOW_TRACE_ID)).isTrue());
+  }
+
+  @Test
+  void should_not_sample_x_trace_id_outside_boot_default_probability() {
+    withOpenTelemetry.run(context -> assertThat(sampled(context, HIGH_TRACE_ID)).isFalse());
+  }
+
+  @Test
+  void should_fall_back_to_the_default_probability_when_boot_tracing_properties_are_absent() {
+    runner.run(
+        context ->
+            assertThat(
+                    Span.fromContext(
+                            context
+                                .getBean(LegacyTraceHeadersPropagator.class)
+                                .extract(
+                                    Context.root(),
+                                    Map.of(TraceHeaders.TRACE_ID, HIGH_TRACE_ID),
+                                    GETTER))
+                        .getSpanContext()
+                        .isSampled())
+                .isFalse());
+  }
+
+  @Test
   void should_back_the_port_with_boot_tracer_when_opentelemetry_is_configured() {
     withOpenTelemetry.run(
         context ->
@@ -160,6 +203,14 @@ class LegacyTraceHeadersAutoConfigurationTest {
     return Span.fromContext(propagator.extract(Context.root(), carrier, GETTER))
         .getSpanContext()
         .getTraceId();
+  }
+
+  private static boolean sampled(AssertableApplicationContext context, String traceId) {
+    TextMapPropagator propagator = context.getBean(ContextPropagators.class).getTextMapPropagator();
+    return Span.fromContext(
+            propagator.extract(Context.root(), Map.of(TraceHeaders.TRACE_ID, traceId), GETTER))
+        .getSpanContext()
+        .isSampled();
   }
 
   private static Context sampledSpan() {
