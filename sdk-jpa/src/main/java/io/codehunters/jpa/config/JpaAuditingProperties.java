@@ -6,8 +6,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 /**
  * JPA auditing settings, bound from {@code codehunters.jpa.auditing}.
  *
- * @param enabled whether the SDK enables Spring Data JPA auditing; it never does when the
- *     application enables it itself
+ * @param enabled whether the SDK enables Spring Data JPA auditing (off by default: it applies to
+ *     every entity of the application); it never does when the application enables it itself
  */
 @ConfigurationProperties(prefix = "codehunters.jpa.auditing")
-public record JpaAuditingProperties(@DefaultValue("true") boolean enabled) {}
+public record JpaAuditingProperties(@DefaultValue("false") boolean enabled) {}
