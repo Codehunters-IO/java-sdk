@@ -2,28 +2,26 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.0.0"
-description = "Trace id propagation across HTTP, async tasks and RabbitMQ through the MDC."
+version = "3.0.0"
+description = "Legacy gateway trace headers and a TraceContextPort on top of Micrometer Tracing."
 
 codehuntersPackages {
     root = "io.codehunters.tracing"
 }
 
 dependencies {
+    api("io.micrometer:micrometer-tracing")
+
     compileOnly("org.springframework.boot:spring-boot")
-    compileOnly("org.springframework:spring-web")
     compileOnly("org.springframework:spring-context")
-    compileOnly("org.springframework.amqp:spring-rabbit")
-    compileOnly("jakarta.servlet:jakarta.servlet-api")
     compileOnly("org.slf4j:slf4j-api")
-    compileOnly("tools.jackson.core:jackson-databind")
+    compileOnly("io.opentelemetry:opentelemetry-api")
+    compileOnly("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
 
     testImplementation("org.springframework.boot:spring-boot-autoconfigure")
-    testImplementation("org.springframework:spring-web")
-    testImplementation("org.springframework.amqp:spring-rabbit")
-    testImplementation("jakarta.servlet:jakarta.servlet-api")
-    testImplementation("org.mockito:mockito-core")
-    testImplementation("tools.jackson.core:jackson-databind")
+    testImplementation("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
+    testImplementation("io.micrometer:micrometer-tracing-bridge-otel")
+    testImplementation("io.opentelemetry:opentelemetry-sdk")
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-test")
 }

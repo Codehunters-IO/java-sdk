@@ -68,7 +68,9 @@ class LegacyTraceHeadersAutoConfigurationTest {
     runner.run(
         context -> {
           Map<String, String> carrier = new HashMap<>();
-          context.getBean(LegacyTraceHeadersPropagator.class).inject(sampledSpan(), carrier, SETTER);
+          context
+              .getBean(LegacyTraceHeadersPropagator.class)
+              .inject(sampledSpan(), carrier, SETTER);
 
           assertThat(carrier).isEmpty();
         });

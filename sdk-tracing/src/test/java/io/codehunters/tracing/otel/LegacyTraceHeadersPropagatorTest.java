@@ -94,7 +94,10 @@ class LegacyTraceHeadersPropagatorTest {
   void should_leave_the_context_unchanged_when_a_valid_traceparent_is_present() {
     Map<String, String> carrier =
         Map.of(
-            TraceHeaders.TRACEPARENT, OTHER_PARENT, TraceHeaders.LEGACY_TRACEPARENT, SAMPLED_PARENT);
+            TraceHeaders.TRACEPARENT,
+            OTHER_PARENT,
+            TraceHeaders.LEGACY_TRACEPARENT,
+            SAMPLED_PARENT);
 
     assertThat(propagator.extract(Context.root(), carrier, GETTER)).isSameAs(Context.root());
   }
@@ -104,8 +107,10 @@ class LegacyTraceHeadersPropagatorTest {
     SpanContext parent =
         extract(
             Map.of(
-                TraceHeaders.TRACEPARENT, "garbage",
-                TraceHeaders.LEGACY_TRACEPARENT, SAMPLED_PARENT));
+                TraceHeaders.TRACEPARENT,
+                "garbage",
+                TraceHeaders.LEGACY_TRACEPARENT,
+                SAMPLED_PARENT));
 
     assertThat(parent.getTraceId()).isEqualTo(TRACE_ID);
   }

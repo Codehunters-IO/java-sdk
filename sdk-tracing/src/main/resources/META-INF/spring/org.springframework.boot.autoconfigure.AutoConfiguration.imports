@@ -1,3 +1,2 @@
 io.codehunters.tracing.config.TracingAutoConfiguration
-io.codehunters.tracing.config.WebTracingAutoConfiguration
-io.codehunters.tracing.config.RabbitTracingAutoConfiguration
+io.codehunters.tracing.config.LegacyTraceHeadersAutoConfiguration
