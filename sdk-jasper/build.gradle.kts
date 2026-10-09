@@ -5,6 +5,10 @@ plugins {
 version = "2.0.0"
 description = "JasperReports 7 rendering to PDF, XLSX or CSV from classpath templates, with limits."
 
+codehuntersPackages {
+    root = "io.codehunters.jasper"
+}
+
 dependencies {
     api(libs.jasperreports)
     // jasperreports-pdf pins a Jaspersoft build of OpenPDF that only their own repository serves;

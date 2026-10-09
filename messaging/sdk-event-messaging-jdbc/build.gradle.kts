@@ -5,6 +5,10 @@ plugins {
 version = "8.0.0"
 description = "JDBC outbox store, claim dialects and ShedLock-protected dispatch and purge schedulers."
 
+codehuntersPackages {
+    root = "io.codehunters.messaging.jdbc"
+}
+
 dependencies {
     api(project(":sdk-event-messaging-core"))
     api(libs.shedlock.spring)

@@ -5,6 +5,10 @@ plugins {
 version = "4.0.0"
 description = "Keycloak Authorization Services policy enforcement point for sdk-user-security."
 
+codehuntersPackages {
+    root = "io.codehunters.security.authz"
+}
+
 dependencies {
     api(project(":sdk-user-security"))
     implementation(project(":sdk-support"))

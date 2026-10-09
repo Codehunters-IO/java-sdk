@@ -5,6 +5,10 @@ plugins {
 version = "4.0.0"
 description = "@Measured annotation that records Micrometer timers and counters."
 
+codehuntersPackages {
+    root = "io.codehunters.measure"
+}
+
 dependencies {
     implementation("org.slf4j:slf4j-api")
     implementation("io.micrometer:micrometer-core")

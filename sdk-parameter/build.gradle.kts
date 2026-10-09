@@ -5,6 +5,10 @@ plugins {
 version = "3.0.0"
 description = "Typed read access to the shared parameters table over JDBC."
 
+codehuntersPackages {
+    root = "io.codehunters.parameter"
+}
+
 dependencies {
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")

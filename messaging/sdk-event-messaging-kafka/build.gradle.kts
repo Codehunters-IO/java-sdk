@@ -5,6 +5,10 @@ plugins {
 version = "8.0.0"
 description = "Kafka publisher for the transactional outbox."
 
+codehuntersPackages {
+    root = "io.codehunters.messaging.kafka"
+}
+
 dependencies {
     api(project(":sdk-event-messaging-core"))
     implementation("org.slf4j:slf4j-api")

@@ -124,8 +124,38 @@ val verifyCoverageGates = tasks.register("verifyCoverageGates") {
     }
 }
 
+// Package layout (ADR 0020). Each module declares the package it owns; the check reads every
+// other module's root when it runs, so a package can never be split across two jars.
+val codehuntersPackages = extensions.create<CodehuntersPackagesExtension>("codehuntersPackages")
+val verifyPackageLayout = tasks.register("verifyPackageLayout") {
+    description = "Fails when packages break the SDK layout convention (ADR 0020)."
+    group = JavaBasePlugin.VERIFICATION_GROUP
+    val sources = layout.projectDirectory.dir("src/main/java").asFile
+    val projectPath = project.path
+    val root = codehuntersPackages.root
+    val otherRoots = provider {
+        rootProject.allprojects
+            .filter { it.path != projectPath }
+            .mapNotNull { it.extensions.findByType(CodehuntersPackagesExtension::class.java)?.root?.orNull }
+    }
+    doLast {
+        val declared = root.orNull
+            ?: throw GradleException(
+                "$projectPath declares no package root. " +
+                    "Add codehuntersPackages { root = \"io.codehunters.<module>\" }."
+            )
+        val violations = PackageLayout.violations(declared, sources, otherRoots.get())
+        if (violations.isNotEmpty()) {
+            throw GradleException(
+                "$projectPath breaks the package layout (ADR 0020):\n" +
+                    violations.joinToString("\n") { "  - $it" }
+            )
+        }
+    }
+}
+
 tasks.named("check") {
-    dependsOn(tasks.named("jacocoTestCoverageVerification"), verifyCoverageGates)
+    dependsOn(tasks.named("jacocoTestCoverageVerification"), verifyCoverageGates, verifyPackageLayout)
 }
 
 tasks.register("jacocoLogCodeCoverage") {

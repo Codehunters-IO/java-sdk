@@ -5,6 +5,10 @@ plugins {
 version = "2.0.0"
 description = "JPA building blocks: audited UUIDv7 entities, page responses, JSON converters, safe search specifications."
 
+codehuntersPackages {
+    root = "io.codehunters.jpa"
+}
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("jakarta.persistence:jakarta.persistence-api")

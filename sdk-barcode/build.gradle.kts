@@ -5,6 +5,10 @@ plugins {
 version = "2.0.0"
 description = "Barcode and QR code rendering (PNG, SVG) and decoding on ZXing, with size limits."
 
+codehuntersPackages {
+    root = "io.codehunters.barcode"
+}
+
 dependencies {
     implementation(libs.zxing.core)
 

@@ -5,6 +5,10 @@ plugins {
 version = "2.0.0"
 description = "Servlet web toolkit: RFC 9457 problem details, client IP and User-Agent, X-Locale i18n."
 
+codehuntersPackages {
+    root = "io.codehunters.web"
+}
+
 // One artifact for what were sdk-web-errors, sdk-device and sdk-i18n (ADR 0016). Each part keeps
 // its own auto-configuration, package, properties and on/off switch.
 codehuntersPublishing {

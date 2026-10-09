@@ -5,6 +5,10 @@ plugins {
 version = "3.0.0"
 description = "HTTP client for the file-share service: presigned upload and download tickets."
 
+codehuntersPackages {
+    root = "io.codehunters.fileshare"
+}
+
 dependencies {
     implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")

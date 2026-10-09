@@ -5,6 +5,10 @@ plugins {
 version = "8.0.0"
 description = "Transactional outbox domain, ports, dispatch use case and core auto-configuration."
 
+codehuntersPackages {
+    root = "io.codehunters.messaging"
+}
+
 codehuntersPublishing {
     replaces("sdk-event-messaging")
 }
