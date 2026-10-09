@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "6.0.0"
+version = "7.0.0"
 description = "RabbitMQ publisher for the transactional outbox."
 
 dependencies {

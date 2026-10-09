@@ -19,10 +19,10 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-user-security` | `io.codehunters.security` | 3.1.0 | [README](security/sdk-user-security/README.md) · [CHANGELOG](security/sdk-user-security/CHANGELOG.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 | [README](security/sdk-user-security-authz/README.md) · [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 | [README](sdk-tracing/README.md) · [CHANGELOG](sdk-tracing/CHANGELOG.md) |
-| `sdk-event-messaging-core` | `io.codehunters.messaging` | 6.0.0 | [README](messaging/sdk-event-messaging-core/README.md) · [MIGRATION](messaging/MIGRATION-6.0.md) |
-| `sdk-event-messaging-jdbc` | `io.codehunters.messaging` | 6.0.0 | [README](messaging/sdk-event-messaging-jdbc/README.md) |
-| `sdk-event-messaging-rabbit` | `io.codehunters.messaging` | 6.0.0 | [README](messaging/sdk-event-messaging-rabbit/README.md) |
-| `sdk-event-messaging-kafka` | `io.codehunters.messaging` | 6.0.0 | [README](messaging/sdk-event-messaging-kafka/README.md) |
+| `sdk-event-messaging-core` | `io.codehunters.messaging` | 7.0.0 | [README](messaging/sdk-event-messaging-core/README.md) · [MIGRATION 6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
+| `sdk-event-messaging-jdbc` | `io.codehunters.messaging` | 7.0.0 | [README](messaging/sdk-event-messaging-jdbc/README.md) |
+| `sdk-event-messaging-rabbit` | `io.codehunters.messaging` | 7.0.0 | [README](messaging/sdk-event-messaging-rabbit/README.md) |
+| `sdk-event-messaging-kafka` | `io.codehunters.messaging` | 7.0.0 | [README](messaging/sdk-event-messaging-kafka/README.md) |
 | `sdk-file-share` | `io.codehunters.fileshare` | 2.0.0 | [README](sdk-file-share/README.md) · [MIGRATION](sdk-file-share/MIGRATION-2.0.md) |
 | `sdk-audit-log` | `io.codehunters.audit` | 3.0.0 | [README](sdk-audit-log/README.md) · [MIGRATION](sdk-audit-log/MIGRATION-3.0.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 3.0.0 | [README](sdk-measure-micrometer/README.md) · [MIGRATION](sdk-measure-micrometer/MIGRATION-3.0.md) |
@@ -79,11 +79,11 @@ but Maven's nearest-wins mediation can still mix versions of `sdk-support` and
 Do it one module at a time; each module's `MIGRATION-*.md` (or CHANGELOG, for security and tracing)
 has the full checklist. What every service has to look at:
 
-1. **Coordinates.** Import `sdk-bom:1.2.0` and drop explicit SDK versions.
+1. **Coordinates.** Import `sdk-bom:1.3.0` and drop explicit SDK versions.
 
    | Before | Now |
    |---|---|
-   | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 6.0.0 (`-core` alone for the model) |
+   | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 7.0.0 (`-core` alone for the model) |
    | `sdk-user-security:2.x` with the policy enforcer | `sdk-user-security` + `sdk-user-security-authz` 3.0.0 |
    | `sdk-utils:1.x`, `sdk-totp:2.0.0` | `sdk-commons:1.1.0` |
    | `sdk-i18n:0.x` or `1.0.0` | `sdk-web:1.0.0` |
@@ -116,8 +116,9 @@ has the full checklist. What every service has to look at:
 
    Only the documented old keys are aliased, and the new key wins when both are set.
 5. **DDL.** Apply before deploying:
-   - Outbox on SQL Server: the `seq` column, **before** 6.0 goes out
-     ([messaging migration](messaging/MIGRATION-6.0.md#ddl)).
+   - Outbox on SQL Server: the `seq` column ([messaging 6.0](messaging/MIGRATION-6.0.md#ddl)).
+   - Outbox, every database: the `send_started_at` column, **before** 7.0 goes out
+     ([messaging 7.0](messaging/MIGRATION-7.0.md#ddl)).
    - Audit log: the Flyway script `V1__create_audit_event_table.sql` no longer ships; copy it or
      ignore the missing migration ([audit migration](sdk-audit-log/MIGRATION-3.0.md)). Reference DDL
      for PostgreSQL and SQL Server ships under `db/migration/audit/<database>/`.

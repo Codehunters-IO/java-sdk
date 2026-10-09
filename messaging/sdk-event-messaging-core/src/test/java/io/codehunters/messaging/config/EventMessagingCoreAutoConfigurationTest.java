@@ -338,6 +338,7 @@ class EventMessagingCoreAutoConfigurationTest {
         OutboxMessage.<String>builder().topic("events").key("k").message("{}").build();
     when(repository.claimPendingMessages(any(), anyInt(), any(), any()))
         .thenReturn(List.of(message));
+    when(repository.markSendStarted(message)).thenReturn(true);
     return repository;
   }
 }

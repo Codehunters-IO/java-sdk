@@ -23,6 +23,11 @@ import lombok.extern.slf4j.Slf4j;
  * without being published. Publishing stops once half the claim TTL has elapsed since the claim;
  * the remaining messages are released back to {@code PENDING} before their claim can go stale, so
  * no other instance reclaims a message this one may still be sending.
+ *
+ * <p>Each message is marked as started right before it is published. A reclaim after a crash
+ * charges an attempt only to marked rows, and a message whose mark is refused (its claim was taken
+ * over) is neither published nor updated. A mark that fails, for example on a transient database
+ * error, skips only that message.
  */
 @Slf4j
 public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
@@ -125,21 +130,43 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
         outboxRepositoryPort.claimPendingMessages(origin, batchSize, instanceId, claimTtl);
 
     for (OutboxMessage<String> message : claimed) {
-      dispatch(message, claimStart);
-      outboxRepositoryPort.update(message);
+      if (dispatch(message, claimStart)) {
+        outboxRepositoryPort.update(message);
+      }
     }
 
     log.debug("[END] - send outbox messages, processed {} messages", claimed.size());
   }
 
-  private void dispatch(OutboxMessage<String> message, Instant claimStart) {
+  // Returns whether the message's new state must be written; false when the claim was lost.
+  private boolean dispatch(OutboxMessage<String> message, Instant claimStart) {
     if (isBudgetExhausted(claimStart)) {
       release(message);
     } else if (message.getAttempts() >= maxAttempts) {
       markExhausted(message);
-    } else {
+    } else if (markSendStarted(message)) {
       processMessage(message);
+    } else {
+      return false;
     }
+    return true;
+  }
+
+  // A row whose mark is refused or fails stays IN_FLIGHT and unmarked: a reclaim after the TTL
+  // picks it up without charging an attempt, and the rest of the batch goes on.
+  private boolean markSendStarted(OutboxMessage<String> message) {
+    try {
+      if (outboxRepositoryPort.markSendStarted(message)) {
+        return true;
+      }
+      log.warn("Outbox message id={} skipped: its claim was taken over", message.getId());
+    } catch (RuntimeException e) {
+      log.warn(
+          "Outbox message id={} skipped: marking its send failed with {}",
+          message.getId(),
+          e.getClass().getName());
+    }
+    return false;
   }
 
   private boolean isBudgetExhausted(Instant claimStart) {

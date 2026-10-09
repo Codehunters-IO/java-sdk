@@ -3,6 +3,10 @@ package io.codehunters.messaging.infrastructure.drivenadapters.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.codehunters.messaging.domain.model.OutboxMessage;
 import io.codehunters.messaging.domain.model.OutboxStatus;
 import java.time.Duration;
@@ -11,11 +15,15 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
+import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 class OutboxJdbcAdapterTest {
@@ -26,9 +34,13 @@ class OutboxJdbcAdapterTest {
   private JdbcClient jdbcClient;
   private JsonMapper jsonMapper;
   private OutboxJdbcAdapter adapter;
+  private ListAppender<ILoggingEvent> adapterLogs;
 
   @BeforeEach
   void setUp() {
+    adapterLogs = new ListAppender<>();
+    adapterLogs.start();
+    adapterLogger().addAppender(adapterLogs);
     dataSource =
         new EmbeddedDatabaseBuilder()
             .setType(EmbeddedDatabaseType.H2)
@@ -38,6 +50,15 @@ class OutboxJdbcAdapterTest {
     jdbcClient = JdbcClient.create(dataSource);
     jsonMapper = JsonMapper.builder().build();
     adapter = new OutboxJdbcAdapter(dataSource, jsonMapper, ORIGIN);
+  }
+
+  @AfterEach
+  void tearDown() {
+    adapterLogger().detachAppender(adapterLogs);
+  }
+
+  private static Logger adapterLogger() {
+    return (Logger) LoggerFactory.getLogger(OutboxJdbcAdapter.class);
   }
 
   @Test
@@ -633,11 +654,12 @@ class OutboxJdbcAdapterTest {
   }
 
   @Test
-  void should_increment_attempts_when_reclaiming_stale_in_flight_row() {
+  void should_increment_attempts_when_reclaiming_stale_row_whose_send_had_started() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
     recordOneFailedAttempt(id);
     markStaleInFlight(id);
+    markSendStartedByDeadInstance(id);
 
     var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
 
@@ -655,6 +677,126 @@ class OutboxJdbcAdapterTest {
 
     assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  @Test
+  void should_keep_attempts_when_reclaiming_stale_row_that_was_never_sent() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    recordOneFailedAttempt(id);
+    markStaleInFlight(id);
+
+    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
+    assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  @Test
+  void should_clear_send_mark_when_row_is_reclaimed() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    markStaleInFlight(id);
+    markSendStartedByDeadInstance(id);
+
+    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getSendStartedAt).isNull();
+    assertThat(sendStartedAtOf(id)).isNull();
+  }
+
+  @Test
+  void should_stamp_send_mark_when_claim_is_still_held() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+
+    boolean marked = adapter.markSendStarted(claimed);
+
+    assertThat(marked).isTrue();
+    assertThat(sendStartedAtOf(id)).isNotNull();
+    assertThat(claimed.getSendStartedAt()).isNotNull();
+  }
+
+  @Test
+  void should_refuse_send_mark_when_claim_was_taken_over() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var stale = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    markStaleInFlight(id);
+
+    boolean marked = adapter.markSendStarted(stale);
+
+    assertThat(marked).isFalse();
+    assertThat(sendStartedAtOf(id)).isNull();
+  }
+
+  @Test
+  void should_clear_send_mark_when_update_ends_the_claim() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    adapter.markSendStarted(claimed);
+
+    claimed.setStatus(OutboxStatus.PUBLISHED);
+    adapter.update(claimed);
+
+    assertThat(sendStartedAtOf(id)).isNull();
+  }
+
+  @Test
+  void should_warn_once_when_send_mark_runs_inside_caller_transaction() {
+    UUID first = UUID.randomUUID();
+    UUID second = UUID.randomUUID();
+    adapter.save(unsent(first));
+    adapter.save(unsent(second, "other-key"));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5));
+
+    inCallerTransaction(
+        () -> {
+          adapter.markSendStarted(claimed.get(0));
+          adapter.markSendStarted(claimed.get(1));
+        });
+
+    assertThat(adapterLogs.list)
+        .filteredOn(event -> event.getLevel() == Level.WARN)
+        .singleElement()
+        .extracting(ILoggingEvent::getFormattedMessage)
+        .asString()
+        .contains("transaction");
+  }
+
+  @Test
+  void should_not_warn_when_send_mark_runs_outside_a_transaction() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id));
+    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+
+    adapter.markSendStarted(claimed);
+
+    assertThat(adapterLogs.list).noneMatch(event -> event.getLevel() == Level.WARN);
+  }
+
+  private void inCallerTransaction(Runnable work) {
+    new TransactionTemplate(new DataSourceTransactionManager(dataSource))
+        .executeWithoutResult(status -> work.run());
+  }
+
+  private void markSendStartedByDeadInstance(UUID id) {
+    jdbcClient
+        .sql("UPDATE outbox_message SET send_started_at = :old WHERE id = :id")
+        .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(9))
+        .param("id", id)
+        .update();
+  }
+
+  private Object sendStartedAtOf(UUID id) {
+    return jdbcClient
+        .sql("SELECT send_started_at FROM outbox_message WHERE id = :id")
+        .param("id", id)
+        .query()
+        .singleRow()
+        .get("send_started_at");
   }
 
   private void markStaleInFlight(UUID id) {
@@ -683,10 +825,14 @@ class OutboxJdbcAdapterTest {
   }
 
   private static OutboxMessage<String> unsent(UUID id) {
+    return unsent(id, "k");
+  }
+
+  private static OutboxMessage<String> unsent(UUID id, String key) {
     return OutboxMessage.<String>builder()
         .id(id)
         .topic("t")
-        .key("k")
+        .key(key)
         .message("p")
         .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
         .build();

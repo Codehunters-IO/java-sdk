@@ -27,6 +27,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
   private static final String CLAIM_MARKER = "instance-1:marker";
 
   private MutableClock clock;
+  private List<String> calls;
   private FakeRepository repository;
   private SlowPublisher publisher;
   private SendOutboxMessagesUseCase useCase;
@@ -34,8 +35,9 @@ class SendOutboxMessagesUseCaseGuardsTest {
   @BeforeEach
   void setUp() {
     clock = new MutableClock(START);
-    repository = new FakeRepository(clock);
-    publisher = new SlowPublisher(clock, PUBLISH_TIME);
+    calls = new ArrayList<>();
+    repository = new FakeRepository(clock, calls);
+    publisher = new SlowPublisher(clock, PUBLISH_TIME, calls);
     useCase =
         new SendOutboxMessagesUseCase(
             repository,
@@ -115,6 +117,38 @@ class SendOutboxMessagesUseCaseGuardsTest {
     assertReleased(only, 0, START.plusMillis(CLAIM_TTL_MS / 2));
   }
 
+  @Test
+  void should_not_mark_send_started_when_reclaimed_message_reached_max_attempts() {
+    OutboxMessage<String> exhausted = claimed(MAX_ATTEMPTS);
+    repository.willClaim(List.of(exhausted));
+
+    useCase.execute();
+
+    assertThat(repository.started).isEmpty();
+  }
+
+  @Test
+  void should_mark_only_published_messages_as_started_when_half_claim_ttl_elapsed() {
+    OutboxMessage<String> first = claimed(0);
+    OutboxMessage<String> second = claimed(0);
+    OutboxMessage<String> third = claimed(0);
+    repository.willClaim(List.of(first, second, third));
+
+    useCase.execute();
+
+    assertThat(repository.started).containsExactly(first, second);
+  }
+
+  @Test
+  void should_mark_send_started_before_publisher_is_called_when_message_is_dispatched() {
+    OutboxMessage<String> only = claimed(0);
+    repository.willClaim(List.of(only));
+
+    useCase.execute();
+
+    assertThat(calls).containsExactly("mark " + only.getId(), "publish " + only.getId());
+  }
+
   private static void assertReleased(OutboxMessage<String> message, int attempts, Instant at) {
     assertThat(message.getStatus()).isEqualTo(OutboxStatus.PENDING);
     assertThat(message.getAttempts()).isEqualTo(attempts);
@@ -169,12 +203,15 @@ class SendOutboxMessagesUseCaseGuardsTest {
   /** Repository that hands out a prepared batch and records updates in order. */
   private static final class FakeRepository implements OutboxRepositoryPort {
     private final MutableClock clock;
+    private final List<String> calls;
     private final List<OutboxMessage<String>> updated = new ArrayList<>();
+    private final List<OutboxMessage<String>> started = new ArrayList<>();
     private List<OutboxMessage<String>> toClaim = List.of();
     private Duration claimDuration = Duration.ZERO;
 
-    FakeRepository(MutableClock clock) {
+    FakeRepository(MutableClock clock, List<String> calls) {
       this.clock = clock;
+      this.calls = calls;
     }
 
     void willClaim(List<OutboxMessage<String>> messages) {
@@ -198,6 +235,13 @@ class SendOutboxMessagesUseCaseGuardsTest {
     }
 
     @Override
+    public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+      started.add(outboxMessage);
+      calls.add("mark " + outboxMessage.getId());
+      return true;
+    }
+
+    @Override
     public void update(OutboxMessage<String> outboxMessage) {
       updated.add(outboxMessage);
     }
@@ -218,10 +262,12 @@ class SendOutboxMessagesUseCaseGuardsTest {
     private final MutableClock clock;
     private final Duration publishTime;
     private final List<OutboxMessage<String>> published = new ArrayList<>();
+    private final List<String> calls;
 
-    SlowPublisher(MutableClock clock, Duration publishTime) {
+    SlowPublisher(MutableClock clock, Duration publishTime, List<String> calls) {
       this.clock = clock;
       this.publishTime = publishTime;
+      this.calls = calls;
     }
 
     @Override
@@ -236,6 +282,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
 
     @Override
     public void publish(OutboxMessage<String> message) {
+      calls.add("publish " + message.getId());
       published.add(message);
       clock.advance(publishTime);
     }

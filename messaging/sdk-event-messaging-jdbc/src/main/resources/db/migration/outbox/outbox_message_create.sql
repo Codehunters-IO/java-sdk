@@ -1,6 +1,7 @@
 -- Reference migration: Final schema for outbox_message and shedlock
 -- Copy to your ms changelog directory and adapt changeset author/id
--- Existing installs created before SDK 6.0.0: run sqlserver/outbox_message_add_seq.sql instead
+-- Existing installs created before SDK 6.0.0: run sqlserver/outbox_message_add_seq.sql, then
+-- sqlserver/outbox_message_add_send_started_at.sql; tables created by 6.x need only the latter
 
 -- changeset sdk:outbox-create-1
 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'outbox_message')
@@ -21,6 +22,7 @@ BEGIN
         published_at DATETIME2,
         claimed_at DATETIME2 NULL,
         claimed_by NVARCHAR(255) NULL,
+        send_started_at DATETIME2 NULL,
         created_by NVARCHAR(255),
         created_date DATETIME2 DEFAULT GETDATE(),
         modified_by NVARCHAR(255),

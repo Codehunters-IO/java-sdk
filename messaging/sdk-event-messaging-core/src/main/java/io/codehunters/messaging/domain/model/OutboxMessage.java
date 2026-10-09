@@ -43,4 +43,11 @@ public class OutboxMessage<T> {
   private LocalDateTime publishedAt;
   private LocalDateTime claimedAt;
   private String claimedBy;
+
+  /**
+   * When the claim owner started handing this row to the broker; {@code null} until then. A reclaim
+   * charges an attempt only when it is set, so rows of an abandoned batch that were never sent keep
+   * their attempt count.
+   */
+  private LocalDateTime sendStartedAt;
 }

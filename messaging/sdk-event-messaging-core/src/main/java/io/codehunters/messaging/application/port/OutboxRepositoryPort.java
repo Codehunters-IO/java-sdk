@@ -19,7 +19,9 @@ public interface OutboxRepositoryPort {
   /**
    * Atomically transitions up to {@code batchSize} eligible rows scoped to {@code origin} to
    * IN_FLIGHT and returns them. Eligible rows are PENDING with {@code next_attempt_at <= now} OR
-   * IN_FLIGHT whose {@code claimed_at} is older than {@code claimTtl} (stale-claim recovery).
+   * IN_FLIGHT whose {@code claimed_at} is older than {@code claimTtl} (stale-claim recovery). A
+   * reclaimed row is charged one attempt only when its previous owner had started sending it (see
+   * {@link #markSendStarted}); every claim clears that mark.
    *
    * @param origin the origin of the messages to claim
    * @param batchSize the maximum number of messages to claim
@@ -31,7 +33,19 @@ public interface OutboxRepositoryPort {
       String origin, int batchSize, String claimedBy, Duration claimTtl);
 
   /**
-   * Updates an outbox message's status, attempt counter and next-attempt timestamp.
+   * Records that the claim owner is about to hand {@code outboxMessage} to the broker. Called right
+   * before each publish, so a later reclaim can tell sent rows from rows that never left the batch.
+   * Fenced by the message's claim marker: when another dispatcher reclaimed the row in the
+   * meantime, nothing is written and the caller must not publish it.
+   *
+   * @param outboxMessage the claimed message about to be published
+   * @return {@code true} when this caller still holds the claim and the mark was written
+   */
+  boolean markSendStarted(OutboxMessage<String> outboxMessage);
+
+  /**
+   * Updates an outbox message's status, attempt counter and next-attempt timestamp. Ending the
+   * claim (any status but IN_FLIGHT) clears the send mark.
    *
    * @param outboxMessage the message with updated state
    */

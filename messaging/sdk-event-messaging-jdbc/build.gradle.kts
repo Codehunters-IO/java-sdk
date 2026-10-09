@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "6.0.0"
+version = "7.0.0"
 description = "JDBC outbox store, claim dialects and ShedLock-protected dispatch and purge schedulers."
 
 dependencies {
@@ -28,6 +28,8 @@ dependencies {
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("org.testcontainers:testcontainers-postgresql")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-mssqlserver")
     testRuntimeOnly("com.h2database:h2")
     testRuntimeOnly("org.postgresql:postgresql")
+    testRuntimeOnly("com.microsoft.sqlserver:mssql-jdbc")
 }

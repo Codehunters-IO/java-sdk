@@ -7,14 +7,14 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 1.2.0 | [below](#sdk-bom-120) | — |
+| `sdk-bom` | 1.3.0 | [below](#sdk-bom-130) | — |
 | `sdk-user-security` | 3.1.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
 | `sdk-user-security-authz` | 3.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
 | `sdk-tracing` | 1.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | in the changelog |
-| `sdk-event-messaging-core` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
-| `sdk-event-messaging-jdbc` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-jdbc/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
-| `sdk-event-messaging-rabbit` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
-| `sdk-event-messaging-kafka` | 6.0.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) |
+| `sdk-event-messaging-core` | 7.0.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
+| `sdk-event-messaging-jdbc` | 7.0.0 | [CHANGELOG](messaging/sdk-event-messaging-jdbc/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
+| `sdk-event-messaging-rabbit` | 7.0.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
+| `sdk-event-messaging-kafka` | 7.0.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
 | `sdk-file-share` | 2.0.0 | [CHANGELOG](sdk-file-share/CHANGELOG.md) | [2.0](sdk-file-share/MIGRATION-2.0.md) |
 | `sdk-audit-log` | 3.0.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) |
 | `sdk-measure-micrometer` | 3.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) |
@@ -26,6 +26,12 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-jpa` | 1.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
 | `sdk-geo-validation` | 1.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [1.0](sdk-geo-validation/MIGRATION-1.0.md) |
+
+## sdk-bom 1.3.0
+
+- Includes `sdk-event-messaging-core`, `-jdbc`, `-rabbit` and `-kafka` 7.0.0, which charge a reclaim
+  attempt only to rows whose send had started
+  ([ADR 0018](docs/adr/0018-charge-attempts-only-for-started-sends.md)).
 
 ## sdk-bom 1.2.0
 

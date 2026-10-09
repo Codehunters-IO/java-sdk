@@ -5,6 +5,8 @@
 -- seq records insertion order; the claim orders by it and blocks a row while an earlier row with the
 -- same (origin, topic, message_key) is still PENDING, IN_FLIGHT or FAILED.
 -- Timestamps are TIMESTAMP without time zone: the adapter binds LocalDateTime from a UTC clock.
+-- send_started_at marks a claimed row whose publish began; a reclaim charges an attempt only then.
+-- Tables created by 6.x: run postgresql/outbox_message_add_send_started_at.sql instead.
 
 --changeset codehunters-sdk:outbox-message-create
 CREATE TABLE outbox_message (
@@ -22,7 +24,8 @@ CREATE TABLE outbox_message (
     next_attempt_at TIMESTAMP,
     published_at TIMESTAMP,
     claimed_at TIMESTAMP,
-    claimed_by VARCHAR(255)
+    claimed_by VARCHAR(255),
+    send_started_at TIMESTAMP
 );
 --rollback DROP TABLE outbox_message;
 

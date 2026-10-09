@@ -1,5 +1,25 @@
 # Changelog — sdk-event-messaging-jdbc
 
+## 7.0.0
+
+Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
+
+### Breaking
+- The claim reads and clears a new `send_started_at` column. Add it **before** the deploy:
+  `sqlserver/outbox_message_add_send_started_at.sql` or
+  `postgresql/outbox_message_add_send_started_at.sql` for tables created by 6.x.
+
+### Fixed
+- Reclaiming a stale `IN_FLIGHT` row charges an attempt only when its send had started
+  ([ADR 0018](../../docs/adr/0018-charge-attempts-only-for-started-sends.md)); rows the previous
+  dispatcher never reached keep their attempts.
+
+### Added
+- `OutboxJdbcAdapter.markSendStarted`, fenced by the claim marker. Updates that end a claim clear
+  the mark. It warns once when it runs inside a caller transaction: dispatch must run outside one.
+- Integration tests against the SQL Server reference DDL and the 7.0 upgrade scripts (SQL Server
+  2022 on x86-64, azure-sql-edge on ARM).
+
 ## 6.0.0
 
 First release; the JDBC store, schedulers and DDL of `sdk-event-messaging` 5.1.5. Migration guide:

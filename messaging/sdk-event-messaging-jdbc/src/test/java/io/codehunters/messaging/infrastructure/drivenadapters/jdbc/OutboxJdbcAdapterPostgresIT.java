@@ -47,8 +47,8 @@ class OutboxJdbcAdapterPostgresIT {
     var seqIdentity =
         jdbcClient
             .sql(
-                "SELECT is_identity FROM information_schema.columns"
-                    + " WHERE table_name = 'outbox_message' AND column_name = 'seq'")
+                "SELECT is_identity FROM information_schema.columns WHERE table_schema = 'public'"
+                    + " AND table_name = 'outbox_message' AND column_name = 'seq'")
             .query(String.class)
             .single();
 
@@ -149,11 +149,12 @@ class OutboxJdbcAdapterPostgresIT {
   }
 
   @Test
-  void should_increment_attempts_when_reclaiming_stale_in_flight_row() {
+  void should_increment_attempts_when_reclaiming_stale_row_whose_send_had_started() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
     recordOneFailedAttempt(id);
     markStaleInFlight(id);
+    markSendStartedByDeadInstance(id);
 
     var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
 
@@ -171,6 +172,14 @@ class OutboxJdbcAdapterPostgresIT {
 
     assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
+  }
+
+  private void markSendStartedByDeadInstance(UUID id) {
+    jdbcClient
+        .sql("UPDATE outbox_message SET send_started_at = :old WHERE id = :id")
+        .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(9))
+        .param("id", id)
+        .update();
   }
 
   private void markStaleInFlight(UUID id) {

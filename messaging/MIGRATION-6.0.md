@@ -1,5 +1,7 @@
 # Migrating from sdk-event-messaging 5.x to 6.0
 
+> Going to 7.0? Apply this guide, then [MIGRATION-7.0.md](MIGRATION-7.0.md).
+
 6.0 splits `sdk-event-messaging` into four artifacts
 ([ADR 0001](../docs/adr/0001-split-event-messaging-by-transport.md)) and moves its configuration
 under `codehunters.outbox` ([ADR 0004](../docs/adr/0004-single-codehunters-property-prefix.md)).
@@ -12,7 +14,7 @@ Module docs: [core](sdk-event-messaging-core/README.md) · [jdbc](sdk-event-mess
 
 1. Apply the DDL changes (SQL Server: **before** deploying 6.0, see [DDL](#ddl)).
 2. Replace the dependency.
-3. Rename properties (optional until 7.0) and review the Kafka send timeout.
+3. Rename properties (optional until 8.0) and review the Kafka send timeout.
 4. RabbitMQ: enable publisher confirms and returns.
 5. Consumers: deduplicate on `outbox-message-id`.
 
@@ -32,7 +34,7 @@ the 5.x dependency yourself.
 ## Properties
 
 Every key moves from `outbox.*` to `codehunters.outbox.*`. The old keys (in files and environment
-variables) are still honoured until 7.0: each is copied to its new name when the new one is unset,
+variables) are still honoured until 8.0 (7.0 kept them): each is copied to its new name when the new one is unset,
 with one deprecation warning at startup.
 
 | 5.x | 6.0 |
@@ -126,8 +128,8 @@ MySQL and MariaDB are not supported: `claim.dialect` `auto` or `generic` fails s
 ## Known limits
 
 - A reclaim after a crash or stall adds one attempt to every row of the abandoned batch, including
-  rows that were never sent. Keep `max-attempts` high enough to absorb a few reclaims; the fix needs
-  a schema change and is planned for 7.0.
+  rows that were never sent. Keep `max-attempts` high enough to absorb a few reclaims. **Fixed in
+  7.0** ([MIGRATION-7.0.md](MIGRATION-7.0.md)), which only charges rows whose send had started.
 - Maven does not apply the Gradle capability conflict check: import `io.codehunters:sdk-bom` to keep
   the `sdk-event-messaging-*` artifacts on one version, and remove the 5.x artifact yourself.
 

@@ -6,7 +6,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.enabled",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -15,7 +15,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.batch-size",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -24,7 +24,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.max-attempts",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -33,7 +33,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.task.fixed-delay",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -42,7 +42,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.task.lock-at-most",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -51,7 +51,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.task.lock-at-least",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -60,7 +60,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.task.lock-name",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -69,7 +69,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.claim.ttl-ms",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -78,7 +78,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.claim.dialect",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -87,7 +87,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.backoff.base-delay-ms",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -96,7 +96,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.backoff.max-delay-ms",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -105,7 +105,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.publisher.type",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -114,7 +114,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.publisher.kafka.send-timeout",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -123,7 +123,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.retention",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -132,7 +132,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.batch-size",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -141,7 +141,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.fixed-delay",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -150,7 +150,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.initial-delay",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -159,7 +159,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.lock-name",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -168,7 +168,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.lock-at-most",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     },
     {
@@ -177,7 +177,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.outbox.purge.lock-at-least",
-        "reason": "Renamed in 6.0.0; the old key is honoured until 7.0.0."
+        "reason": "Renamed in 6.0.0; the old key is honoured until 8.0.0."
       }
     }
   ]
