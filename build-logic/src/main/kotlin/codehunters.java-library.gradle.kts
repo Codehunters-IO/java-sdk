@@ -130,27 +130,34 @@ val codehuntersPackages = extensions.create<CodehuntersPackagesExtension>("codeh
 val verifyPackageLayout = tasks.register("verifyPackageLayout") {
     description = "Fails when packages break the SDK layout convention (ADR 0020)."
     group = JavaBasePlugin.VERIFICATION_GROUP
-    val sources = layout.projectDirectory.dir("src/main/java").asFile
+    val sources = layout.projectDirectory.dir("src/main/java")
     val projectPath = project.path
     val root = codehuntersPackages.root
     val otherRoots = provider {
         rootProject.allprojects
             .filter { it.path != projectPath }
             .mapNotNull { it.extensions.findByType(CodehuntersPackagesExtension::class.java)?.root?.orNull }
+            .sorted()
     }
+    val marker = layout.buildDirectory.file("verifyPackageLayout/ok")
+    inputs.files(sources).withPropertyName("sources").withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property("root", root.orElse(""))
+    inputs.property("otherRoots", otherRoots)
+    outputs.file(marker).withPropertyName("marker")
     doLast {
         val declared = root.orNull
             ?: throw GradleException(
                 "$projectPath declares no package root. " +
                     "Add codehuntersPackages { root = \"io.codehunters.<module>\" }."
             )
-        val violations = PackageLayout.violations(declared, sources, otherRoots.get())
+        val violations = PackageLayout.violations(declared, sources.asFile, otherRoots.get())
         if (violations.isNotEmpty()) {
             throw GradleException(
                 "$projectPath breaks the package layout (ADR 0020):\n" +
                     violations.joinToString("\n") { "  - $it" }
             )
         }
+        marker.get().asFile.apply { parentFile.mkdirs() }.writeText("ok\n")
     }
 }
 
