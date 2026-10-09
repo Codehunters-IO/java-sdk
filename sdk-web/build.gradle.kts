@@ -33,6 +33,8 @@ dependencies {
     compileOnly(libs.uap.java)
 
     testImplementation(project(":sdk-tracing"))
+    testImplementation(project(":sdk-commons"))
+    testImplementation("org.springframework:spring-tx")
     testImplementation("org.springframework.boot:spring-boot-webmvc")
     testImplementation("org.springframework.boot:spring-boot-http-converter")
     testImplementation("org.springframework.boot:spring-boot-jackson")
