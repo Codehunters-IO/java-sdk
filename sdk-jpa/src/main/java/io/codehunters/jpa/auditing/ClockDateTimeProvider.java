@@ -9,8 +9,7 @@ import org.springframework.data.auditing.DateTimeProvider;
 
 /**
  * Audit timestamps read from a {@link Clock}, cut to microseconds: PostgreSQL keeps exactly that,
- * and SQL Server's {@code datetime2} and {@code datetimeoffset} keep 100 ns, so an entity holds the
- * same instant before and after a round trip on both.
+ * so an entity holds the same instant before and after a round trip.
  */
 public final class ClockDateTimeProvider implements DateTimeProvider {
 

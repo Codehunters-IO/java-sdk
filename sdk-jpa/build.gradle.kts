@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.1.0"
+version = "3.0.0"
 description = "JPA building blocks: audited UUIDv7 entities, page responses, JSON converters, safe search specifications."
 
 codehuntersPackages {
