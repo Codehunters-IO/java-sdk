@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -15,7 +18,10 @@ import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.context.support.StaticMessageSource;
 
 /** The SDK's error bundle joins the application's message source, after the application's own. */
+@ExtendWith(OutputCaptureExtension.class)
 class ErrorBundleTest {
+
+  private static final String UNREACHABLE_WARNING = "sdk-web's error bundle is not reachable";
 
   private static final Locale SPANISH = Locale.of("es");
   private static final String SDK_SORT_EN = "The requested sort is not allowed.";
@@ -88,6 +94,45 @@ class ErrorBundleTest {
                             .getBean("otherMessages", ResourceBundleMessageSource.class)
                             .getBasenameSet())
                     .containsExactly("i18n/extra"));
+  }
+
+  @Test
+  void should_resolve_sdk_messages_when_the_application_has_no_bundle() {
+    new WebApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(
+                WebErrorsAutoConfiguration.class, MessageSourceAutoConfiguration.class))
+        .run(
+            context ->
+                assertThat(context.getMessage("error.INVALID_SORT", null, SPANISH))
+                    .isEqualTo("El orden solicitado no está permitido."));
+  }
+
+  @Test
+  void should_keep_boot_message_source_when_the_application_has_a_bundle() {
+    runner.run(
+        context ->
+            assertThat(
+                    context
+                        .getBean("messageSource", ResourceBundleMessageSource.class)
+                        .getBasenameSet())
+                .containsExactly("i18n/messages", ErrorBundleRegistrar.BASENAME));
+  }
+
+  @Test
+  void should_warn_at_startup_when_the_message_source_cannot_reach_the_sdk_bundle(
+      CapturedOutput output) {
+    runner.withUserConfiguration(StaticMessages.class).run(context -> {});
+
+    assertThat(output).contains(UNREACHABLE_WARNING);
+  }
+
+  @Test
+  void should_not_warn_at_startup_when_the_message_source_reaches_the_sdk_bundle(
+      CapturedOutput output) {
+    runner.run(context -> {});
+
+    assertThat(output).doesNotContain(UNREACHABLE_WARNING);
   }
 
   @Configuration(proxyBeanMethods = false)
