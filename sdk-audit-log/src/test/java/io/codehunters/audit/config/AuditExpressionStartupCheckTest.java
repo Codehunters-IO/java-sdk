@@ -18,6 +18,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 class AuditExpressionStartupCheckTest {
 
   private static final String INVALID = "Invalid @Auditable expression";
+  private static final String SANDBOX = "the sandbox only reads properties";
   private static final String FAIL_FAST = "codehunters.audit.startup-check.fail-fast=true";
   private static final String FAIL_ON_ERROR = "codehunters.audit.fail-on-error=true";
 
@@ -72,6 +73,63 @@ class AuditExpressionStartupCheckTest {
         .run(context -> assertThat(context).hasNotFailed());
 
     assertThat(output).doesNotContain(INVALID);
+  }
+
+  @Test
+  void should_reject_expressions_the_sandbox_cannot_evaluate() {
+    runner
+        .withBean(SandboxedExpressions.class, SandboxedExpressions::new)
+        .withPropertyValues(FAIL_FAST)
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .hasMessageContaining(SANDBOX)
+                    .hasMessageContaining("entityId: calls a method")
+                    .hasMessageContaining("actorId: references a type")
+                    .hasMessageContaining("correlationId: calls a constructor")
+                    .hasMessageContaining("payload[bean]: references a bean")
+                    .hasMessageContaining("payload[assigned]: assigns a value")
+                    .hasMessageContaining("#order.id"));
+  }
+
+  @Test
+  void should_accept_property_paths_indexes_and_safe_navigation(CapturedOutput output) {
+    runner
+        .withBean(PropertyExpressions.class, PropertyExpressions::new)
+        .withPropertyValues(FAIL_FAST)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).doesNotContain(INVALID);
+  }
+
+  /** Declares expressions that parse but use what the sandbox refuses. */
+  static class SandboxedExpressions {
+
+    @Auditable(
+        entityType = "ORDER",
+        action = "READ",
+        entityId = "#orderId.toUpperCase()",
+        actorId = "T(java.lang.System).getProperty('user.name')",
+        correlationId = "new java.lang.String('x')",
+        payload = {"bean=@dataSource", "assigned=#orderId = 'x'"})
+    public void find(String orderId) {
+      // audited only
+    }
+  }
+
+  /** Declares expressions the sandbox evaluates. */
+  static class PropertyExpressions {
+
+    @Auditable(
+        entityType = "ORDER",
+        action = "READ",
+        entityId = "#tags['id']",
+        actorId = "#result?.name",
+        payload = {"size=#tags.size", "upper=#tags?.['k'] ?: 'none'"})
+    public Object find(java.util.Map<String, String> tags) {
+      return null;
+    }
   }
 
   /** Declares expressions SpEL cannot parse. */

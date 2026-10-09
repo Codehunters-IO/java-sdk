@@ -20,6 +20,24 @@ class AuditSpelEvaluatorTest {
     public String echo(String result) {
       return result;
     }
+
+    public void place(Order order) {
+      // evaluated only
+    }
+  }
+
+  record Order(String id, Map<String, String> tags) {}
+
+  /** A bean-style type: properties come from getters. */
+  static class Customer {
+    public String getName() {
+      return "Ada";
+    }
+  }
+
+  private EvaluationContext orderContext() throws NoSuchMethodException {
+    Method place = Sample.class.getMethod("place", Order.class);
+    return evaluator.buildContext(place, new Object[] {new Order("A-1", Map.of("k", "v"))}, null);
   }
 
   private Method greetMethod() throws NoSuchMethodException {
@@ -167,5 +185,54 @@ class AuditSpelEvaluatorTest {
     EvaluationContext ctx = evaluator.buildContext(echo, new Object[] {"argument"}, null);
 
     assertThat(evaluator.evaluate("#result", ctx)).isNull();
+  }
+
+  @Test
+  void should_read_record_components_as_properties() throws Exception {
+    assertThat(evaluator.evaluate("#order.id", orderContext())).isEqualTo("A-1");
+  }
+
+  @Test
+  void should_read_bean_getters_as_properties() throws Exception {
+    EvaluationContext ctx =
+        evaluator.buildContext(greetMethod(), new Object[] {"x", 1}, new Customer());
+
+    assertThat(evaluator.evaluate("#result.name", ctx)).isEqualTo("Ada");
+  }
+
+  @Test
+  void should_read_map_entries_by_key() throws Exception {
+    assertThat(evaluator.evaluate("#order.tags['k']", orderContext())).isEqualTo("v");
+  }
+
+  @Test
+  void should_not_call_methods() throws Exception {
+    assertThat(evaluator.evaluate("#order.id()", orderContext())).isNull();
+    assertThat(evaluator.evaluate("#order.tags.get('k')", orderContext())).isNull();
+  }
+
+  @Test
+  void should_not_reference_types() throws Exception {
+    assertThat(evaluator.evaluate("T(java.lang.System).getProperty('user.home')", orderContext()))
+        .isNull();
+  }
+
+  @Test
+  void should_not_call_constructors() throws Exception {
+    assertThat(evaluator.evaluateValue("new java.lang.StringBuilder('x')", orderContext()))
+        .isNull();
+  }
+
+  @Test
+  void should_not_resolve_bean_references() throws Exception {
+    assertThat(evaluator.evaluateValue("@dataSource", orderContext())).isNull();
+  }
+
+  @Test
+  void should_not_assign_values() throws Exception {
+    EvaluationContext ctx = orderContext();
+
+    assertThat(evaluator.evaluate("#order = 'changed'", ctx)).isNull();
+    assertThat(evaluator.evaluate("#order.id", ctx)).isEqualTo("A-1");
   }
 }

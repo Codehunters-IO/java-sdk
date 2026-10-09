@@ -8,7 +8,7 @@ public class OrderService {
   @Auditable(
       entityType = "ORDER",
       action = "CREATE",
-      entityId = "#result.get('id')",
+      entityId = "#result['id']",
       sourceService = "order-service",
       payload = {"amount=#command.get('amount')", "customer=#command.get('customer')"})
   Map<String, Object> createOrder(Map<String, Object> command) {
@@ -38,7 +38,7 @@ public class OrderService {
   @Auditable(
       entityType = "ORDER",
       action = "CREATE",
-      entityId = "#result.get('id')",
+      entityId = "#result['id']",
       sourceService = "order-service")
   Map<String, Object> createOrderFailing(Map<String, Object> command) {
     throw new RuntimeException("DB connection failed");
