@@ -60,7 +60,7 @@ class OutboxPurgeSchedulerTest {
   void should_loop_batches_with_retention_cutoff_when_batches_are_full() {
     when(repository.purgePublished(EXPECTED_CUTOFF, BATCH)).thenReturn(500, 500, 37);
 
-    scheduler.purgePublished();
+    scheduler.run();
 
     verify(repository, times(3)).purgePublished(EXPECTED_CUTOFF, BATCH);
   }
@@ -69,7 +69,7 @@ class OutboxPurgeSchedulerTest {
   void should_stop_after_one_call_when_first_batch_is_partial() {
     when(repository.purgePublished(EXPECTED_CUTOFF, BATCH)).thenReturn(0);
 
-    scheduler.purgePublished();
+    scheduler.run();
 
     verify(repository, times(1)).purgePublished(any(), anyInt());
   }
@@ -79,7 +79,7 @@ class OutboxPurgeSchedulerTest {
     when(repository.purgePublished(any(), anyInt()))
         .thenThrow(new RuntimeException("PII-SENTINEL"));
 
-    assertDoesNotThrow(() -> scheduler.purgePublished());
+    assertDoesNotThrow(() -> scheduler.run());
 
     assertThat(logAppender.list)
         .extracting(ILoggingEvent::getFormattedMessage)

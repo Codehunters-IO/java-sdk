@@ -12,16 +12,23 @@ import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
 import io.codehunters.messaging.jdbc.scheduler.OutboxScheduler;
+import io.codehunters.messaging.jdbc.scheduler.OutboxSchedulingLifecycle;
+import io.codehunters.messaging.jdbc.scheduler.RecordingLockProvider;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.time.Duration;
 import javax.sql.DataSource;
+import net.javacrumbs.shedlock.core.LockConfiguration;
 import net.javacrumbs.shedlock.core.LockProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.config.TaskManagementConfigUtils;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -29,6 +36,7 @@ class EventMessagingJdbcAutoConfigurationTest {
 
   private static final String SCHEDULED_ANNOTATION_PROCESSOR =
       TaskManagementConfigUtils.SCHEDULED_ANNOTATION_PROCESSOR_BEAN_NAME;
+  private static final String OUTBOX_TASK_SCHEDULER = "outboxTaskScheduler";
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -119,15 +127,88 @@ class EventMessagingJdbcAutoConfigurationTest {
               assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
               assertThat(context).doesNotHaveBean(OutboxScheduler.class);
               assertThat(context).doesNotHaveBean(OutboxPurgeScheduler.class);
+              assertThat(context).doesNotHaveBean(OUTBOX_TASK_SCHEDULER);
+              assertThat(context).doesNotHaveBean(OutboxSchedulingLifecycle.class);
               assertThat(context).doesNotHaveBean(SCHEDULED_ANNOTATION_PROCESSOR);
             });
   }
 
   @Test
-  void should_enable_scheduling_when_scheduling_property_unset() {
+  void should_not_enable_application_wide_scheduling_when_scheduling_property_unset() {
     contextRunner
         .withBean(DataSource.class, this::createDataSource)
-        .run(context -> assertThat(context).hasBean(SCHEDULED_ANNOTATION_PROCESSOR));
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(OutboxScheduler.class);
+              assertThat(context).doesNotHaveBean(SCHEDULED_ANNOTATION_PROCESSOR);
+            });
+  }
+
+  @Test
+  void should_register_private_outbox_task_scheduler_when_scheduling_property_unset() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .run(
+            context -> {
+              assertThat(context).hasBean(OUTBOX_TASK_SCHEDULER);
+              assertThat(context).hasSingleBean(OutboxSchedulingLifecycle.class);
+              assertThat(definition(context, OUTBOX_TASK_SCHEDULER).isDefaultCandidate()).isFalse();
+            });
+  }
+
+  @Test
+  void should_resolve_application_task_scheduler_by_type_when_outbox_scheduler_present() {
+    ThreadPoolTaskScheduler applicationScheduler = new ThreadPoolTaskScheduler();
+
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean("taskScheduler", TaskScheduler.class, () -> applicationScheduler)
+        .run(
+            context -> {
+              assertThat(context.getBean(TaskScheduler.class)).isSameAs(applicationScheduler);
+              assertThat(context.getBean(OUTBOX_TASK_SCHEDULER)).isNotSameAs(applicationScheduler);
+            });
+  }
+
+  @Test
+  void should_run_dispatch_and_purge_under_their_locks_when_context_starts() {
+    RecordingLockProvider locks = RecordingLockProvider.granting(2);
+
+    contextRunner
+        .withPropertyValues("codehunters.outbox.purge.initial-delay=0s")
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
+        .withBean(SendOutboxMessagesPort.class, () -> mock(SendOutboxMessagesPort.class))
+        .withBean(LockProvider.class, () -> locks)
+        .run(
+            context -> {
+              assertThat(locks.awaitRequests()).isTrue();
+              assertThat(locks.requests())
+                  .extracting(LockConfiguration::getName)
+                  .contains("outbox-test-app", "outbox-purge-test-app");
+            });
+  }
+
+  @Test
+  void should_hold_dispatch_lock_for_configured_bounds_when_dispatch_runs() {
+    RecordingLockProvider locks = RecordingLockProvider.granting();
+
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.task.lock-at-most=7m", "codehunters.outbox.task.lock-name=d")
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
+        .withBean(SendOutboxMessagesPort.class, () -> mock(SendOutboxMessagesPort.class))
+        .withBean(LockProvider.class, () -> locks)
+        .run(
+            context -> {
+              assertThat(locks.awaitRequests()).isTrue();
+              assertThat(locks.requests().getFirst())
+                  .extracting(
+                      LockConfiguration::getName,
+                      LockConfiguration::getLockAtMostFor,
+                      LockConfiguration::getLockAtLeastFor)
+                  .containsExactly("d", Duration.ofMinutes(7), Duration.ZERO);
+            });
   }
 
   @Test
@@ -259,6 +340,11 @@ class EventMessagingJdbcAutoConfigurationTest {
     contextRunner
         .withBean(DataSource.class, DataSources::unreachable)
         .run(context -> assertThat(context).hasNotFailed());
+  }
+
+  private static AbstractBeanDefinition definition(
+      AssertableApplicationContext context, String name) {
+    return (AbstractBeanDefinition) context.getBeanFactory().getBeanDefinition(name);
   }
 
   private DataSource createDataSource() {

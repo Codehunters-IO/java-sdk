@@ -28,14 +28,18 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class EventMessagingCoreAutoConfigurationTest {
 
   private static final OutboxEvent<String> EVENT =
       OutboxEvent.to("t").key("a").type("n").payload("p");
+  private static final String OUTBOX_CLOCK = "outboxClock";
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-10-09T10:00:00Z");
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -427,18 +431,65 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
-  void should_provide_utc_clock_when_no_clock_defined() {
+  void should_provide_private_utc_outbox_clock_when_no_clock_defined() {
     contextRunner.run(
-        context -> assertThat(context.getBean(Clock.class).getZone()).isEqualTo(ZoneOffset.UTC));
+        context -> {
+          assertThat(context.getBean(OUTBOX_CLOCK, Clock.class).getZone())
+              .isEqualTo(ZoneOffset.UTC);
+          assertThat(definition(context, OUTBOX_CLOCK).isDefaultCandidate()).isFalse();
+        });
   }
 
   @Test
-  void should_use_user_clock_when_clock_bean_defined() {
+  void should_keep_application_clock_resolvable_by_type_when_clock_bean_defined() {
     Clock custom = Clock.fixed(Instant.EPOCH, ZoneId.of("Europe/Madrid"));
 
     contextRunner
         .withBean(Clock.class, () -> custom)
-        .run(context -> assertThat(context.getBean(Clock.class)).isSameAs(custom));
+        .run(
+            context -> {
+              assertThat(context.getBean(Clock.class)).isSameAs(custom);
+              assertThat(context.getBean(OUTBOX_CLOCK)).isNotSameAs(custom);
+            });
+  }
+
+  @Test
+  void should_not_stamp_events_with_application_clock_when_clock_bean_defined() {
+    Clock custom = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+
+    contextRunner
+        .withBean(Clock.class, () -> custom)
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(EventMessageFactory.class)
+                            .create(EVENT)
+                            .header()
+                            .timestamp())
+                    .isAfter(Instant.EPOCH));
+  }
+
+  @Test
+  void should_stamp_events_with_outbox_clock_when_application_overrides_it_by_name() {
+    Clock outboxClock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
+
+    contextRunner
+        .withBean(OUTBOX_CLOCK, Clock.class, () -> outboxClock)
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(EventMessageFactory.class)
+                            .create(EVENT)
+                            .header()
+                            .timestamp())
+                    .isEqualTo(FIXED_INSTANT));
+  }
+
+  private static AbstractBeanDefinition definition(
+      AssertableApplicationContext context, String name) {
+    return (AbstractBeanDefinition) context.getBeanFactory().getBeanDefinition(name);
   }
 
   private OutboxDispatchStore repositoryWithOneMessage() {

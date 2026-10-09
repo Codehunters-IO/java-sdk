@@ -44,7 +44,7 @@ class OutboxSchedulerTest {
 
   @Test
   void should_delegate_to_send_outbox_messages_port() {
-    scheduler.processOutboxMessages();
+    scheduler.run();
 
     verify(sendOutboxMessagesPort).execute();
   }
@@ -53,14 +53,14 @@ class OutboxSchedulerTest {
   void should_not_propagate_exception_from_use_case() {
     doThrow(new RuntimeException("db error")).when(sendOutboxMessagesPort).execute();
 
-    assertDoesNotThrow(() -> scheduler.processOutboxMessages());
+    assertDoesNotThrow(() -> scheduler.run());
   }
 
   @Test
   void should_log_exception_class_name_only_when_use_case_fails() {
     doThrow(new RuntimeException("PII-SENTINEL")).when(sendOutboxMessagesPort).execute();
 
-    scheduler.processOutboxMessages();
+    scheduler.run();
 
     assertThat(logAppender.list)
         .extracting(ILoggingEvent::getFormattedMessage)
