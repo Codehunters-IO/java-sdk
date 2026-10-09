@@ -28,8 +28,18 @@ public Order createOrder(CreateOrderCommand command) { ... }
 SpEL expressions see the parameters by name (`#command`, needs `-parameters`), by position (`#p0`,
 `#a0`, `#arg0`) and the return value (`#result`). `#result` is reserved: it is `null` when the
 method throws, even if a parameter is called `result`; write `#result?.id` so the failure event
-records `null` cleanly. An expression that fails to evaluate, or calls a method that throws, leaves
-its field `null`; the event is still published, and the first failure of each method (overloads
+records `null` cleanly.
+
+Expressions run in a read-only sandbox (SpEL's `SimpleEvaluationContext`): they read properties,
+through getters or record components (`#order.id`, `#order.customer.name`), index lists and maps
+(`#items[0]`, `#tags['k']`, `#result?.['id']`) and use operators (`?:`, `?.`, comparisons,
+arithmetic). They call no method (`#order.getId()`, `#map.get('k')`), reference no type
+(`T(...)`), call no constructor (`new ...`), resolve no bean (`@name`) and assign nothing. Startup
+reports an expression that does any of these, as it does one that does not parse; at runtime it
+records `null`.
+
+An expression that fails to evaluate, or reads a property whose getter throws, leaves its field
+`null`; the event is still published, and the first failure of each method (overloads
 apart) and attribute is logged at `WARN` with the exception class or SpEL message code, never the
 message or the values. A `#result` expression that fails only because the method threw is not
 warned about. Expressions are parsed at startup; see
@@ -130,7 +140,10 @@ exception is thrown with the audit failure attached as suppressed.
 
 The `auditTaskExecutor` and `auditJsonMapper` beans are not autowiring candidates: they never
 replace Boot's `applicationTaskExecutor` or your `JsonMapper`. Inject them with `@Qualifier` if you
-need them. Define a bean with either name to replace it.
+need them. Define a bean with either name to replace it. `auditJsonMapper` is built from Boot's
+`JsonMapper.Builder` when the Jackson auto-configuration provides one, so `spring.jackson.*`,
+your modules and your `JsonMapperBuilderCustomizer`s shape payloads as they shape your API; it is
+its own instance, never your `JsonMapper`. Without Boot's builder it uses Jackson's defaults.
 
 ### Transactions
 
@@ -230,8 +243,6 @@ Invalid sizes fail at startup.
 - With `fail-on-error=true`, the cause of an `AuditPersistenceException` is redacted: it keeps
   the failure class, SQLState, vendor code and stack trace, never the database message, which can
   echo the row. Read them from `failureClass()`, `sqlState()` and `vendorCode()`.
-- Expressions run in a full SpEL `StandardEvaluationContext`: they may call any method of the
-  arguments and reach any type with `T(...)`. They come from your own annotations, never from
-  input, so this is accepted for now. A restricted `SimpleEvaluationContext` would break
-  expressions that call methods, so it is left for a major version. Keep expressions to property
-  reads and simple calls.
+- The startup check finds a refused construct only in expressions it can read: it cannot tell
+  whether a property exists on the runtime type, so a misspelled property is still `null` at
+  runtime, with one `WARN`.
