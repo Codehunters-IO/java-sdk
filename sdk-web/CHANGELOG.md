@@ -1,5 +1,16 @@
 # Changelog — sdk-web
 
+## 2.1.0
+
+### Added
+- `ClientInputException` from `sdk-commons` 3.0.0 is answered with `400` and its `code()`, also when
+  it is the cause of another exception, such as Spring's `InvalidDataAccessApiUsageException` around
+  `sdk-jpa`'s `InvalidSearchException`. Before, these answered `500 INTERNAL_ERROR`. The detail is
+  the bundle message `error.<CODE>`, else the exception message, safe by the exception's contract.
+  Codes from the SDK: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa` 2.1.0), `BARCODE_IMAGE_REJECTED`,
+  `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). See the README's "Client input errors".
+- `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
+
 ## 2.0.0
 
 ### Breaking
