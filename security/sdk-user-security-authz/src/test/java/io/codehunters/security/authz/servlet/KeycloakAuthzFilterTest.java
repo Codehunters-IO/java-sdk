@@ -1,4 +1,4 @@
-package io.codehunters.security.authz;
+package io.codehunters.security.authz.servlet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -8,9 +8,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.MethodMapping;
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.PathMapping;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.MethodMapping;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.PathMapping;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.Duration;

@@ -1,8 +1,9 @@
-package io.codehunters.security.authz;
+package io.codehunters.security.authz.servlet;
 
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.MethodMapping;
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.PathMapping;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.MethodMapping;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.PathMapping;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

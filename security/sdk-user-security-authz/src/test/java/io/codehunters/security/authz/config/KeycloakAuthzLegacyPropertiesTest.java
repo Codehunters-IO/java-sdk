@@ -1,8 +1,8 @@
-package io.codehunters.security.authz;
+package io.codehunters.security.authz.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.EnforcementMode;
 import io.codehunters.security.config.KeycloakSecurityLegacyProperties;
 import java.util.List;
 import java.util.Map;

@@ -1,4 +1,4 @@
-package io.codehunters.security.authz;
+package io.codehunters.security.authz.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
 import java.util.List;

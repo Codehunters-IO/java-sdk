@@ -1,4 +1,4 @@
-package io.codehunters.security.authz;
+package io.codehunters.security.authz.config;
 
 import java.time.Clock;
 import java.time.Duration;

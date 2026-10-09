@@ -1,4 +1,4 @@
-package io.codehunters.security.authz;
+package io.codehunters.security.authz.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

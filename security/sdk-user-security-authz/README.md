@@ -62,9 +62,9 @@ codehunters:
 
 ## Migrating from 3.x
 
-4.0 needs `sdk-user-security` 4.0, whose configuration classes moved to
-`io.codehunters.security.config`; this artifact's package and classes do not change. See
-[sdk-user-security MIGRATION-4.0.md](../sdk-user-security/MIGRATION-4.0.md).
+4.0 moves the filter to `io.codehunters.security.authz.servlet` and the auto-configuration and
+properties to `io.codehunters.security.authz.config`, and needs `sdk-user-security` 4.0, whose
+packages also moved. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
 
 ## Migrating from 2.x (`sdk-user-security` 2.x included the PEP)
 
