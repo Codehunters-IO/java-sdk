@@ -12,7 +12,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.totp.time-step",
-        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 3.0.0."
+        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 4.0.0."
       }
     },
     {
@@ -21,7 +21,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.totp.digits",
-        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 3.0.0."
+        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 4.0.0."
       }
     },
     {
@@ -30,7 +30,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.totp.algorithm",
-        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 3.0.0."
+        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 4.0.0."
       }
     }
   ]
