@@ -31,9 +31,21 @@ that copied the old keys) and its `spring.factories` entry. Nothing replaces it.
 `Authentication.getName()` is the user id, a token without `sub` answers 401, and the
 gateway-header 401 goes through the application's `AuthenticationEntryPoint`.
 
+The authentication of a bearer request is now a `KeycloakAuthenticationToken`
+(`AbstractOAuth2TokenAuthenticationToken<Jwt>`) instead of a `UsernamePasswordAuthenticationToken`,
+so the validated token survives credential erasure. The principal is still the
+`KeycloakPrincipal`; only code that casts the authentication itself changes:
+
+| 4.x | 5.0 |
+|---|---|
+| `(UsernamePasswordAuthenticationToken) authentication` | `(KeycloakAuthenticationToken) authentication` |
+| `authentication.getCredentials()` held the `Jwt` until erased | `((KeycloakAuthenticationToken) authentication).getToken()`, always |
+
 ## Steps
 
 1. Bump `sdk-user-security` to 5.0.0 (with the policy enforcer, `sdk-user-security-authz` 5.0.0
    too), or the `sdk-bom` that manages them.
 2. Search the configuration, Helm values and secrets for `keycloak.security` and
    `KEYCLOAK_SECURITY_`, and rename every hit with the table above.
+3. Search the code for casts to `UsernamePasswordAuthenticationToken` of the request's
+   authentication and use `KeycloakAuthenticationToken` instead.

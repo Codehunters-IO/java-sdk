@@ -11,7 +11,18 @@ Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
   `keycloak.security.*` configuration metadata.
 - The dependency on `sdk-support`.
 
+### Added
+- `io.codehunters.security.KeycloakAuthenticationToken`, the authentication of a verified Keycloak
+  token: an `AbstractOAuth2TokenAuthenticationToken<Jwt>` whose principal is the `KeycloakPrincipal`.
+
 ### Behaviour changes
+- The authentication of a bearer request is a `KeycloakAuthenticationToken` instead of a
+  `UsernamePasswordAuthenticationToken`. The validated `Jwt` stays available through `getToken()`
+  after Spring Security erases credentials, and the gateway filter keeps the type when it adds the
+  gateway context. `getPrincipal()` is still the `KeycloakPrincipal`, so `@CurrentPrincipal`,
+  `@AuthenticationPrincipal KeycloakPrincipal` and `KeycloakSecurityUtils` work unchanged; code that
+  cast the authentication to `UsernamePasswordAuthenticationToken` must cast to
+  `KeycloakAuthenticationToken` or `AbstractOAuth2TokenAuthenticationToken`.
 - `Authentication.getName()` and `HttpServletRequest.getRemoteUser()` return the user id instead of
   the record's `toString()`; `authentication.name` in `@PreAuthorize` changes accordingly.
 - `KeycloakPrincipal.toString()` prints the user id only.

@@ -20,23 +20,24 @@
 
 ### Added
 - `KeycloakPolicyEnforcerFilter`, running Keycloak's `PolicyEnforcer` the way its
-  `ServletPolicyEnforcerFilter` does, with `KeycloakPolicyEnforcerFilter.Options` (token resolver,
-  retry backoff, clock, failure listener), and the `keycloakPolicyEnforcerCustomizer`
+  `ServletPolicyEnforcerFilter` does, with `KeycloakPolicyEnforcerFilter.Options` (skipped paths,
+  retry backoff, first-build wait, clock, failure listener), and the `keycloakPolicyEnforcerCustomizer`
   (`Customizer<HttpSecurity>`) that places it after `AuthorizationFilter` in every
   `SecurityFilterChain`.
 - The `keycloakPolicyEnforcerHttpClient` bean (Apache `CloseableHttpClient`, not a default
   candidate), closed with the context.
 - The `codehunters.authz.enforcer.failures` counter, tagged `stage` (`enforcer`, `call`), when
   Micrometer and a `MeterRegistry` are present. Failed calls to Keycloak are logged at `WARN`.
-- An application `BearerTokenResolver` bean is used to read tokens the authentication no longer
-  holds.
+- `codehunters.security.authz.skip-paths`: Spring path patterns never enforced, for chains that
+  authenticate without a bearer token.
 - Dependency `org.keycloak:keycloak-policy-enforcer` 26.0.12.
 - Properties mapped to Keycloak's `PolicyEnforcerConfig`: `lazy-load-paths`,
   `http-method-as-scope`, `path-cache.max-entries`, `path-cache.lifespan`,
   `claim-information-point.*`, `max-connections`, `paths[].enforcement-mode`, `paths[].scopes`,
   `paths[].claim-information-point.*` and `paths[].methods[].scopes-enforcement-mode`.
 - Startup fails when a listed method has no scopes, a path uses `**` or does not start with `/`,
-  or an enforcement mode is unknown.
+  an enforcement mode is unknown, a `skip-paths` entry is not a valid pattern, or a `public-paths`
+  entry covers a catalogued path that is not `DISABLED`.
 
 ### Changed
 - `codehunters.security.authz.retry-backoff` now defaults to `10s` (was `30s`) and applies to
@@ -44,12 +45,17 @@
   without calling Keycloak, then a single request rebuilds.
 
 ### Behaviour changes
-- Requests a bearer token authenticated are enforced, decided from the authentication rather than
-  the `Authorization` header: tokens an application `BearerTokenResolver` reads from a query
-  parameter or another header are enforced too. A request another chain authenticated otherwise
-  (basic auth on actuator, for example) passes through. A token authentication whose token cannot
-  be found is denied (403).
-- Paths are matched decoded and without path parameters, as Spring MVC routes them.
+- Every authenticated request, forward and include dispatch is enforced unless its path is in
+  `skip-paths`; the decision fails closed. Keycloak only gets the token Spring Security validated,
+  read from the authentication (requires `sdk-user-security` 5.0.0's
+  `KeycloakAuthenticationToken`), never from the request: Keycloak grants from a requesting party
+  token's permissions without checking its signature. A request authenticated without such a token
+  (basic auth, form login, a custom principal) is denied (403).
+- Paths are matched as Spring MVC matches them, decoded segment by segment; a path with an encoded
+  `/`, `\`, `.`, `%` or a `;` is denied (403) when enforced. Tokens outside the bearer charset and
+  denials Keycloak did not answer itself answer 403.
+- Requests waiting for the first enforcer build answer 503 after 5 seconds; a rebuild is never
+  duplicated, however long it takes.
 - Unauthenticated requests are answered by Spring Security (401 on protected paths) before
   Keycloak is asked; anonymous requests on public and excluded paths are not enforced.
 - Authenticated requests to paths not in the catalog are denied (403) under `ENFORCING`;

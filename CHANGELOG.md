@@ -42,10 +42,17 @@ published:
   ([ADR 0024](docs/adr/0024-outbox-carries-its-own-trace-context.md)). Values pass the shared
   `W3cTraceParent` check first; invalid ones are stored as `NULL` and never sent.
 - `sdk-user-security-authz` 5.0.0: Keycloak's official policy enforcer inside the Spring Security
-  chain for every request authenticated from an OAuth2 token, whatever bearer resolver the
-  application uses; paths match on the decoded path; a failed enforcer build answers 503 during
-  `retry-backoff`; failures are counted as `codehunters.authz.enforcer.failures`
+  chain. It fails closed: every authenticated request is enforced unless its path is in
+  `skip-paths`; Keycloak only gets the token Spring Security validated, read from the
+  authentication, never from the request; other authentications, ambiguous encoded paths and
+  tokens outside the bearer charset answer 403; paths match as Spring MVC matches them; a slow
+  first build answers 503 after 5 s and a failed one during `retry-backoff`; startup fails when a
+  public path covers an enforced catalogued path; failures are counted as
+  `codehunters.authz.enforcer.failures`
   ([ADR 0023](docs/adr/0023-authz-on-keycloak-policy-enforcer.md)).
+- `sdk-user-security` 5.0.0: bearer requests authenticate as `KeycloakAuthenticationToken`
+  (`AbstractOAuth2TokenAuthenticationToken<Jwt>`), so the validated token survives credential
+  erasure; the principal is still the `KeycloakPrincipal`.
 - `sdk-web` 3.0.0: i18n on Boot's message source and an `X-Locale` resolver with Boot's defaults
   that always answers a supported locale; 401/403 details follow the application's locale
   resolver; without an application bundle the errors part registers a message source with the SDK

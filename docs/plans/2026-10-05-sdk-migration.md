@@ -1622,3 +1622,17 @@ Cuatro ramas paralelas sobre la del PR, integradas en ella; versiones sin cambio
   claves del SDK no se resuelven.
 - `sdk-event-messaging-*`: chequeo W3C compartido (`W3cTraceParent`); un `traceparent` inválido se
   guarda como `NULL` y no se publica; el trace id del llamador se compara exacto.
+
+Segunda revisión de seguridad de authz (mismo PR):
+
+- Hallazgo alto: el fallback que releía el token del request le daba a Keycloak un token que Spring
+  no validó; Keycloak concede localmente desde los permisos de un RPT sin verificar la firma, así
+  que un RPT falsificado en `Authorization`, junto a un token válido leído de otro header, pasaba.
+  `sdk-user-security` devuelve ahora `KeycloakAuthenticationToken`
+  (`AbstractOAuth2TokenAuthenticationToken<Jwt>`) y el filtro toma el token solo de la
+  autenticación; se eliminó el fallback.
+- Falla cerrada: toda request autenticada (request, forward, include) se aplica salvo
+  `skip-paths`; otras autenticaciones responden 403. Paths como los compara Spring MVC
+  (`RequestPath`), y 403 ante `%2F`, `%5C`, `%2E`, `%25` o `;`. Tokens fuera del charset bearer y
+  denegaciones sin respuesta dan 403. Primer build con `ReentrantLock.tryLock` (5 s, luego 503) y un
+  rebuild a la vez. Arranque falla si un `public-paths` cubre un path catalogado no `DISABLED`.

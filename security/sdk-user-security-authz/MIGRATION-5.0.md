@@ -25,6 +25,7 @@ through `keycloak.policy-enforcer.enabled` is now off.
 | Key | Change |
 |---|---|
 | `codehunters.security.authz.retry-backoff` | Kept; default `10s` (was `30s`). After a failed build of the enforcer, requests answer 503 for that long, then one request rebuilds |
+| `codehunters.security.authz.skip-paths` | Added, default `[]`: Spring path patterns never enforced, for chains that authenticate without a bearer token |
 | `codehunters.security.authz.lazy-load-paths` | Added, default `false` |
 | `codehunters.security.authz.http-method-as-scope` | Added, default `false` |
 | `codehunters.security.authz.path-cache.max-entries` / `lifespan` | Added, default `1000` / `30s` |
@@ -46,9 +47,10 @@ through `keycloak.policy-enforcer.enabled` is now off.
 | Ant patterns (`/api/users/**`) | Keycloak patterns (`/api/users/*` matches any sub-path, `{id}` one segment). `**` fails startup |
 | A method not listed for a path was denied | Asks Keycloak for the path's `scopes`, the HTTP method with `http-method-as-scope`, or the bare resource. List every method a path serves |
 | A method listed with no scopes was accepted | Startup fails |
-| Requests with a `Bearer` header were enforced | Requests a bearer token authenticated are enforced, decided from the authentication: tokens an application `BearerTokenResolver` reads from a query parameter or another header included. Basic-auth chains pass |
+| Requests with a `Bearer` header were enforced; other requests passed | Every authenticated request is enforced (request, forward and include dispatches) unless its path is in `skip-paths`. Only the token Spring Security validated reaches Keycloak, read from the authentication; requests authenticated without one (basic auth, a custom principal) are denied (403) |
 | Keycloak unreachable answered 503 | 503 while the enforcer cannot be built, for `retry-backoff` after each failed build; once built, an enforcer failure answers 503, a failed authorization call is a denial (403), logged at `WARN` and counted as `codehunters.authz.enforcer.failures` |
-| Patterns matched the request URI | Keycloak patterns match the decoded path without path parameters, as Spring MVC routes it |
+| Patterns matched the request URI | Keycloak patterns match the path as Spring MVC matches it, decoded per segment; an encoded `/`, `\`, `.`, `%` or a `;` in an enforced path is denied (403) |
+| Public paths and the catalog were independent | Startup fails when a `public-paths` entry covers a catalogued path that is not `DISABLED` |
 | Keycloak answering 400 (unknown resource or scope) was logged as an error | Denied (403); the enforcer logs at debug under `org.keycloak.adapters.authorization` |
 | One authorization call per enforced request | Same: Keycloak's enforcer has no decision cache. Resolved paths are cached (`path-cache.*`); see the README's Latency section |
 
@@ -80,6 +82,10 @@ The dependency `org.keycloak:keycloak-authz-client` is replaced by
    on the paths you are not ready to enforce instead.
 6. List every method each mapped path serves, or set `paths[].scopes`.
 7. Keep `retry-backoff` only if `10s` does not suit, and remove any `AuthzClient` bean defined to
-   customise the old client; to read tokens from elsewhere, define a `BearerTokenResolver` bean.
-8. Authenticated callers are enforced on public routes too: map them with
-   `enforcement-mode: DISABLED` (see the README's Public routes).
+   customise the old client; to read tokens from elsewhere, configure Spring Security's
+   `BearerTokenResolver`.
+8. List in `skip-paths` the paths of every chain that authenticates without a bearer token
+   (actuator behind basic auth, for example); their requests are denied otherwise.
+9. Authenticated callers are enforced on public routes too: map them with
+   `enforcement-mode: DISABLED` (see the README's Public routes). A public path that covers an
+   enforced catalogued path fails startup.

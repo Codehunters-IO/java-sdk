@@ -20,14 +20,18 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
   `SecurityFilterChain`: the sdk-user-security chains and any chain the application defines. It
   is added by a `Customizer<HttpSecurity>` bean, which Spring Security applies to each
   `HttpSecurity` it builds.
-- **Which requests.** The decision comes from the authentication Spring Security established, not
-  from request headers: requests a bearer token authenticated (Spring Security's token
-  authentications and sdk-user-security's) are enforced, wherever the token was read from (an
-  application `BearerTokenResolver` reading a query parameter or another header included). A chain
-  that authenticates otherwise (basic auth on actuator, for example) is left alone. Keycloak gets
-  the token the authentication holds; when it no longer holds it, the application's
-  `BearerTokenResolver` (or Spring Security's default one) reads it from the request, and a request
-  whose token cannot be found is denied (403).
+- **Which requests.** Every authenticated request is enforced (request, forward and include
+  dispatches), unless its path is listed in `skip-paths`. The decision fails closed:
+  - Keycloak only ever gets the token Spring Security validated, read from the authentication
+    (sdk-user-security's `KeycloakAuthenticationToken` or Spring Security's own token
+    authentications), wherever the token arrived (an application `BearerTokenResolver` reading a
+    query parameter or another header included). The request is never read again: Keycloak grants
+    from the permissions of a requesting party token without checking its signature, so a token
+    Spring Security did not validate must never reach it.
+  - A request authenticated without such a token (basic auth, form login, a custom principal) is
+    denied (403). List the paths those chains serve, such as actuator endpoints, in `skip-paths`.
+  - A token outside the bearer charset is denied, and so is a denial Keycloak did not answer
+    itself.
 - **Authentication first.** A protected path without a valid token answers 401 from Spring
   Security; Keycloak is not asked. Requests Spring Security lets through unauthenticated (public
   and excluded paths) are not enforced. An authenticated request is enforced on every path,
@@ -42,18 +46,26 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
   through. Mapped paths follow their own `enforcement-mode` in both cases. `DISABLED` evaluates
   nothing.
 - **Patterns** are Keycloak's: `/*` at the end matches any sub-path, `{id}` one segment, `*.ext` a
-  suffix. Ant's `**` is rejected at startup. They are matched against the decoded path without
-  path parameters (`;name=value`), the path Spring MVC routes on: `/api/%6Frders/1` is enforced as
-  `/api/orders/1`.
+  suffix. Ant's `**` is rejected at startup. They are matched against the path as Spring MVC
+  matches it, decoded segment by segment: `/api/%6Frders/1` is enforced as `/api/orders/1`. A path
+  holding an encoded `/`, `\`, `.` or `%`, or a `;` (encoded or not), could route somewhere its
+  decoded form does not match, so an enforced request to it is denied (403). The default Spring
+  Security firewall already rejects most of these.
 - **Keycloak unreachable.** The enforcer is built on the first enforced request, so the service
-  starts without Keycloak; requests arriving meanwhile wait for it. If the build fails, enforced
-  requests answer 503 for `retry-backoff` without calling Keycloak; then one request rebuilds while
-  the others keep answering 503. Once built, a failure of the enforcer answers 503, but a failed
-  authorization call is a denial (403): Keycloak's enforcer does not tell it apart. Such calls are
-  logged at `WARN` and counted (see Metrics).
+  starts without Keycloak; requests arriving meanwhile wait for it up to 5 seconds, then answer
+  503. If the build fails, enforced requests answer 503 for `retry-backoff` without calling
+  Keycloak; then one request rebuilds while the others keep answering 503, however long the
+  rebuild takes. Once built, a failure of the enforcer answers 503, but **a failed authorization
+  call is a denial (403)**: Keycloak's enforcer does not tell it apart from a refused permission.
+  Clients and alerts see such an outage as 403; watch the `call` stage of
+  `codehunters.authz.enforcer.failures` (see Metrics), and every such call is logged at `WARN`.
 - **Unknown names.** A resource `name` Keycloak does not know leaves the path without a resource:
   its requests are denied.
-- Error dispatches (`/error`) are not enforced a second time.
+- Error dispatches (`/error`) are not enforced a second time; forward and include dispatches are,
+  so a public handler forwarding to a protected one cannot bypass the catalog.
+- **Anonymous requests are never enforced.** Startup therefore fails when a `public-paths` entry
+  covers a catalogued path that is not `DISABLED`: that path would be protected only for callers
+  who happen to send a token.
 
 ## Latency
 
@@ -100,6 +112,7 @@ Keycloak's URL and realm come from `codehunters.security.url` and `codehunters.s
 | `codehunters.security.authz.read-timeout` | `3s` | |
 | `codehunters.security.authz.max-connections` | `50` | Concurrent connections to Keycloak |
 | `codehunters.security.authz.retry-backoff` | `10s` | 503 without retrying after a failed enforcer build |
+| `codehunters.security.authz.skip-paths` | `[]` | Spring path patterns never enforced, whatever authenticated the request (actuator behind basic auth, for example) |
 | `codehunters.security.authz.paths[].path` | — | Keycloak pattern; must start with `/` |
 | `codehunters.security.authz.paths[].name` | — | Keycloak resource name; required |
 | `codehunters.security.authz.paths[].enforcement-mode` | `ENFORCING` | `DISABLED` skips the path |
@@ -134,7 +147,8 @@ codehunters:
 An authenticated request is enforced on every path, public ones included, so under `ENFORCING` a
 caller that sends its token to a public route is denied unless the route is mapped. Map public
 routes with `enforcement-mode: DISABLED`; Keycloak is then not asked. `name` is still required and
-must be a resource of the client, since the enforcer resolves every mapped path at startup:
+must be a resource of the client, since the enforcer resolves every mapped path at startup. A
+public path covering a catalogued path that is not `DISABLED` fails startup:
 
 ```yaml
 codehunters:
@@ -163,15 +177,17 @@ under a mapped pattern.
 
 ### Extending
 
-- To read tokens from elsewhere (a query parameter, another header), define a
-  `BearerTokenResolver` bean: Spring Security authenticates with it and the enforcer reads tokens
-  with it.
+- To read tokens from elsewhere (a query parameter, another header), configure Spring Security's
+  `BearerTokenResolver` (a bean or the chain's `oauth2ResourceServer` DSL). The enforcer takes the
+  token from the authentication, so it follows whatever Spring Security validated.
+- A chain that authenticates without a bearer token (basic auth on actuator, an API key) must list
+  its paths in `skip-paths`; otherwise its requests are denied (403).
 - Calls to Keycloak go through the `keycloakPolicyEnforcerHttpClient` bean (Apache HttpClient 4),
   closed with the context. It is not a default candidate, so it never becomes the application's
   `HttpClient`.
 - To replace the enforcer, define a `KeycloakPolicyEnforcerFilter` bean; the auto-configuration
-  then places yours in the chain. `KeycloakPolicyEnforcerFilter.Options` sets its token resolver,
-  retry backoff, clock and failure listener.
+  then places yours in the chain. `KeycloakPolicyEnforcerFilter.Options` sets its skipped paths,
+  retry backoff, first-build wait, clock and failure listener.
 
 ## Migrating from 4.x
 
