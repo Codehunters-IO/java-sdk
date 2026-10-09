@@ -34,15 +34,22 @@ which was never published on its own:
 
 - `sdk-commons` 3.0.0 also adds `ClientInputException`: an `IllegalArgumentException` with a stable
   `code` whose message never echoes client values.
-- `sdk-web` 2.1.0: a `ClientInputException`, direct or in the cause chain, answers 400 with its code
-  instead of 500.
+- `sdk-web` 2.1.0: a `ClientInputException`, direct or behind known wrappers
+  (`InvalidDataAccessApiUsageException`, `CompletionException`, `ExecutionException`,
+  `UndeclaredThrowableException`, `ServletException`), answers 400 with its code instead of 500;
+  other wrappers keep the 500 and `@ResponseStatus` exceptions their status. The SDK's own codes
+  get English and Spanish details by default. One raised while Spring binds the request (Jackson,
+  converters) still gets the framework's generic 400 without the code.
 - `sdk-jpa` 2.1.0: a sort outside the whitelist throws `InvalidSortException` (`INVALID_SORT`) and
-  `InvalidSearchException` carries `INVALID_SEARCH`.
+  `InvalidSearchException` carries `INVALID_SEARCH`; a conversion failure no longer names the
+  attribute's Java type. `sdk-jpa` and `sdk-barcode` now bring `sdk-commons` and `sdk-support`.
 - `sdk-barcode` 2.1.0: rejected images and render requests throw `BarcodeRejectedException`
   (`BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED`).
-- `sdk-audit-log` 4.1.0: `@Auditable` methods with no publisher, or with an unparseable expression,
-  are reported at startup (failing it with `fail-on-error=true`); expression failures warn once;
-  the servlet actor defaults to the Spring Security user; new `codehunters.audit.enabled`.
+- `sdk-audit-log` 4.1.0: `@Auditable` methods with no publisher or no `aspectjweaver`, or with an
+  unparseable expression, are reported at startup, failing it only with the new
+  `codehunters.audit.startup-check.fail-fast=true`; expression failures warn once per overload; the
+  servlet actor defaults to the Spring Security user while a request is bound; new
+  `codehunters.audit.enabled`.
 
 ## sdk-bom 3.0.0
 

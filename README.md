@@ -142,12 +142,15 @@ has the full checklist. What every service has to look at:
    ([table](sdk-measure-micrometer/MIGRATION-3.0.md)); audit `errorMessage` holds exception class
    names.
 10. **Client input errors.** From `sdk-web` 2.1.0 an exception extending `sdk-commons`'
-    `ClientInputException` answers 400 with its stable `code`, also when wrapped: `INVALID_SORT`,
-    `INVALID_SEARCH` (`sdk-jpa` 2.1.0), `BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED`
-    (`sdk-barcode` 2.1.0). Before, these answered 500 ([sdk-web](sdk-web/README.md)).
+    `ClientInputException` answers 400 with its stable `code`, also behind known wrappers such as
+    `InvalidDataAccessApiUsageException`: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa` 2.1.0),
+    `BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). Before, these
+    answered 500. Rejections raised while Spring binds the request keep the framework's generic 400
+    ([sdk-web](sdk-web/README.md)).
 11. **Audit startup checks.** From `sdk-audit-log` 4.1.0, `@Auditable` methods with no publisher or
-    with an unparseable expression log an ERROR at startup, or fail it with `fail-on-error=true`; on
-    servlet apps the actor defaults to the Spring Security user ([audit](sdk-audit-log/README.md)).
+    no `aspectjweaver`, or with an unparseable expression, log an ERROR at startup, or fail it with
+    `codehunters.audit.startup-check.fail-fast=true`; on servlet apps the actor defaults to the
+    Spring Security user while a request is bound ([audit](sdk-audit-log/README.md)).
 
 ## Build
 

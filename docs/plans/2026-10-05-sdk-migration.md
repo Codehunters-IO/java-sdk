@@ -1542,14 +1542,19 @@ Decisión D22. Va en el mismo PR que el bloque 1 (#30), por pedido del usuario.
 | Módulo | Antes | Ahora | Cambio |
 |---|---|---|---|
 | `sdk-commons` | 2.0.0 | 3.0.0 | además del bloque 1: `ClientInputException` (`io.codehunters.commons.error`) |
-| `sdk-web` | 2.0.0 | 2.1.0 | `ClientInputException`, directa o en la cadena de causas, responde 400 con su `code` |
+| `sdk-web` | 2.0.0 | 2.1.0 | `ClientInputException`, directa o detrás de envoltorios conocidos, responde 400 con su `code`; mensajes por defecto en inglés y español para los códigos del SDK |
 | `sdk-jpa` | 2.0.0 | 2.1.0 | `InvalidSortException` (`INVALID_SORT`); `InvalidSearchException` con `INVALID_SEARCH` |
 | `sdk-barcode` | 2.0.0 | 2.1.0 | `BarcodeRejectedException` (`BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED`) |
-| `sdk-audit-log` | 4.0.0 | 4.1.0 | chequeo al arrancar de publisher y expresiones; WARN una vez por expresión que falla; actor servlet desde Spring Security; `codehunters.audit.enabled` |
+| `sdk-audit-log` | 4.0.0 | 4.1.0 | chequeo al arrancar de publisher, `aspectjweaver` y expresiones (falla solo con `startup-check.fail-fast`); WARN una vez por expresión y sobrecarga; actor servlet desde Spring Security con request ligado; `codehunters.audit.enabled` |
 | `sdk-bom` | 2.0.0 | 3.1.0 | versiones nuevas; la 3.0.0 del bloque 1 no se publica sola |
 
 - Dos ramas paralelas (audit-log desde `master`; errores desde la rama del bloque 1), integradas en
   la del PR #30.
+- Revisión del bloque 2 aplicada en el mismo PR: solo envoltorios conocidos se desenvuelven en
+  sdk-web y una excepción `@ResponseStatus` conserva su estado; el fallo al arrancar pasa a
+  `codehunters.audit.startup-check.fail-fast` (no `fail-on-error`, para no romper en una minor); el
+  actor del hilo solo con request ligado; chequeos con contextos padre, singletons sin definición,
+  anotaciones solo en interfaces y falta de `aspectjweaver`; el mensaje de conversión de sdk-jpa ya
+  no nombra el tipo Java.
 - Abierto: `SimpleEvaluationContext` para las expresiones de audit-log (rompería expresiones con
-  llamadas a métodos, va en una major); sin aviso cuando falta `aspectjweaver` y el aspecto no se
-  registra.
+  llamadas a métodos, va en una major).
