@@ -37,6 +37,13 @@ class TotpLegacyStartupTest {
         .hasMessageContaining("timeStep");
   }
 
+  @Test
+  void should_not_enable_totp_from_a_leftover_legacy_enabled_key() {
+    try (var context = start("--vitxo.totp.enabled=true")) {
+      assertThat(context.getBeanNamesForType(TotpGenerator.class)).isEmpty();
+    }
+  }
+
   private static ConfigurableApplicationContext start(String... args) {
     var application = new SpringApplication(TotpApplication.class);
     application.setWebApplicationType(WebApplicationType.NONE);
