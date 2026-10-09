@@ -1,29 +1,60 @@
 # sdk-user-security-authz
 
-Keycloak Authorization Services policy enforcement point (PEP) for services that use
-`sdk-user-security`.
+Keycloak Authorization Services policy enforcement for services that use `sdk-user-security`.
+It wires Keycloak's official policy enforcer (`org.keycloak:keycloak-policy-enforcer`) into the
+Spring Security filter chain and configures it from `codehunters.security.authz.*`.
 
 ```kotlin
 implementation("io.codehunters:sdk-user-security-authz:5.0.0")
 ```
 
-It brings `sdk-user-security` and `keycloak-authz-client`. Services that don't enforce Keycloak
-policies should depend on `sdk-user-security` only.
+It brings `sdk-user-security` and `keycloak-policy-enforcer` (with its `keycloak-authz-client` and
+Apache HttpClient 4). Services that don't enforce Keycloak policies should depend on
+`sdk-user-security` only.
 
 ## Behaviour
 
-- Each request whose path is in `paths` is authorized by Keycloak for the resource `name` and the
-  scopes of the request's method. Paths not in the catalog pass through.
-- The most specific matching pattern decides.
-- A method the catalog does not list for a matched path is **denied** (403), so a new route is never
-  left unprotected by omission.
-- Keycloak denial answers 403; Keycloak unreachable answers 503.
-- The Keycloak client is created on the first enforced request, not at startup. Its calls have
-  connect and read timeouts; a failed creation is retried only after `retry-backoff`.
-- `PERMISSIVE` logs decisions, including missing tokens, and never blocks.
-- Keycloak answering 400 (unknown resource or scope) is a catalog mistake: denied and logged as an
-  error.
-- Runs after Spring Security, so the request is already authenticated.
+Decisions are Keycloak's enforcer's; this module only configures it and places it in the chain.
+
+- **Placement.** The enforcer runs right after Spring Security's `AuthorizationFilter`, in every
+  `SecurityFilterChain`: the sdk-user-security chains and any chain the application defines. It
+  is added by a `Customizer<HttpSecurity>` bean, which Spring Security applies to each
+  `HttpSecurity` it builds.
+- **Authentication first.** A protected path without a valid token answers 401 from Spring
+  Security; Keycloak is not asked. Requests Spring Security lets through unauthenticated (public
+  and excluded paths) are not enforced. An authenticated request is enforced on every path,
+  including public ones.
+- **Mapped paths.** The resource `name` and the scopes of the request's method are asked of
+  Keycloak; a denial answers 403.
+- **Unlisted methods.** A method a path does not list asks for the path's `scopes` (any of them),
+  or for the HTTP method when `http-method-as-scope` is on. With neither, Keycloak is asked for the
+  resource alone, which it grants to anyone with a permission on it: list every method the path
+  serves.
+- **Unmapped paths.** `ENFORCING` (the default) denies them with 403; `PERMISSIVE` lets them
+  through. Mapped paths follow their own `enforcement-mode` in both cases. `DISABLED` evaluates
+  nothing.
+- **Patterns** are Keycloak's: `/*` at the end matches any sub-path, `{id}` one segment, `*.ext` a
+  suffix. Ant's `**` is rejected at startup.
+- **Keycloak unreachable.** The enforcer is built on the first enforced request, so the service
+  starts without Keycloak. If Keycloak cannot be reached then, the request answers 503 and the next
+  enforced request tries again. Once built, a failed authorization call counts as a denial (403).
+- **Unknown names.** A resource `name` Keycloak does not know leaves the path without a resource:
+  its requests are denied.
+- Error dispatches (`/error`) are not enforced a second time.
+
+## Latency
+
+Keycloak's enforcer has no decision cache.
+
+| When | Calls to Keycloak |
+|---|---|
+| First enforced request | UMA discovery, a service-account token, and one resource lookup per mapped path (every resource of the client when `paths` is empty). Other requests wait meanwhile. |
+| Each enforced request | One UMA grant call to the token endpoint, unless the bearer token is an RPT that already carries the permission. |
+| First request to a new URI under a `/*` or `{id}` pattern | Up to three resource lookups by URI, then cached per URI for `path-cache.lifespan`. |
+
+Every call is bounded by `connect-timeout` and `read-timeout`, and at most `max-connections` run at
+once. Map only the routes that need resource-level decisions; coarse role checks are cheaper with
+`@PreAuthorize`.
 
 ## Configuration
 
@@ -32,16 +63,25 @@ Keycloak's URL and realm come from `codehunters.security.url` and `codehunters.s
 | Key | Default | Notes |
 |---|---|---|
 | `codehunters.security.authz.enabled` | `false` | Opt-in |
-| `codehunters.security.authz.enforcement-mode` | `ENFORCING` | `PERMISSIVE` logs and never blocks; `DISABLED` does nothing |
+| `codehunters.security.authz.enforcement-mode` | `ENFORCING` | `ENFORCING`, `PERMISSIVE` or `DISABLED`; see Behaviour |
 | `codehunters.security.authz.resource` | — | Required when enabled: this service's client id |
 | `codehunters.security.authz.client-secret` | — | Required when enabled |
+| `codehunters.security.authz.lazy-load-paths` | `false` | Resolve resources by URI on demand |
+| `codehunters.security.authz.http-method-as-scope` | `false` | Use the HTTP method as the scope of unlisted methods |
+| `codehunters.security.authz.path-cache.max-entries` | `1000` | Paths kept in the enforcer's cache |
+| `codehunters.security.authz.path-cache.lifespan` | `30s` | How long a cached path is reused |
+| `codehunters.security.authz.claim-information-point.*` | — | Keycloak claim information point for every path |
 | `codehunters.security.authz.connect-timeout` | `2s` | |
 | `codehunters.security.authz.read-timeout` | `3s` | |
-| `codehunters.security.authz.retry-backoff` | `30s` | Wait before retrying a failed client creation |
-| `codehunters.security.authz.paths[].path` | — | Ant pattern |
-| `codehunters.security.authz.paths[].name` | — | Keycloak resource name |
-| `codehunters.security.authz.paths[].methods[].method` | — | HTTP method |
-| `codehunters.security.authz.paths[].methods[].scopes` | `[]` | Scopes requested for the resource |
+| `codehunters.security.authz.max-connections` | `50` | Concurrent connections to Keycloak |
+| `codehunters.security.authz.paths[].path` | — | Keycloak pattern; must start with `/` |
+| `codehunters.security.authz.paths[].name` | — | Keycloak resource name; required |
+| `codehunters.security.authz.paths[].enforcement-mode` | `ENFORCING` | `DISABLED` skips the path |
+| `codehunters.security.authz.paths[].scopes` | `[]` | Scopes for methods the path does not list |
+| `codehunters.security.authz.paths[].claim-information-point.*` | — | Claim information point for this path |
+| `codehunters.security.authz.paths[].methods[].method` | — | HTTP method, any case |
+| `codehunters.security.authz.paths[].methods[].scopes` | — | At least one; startup fails otherwise |
+| `codehunters.security.authz.paths[].methods[].scopes-enforcement-mode` | `ALL` | `ALL` or `ANY` |
 
 ```yaml
 codehunters:
@@ -51,19 +91,26 @@ codehunters:
       resource: users-service
       client-secret: ${KEYCLOAK_CLIENT_SECRET}
       paths:
-        - path: /api/v1/admin/users/**
+        - path: /api/v1/admin/users/*
           name: users
           methods:
             - method: GET
               scopes: [READ]
             - method: POST
               scopes: [CREATE]
+        - path: /api/v1/status
+          name: status
+          enforcement-mode: DISABLED
 ```
+
+To replace the enforcer, define a `KeycloakPolicyEnforcerFilter` bean; the auto-configuration
+then places yours in the chain.
 
 ## Migrating from 4.x
 
-5.0 no longer reads the `keycloak.policy-enforcer.*`, `keycloak.host` and `keycloak.realm` keys; use
-`codehunters.security.authz.*` and `codehunters.security.url` / `realm`. See
+5.0 replaces the in-house enforcer with Keycloak's, inside the Spring Security chain, and no
+longer reads the `keycloak.policy-enforcer.*`, `keycloak.host` and `keycloak.realm` keys. Patterns,
+unmapped paths, `PERMISSIVE` and outage answers behave differently. See
 [MIGRATION-5.0.md](MIGRATION-5.0.md).
 
 ## Migrating from 3.x
@@ -79,8 +126,8 @@ packages also moved. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
 | package `io.codehunters.sdk.security.authz` | `io.codehunters.security.authz` |
 | `keycloak.policy-enforcer.*` | `codehunters.security.authz.*` (old keys are not read since 5.0) |
 | `keycloak.host`, `keycloak.realm` | `codehunters.security.url`, `codehunters.security.realm` (old keys are not read since 5.0) |
-| `lazy-load-paths` | Removed (had no effect) |
+| `lazy-load-paths` | Removed (had no effect); back in 5.0 as Keycloak's setting |
 | `enforcement-mode` ignored | Honoured |
-| Unlisted method on a catalogued path passed through | Denied (403) |
-| Any Keycloak error answered 403 | Denial 403, outage 503 |
-| `AuthzClient` bean created at startup | Created on first use; define your own `AuthzClient` bean to override |
+| Unlisted method on a catalogued path passed through | Denied (403) in 3.x and 4.x; Keycloak's rule since 5.0 |
+| Any Keycloak error answered 403 | Denial 403, outage 503 in 3.x and 4.x; see 5.0 |
+| `AuthzClient` bean created at startup | Created on first use; replaced by the enforcer in 5.0 |

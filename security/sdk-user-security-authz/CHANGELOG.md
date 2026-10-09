@@ -4,6 +4,8 @@
 
 ### Breaking
 - Requires `sdk-user-security` 5.0.0. See [MIGRATION-5.0.md](MIGRATION-5.0.md).
+- The in-house enforcement point is replaced by Keycloak's official policy enforcer, running inside
+  the Spring Security filter chain. Its semantics apply; see Behaviour changes.
 
 ### Removed
 - The `keycloak.policy-enforcer.*`, `keycloak.host` and `keycloak.realm` aliases. Only
@@ -12,6 +14,35 @@
 - `KeycloakAuthzLegacyProperties`, its `spring.factories` entry and the deprecated `keycloak.*`
   configuration metadata.
 - The dependency on `sdk-support`.
+- `KeycloakAuthzFilter`, its servlet `FilterRegistrationBean` and the use of an application
+  `AuthzClient` bean.
+- `codehunters.security.authz.retry-backoff`.
+- The dependency on `keycloak-authz-client` (now brought by `keycloak-policy-enforcer`).
+
+### Added
+- `KeycloakPolicyEnforcerFilter`, extending Keycloak's `ServletPolicyEnforcerFilter`, and the
+  `keycloakPolicyEnforcerCustomizer` (`Customizer<HttpSecurity>`) that places it after
+  `AuthorizationFilter` in every `SecurityFilterChain`.
+- Dependency `org.keycloak:keycloak-policy-enforcer` 26.0.12.
+- Properties mapped to Keycloak's `PolicyEnforcerConfig`: `lazy-load-paths`,
+  `http-method-as-scope`, `path-cache.max-entries`, `path-cache.lifespan`,
+  `claim-information-point.*`, `max-connections`, `paths[].enforcement-mode`, `paths[].scopes`,
+  `paths[].claim-information-point.*` and `paths[].methods[].scopes-enforcement-mode`.
+- Startup fails when a listed method has no scopes, a path uses `**` or does not start with `/`,
+  or an enforcement mode is unknown.
+
+### Behaviour changes
+- Unauthenticated requests are answered by Spring Security (401 on protected paths) before
+  Keycloak is asked; anonymous requests on public and excluded paths are not enforced.
+- Authenticated requests to paths not in the catalog are denied (403) under `ENFORCING`;
+  `PERMISSIVE` lets them pass and no longer means "never block".
+- Patterns are Keycloak's (`/*`, `{id}`), not Ant's.
+- A method a path does not list falls back to the path's `scopes` (or the HTTP method with
+  `http-method-as-scope`) instead of being denied.
+- Keycloak unreachable answers 503 only while the enforcer is first built; afterwards a failed
+  authorization call is a denial (403).
+- Resolved paths are cached (`path-cache.*`). There is still one authorization call per enforced
+  request unless the token is an RPT carrying the permission.
 
 ## 4.0.0
 
