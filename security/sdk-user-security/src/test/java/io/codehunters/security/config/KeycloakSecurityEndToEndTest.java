@@ -121,6 +121,24 @@ class KeycloakSecurityEndToEndTest {
   }
 
   @Test
+  void should_reject_id_token_of_the_realm() {
+    String token = keycloak.token(claims -> claims.claim("typ", "ID"));
+
+    expect(bearer(get("/api/me"), token), status().isUnauthorized());
+  }
+
+  @Test
+  void should_accept_id_token_when_access_token_type_is_not_required() {
+    String token = keycloak.token(claims -> claims.claim("typ", "ID"));
+
+    runner
+        .withPropertyValues("codehunters.security.require-access-token-type=false")
+        .run(
+            context ->
+                mockMvc(context).perform(bearer(get("/api/me"), token)).andExpect(status().isOk()));
+  }
+
+  @Test
   void should_reject_roles_header_escalation_when_token_lacks_role() {
     expect(
         bearer(get("/api/me"), keycloak.token()).header("x-user-roles", "[\"ADMIN\"]"),
