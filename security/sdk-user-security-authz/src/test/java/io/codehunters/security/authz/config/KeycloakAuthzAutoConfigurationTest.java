@@ -144,6 +144,17 @@ class KeycloakAuthzAutoConfigurationTest {
   }
 
   @Test
+  void should_start_when_a_public_path_covers_a_catalogued_path_mapped_as_disabled() {
+    enabled
+        .withPropertyValues(
+            "codehunters.security.public-paths[0]=/api/v1/catalog/**",
+            "codehunters.security.authz.paths[0].path=/api/v1/catalog/*",
+            "codehunters.security.authz.paths[0].name=catalog",
+            "codehunters.security.authz.paths[0].enforcement-mode=DISABLED")
+        .run(context -> assertThat(context).hasNotFailed());
+  }
+
+  @Test
   void should_fail_startup_when_a_skip_path_is_not_a_valid_pattern() {
     enabled
         .withPropertyValues("codehunters.security.authz.skip-paths[0]=/actuator/**/health")
