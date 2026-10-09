@@ -29,6 +29,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("com.zaxxer:HikariCP")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testRuntimeOnly("org.postgresql:postgresql")
 }

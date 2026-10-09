@@ -1,5 +1,6 @@
 package io.codehunters.messaging.jdbc;
 
+import com.zaxxer.hikari.HikariDataSource;
 import javax.sql.DataSource;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -24,6 +25,7 @@ final class PostgresTestSupport {
   private static final PostgreSQLContainer CONTAINER =
       new PostgreSQLContainer("postgres:17-alpine");
   private static DataSource dataSource;
+  private static DataSource pooledDataSource;
   private static DataSource upgradedDataSource;
 
   private PostgresTestSupport() {}
@@ -35,6 +37,23 @@ final class PostgresTestSupport {
       loadReferenceDdl(dataSource);
     }
     return dataSource;
+  }
+
+  /**
+   * A connection pool on the reference schema, for tests that measure throughput or latency: the
+   * plain data source opens a connection per statement.
+   */
+  static synchronized DataSource pooledDataSource() {
+    if (pooledDataSource == null) {
+      dataSource();
+      var pool = new HikariDataSource();
+      pool.setJdbcUrl(CONTAINER.getJdbcUrl());
+      pool.setUsername(CONTAINER.getUsername());
+      pool.setPassword(CONTAINER.getPassword());
+      pool.setMaximumPoolSize(4);
+      pooledDataSource = pool;
+    }
+    return pooledDataSource;
   }
 
   static void truncate() {

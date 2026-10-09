@@ -22,6 +22,7 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.jdbc.datasource.DelegatingDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -44,8 +45,13 @@ class DispatchOnCommitContextIT {
                   OutboxDispatchSchedulerAutoConfiguration.class))
           .withPropertyValues(
               "spring.application.name=sentinel-ms-test", "codehunters.outbox.task.fixed-delay=1h")
-          .withBean(DataSource.class, PostgresTestSupport::dataSource)
+          .withBean(DataSource.class, DispatchOnCommitContextIT::unclosablePool)
           .withBean(MessagePublisherPort.class, () -> new QueuePublisher(published));
+
+  // The shared pool outlives each context, which would close a bean that has a close method.
+  private static DataSource unclosablePool() {
+    return new DelegatingDataSource(PostgresTestSupport.pooledDataSource());
+  }
 
   @BeforeEach
   void setUp() {

@@ -44,7 +44,7 @@ class OutboxDispatchThroughputIT {
 
   @BeforeEach
   void setUp() {
-    dataSource = PostgresTestSupport.dataSource();
+    dataSource = PostgresTestSupport.pooledDataSource();
     PostgresTestSupport.truncate();
     var settings =
         new OutboxAdapterSettings(ORIGIN, Clock.systemUTC(), OutboxDispatchTrigger.none());
