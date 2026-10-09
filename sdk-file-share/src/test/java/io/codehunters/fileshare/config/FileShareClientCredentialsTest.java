@@ -17,11 +17,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.AuthenticatedPrincipalOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.OAuth2AccessToken;
 
@@ -68,6 +71,24 @@ class FileShareClientCredentialsTest {
               context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
               assertThat(server.authorizations()).containsExactly("Bearer " + APP_TOKEN);
               assertThat(server.tokenRequests()).isZero();
+            });
+  }
+
+  @Test
+  void should_keep_its_own_manager_when_the_application_has_only_the_request_bound_one() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(
+            OAuth2AuthorizedClientManager.class,
+            () ->
+                new DefaultOAuth2AuthorizedClientManager(
+                    repository(),
+                    new AuthenticatedPrincipalOAuth2AuthorizedClientRepository(
+                        new InMemoryOAuth2AuthorizedClientService(repository()))))
+        .run(
+            context -> {
+              context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
+              assertThat(server.authorizations())
+                  .containsExactly("Bearer " + FakeFileShareServer.ACCESS_TOKEN);
             });
   }
 
@@ -275,6 +296,10 @@ class FileShareClientCredentialsTest {
             Instant.now(),
             Instant.now().plusSeconds(300));
     return new OAuth2AuthorizedClient(registration(registrationId), "app", token);
+  }
+
+  private ClientRegistrationRepository repository() {
+    return new InMemoryClientRegistrationRepository(registration("file-share"));
   }
 
   private ClientRegistration registration(String registrationId) {
