@@ -32,7 +32,7 @@ class PackageLayoutPluginTest {
     }
 
     @Test
-    fun should_fail_when_two_modules_share_a_package() {
+    fun should_fail_when_module_puts_classes_under_another_modules_root() {
         write("settings.gradle.kts", """include("core", "jdbc")""")
         write("gradle.properties", ROOT_PROPERTIES)
         write("gradle/libs.versions.toml", TestCatalog.CONTENT)
@@ -44,6 +44,43 @@ class PackageLayoutPluginTest {
         val output = runner(":core:verifyPackageLayout").buildAndFail().output
 
         assertTrue(output.contains("another module"), output)
+    }
+
+    @Test
+    fun should_fail_when_two_modules_declare_the_same_root() {
+        write("settings.gradle.kts", """include("core", "copy")""")
+        write("gradle.properties", ROOT_PROPERTIES)
+        write("gradle/libs.versions.toml", TestCatalog.CONTENT)
+        write("core/build.gradle.kts", libraryScript(ROOT_BLOCK))
+        write("copy/build.gradle.kts", libraryScript(ROOT_BLOCK))
+
+        val output = runner(":core:verifyPackageLayout").buildAndFail().output
+
+        assertTrue(output.contains("another module also declares"), output)
+    }
+
+    @Test
+    fun should_be_up_to_date_when_sources_did_not_change() {
+        writeLibrary(ROOT_BLOCK)
+        write("src/main/java/io/codehunters/demo/Thing.java", "package io.codehunters.demo;")
+        write("src/main/java/io/codehunters/demo/package-info.java", "package io.codehunters.demo;")
+        runner().build()
+
+        val result = runner().build()
+
+        assertEquals(TaskOutcome.UP_TO_DATE, result.task(":verifyPackageLayout")?.outcome)
+    }
+
+    @Test
+    fun should_reuse_the_configuration_cache_when_the_layout_check_runs_twice() {
+        writeLibrary(ROOT_BLOCK)
+        write("src/main/java/io/codehunters/demo/Thing.java", "package io.codehunters.demo;")
+        write("src/main/java/io/codehunters/demo/package-info.java", "package io.codehunters.demo;")
+        runner("verifyPackageLayout", "--configuration-cache").build()
+
+        val output = runner("verifyPackageLayout", "--configuration-cache").build().output
+
+        assertTrue(output.contains("Reusing configuration cache"), output)
     }
 
     @Test

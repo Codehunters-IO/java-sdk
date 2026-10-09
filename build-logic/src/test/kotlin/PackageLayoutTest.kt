@@ -75,6 +75,76 @@ class PackageLayoutTest {
         assertTrue(violations.single().contains("config"), violations.toString())
     }
 
+    @Test
+    fun should_report_a_shared_root_when_another_module_declares_the_same_root() {
+        javaFile("io/codehunters/audit/Auditable.java", "package io.codehunters.audit;")
+        packageInfo("io/codehunters/audit")
+
+        val violations = PackageLayout.violations(ROOT, sources, listOf(ROOT))
+
+        assertTrue(violations.single().contains("another module also declares"), violations.toString())
+    }
+
+    @Test
+    fun should_report_an_api_class_when_it_imports_configuration_statically() {
+        javaFile(
+            "io/codehunters/audit/Auditable.java",
+            "package io.codehunters.audit;\n\nimport static io.codehunters.audit.config.AuditProperties.PREFIX;\n",
+        )
+        packageInfo("io/codehunters/audit")
+
+        val violations = PackageLayout.violations(ROOT, sources, emptyList())
+
+        assertTrue(violations.single().contains("Auditable.java"), violations.toString())
+    }
+
+    @Test
+    fun should_report_an_api_class_when_it_names_configuration_by_qualified_name() {
+        javaFile(
+            "io/codehunters/audit/Auditable.java",
+            "package io.codehunters.audit;\n\nclass Auditable { io.codehunters.audit.config.AuditProperties p; }\n",
+        )
+        packageInfo("io/codehunters/audit")
+
+        val violations = PackageLayout.violations(ROOT, sources, emptyList())
+
+        assertTrue(violations.single().contains("Auditable.java"), violations.toString())
+    }
+
+    @Test
+    fun should_ignore_configuration_names_when_they_only_appear_in_comments() {
+        javaFile(
+            "io/codehunters/audit/Auditable.java",
+            "package io.codehunters.audit;\n\n/** See {@link io.codehunters.audit.config.AuditProperties}. */\n" +
+                "// io.codehunters.audit.config.AuditProperties\nclass Auditable {}\n",
+        )
+        packageInfo("io/codehunters/audit")
+
+        assertEquals(emptyList<String>(), PackageLayout.violations(ROOT, sources, emptyList()))
+    }
+
+    @Test
+    fun should_report_an_internal_package_when_its_package_info_does_not_say_it_is_not_api() {
+        javaFile("io/codehunters/audit/internal/Helper.java", "package io.codehunters.audit.internal;")
+        packageInfo("io/codehunters/audit/internal")
+
+        val violations = PackageLayout.violations(ROOT, sources, emptyList())
+
+        assertTrue(violations.single().contains("io.codehunters.audit.internal"), violations.toString())
+        assertTrue(violations.single().contains("Not API"), violations.toString())
+    }
+
+    @Test
+    fun should_accept_an_internal_package_when_its_package_info_says_it_is_not_api() {
+        javaFile("io/codehunters/audit/internal/aspect/Helper.java", "package io.codehunters.audit.internal.aspect;")
+        javaFile(
+            "io/codehunters/audit/internal/aspect/package-info.java",
+            "/** Not API; may change in any release. */\npackage io.codehunters.audit.internal.aspect;",
+        )
+
+        assertEquals(emptyList<String>(), PackageLayout.violations(ROOT, sources, emptyList()))
+    }
+
     private fun javaFile(path: String, content: String) {
         File(sources, path).apply { parentFile.mkdirs() }.writeText(content)
     }
