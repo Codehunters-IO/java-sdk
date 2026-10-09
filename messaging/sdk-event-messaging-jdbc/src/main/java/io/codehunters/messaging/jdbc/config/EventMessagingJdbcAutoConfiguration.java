@@ -1,14 +1,13 @@
 package io.codehunters.messaging.jdbc.config;
 
-import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.OutboxDispatchStore;
+import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.config.EventMessagingProperties;
 import io.codehunters.messaging.jdbc.OutboxAdapterSettings;
 import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
-import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeSettings;
-import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
@@ -18,7 +17,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -29,17 +27,18 @@ import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Spring Boot auto-configuration for the PostgreSQL outbox store. Wires the dedicated JSON mapper,
- * the JDBC outbox repository, the ShedLock provider, the purge scheduler and the FAILED-row gauge.
- * Active when {@code codehunters.outbox.enabled} is {@code true} (the default). Scheduling
- * ({@code @EnableScheduling}, {@code @EnableSchedulerLock}) and the purge scheduler are registered
- * only while {@code codehunters.outbox.scheduling.enabled} is {@code true} (the default), so an
- * application that runs dispatch and purge itself, or in another process, can turn them off.
+ * the JDBC outbox store, the ShedLock provider and the purge scheduler. Active when {@code
+ * codehunters.outbox.enabled} is {@code true} (the default). Scheduling ({@code @EnableScheduling},
+ * {@code @EnableSchedulerLock}) and the purge scheduler are registered only while {@code
+ * codehunters.outbox.scheduling.enabled} is {@code true} (the default), so an application that runs
+ * dispatch and purge itself, or in another process, can turn them off.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the repository is visible to the
  * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration. The dedicated
  * {@code outboxJsonMapper} is not a default candidate, so it never displaces nor competes with the
  * application's {@link JsonMapper}. The dispatch scheduler, which needs the use case, lives in
- * {@link OutboxDispatchSchedulerAutoConfiguration}.
+ * {@link OutboxDispatchSchedulerAutoConfiguration}, and the FAILED-row gauge, which needs the
+ * store, in {@link OutboxMetricsAutoConfiguration}.
  */
 @AutoConfiguration(
     before = EventMessagingCoreAutoConfiguration.class,
@@ -71,20 +70,22 @@ public class EventMessagingJdbcAutoConfiguration {
   }
 
   /**
-   * Provides the JDBC-backed outbox repository. The mapper is injected by qualifier so Boot's
-   * primary {@link JsonMapper} is never used for, nor displaced by, outbox payloads. Startup fails
-   * when the data source reports a database other than PostgreSQL.
+   * Provides the JDBC outbox store, which is both the application's {@link OutboxWriter} and the
+   * dispatcher's {@link OutboxDispatchStore}. Backs off when the application defines either. The
+   * mapper is injected by qualifier so Boot's primary {@link JsonMapper} is never used for, nor
+   * displaced by, outbox payloads. Startup fails when the data source reports a database other than
+   * PostgreSQL.
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the dedicated JSON mapper for outbox payloads
    * @param clock the outbox clock
    * @param origin the originating application name
-   * @return an {@link OutboxRepositoryPort}
+   * @return the {@link OutboxJdbcAdapter}
    */
   @Bean
-  @ConditionalOnMissingBean(OutboxRepositoryPort.class)
+  @ConditionalOnMissingBean({OutboxWriter.class, OutboxDispatchStore.class})
   @ConditionalOnBean(DataSource.class)
-  public OutboxRepositoryPort outboxRepositoryPort(
+  public OutboxJdbcAdapter outboxJdbcAdapter(
       DataSource dataSource,
       @Qualifier("outboxJsonMapper") JsonMapper outboxJsonMapper,
       Clock clock,
@@ -98,24 +99,24 @@ public class EventMessagingJdbcAutoConfiguration {
    * Provides the scheduled job that deletes PUBLISHED rows older than {@code
    * codehunters.outbox.purge.retention}.
    *
-   * @param outboxRepositoryPort the outbox repository
+   * @param outboxDispatchStore the outbox store
    * @param properties the messaging configuration
    * @param clock the outbox clock
    * @return an {@link OutboxPurgeScheduler}
    */
   @Bean
   @ConditionalOnMissingBean(OutboxPurgeScheduler.class)
-  @ConditionalOnBean(OutboxRepositoryPort.class)
+  @ConditionalOnBean(OutboxDispatchStore.class)
   @ConditionalOnProperty(
       prefix = "codehunters.outbox.scheduling",
       name = "enabled",
       havingValue = "true",
       matchIfMissing = true)
   public OutboxPurgeScheduler outboxPurgeScheduler(
-      OutboxRepositoryPort outboxRepositoryPort, EventMessagingProperties properties, Clock clock) {
+      OutboxDispatchStore outboxDispatchStore, EventMessagingProperties properties, Clock clock) {
     EventMessagingProperties.Purge purge = properties.purge();
     return new OutboxPurgeScheduler(
-        outboxRepositoryPort, new OutboxPurgeSettings(purge.retention(), purge.batchSize(), clock));
+        outboxDispatchStore, new OutboxPurgeSettings(purge.retention(), purge.batchSize(), clock));
   }
 
   /**
@@ -148,34 +149,4 @@ public class EventMessagingJdbcAutoConfiguration {
   @EnableScheduling
   @EnableSchedulerLock(defaultLockAtMostFor = "60s")
   static class OutboxSchedulingConfiguration {}
-
-  /**
-   * FAILED-row gauge wiring. Loaded only when Micrometer is on the classpath.
-   *
-   * <p>Nested configurations are registered before the outer class's bean methods, so the gauge is
-   * conditioned on the {@link DataSource} that triggers the repository rather than on {@link
-   * OutboxRepositoryPort} itself, which would not be visible yet.
-   */
-  @Configuration(proxyBeanMethods = false)
-  @ConditionalOnClass(MeterRegistry.class)
-  static class OutboxMetricsConfiguration {
-
-    /**
-     * Provides the {@code outbox_failed_messages} gauge for this origin.
-     *
-     * @param outboxRepositoryPort the outbox repository
-     * @param origin the originating application name
-     * @param clock the outbox clock, which ages the cached count
-     * @return an {@link OutboxFailedGauge}
-     */
-    @Bean
-    @ConditionalOnMissingBean(OutboxFailedGauge.class)
-    @ConditionalOnBean(DataSource.class)
-    public OutboxFailedGauge outboxFailedGauge(
-        OutboxRepositoryPort outboxRepositoryPort,
-        @Value("${spring.application.name:unknown}") String origin,
-        Clock clock) {
-      return new OutboxFailedGauge(outboxRepositoryPort, origin, clock);
-    }
-  }
 }

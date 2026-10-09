@@ -1,91 +1,66 @@
 package io.codehunters.messaging.factory;
 
 import io.codehunters.messaging.EventMessage;
+import io.codehunters.messaging.OutboxEvent;
+import java.time.Clock;
 
 /**
- * Builds {@link EventMessage} instances, stamping the configured origin on the header. A null or
- * blank trace id is replaced by the current one from the {@link TraceIdSource}, when there is one.
+ * Builds {@link EventMessage} envelopes from an {@link OutboxEvent}, stamping the configured origin
+ * and the clock's time on the header. A null or blank trace id is replaced by the current one from
+ * the {@link TraceIdSource}, when there is one.
  */
 public class EventMessageFactory {
 
   private final String origin;
   private final TraceIdSource traceIdSource;
-
-  /**
-   * Creates the factory without a current-trace fallback.
-   *
-   * @param origin the origin service identifier stamped on every event header
-   */
-  public EventMessageFactory(String origin) {
-    this(origin, TraceIdSource.none());
-  }
+  private final Clock clock;
 
   /**
    * Creates the factory.
    *
    * @param origin the origin service identifier stamped on every event header
-   * @param traceIdSource supplies the trace id when the caller passes none
+   * @param traceIdSource supplies the trace id when the event carries none
+   * @param clock the clock of the header timestamp
    */
-  public EventMessageFactory(String origin, TraceIdSource traceIdSource) {
+  public EventMessageFactory(String origin, TraceIdSource traceIdSource, Clock clock) {
     this.origin = origin;
     this.traceIdSource = traceIdSource;
+    this.clock = clock;
   }
 
   /**
-   * Builds an event message with no locale.
+   * Builds the envelope of an event: its key becomes the body's {@code aggregate} and its type the
+   * body's {@code eventName}.
    *
-   * @param traceId the trace identifier; null or blank uses the current trace
-   * @param aggregate the aggregate identifier
-   * @param eventName the event name
-   * @param eventType the event type
-   * @param payload the event body
+   * @param event the event to wrap
    * @param <T> the payload type
-   * @return the built {@link EventMessage}
+   * @return the envelope
    */
-  public <T> EventMessage<T> create(
-      String traceId, String aggregate, String eventName, String eventType, T payload) {
-    return create(traceId, null, aggregate, eventName, eventType, payload);
+  public <T> EventMessage<T> create(OutboxEvent<T> event) {
+    EventMessage.Header header =
+        new EventMessage.Header(
+            resolveTraceId(event.traceId()),
+            EventMessage.Header.DEFAULT_VERSION,
+            event.schemaVersion(),
+            origin,
+            clock.instant(),
+            event.locale());
+    return new EventMessage<>(
+        header,
+        new EventMessage.Body<>(event.key(), event.type(), event.eventType(), event.payload()));
   }
 
-  /**
-   * Builds an event message with an explicit locale.
-   *
-   * @param traceId the trace identifier; null or blank uses the current trace
-   * @param locale the locale
-   * @param aggregate the aggregate identifier
-   * @param eventName the event name
-   * @param eventType the event type
-   * @param payload the event body
-   * @param <T> the payload type
-   * @return the built {@link EventMessage}
-   */
-  public <T> EventMessage<T> create(
-      String traceId,
-      String locale,
-      String aggregate,
-      String eventName,
-      String eventType,
-      T payload) {
-    return EventMessage.<T>builder()
-        .header(
-            EventMessage.Header.builder()
-                .traceId(resolveTraceId(traceId))
-                .origin(origin)
-                .locale(locale)
-                .build())
-        .body(
-            EventMessage.Body.<T>builder()
-                .aggregate(aggregate)
-                .eventName(eventName)
-                .eventType(eventType)
-                .payload(payload)
-                .build())
-        .build();
+  // The outbox factory stamps the same origin, time and trace context on its rows.
+  String origin() {
+    return origin;
   }
 
-  // The outbox factory reads the same source to store the current trace context with its rows.
   TraceIdSource traceIdSource() {
     return traceIdSource;
+  }
+
+  Clock clock() {
+    return clock;
   }
 
   private String resolveTraceId(String traceId) {

@@ -20,8 +20,6 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.micrometer:micrometer-tracing")
     compileOnly(project(":sdk-tracing"))
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.mockito:mockito-core")

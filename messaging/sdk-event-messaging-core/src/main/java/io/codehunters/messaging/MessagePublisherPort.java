@@ -54,11 +54,11 @@ public interface MessagePublisherPort {
    * @param message the claimed outbox message carrying topic, routing key, key, id and payload
    */
   default void publish(OutboxMessage<String> message) {
-    String routingKey = message.getRoutingKey();
+    String routingKey = message.routingKey();
     if (routingKey != null && !routingKey.isBlank()) {
-      publish(message.getTopic(), routingKey, message.getMessage());
+      publish(message.topic(), routingKey, message.message());
     } else {
-      publish(message.getTopic(), message.getMessage());
+      publish(message.topic(), message.message());
     }
   }
 }

@@ -1,9 +1,12 @@
 package io.codehunters.messaging.config;
 
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.MessagePublisherDecorator;
 import io.codehunters.messaging.MessagePublisherPort;
-import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.SendOutboxMessagesPort;
+import io.codehunters.messaging.dispatch.DispatchSettings;
+import io.codehunters.messaging.dispatch.RetryPolicy;
 import io.codehunters.messaging.dispatch.SendOutboxMessagesUseCase;
 import io.codehunters.messaging.factory.EventMessageFactory;
 import io.codehunters.messaging.factory.OutboxEventFactory;
@@ -16,6 +19,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.tracing.Tracer;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +37,7 @@ import org.springframework.context.annotation.Configuration;
  * Binds {@link EventMessagingProperties} and wires the UTC clock, the message factories and the
  * dispatch use case. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
  *
- * <p>The use case needs an {@link OutboxRepositoryPort} and a {@link MessagePublisherPort}, which
+ * <p>The use case needs an {@link OutboxDispatchStore} and a {@link MessagePublisherPort}, which
  * come from {@code sdk-event-messaging-jdbc} and a transport artifact ({@code
  * sdk-event-messaging-rabbit} or {@code sdk-event-messaging-kafka}). This configuration therefore
  * runs after their auto-configurations, referenced by name because any of them may be absent. It
@@ -91,29 +95,28 @@ public class EventMessagingCoreAutoConfiguration {
   @ConditionalOnMissingBean(EventMessageFactory.class)
   public EventMessageFactory eventMessageFactory(
       @Value("${spring.application.name:unknown}") String origin,
-      ObjectProvider<TraceIdSource> traceIdSource) {
-    return new EventMessageFactory(origin, traceIdSource.getIfAvailable(TraceIdSource::none));
+      ObjectProvider<TraceIdSource> traceIdSource,
+      Clock clock) {
+    return new EventMessageFactory(
+        origin, traceIdSource.getIfAvailable(TraceIdSource::none), clock);
   }
 
   /**
    * Provides the outbox-message factory.
    *
    * @param eventMessageFactory the underlying event-message factory
-   * @param origin the originating application name
    * @return an {@link OutboxEventFactory}
    */
   @Bean
   @ConditionalOnMissingBean(OutboxEventFactory.class)
-  public OutboxEventFactory outboxEventFactory(
-      EventMessageFactory eventMessageFactory,
-      @Value("${spring.application.name:unknown}") String origin) {
-    return new OutboxEventFactory(origin, eventMessageFactory);
+  public OutboxEventFactory outboxEventFactory(EventMessageFactory eventMessageFactory) {
+    return new OutboxEventFactory(eventMessageFactory);
   }
 
   /**
    * Provides the use case that claims and publishes pending outbox messages.
    *
-   * @param outboxRepositoryPort the outbox repository
+   * @param outboxDispatchStore the outbox store
    * @param messagePublisherPort the message publisher
    * @param decorators the decorators applied to the publisher, in bean order
    * @param properties the messaging configuration
@@ -123,25 +126,34 @@ public class EventMessagingCoreAutoConfiguration {
    */
   @Bean
   @ConditionalOnMissingBean(SendOutboxMessagesPort.class)
-  @ConditionalOnBean({OutboxRepositoryPort.class, MessagePublisherPort.class})
+  @ConditionalOnBean({OutboxDispatchStore.class, MessagePublisherPort.class})
   public SendOutboxMessagesPort sendOutboxMessagesPort(
-      OutboxRepositoryPort outboxRepositoryPort,
+      OutboxDispatchStore outboxDispatchStore,
       MessagePublisherPort messagePublisherPort,
       ObjectProvider<MessagePublisherDecorator> decorators,
       EventMessagingProperties properties,
       @Value("${spring.application.name:unknown}") String applicationName,
       Clock clock) {
     return new SendOutboxMessagesUseCase(
-        outboxRepositoryPort,
+        outboxDispatchStore,
         decorate(messagePublisherPort, decorators),
-        properties.batchSize(),
-        properties.maxAttempts(),
-        resolveInstanceId(applicationName),
-        applicationName,
-        properties.claim().ttlMs(),
-        properties.backoff().baseDelayMs(),
-        properties.backoff().maxDelayMs(),
-        clock);
+        dispatchSettings(properties, applicationName, clock));
+  }
+
+  private static DispatchSettings dispatchSettings(
+      EventMessagingProperties properties, String applicationName, Clock clock) {
+    ClaimRequest claim =
+        new ClaimRequest(
+            applicationName,
+            resolveInstanceId(applicationName),
+            properties.batchSize(),
+            Duration.ofMillis(properties.claim().ttlMs()));
+    RetryPolicy retry =
+        new RetryPolicy(
+            properties.maxAttempts(),
+            Duration.ofMillis(properties.backoff().baseDelayMs()),
+            Duration.ofMillis(properties.backoff().maxDelayMs()));
+    return new DispatchSettings(claim, retry, clock);
   }
 
   private static MessagePublisherPort decorate(
@@ -153,7 +165,7 @@ public class EventMessagingCoreAutoConfiguration {
     return decorated;
   }
 
-  private String resolveInstanceId(String applicationName) {
+  private static String resolveInstanceId(String applicationName) {
     String runtimeName = ManagementFactory.getRuntimeMXBean().getName();
     return applicationName + "@" + runtimeName;
   }

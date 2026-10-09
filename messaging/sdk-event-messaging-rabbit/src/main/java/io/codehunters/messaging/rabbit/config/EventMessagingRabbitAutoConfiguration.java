@@ -5,7 +5,8 @@ import io.codehunters.messaging.config.ConditionalOnOutboxTransport;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.config.EventMessagingProperties;
 import io.codehunters.messaging.rabbit.RabbitMessagePublisherAdapter;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -35,7 +36,6 @@ import org.springframework.context.annotation.Bean;
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
  */
-@Slf4j
 @AutoConfiguration(
     before = EventMessagingCoreAutoConfiguration.class,
     afterName = "org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration")
@@ -48,6 +48,9 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnOutboxTransport("rabbit")
 @ConditionalOnBean(ConnectionFactory.class)
 public class EventMessagingRabbitAutoConfiguration {
+
+  private static final Logger log =
+      LoggerFactory.getLogger(EventMessagingRabbitAutoConfiguration.class);
 
   private static final String OUTBOX_TEMPLATE = "outboxRabbitTemplate";
   private static final String CONFIRMS_REQUIRED =

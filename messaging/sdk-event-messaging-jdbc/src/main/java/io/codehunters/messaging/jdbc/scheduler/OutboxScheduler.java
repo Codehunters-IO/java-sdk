@@ -1,16 +1,18 @@
 package io.codehunters.messaging.jdbc.scheduler;
 
 import io.codehunters.messaging.SendOutboxMessagesPort;
-import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 
 /**
  * Inbound scheduler that periodically triggers outbox dispatch. Coordinated across instances by
  * ShedLock so only one node runs at a time.
  */
-@Slf4j
 public class OutboxScheduler {
+
+  private static final Logger log = LoggerFactory.getLogger(OutboxScheduler.class);
 
   private final SendOutboxMessagesPort sendOutboxMessagesPort;
 

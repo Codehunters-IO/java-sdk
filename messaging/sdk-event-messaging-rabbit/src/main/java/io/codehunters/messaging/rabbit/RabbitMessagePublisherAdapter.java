@@ -8,7 +8,8 @@ import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.W3cTraceParent;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageDeliveryMode;
@@ -36,8 +37,9 @@ import org.springframework.amqp.rabbit.core.RabbitOperations;
  * claimed batch sequentially, so deployments MUST keep {@code batchSize × confirmTimeout <
  * claim.ttlMs}.
  */
-@Slf4j
 public class RabbitMessagePublisherAdapter implements MessagePublisherPort {
+
+  private static final Logger log = LoggerFactory.getLogger(RabbitMessagePublisherAdapter.class);
 
   /**
    * Pinned content type for every message produced by this adapter. The SDK serializes payloads
@@ -85,14 +87,14 @@ public class RabbitMessagePublisherAdapter implements MessagePublisherPort {
    */
   @Override
   public void publish(OutboxMessage<String> message) {
-    String id = message.getId().toString();
-    Message amqpMessage = jsonMessage(message.getMessage());
+    String id = message.id().toString();
+    Message amqpMessage = jsonMessage(message.message());
     amqpMessage.getMessageProperties().setMessageId(id);
     amqpMessage.getMessageProperties().setHeader(OUTBOX_ID_HEADER, id);
-    setTraceHeaders(amqpMessage.getMessageProperties(), message.getTraceparent());
-    String routingKey = message.getRoutingKey() == null ? "" : message.getRoutingKey();
-    log.debug("Publishing outbox message to exchange: {}, id: {}", message.getTopic(), id);
-    send(message.getTopic(), routingKey, amqpMessage);
+    setTraceHeaders(amqpMessage.getMessageProperties(), message.traceparent());
+    String routingKey = message.routingKey() == null ? "" : message.routingKey();
+    log.debug("Publishing outbox message to exchange: {}, id: {}", message.topic(), id);
+    send(message.topic(), routingKey, amqpMessage);
   }
 
   @Override
