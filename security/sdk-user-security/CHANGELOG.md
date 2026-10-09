@@ -1,5 +1,19 @@
 # Changelog — sdk-user-security
 
+## 4.0.0
+
+### Breaking
+- `io.codehunters.security` keeps what applications use: `CurrentPrincipal`, `KeycloakPrincipal`,
+  `KeycloakSecurityUtils` and `Authorities` (now public). The rest moves by concern:
+  `security.config` (auto-configuration and properties), `security.jwt` (token converter),
+  `security.session` (introspection), `security.gateway` (gateway headers filter) and
+  `security.mvc` (`@CurrentPrincipal` argument resolver). Only imports change; see
+  [MIGRATION-4.0.md](MIGRATION-4.0.md).
+
+### Changed
+- The `keycloak.security.*` aliases are honoured until 5.0.0 (was 4.0.0).
+- Problem-detail bodies come from `sdk-web` 2.0 (`io.codehunters.web.errors`).
+
 ## 3.1.0
 
 ### Added
