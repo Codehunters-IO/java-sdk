@@ -1,5 +1,6 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
+import io.codehunters.measure.Measured;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.LongTaskTimer;
 import io.micrometer.core.instrument.MeterRegistry;

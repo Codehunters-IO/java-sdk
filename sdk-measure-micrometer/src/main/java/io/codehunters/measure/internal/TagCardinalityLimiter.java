@@ -1,4 +1,4 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
 import java.util.Map;
 import java.util.Set;

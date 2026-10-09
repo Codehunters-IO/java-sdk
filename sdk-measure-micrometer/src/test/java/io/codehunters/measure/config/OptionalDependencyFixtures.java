@@ -1,4 +1,4 @@
-package io.codehunters.measure;
+package io.codehunters.measure.config;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -6,8 +6,8 @@ import java.io.InputStream;
 /** Builds beans whose classes reference types that are absent at runtime. */
 final class OptionalDependencyFixtures {
 
-  private static final String BEAN = "io.codehunters.measure.UsesOptionalType";
-  private static final String MISSING = "io.codehunters.measure.OptionalType";
+  private static final String BEAN = "io.codehunters.measure.config.UsesOptionalType";
+  private static final String MISSING = "io.codehunters.measure.config.OptionalType";
 
   private OptionalDependencyFixtures() {}
 

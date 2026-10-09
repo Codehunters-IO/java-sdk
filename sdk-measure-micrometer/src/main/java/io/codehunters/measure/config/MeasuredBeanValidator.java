@@ -1,5 +1,7 @@
-package io.codehunters.measure;
+package io.codehunters.measure.config;
 
+import io.codehunters.measure.Measured;
+import io.codehunters.measure.internal.MeasuredDefinition;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;

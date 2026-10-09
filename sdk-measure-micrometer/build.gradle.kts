@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "4.0.0"
 description = "@Measured annotation that records Micrometer timers and counters."
 
 dependencies {

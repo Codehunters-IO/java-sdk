@@ -1,4 +1,6 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
+
+import io.codehunters.measure.Measured;
 
 /** Measured at class level, with one method that overrides the class annotation. */
 @Measured(name = "inventory")

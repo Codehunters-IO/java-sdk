@@ -1,5 +1,7 @@
-package io.codehunters.measure;
+package io.codehunters.measure.config;
 
+import io.codehunters.measure.Measured;
+import io.codehunters.measure.internal.MeasureAspect;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;

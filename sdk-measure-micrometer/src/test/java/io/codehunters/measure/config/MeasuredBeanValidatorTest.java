@@ -1,8 +1,10 @@
-package io.codehunters.measure;
+package io.codehunters.measure.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
+import io.codehunters.measure.Measured;
+import io.codehunters.measure.internal.MeasuredDefinition;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;

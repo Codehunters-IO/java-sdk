@@ -1,4 +1,4 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
 /** The meters of one measured call, recorded once the call's work finishes. */
 @FunctionalInterface

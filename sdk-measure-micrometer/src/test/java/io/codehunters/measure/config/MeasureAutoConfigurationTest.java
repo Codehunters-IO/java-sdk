@@ -1,7 +1,10 @@
-package io.codehunters.measure;
+package io.codehunters.measure.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.measure.Measured;
+import io.codehunters.measure.internal.MeasureAspect;
+import io.codehunters.measure.internal.OrderService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;

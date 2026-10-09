@@ -1,5 +1,6 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
+import io.codehunters.measure.Measured;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

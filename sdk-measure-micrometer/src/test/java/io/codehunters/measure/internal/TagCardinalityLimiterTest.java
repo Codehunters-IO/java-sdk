@@ -1,4 +1,4 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

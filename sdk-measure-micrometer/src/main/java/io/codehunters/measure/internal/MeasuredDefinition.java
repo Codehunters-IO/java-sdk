@@ -1,5 +1,6 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
+import io.codehunters.measure.Measured;
 import io.micrometer.core.instrument.Tags;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -18,14 +19,16 @@ import java.util.regex.Pattern;
  * @param countCondition the parsed {@link Measured#countCondition()}, or {@code null} to always
  *     count
  */
-record MeasuredDefinition(
+public record MeasuredDefinition(
     Measured annotation,
     String name,
     Tags staticTags,
     List<ExpressionTag> expressionTags,
     MeasuredExpression countCondition) {
 
-  static final String DEFAULT_NAME = "method.measured";
+  /** The timer name of an annotation that names none. */
+  public static final String DEFAULT_NAME = "method.measured";
+
   static final Set<String> RESERVED_KEYS = Set.of("class", "method", "exception", "outcome");
 
   private static final Pattern TAG_KEY = Pattern.compile("[A-Za-z_][A-Za-z0-9_.-]*");
@@ -39,7 +42,7 @@ record MeasuredDefinition(
    *     {@code key=expression}, a tag key is blank, reserved, repeated or not a tag name, or the
    *     count value is not positive and finite
    */
-  static MeasuredDefinition of(Measured measured) {
+  public static MeasuredDefinition of(Measured measured) {
     requireCountValue(measured.countValue());
     Set<String> keys = new HashSet<>();
     return new MeasuredDefinition(
@@ -83,7 +86,7 @@ record MeasuredDefinition(
    *
    * @return the tag keys
    */
-  Set<String> tagKeys() {
+  public Set<String> tagKeys() {
     Set<String> keys = new TreeSet<>(RESERVED_KEYS);
     staticTags.forEach(tag -> keys.add(tag.getKey()));
     expressionTags.forEach(tag -> keys.add(tag.key()));

@@ -1,14 +1,15 @@
-package io.codehunters.measure;
+package io.codehunters.measure.internal;
 
+import io.codehunters.measure.Measured;
 import java.util.concurrent.CompletableFuture;
 
 /** Methods measured with every {@link Measured} option the aspect supports. */
-class OrderService {
+public class OrderService {
 
   @Measured(
       name = "orders.place",
       tags = {"channel", "web"})
-  String place(String orderId) {
+  public String place(String orderId) {
     return "placed-" + orderId;
   }
 
@@ -30,7 +31,7 @@ class OrderService {
   @Measured(
       name = "orders.by.customer",
       expressions = {"customer=#customerId"})
-  void byCustomer(String customerId) {}
+  public void byCustomer(String customerId) {}
 
   @Measured(
       name = "orders.by.position",
