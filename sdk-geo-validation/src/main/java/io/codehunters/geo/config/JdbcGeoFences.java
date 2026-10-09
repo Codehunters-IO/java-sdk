@@ -1,6 +1,8 @@
 package io.codehunters.geo.config;
 
 import io.codehunters.geo.GeoFenceValidator;
+import io.codehunters.geo.postgis.PostgisGeoFence;
+import io.codehunters.geo.postgis.PostgisZoneTable;
 import io.codehunters.geo.sqlserver.SqlServerGeoFence;
 import io.codehunters.geo.sqlserver.SqlServerProcedure;
 import java.time.Duration;
@@ -18,6 +20,11 @@ final class JdbcGeoFences {
   static GeoFenceValidator sqlServer(
       DataSource dataSource, SqlServerProcedure procedure, Duration queryTimeout) {
     return new SqlServerGeoFence(client(dataSource, queryTimeout), procedure);
+  }
+
+  static GeoFenceValidator postgis(
+      DataSource dataSource, PostgisZoneTable table, Duration queryTimeout) {
+    return new PostgisGeoFence(client(dataSource, queryTimeout), table);
   }
 
   /** A template of its own, so the timeout never touches the application's templates. */

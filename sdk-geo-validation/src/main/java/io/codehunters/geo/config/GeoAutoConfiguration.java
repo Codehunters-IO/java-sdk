@@ -16,10 +16,11 @@ import org.springframework.util.ClassUtils;
 
 /**
  * Registers the geofence selected by {@code codehunters.geo.adapter}: {@code polygon} over the
- * application's single {@link GeoZoneSource}, or {@code sql-server} over the configured procedure
- * and the single (or primary) {@link DataSource}. No adapter, an application-defined {@link
- * GeoFenceValidator} or {@code codehunters.geo.enabled=false} registers nothing. A selected adapter
- * whose dependencies are missing fails at startup.
+ * application's single {@link GeoZoneSource}, {@code sql-server} over the configured procedure or
+ * {@code postgis} over the configured zone table, both on the single (or primary) {@link
+ * DataSource}. No adapter, an application-defined {@link GeoFenceValidator} or {@code
+ * codehunters.geo.enabled=false} registers nothing. A selected adapter whose dependencies are
+ * missing fails at startup.
  */
 @AutoConfiguration(
     afterName = "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
@@ -37,7 +38,8 @@ public class GeoAutoConfiguration {
    *
    * @param properties the SDK configuration
    * @param zoneSources the application's zone source, used by {@code polygon}
-   * @param dataSources the application's data source, used by {@code sql-server}
+   * @param dataSources the application's data source, used by {@code sql-server} and {@code
+   *     postgis}
    * @param resources where the application's classes are loaded from
    * @return the geofence
    * @throws IllegalStateException if the selected adapter's dependencies are missing
@@ -52,7 +54,16 @@ public class GeoAutoConfiguration {
       ResourceLoader resources) {
     return switch (properties.adapter()) {
       case POLYGON -> new PolygonGeoFence(zoneSource(zoneSources));
-      case SQL_SERVER -> sqlServer(properties, dataSources, resources.getClassLoader());
+      case SQL_SERVER ->
+          JdbcGeoFences.sqlServer(
+              dataSource("sql-server", dataSources, resources.getClassLoader()),
+              properties.sqlServer().procedure(),
+              properties.sqlServer().queryTimeout());
+      case POSTGIS ->
+          JdbcGeoFences.postgis(
+              dataSource("postgis", dataSources, resources.getClassLoader()),
+              properties.postgis().table(),
+              properties.postgis().queryTimeout());
     };
   }
 
@@ -65,18 +76,19 @@ public class GeoAutoConfiguration {
     return source;
   }
 
-  private static GeoFenceValidator sqlServer(
-      GeoProperties properties, ObjectProvider<DataSource> dataSources, ClassLoader classLoader) {
+  private static DataSource dataSource(
+      String adapter, ObjectProvider<DataSource> dataSources, ClassLoader classLoader) {
     if (!ClassUtils.isPresent(JDBC_CLIENT, classLoader)) {
       throw new IllegalStateException(
-          "codehunters.geo.adapter=sql-server needs spring-jdbc on the classpath");
+          "codehunters.geo.adapter=" + adapter + " needs spring-jdbc on the classpath");
     }
     DataSource dataSource = dataSources.getIfUnique();
     if (dataSource == null) {
       throw new IllegalStateException(
-          "codehunters.geo.adapter=sql-server needs exactly one DataSource bean, or a primary one");
+          "codehunters.geo.adapter="
+              + adapter
+              + " needs exactly one DataSource bean, or a primary one");
     }
-    return JdbcGeoFences.sqlServer(
-        dataSource, properties.sqlServer().procedure(), properties.sqlServer().queryTimeout());
+    return dataSource;
   }
 }

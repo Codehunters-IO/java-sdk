@@ -6,5 +6,8 @@ public enum GeoAdapter {
   POLYGON,
 
   /** {@link io.codehunters.geo.sqlserver.SqlServerGeoFence} over the configured procedure. */
-  SQL_SERVER
+  SQL_SERVER,
+
+  /** {@link io.codehunters.geo.postgis.PostgisGeoFence} over the configured zone table. */
+  POSTGIS
 }
