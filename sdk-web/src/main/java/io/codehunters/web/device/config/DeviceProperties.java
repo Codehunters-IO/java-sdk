@@ -18,13 +18,15 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     x-forwarded-for} (the default) or {@code forwarded}. The other header is never read, since a
  *     client could send it
  * @param userAgent {@code User-Agent} handling
+ * @param forwardedRequestFilter rewriting of the request's remote address to the resolved client
  */
 @ConfigurationProperties(prefix = "codehunters.web.device")
 public record DeviceProperties(
     @DefaultValue("true") boolean enabled,
     @DefaultValue List<String> trustedProxies,
     @DefaultValue("x-forwarded-for") ForwardingHeader forwardingHeader,
-    @DefaultValue UserAgent userAgent) {
+    @DefaultValue UserAgent userAgent,
+    @DefaultValue ForwardedRequestFilter forwardedRequestFilter) {
 
   /** Validates the trusted proxies. */
   public DeviceProperties {
@@ -68,4 +70,13 @@ public record DeviceProperties(
       }
     }
   }
+
+  /**
+   * Rewriting of the request's remote address, for applications that cannot use {@code
+   * server.forward-headers-strategy=native}.
+   *
+   * @param enabled whether a filter makes {@code getRemoteAddr()} answer the client resolved behind
+   *     {@code trusted-proxies} and hides the forwarding headers from the rest of the request
+   */
+  public record ForwardedRequestFilter(boolean enabled) {}
 }

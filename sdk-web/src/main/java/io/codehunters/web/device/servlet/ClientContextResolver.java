@@ -2,14 +2,11 @@ package io.codehunters.web.device.servlet;
 
 import io.codehunters.web.device.ClientContext;
 import io.codehunters.web.device.ip.ClientIpResolver;
-import io.codehunters.web.device.ip.ProxyChain;
 import io.codehunters.web.device.useragent.UserAgentInfo;
 import io.codehunters.web.device.useragent.UserAgentParser;
 import io.codehunters.web.device.useragent.UserAgents;
 import jakarta.servlet.http.HttpServletRequest;
 import java.lang.System.Logger.Level;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -90,11 +87,7 @@ public final class ClientContextResolver {
   }
 
   private ClientContext compute(HttpServletRequest request) {
-    var chain =
-        new ProxyChain(
-            request.getRemoteAddr(),
-            headerLines(request, "Forwarded"),
-            headerLines(request, "X-Forwarded-For"));
+    var chain = ServletProxyChains.of(request);
     var rawUserAgent = UserAgents.sanitize(request.getHeader("User-Agent"), maxUserAgentLength);
     var userAgent = rawUserAgent.isEmpty() ? UserAgentInfo.UNKNOWN : parse(rawUserAgent);
     return new ClientContext(ipResolver.resolve(chain), userAgent, rawUserAgent);
@@ -109,10 +102,5 @@ public final class ClientContextResolver {
       LOG.log(Level.WARNING, "User-Agent parser failed: {0}", e.getClass().getName());
       return UserAgentInfo.UNKNOWN;
     }
-  }
-
-  private static List<String> headerLines(HttpServletRequest request, String name) {
-    var lines = request.getHeaders(name);
-    return lines == null ? List.of() : Collections.list(lines);
   }
 }

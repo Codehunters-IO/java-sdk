@@ -1,24 +1,28 @@
-package io.codehunters.web.device.useragent;
+package io.codehunters.web.device.cache;
 
+import com.github.benmanes.caffeine.cache.AsyncCache;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import io.codehunters.web.device.useragent.UserAgentInfo;
+import io.codehunters.web.device.useragent.UserAgentParser;
 import java.lang.System.Logger.Level;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Caches parsed headers in a bounded least-recently-used map. Concurrent callers of the same header
- * share one parse. A delegate that throws an exception answers {@link UserAgentInfo#UNKNOWN}, which
- * is cached like any other answer because parsing is deterministic. A delegate that throws an
- * {@link Error} releases the callers waiting on it with {@code UNKNOWN}, is not cached, and the
- * error reaches the caller that triggered the parse.
+ * Caches parsed headers in a bounded Caffeine cache that records hit and miss statistics. Lookups
+ * take no global lock. Concurrent callers of the same header share one parse; callers of other
+ * headers are never held up by it. A delegate that throws an exception answers {@link
+ * UserAgentInfo#UNKNOWN}, which is cached like any other answer because parsing is deterministic. A
+ * delegate that throws an {@link Error} releases the callers waiting on it with {@code UNKNOWN}, is
+ * not cached, and the error reaches the caller that triggered the parse.
  */
 public final class CachingUserAgentParser implements UserAgentParser {
 
   private static final System.Logger LOG = System.getLogger(CachingUserAgentParser.class.getName());
 
   private final UserAgentParser delegate;
-  private final int maxEntries;
-  private final Map<String, CompletableFuture<UserAgentInfo>> entries;
+  private final AsyncCache<String, UserAgentInfo> entries;
 
   /**
    * Creates the cache.
@@ -34,8 +38,19 @@ public final class CachingUserAgentParser implements UserAgentParser {
       throw new IllegalArgumentException("cache size must not be negative");
     }
     this.delegate = delegate;
-    this.maxEntries = maxEntries;
-    this.entries = new LinkedHashMap<>(16, 0.75f, true);
+    this.entries =
+        maxEntries == 0
+            ? null
+            : Caffeine.newBuilder().maximumSize(maxEntries).recordStats().buildAsync();
+  }
+
+  /**
+   * The cache, for metrics and diagnostics.
+   *
+   * @return a view of the cache, empty when caching is disabled
+   */
+  public Optional<Cache<String, UserAgentInfo>> cache() {
+    return Optional.ofNullable(entries).map(AsyncCache::synchronous);
   }
 
   @Override
@@ -43,15 +58,12 @@ public final class CachingUserAgentParser implements UserAgentParser {
     if (userAgent == null) {
       return UserAgentInfo.UNKNOWN;
     }
-    if (maxEntries == 0) {
+    if (entries == null) {
       return parseSafely(userAgent);
     }
     var claim = new CompletableFuture<UserAgentInfo>();
-    var existing = claimOrGet(userAgent, claim);
-    if (existing != null) {
-      return existing.join();
-    }
-    return fulfil(userAgent, claim);
+    var shared = entries.get(userAgent, (key, executor) -> claim);
+    return shared == claim ? fulfil(userAgent, claim) : shared.join();
   }
 
   // An Error (a StackOverflowError in the regex engine, say) must not leave the claim pending:
@@ -62,35 +74,9 @@ public final class CachingUserAgentParser implements UserAgentParser {
       claim.complete(info);
       return info;
     } catch (Throwable e) {
-      release(userAgent, claim);
+      entries.asMap().remove(userAgent, claim);
+      claim.complete(UserAgentInfo.UNKNOWN);
       throw e;
-    }
-  }
-
-  private void release(String userAgent, CompletableFuture<UserAgentInfo> claim) {
-    synchronized (entries) {
-      entries.remove(userAgent, claim);
-    }
-    claim.complete(UserAgentInfo.UNKNOWN);
-  }
-
-  private CompletableFuture<UserAgentInfo> claimOrGet(
-      String userAgent, CompletableFuture<UserAgentInfo> claim) {
-    synchronized (entries) {
-      var existing = entries.get(userAgent);
-      if (existing == null) {
-        entries.put(userAgent, claim);
-        evictBeyondLimit();
-      }
-      return existing;
-    }
-  }
-
-  private void evictBeyondLimit() {
-    var iterator = entries.keySet().iterator();
-    while (entries.size() > maxEntries) {
-      iterator.next();
-      iterator.remove();
     }
   }
 
