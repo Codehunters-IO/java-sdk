@@ -8,9 +8,10 @@ import java.io.OutputStream;
 import java.util.function.Supplier;
 
 /**
- * Times every render in the {@code report.render} timer, tagged with {@code format} ({@code pdf},
- * {@code xlsx}, {@code csv}) and {@code outcome} ({@code SUCCESS} or {@code ERROR}). Template names
- * are not tagged, to keep the meter's cardinality fixed. Failures are rethrown unchanged.
+ * Times every render in the {@code report.render} timer, tagged with {@code template} (the template
+ * name), {@code format} ({@code pdf}, {@code xlsx}, {@code csv}) and {@code outcome} ({@code
+ * SUCCESS} or {@code ERROR}). Template names are validated classpath names the application ships,
+ * so the tag's cardinality is bounded by its templates. Failures are rethrown unchanged.
  */
 public final class MeteredReportRenderer implements ReportRenderer {
 
@@ -70,6 +71,7 @@ public final class MeteredReportRenderer implements ReportRenderer {
   private Timer timer(ReportRequest request, String outcome) {
     return Timer.builder("report.render")
         .description("Time to fill and export a report")
+        .tag("template", request.template())
         .tag("format", request.format().extension())
         .tag("outcome", outcome)
         .register(registry);
