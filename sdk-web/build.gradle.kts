@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "2.0.0"
 description = "Servlet web toolkit: RFC 9457 problem details, client IP and User-Agent, X-Locale i18n."
 
 // One artifact for what were sdk-web-errors, sdk-device and sdk-i18n (ADR 0016). Each part keeps
