@@ -11,7 +11,8 @@ import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
  * Startup check of the {@link io.codehunters.audit.Auditable} methods of the context: once every
  * singleton exists, it reports a context where those methods would go unaudited because no {@link
  * io.codehunters.audit.AuditEventPublisherPort} exists, naming the reason. Each problem is logged
- * as an error, or fails startup when {@code fail-on-error} is set.
+ * as an error, or fails startup when {@code fail-on-error} is set, and so is an expression of those
+ * methods that cannot be parsed.
  */
 public final class AuditStartupCheck implements SmartInitializingSingleton {
 
@@ -35,6 +36,7 @@ public final class AuditStartupCheck implements SmartInitializingSingleton {
   public void afterSingletonsInstantiated() {
     List<AuditedMethod> audited = AuditableMethods.in(beanFactory);
     AuditPublisherCheck.problem(beanFactory, audited).ifPresent(this::report);
+    AuditExpressionCheck.problem(audited).ifPresent(this::report);
   }
 
   private void report(String problem) {
