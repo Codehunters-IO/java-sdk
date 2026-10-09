@@ -122,9 +122,10 @@ Outside Spring, pass one to `new TotpGenerator(config, clock)`.
 usually from a QR code. It carries the Base32 secret without padding, the issuer (in the label and
 as a parameter) and the generator's algorithm, digits and period. Every component is
 percent-encoded as UTF-8 per RFC 3986: only `A-Z a-z 0-9 - . _ ~` stay as they are, so a space is
-`%20` and `@` is `%40`. Issuer and account must not be blank and must not contain `:` or control
-characters; otherwise it throws `IllegalArgumentException` with a message that does not repeat the
-value. The URI contains the secret: never log it.
+`%20` and `@` is `%40`. Issuer and account must not be blank and must not contain `:`, control
+characters or invisible format characters (bidi overrides, zero-width spaces), which could make the
+app show a different label; otherwise it throws `IllegalArgumentException` with a message that does
+not repeat the value. The URI contains the secret: never log it.
 
 Secrets come from raw bytes (`fromBytes`), Base32 (`fromBase32`) or hex (`fromHex`, as in the RFC
 test vectors). `toString()` never shows the key, and an invalid Base32 or hex input fails with a
@@ -186,8 +187,16 @@ users.saveLastTotpStep(user.id(), step.getAsLong());
 ```
 
 For a user who has never logged in with a code, pass `TotpGenerator.NO_ACCEPTED_STEP`. Save the
-step atomically with the check (for example `UPDATE ... SET last_totp_step = :step WHERE id = :id
-AND last_totp_step < :step`, and treat zero updated rows as a replay), or two requests carrying the
-same code can both pass.
+step atomically with the check, or two requests carrying the same code can both pass; treat zero
+updated rows as a replay. A nullable column holds `NULL` until the first code, so the condition must
+accept it:
+
+```sql
+UPDATE users SET last_totp_step = :step
+ WHERE id = :id AND (last_totp_step IS NULL OR last_totp_step < :step)
+```
+
+`verifyAfter(secret, code, variance, lastAcceptedStep, at)` does the same against a given instant
+instead of the clock.
 
 The implementation is checked against every test vector in RFC 6238, Appendix B.

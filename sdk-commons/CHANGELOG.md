@@ -12,11 +12,12 @@
   `true`), so applications that only use the helpers get no TOTP bean.
 
 ### Added
-- `TotpGenerator.verifyAfter(secret, code, variance, lastAcceptedStep)` and `verifyStep`: return
+- `TotpGenerator.verifyAfter(secret, code, variance, lastAcceptedStep[, at])` and `verifyStep`: return
   the matched time step, so a caller can store it and reject replayed codes. Comparison stays
   constant-time. `TotpGenerator.NO_ACCEPTED_STEP` for a secret with no accepted code yet.
 - `TotpGenerator.provisioningUri(secret, issuer, account)`: the `otpauth://totp/` key URI, with
-  RFC 3986 percent-encoding; issuer and account are validated.
+  RFC 3986 percent-encoding; issuer and account are validated and must not contain `:`, control
+  characters or invisible format characters (bidi overrides, zero-width spaces).
 
 ### Changed
 - The `vitxo.totp.*` aliases are honoured until 4.0.0 (was 3.0.0).

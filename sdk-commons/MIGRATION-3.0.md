@@ -48,17 +48,20 @@ Applications that inject the auto-configured `TotpGenerator` add:
 codehunters.totp.enabled=true
 ```
 
-Without it the bean is missing and startup fails with `NoSuchBeanDefinitionException`. Applications
+Without it the bean is missing and startup fails with an `UnsatisfiedDependencyException` caused by
+a `NoSuchBeanDefinitionException`. Applications
 that declare their own `TotpGenerator` bean, or only use the helpers, need nothing. Remove any
 `codehunters.totp.enabled=false` you set only to keep TOTP out: it is now the default.
 
 ## New in 3.0
 
-- `verifyAfter(secret, code, variance, lastAcceptedStep)` rejects a code whose time step is not
-  after the one you stored, and returns the matched step to store next. `verifyStep` returns the
+- `verifyAfter(secret, code, variance, lastAcceptedStep[, at])` rejects a code whose time step is
+  not after the one you stored, and returns the matched step to store next. `verifyStep` returns the
   step without that check. See *One-time use* in the [README](README.md#one-time-use-reject-replayed-codes).
 - `provisioningUri(secret, issuer, account)` builds the `otpauth://totp/` key URI for the QR code.
 
-## Unchanged
+## Legacy keys
 
-The `vitxo.totp.*` keys are now honoured until sdk-commons 4.0.0 (was 3.0.0).
+The `vitxo.totp.*` keys, which 2.x said would be honoured until 3.0.0, are now honoured until
+sdk-commons 4.0.0. Move them to `codehunters.totp.*`; they still log a deprecation warning, even
+with TOTP disabled.
