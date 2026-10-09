@@ -88,12 +88,12 @@ has the full checklist. What every service has to look at:
 
    | Before | Now |
    |---|---|
-   | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 7.0.0 (`-core` alone for the model) |
-   | `sdk-user-security:2.x` with the policy enforcer | `sdk-user-security` + `sdk-user-security-authz` 3.0.0 |
+   | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 8.0.0 (`-core` alone for the model) |
+   | `sdk-user-security:2.x` with the policy enforcer | `sdk-user-security` 4.1.0 + `sdk-user-security-authz` 4.0.0 |
    | `sdk-utils:1.x`, `sdk-totp:2.0.0` | `sdk-commons:3.0.0` (see TOTP below) |
-   | `sdk-i18n:0.x` or `1.0.0` | `sdk-web:1.0.0` |
-   | `sdk-web-errors:1.0.0`, `sdk-device:1.0.0` | `sdk-web:1.0.0` |
-   | `sdk-geo-validation:0.2.0` (raffle port) | `sdk-geo-validation:1.0.0`, domain-agnostic: see its MIGRATION-1.0 |
+   | `sdk-i18n:0.x` or `1.0.0` | `sdk-web:2.0.0` |
+   | `sdk-web-errors:1.0.0`, `sdk-device:1.0.0` | `sdk-web:2.0.0` |
+   | `sdk-geo-validation:0.2.0` (raffle port) | `sdk-geo-validation:1.1.0`, domain-agnostic: see its MIGRATION-1.0 |
 
 2. **Duplicate classes (Maven only).** `sdk-event-messaging-core` replaces `sdk-event-messaging`,
    `sdk-commons` replaces `sdk-totp` and `sdk-utils`, and `sdk-web` replaces `sdk-web-errors`,
