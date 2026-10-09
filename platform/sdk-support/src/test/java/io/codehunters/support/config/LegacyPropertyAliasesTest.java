@@ -260,6 +260,29 @@ class LegacyPropertyAliasesTest {
         .withMessageContaining("other.url");
   }
 
+  @Test
+  void should_not_report_its_own_aliases_as_ignored_when_applied_twice() {
+    use(Map.of("old.prefix.url", "https://kc"));
+
+    aliases.apply(environment, recordingLog());
+    aliases.apply(environment, recordingLog());
+
+    assertThat(warnings).noneMatch(warning -> warning.contains("ignored"));
+    assertThat(environment.getProperty("new.prefix.url")).isEqualTo("https://kc");
+  }
+
+  @Test
+  void should_bind_the_scalar_of_a_higher_source_over_indexed_entries_of_a_lower_one() {
+    use(
+        Map.of(
+            "old.prefix.paths[0]", "/a", "old.prefix.paths[1]", "/b", "old.prefix.paths[2]", "/c"));
+    useProfile(Map.of("old.prefix.paths", "/x,/y"));
+
+    aliases.apply(environment, recordingLog());
+
+    assertThat(boundList("new.prefix.paths")).containsExactly("/x", "/y");
+  }
+
   private void useEnvironment(Map<String, Object> variables) {
     // Boot maps OLD_PREFIX_URL to old.prefix.url only for the source named "systemEnvironment".
     environment
