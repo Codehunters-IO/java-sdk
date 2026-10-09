@@ -97,6 +97,14 @@ class TotpProvisioningUriTest {
         .hasMessageContaining("issuer");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"ali\u202Ece", "ali\u200Bce", "ali\u2066ce"})
+  void should_reject_account_when_it_contains_an_invisible_format_character(String account) {
+    assertThatThrownBy(() -> generator.provisioningUri(SECRET, "Example", account))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("account must not contain ':', control or format characters");
+  }
+
   @Test
   void should_reject_account_when_it_contains_a_control_character() {
     assertThatThrownBy(() -> generator.provisioningUri(SECRET, "Example", "ali\tce"))

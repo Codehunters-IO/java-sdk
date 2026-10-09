@@ -119,4 +119,28 @@ class TotpReplayTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("variance");
   }
+
+  @Test
+  void should_accept_a_later_step_when_last_accepted_is_inside_the_window_at_an_instant() {
+    var code = generator.generate(SECRET, AT.plusSeconds(30));
+
+    assertThat(generator.verifyAfter(SECRET, code, 1, CURRENT_STEP - 1, AT))
+        .isEqualTo(OptionalLong.of(CURRENT_STEP + 1));
+  }
+
+  @Test
+  void should_reject_a_step_inside_the_window_when_it_was_already_accepted_at_an_instant() {
+    var code = generator.generate(SECRET, AT.minusSeconds(30));
+
+    assertThat(generator.verifyAfter(SECRET, code, 1, CURRENT_STEP - 1, AT)).isEmpty();
+  }
+
+  @Test
+  void should_verify_against_the_given_instant_rather_than_the_clock() {
+    var later = AT.plusSeconds(300);
+    var code = generator.generate(SECRET, later);
+
+    assertThat(generator.verifyAfter(SECRET, code, 0, TotpGenerator.NO_ACCEPTED_STEP, later))
+        .isEqualTo(OptionalLong.of(CURRENT_STEP + 10));
+  }
 }
