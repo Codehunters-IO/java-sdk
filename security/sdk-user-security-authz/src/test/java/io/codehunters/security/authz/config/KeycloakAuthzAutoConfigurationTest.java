@@ -1,9 +1,13 @@
 package io.codehunters.security.authz.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter;
 import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -14,6 +18,8 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 class KeycloakAuthzAutoConfigurationTest {
+
+  private static final String HTTP_CLIENT = "keycloakPolicyEnforcerHttpClient";
 
   // Nothing listens on port 1: the context must start without contacting Keycloak.
   private final WebApplicationContextRunner runner =
@@ -109,6 +115,28 @@ class KeycloakAuthzAutoConfigurationTest {
                     .getFailure()
                     .rootCause()
                     .hasMessageContaining("scopes must not be empty"));
+  }
+
+  @Test
+  void should_close_keycloak_http_client_when_context_closes() {
+    enabled.run(
+        context -> {
+          var client = context.getBean(HTTP_CLIENT, CloseableHttpClient.class);
+
+          context.close();
+
+          assertThatThrownBy(() -> client.execute(new HttpGet("http://127.0.0.1:1/")))
+              .isInstanceOf(IllegalStateException.class);
+        });
+  }
+
+  @Test
+  void should_keep_keycloak_http_client_out_of_injection_by_type() {
+    enabled.run(
+        context -> {
+          assertThat(context).hasBean(HTTP_CLIENT);
+          assertThat(context.getBeanProvider(HttpClient.class).getIfAvailable()).isNull();
+        });
   }
 
   @Test

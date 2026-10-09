@@ -14,6 +14,7 @@ dependencies {
     implementation(libs.keycloak.policy.enforcer)
     implementation("org.slf4j:slf4j-api")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
+    compileOnly("io.micrometer:micrometer-core")
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-test")
@@ -21,4 +22,6 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.assertj:assertj-core")
     testImplementation("jakarta.servlet:jakarta.servlet-api")
+    testImplementation("org.mockito:mockito-core")
+    testImplementation("io.micrometer:micrometer-core")
 }

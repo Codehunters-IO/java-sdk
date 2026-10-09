@@ -27,6 +27,7 @@ class KeycloakPolicyEnforcerPropertiesTest {
     assertThat(properties.connectTimeout()).isEqualTo(Duration.ofSeconds(2));
     assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(3));
     assertThat(properties.maxConnections()).isEqualTo(50);
+    assertThat(properties.retryBackoff()).isEqualTo(Duration.ofSeconds(10));
     assertThat(properties.paths()).isEmpty();
     assertThat(properties.claimInformationPoint()).isEmpty();
   }
@@ -144,6 +145,13 @@ class KeycloakPolicyEnforcerPropertiesTest {
     assertThatThrownBy(() -> authzWithCredentials(Map.of(PREFIX + "max-connections", "0")))
         .rootCause()
         .hasMessageContaining(PREFIX + "max-connections");
+  }
+
+  @Test
+  void should_fail_when_retry_backoff_is_not_positive() {
+    assertThatThrownBy(() -> authzWithCredentials(Map.of(PREFIX + "retry-backoff", "0s")))
+        .rootCause()
+        .hasMessageContaining(PREFIX + "retry-backoff");
   }
 
   @Test

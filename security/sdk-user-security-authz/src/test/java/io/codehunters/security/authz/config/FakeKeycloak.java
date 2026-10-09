@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -44,6 +45,7 @@ final class FakeKeycloak implements AutoCloseable {
   private final Set<String> grants = ConcurrentHashMap.newKeySet();
   private final AtomicInteger umaCalls = new AtomicInteger();
   private final AtomicInteger resourceLookups = new AtomicInteger();
+  private final AtomicBoolean stopped = new AtomicBoolean();
 
   FakeKeycloak() {
     try {
@@ -94,7 +96,9 @@ final class FakeKeycloak implements AutoCloseable {
 
   @Override
   public void close() {
-    server.stop(0);
+    if (stopped.compareAndSet(false, true)) {
+      server.stop(0);
+    }
   }
 
   private void serveJwks(HttpExchange exchange) throws IOException {
