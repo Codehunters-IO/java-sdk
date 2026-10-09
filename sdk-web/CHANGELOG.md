@@ -57,7 +57,7 @@
   `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). See the README's "Client input errors".
 - `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
 - `codehunters.web.i18n.mdc.enabled` (default `false`).
-- `ProblemWriter(MessageSource, TraceIdProvider, ProblemSettings, LocaleResolver)`.
+- `ProblemWriter.withLocaleResolver(LocaleResolver)`.
 
 ## 2.0.0
 

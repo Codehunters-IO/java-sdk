@@ -39,31 +39,23 @@ public final class ProblemWriter {
    * @param settings how the problem details are built
    */
   public ProblemWriter(MessageSource messages, TraceIdProvider traceIds, ProblemSettings settings) {
-    this(messages, traceIds, settings, request -> LocaleContextHolder.getLocale());
+    this(
+        new ProblemFactory(messages, traceIds, settings),
+        request -> LocaleContextHolder.getLocale());
   }
 
   /**
-   * Creates a writer that resolves details in the locale the application's resolver picks.
+   * Returns a writer that resolves details in the locale the application's resolver picks.
    *
-   * @param messages resolves the localized details
-   * @param traceIds supplies the {@code traceId} extension
-   * @param settings how the problem details are built
    * @param localeResolver the application's {@code localeResolver}
+   * @return a writer sharing this one's messages, trace ids and settings
    */
-  public ProblemWriter(
-      MessageSource messages,
-      TraceIdProvider traceIds,
-      ProblemSettings settings,
-      LocaleResolver localeResolver) {
-    this(messages, traceIds, settings, localeResolver::resolveLocale);
+  public ProblemWriter withLocaleResolver(LocaleResolver localeResolver) {
+    return new ProblemWriter(problems, localeResolver::resolveLocale);
   }
 
-  private ProblemWriter(
-      MessageSource messages,
-      TraceIdProvider traceIds,
-      ProblemSettings settings,
-      Function<HttpServletRequest, Locale> locales) {
-    this.problems = new ProblemFactory(messages, traceIds, settings);
+  private ProblemWriter(ProblemFactory problems, Function<HttpServletRequest, Locale> locales) {
+    this.problems = problems;
     this.locales = locales;
   }
 

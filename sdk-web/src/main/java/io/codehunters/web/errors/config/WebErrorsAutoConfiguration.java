@@ -134,9 +134,10 @@ public class WebErrorsAutoConfiguration {
         WebErrorsProperties properties,
         @Qualifier(DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME)
             ObjectProvider<LocaleResolver> localeResolver) {
+      ProblemWriter writer = new ProblemWriter(context, traceIds, settings(properties));
       return Optional.ofNullable(localeResolver.getIfAvailable())
-          .map(resolver -> new ProblemWriter(context, traceIds, settings(properties), resolver))
-          .orElseGet(() -> new ProblemWriter(context, traceIds, settings(properties)));
+          .map(writer::withLocaleResolver)
+          .orElse(writer);
     }
 
     @Bean
