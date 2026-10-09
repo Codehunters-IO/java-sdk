@@ -35,7 +35,7 @@ import org.springframework.amqp.rabbit.core.RabbitOperations;
  * the dispatcher's; {@value MessagePublisherPort#LEGACY_TRACEPARENT_HEADER} only when asked to. A
  * stored value that is not a valid {@link W3cTraceParent} is not sent. The dispatcher publishes a
  * claimed batch sequentially, so deployments MUST keep {@code batchSize × confirmTimeout <
- * claim.ttlMs}.
+ * claim.ttl}.
  */
 public class RabbitMessagePublisherAdapter implements MessagePublisherPort {
 

@@ -19,7 +19,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.tracing.Tracer;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
-import java.time.Duration;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
@@ -147,12 +146,12 @@ public class EventMessagingCoreAutoConfiguration {
             applicationName,
             resolveInstanceId(applicationName),
             properties.batchSize(),
-            Duration.ofMillis(properties.claim().ttlMs()));
+            properties.claim().ttl());
     RetryPolicy retry =
         new RetryPolicy(
             properties.maxAttempts(),
-            Duration.ofMillis(properties.backoff().baseDelayMs()),
-            Duration.ofMillis(properties.backoff().maxDelayMs()));
+            properties.backoff().baseDelay(),
+            properties.backoff().maxDelay());
     return new DispatchSettings(claim, retry, clock);
   }
 

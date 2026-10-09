@@ -30,7 +30,7 @@ import org.springframework.kafka.core.KafkaTemplate;
  *
  * <p>Every send, including any wait inside {@link KafkaTemplate#send} for metadata or buffer space,
  * blocks for at most {@code sendTimeout}. The dispatcher publishes a claimed batch sequentially, so
- * deployments MUST keep {@code batchSize × sendTimeout < claim.ttlMs}; otherwise another instance
+ * deployments MUST keep {@code batchSize × sendTimeout < claim.ttl}; otherwise another instance
  * re-claims rows still being published and publishes them twice. Failures, timeouts and interrupts
  * surface as {@link MessagePublishException}, whose message never carries broker text.
  */
