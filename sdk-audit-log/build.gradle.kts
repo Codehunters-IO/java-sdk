@@ -24,6 +24,7 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.projectreactor:reactor-core")
     compileOnly("org.springframework.security:spring-security-core")
+    compileOnly("org.springframework:spring-web")
     compileOnly("jakarta.transaction:jakarta.transaction-api")
     compileOnly(project(":sdk-web"))
 

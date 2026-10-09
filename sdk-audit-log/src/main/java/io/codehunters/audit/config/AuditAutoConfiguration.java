@@ -21,6 +21,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Spring Boot auto-configuration enabling the {@link io.codehunters.audit.Auditable} aspect.
@@ -38,7 +39,8 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>At startup, when beans declare {@code @Auditable} methods but no {@link
  * AuditEventPublisherPort} exists, the reason is logged as an error, or fails startup when {@code
- * fail-on-error} is set. {@code codehunters.audit.enabled=false} turns the SDK off.
+ * codehunters.audit.startup-check.fail-fast} is set. {@code codehunters.audit.enabled=false} turns
+ * the SDK off.
  */
 @AutoConfiguration(afterName = "io.codehunters.web.device.config.DeviceAutoConfiguration")
 @ConditionalOnBooleanProperty(name = AuditAutoConfiguration.ENABLED, matchIfMissing = true)
@@ -47,6 +49,9 @@ public class AuditAutoConfiguration {
 
   /** The property that turns the SDK off when {@code false}. */
   static final String ENABLED = "codehunters.audit.enabled";
+
+  /** The property that makes a failed startup check stop the application instead of logging. */
+  static final String STARTUP_FAIL_FAST = "codehunters.audit.startup-check.fail-fast";
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public AuditAutoConfiguration() {}
@@ -117,15 +122,16 @@ public class AuditAutoConfiguration {
 
   /**
    * Checks at startup that {@code @Auditable} methods are actually audited; logs why they are not,
-   * or fails when {@code fail-on-error} is set.
+   * or fails when {@code codehunters.audit.startup-check.fail-fast} is set.
    *
    * @param beanFactory the application's bean factory
-   * @param properties the audit configuration, for fail-on-error
+   * @param environment the environment, for the fail-fast switch
    * @return the startup check
    */
   @Bean
   static SmartInitializingSingleton auditStartupCheck(
-      ConfigurableListableBeanFactory beanFactory, AuditProperties properties) {
-    return new AuditStartupCheck(beanFactory, properties.failOnError());
+      ConfigurableListableBeanFactory beanFactory, Environment environment) {
+    return new AuditStartupCheck(
+        beanFactory, environment.getProperty(STARTUP_FAIL_FAST, Boolean.class, false));
   }
 }

@@ -29,8 +29,7 @@ class AuditPublisherStartupCheckTest {
   private static final String INACTIVE = "no AuditEventPublisherPort";
   private static final String AMBIGUOUS = "2 DataSource beans and none is marked @Primary";
   private static final String NO_DATA_SOURCE = "no DataSource bean";
-  private static final String NOT_CONFIGURED =
-      "missing classes or auto-configuration excluded";
+  private static final String NOT_CONFIGURED = "missing classes or auto-configuration excluded";
   private static final String NO_WEAVER = "aspectjweaver";
   private static final String FAIL_FAST = "codehunters.audit.startup-check.fail-fast=true";
   private static final String FAIL_ON_ERROR = "codehunters.audit.fail-on-error=true";

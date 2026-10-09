@@ -83,10 +83,11 @@ final class CapturedCall {
    * Resolves the annotation's expressions against the outcome.
    *
    * @param result the value the call produced, or {@code null} if it failed
+   * @param failed whether the call failed
    * @return the resolved values
    */
-  Resolved resolve(Object result) {
-    EvaluationContext late = spel.buildContext(method, args, result);
+  Resolved resolve(Object result, boolean failed) {
+    EvaluationContext late = spel.buildContext(method, args, result, failed);
     return new Resolved(
         text(ENTITY_ID, auditable.entityId(), late),
         text(ACTOR_ID, auditable.actorId(), late),

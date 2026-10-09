@@ -28,7 +28,9 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * parsed on every call. Syntax errors, evaluation errors and exceptions thrown by methods the
  * expression calls resolve to {@code null}; the first such failure per method and attribute is
  * logged as a warning naming the exception class or SpEL message code, never the message, which can
- * echo argument values. Later ones are logged at debug level.
+ * echo argument values. Later ones are logged at debug level. A {@code #result} expression that
+ * fails because the call itself failed, leaving {@code #result} null, is expected and not warned
+ * about; write {@code #result?.id} to make that explicit.
  *
  * <p>The context is a full {@code StandardEvaluationContext}: expressions may call any method of
  * the arguments and reference types with {@code T(...)}. Expressions come from the application's
@@ -60,7 +62,20 @@ final class AuditSpelEvaluator {
   }
 
   EvaluationContext buildContext(Method method, Object[] args, Object result) {
-    var ctx = new AuditEvaluationContext(method, args, result, nameDiscoverer);
+    return buildContext(method, args, result, false);
+  }
+
+  /**
+   * Builds the context of one evaluation.
+   *
+   * @param method the audited method
+   * @param args its arguments
+   * @param result its return value, or {@code null}
+   * @param failed whether the call failed, so a {@code #result} expression is expected to fail
+   * @return the context
+   */
+  EvaluationContext buildContext(Method method, Object[] args, Object result, boolean failed) {
+    var ctx = new AuditEvaluationContext(method, args, result, failed, nameDiscoverer);
     for (int i = 0; i < args.length; i++) {
       ctx.setVariable("arg" + i, args[i]);
     }
@@ -118,6 +133,9 @@ final class AuditSpelEvaluator {
   }
 
   private void warn(Site site, EvaluationContext ctx, RuntimeException failure) {
+    if (expectedFailure(site, ctx)) {
+      return;
+    }
     String method =
         ctx instanceof AuditEvaluationContext audit ? audit.label() : "an audited method";
     warnOnce.warn(
@@ -127,6 +145,16 @@ final class AuditSpelEvaluator {
         site.attribute(),
         method,
         reason(failure));
+  }
+
+  /**
+   * Whether the failure is the expected one of a {@code #result} expression after the call failed,
+   * where {@code #result} is {@code null} by design.
+   */
+  private static boolean expectedFailure(Site site, EvaluationContext ctx) {
+    return ctx instanceof AuditEvaluationContext audit
+        && audit.failed()
+        && site.expression().contains("#" + AuditEvaluationContext.RESULT);
   }
 
   private static String reason(RuntimeException failure) {
@@ -154,17 +182,27 @@ final class AuditSpelEvaluator {
     private static final String RESULT = "result";
 
     private final Object result;
+    private final boolean failed;
     private final String label;
 
     AuditEvaluationContext(
-        Method method, Object[] args, Object result, ParameterNameDiscoverer nameDiscoverer) {
+        Method method,
+        Object[] args,
+        Object result,
+        boolean failed,
+        ParameterNameDiscoverer nameDiscoverer) {
       super(null, method, args, nameDiscoverer);
       this.result = result;
-      this.label = method.getDeclaringClass().getName() + "#" + method.getName();
+      this.failed = failed;
+      this.label = MethodLabels.of(method);
     }
 
     String label() {
       return label;
+    }
+
+    boolean failed() {
+      return failed;
     }
 
     @Override

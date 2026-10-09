@@ -253,7 +253,7 @@ public class AuditAspect implements Ordered {
   private AuditEvent buildEvent(CapturedCall call, Outcome outcome, int durationMs) {
     Auditable auditable = call.auditable();
     CapturedCall.ProviderFields provider = call.provider();
-    CapturedCall.Resolved resolved = call.resolve(outcome.result());
+    CapturedCall.Resolved resolved = call.resolve(outcome.result(), !outcome.success());
     return new AuditEvent(
         auditable.entityType(),
         resolved.entityId(),

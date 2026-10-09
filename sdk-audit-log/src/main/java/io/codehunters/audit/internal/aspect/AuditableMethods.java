@@ -15,7 +15,10 @@ import org.springframework.util.ClassUtils;
 /**
  * The {@link Auditable} methods of the beans of a context. A bean already created is inspected
  * through its target class, so a proxy is seen through; one not created yet, such as a lazy bean,
- * by its declared type, without creating it.
+ * by its declared type, without creating it. Like the aspect's {@code @annotation} pointcut, only
+ * an annotation on the class's own method counts: one declared only on an interface or an
+ * overridden superclass method is not audited, so it is not reported either. A factory bean is
+ * inspected as the factory, not its product.
  */
 final class AuditableMethods {
 
@@ -52,7 +55,7 @@ final class AuditableMethods {
     return MethodIntrospector.selectMethods(
         type,
         (MethodIntrospector.MetadataLookup<Auditable>)
-            method -> AnnotatedElementUtils.findMergedAnnotation(method, Auditable.class));
+            method -> AnnotatedElementUtils.getMergedAnnotation(method, Auditable.class));
   }
 
   /**
@@ -67,10 +70,10 @@ final class AuditableMethods {
     /**
      * Names the method for a log line or failure message.
      *
-     * @return {@code ClassName#methodName}
+     * @return {@code ClassName#methodName(ParamType, ...)}, named after the declaring class
      */
     String label() {
-      return beanType.getName() + "#" + method.getName();
+      return MethodLabels.of(method);
     }
   }
 }
