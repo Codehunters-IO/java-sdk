@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.0.0"
+version = "3.0.0"
 description = "Framework-free helpers: masking, text, passwords, relative time, file names, RFC 6238 TOTP."
 
 codehuntersPackages {
