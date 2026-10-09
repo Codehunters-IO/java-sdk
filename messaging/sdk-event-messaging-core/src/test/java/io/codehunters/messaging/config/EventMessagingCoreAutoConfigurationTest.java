@@ -113,9 +113,10 @@ class EventMessagingCoreAutoConfigurationTest {
           EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
           assertThat(props.batchSize()).isEqualTo(50);
           assertThat(props.maxAttempts()).isEqualTo(5);
-          assertThat(props.claim().ttlMs()).isEqualTo(300_000L);
-          assertThat(props.backoff().baseDelayMs()).isEqualTo(30_000L);
-          assertThat(props.backoff().maxDelayMs()).isEqualTo(3_600_000L);
+          assertThat(props.claim().ttl()).isEqualTo(Duration.ofMinutes(5));
+          assertThat(props.backoff().baseDelay()).isEqualTo(Duration.ofSeconds(30));
+          assertThat(props.backoff().maxDelay()).isEqualTo(Duration.ofHours(1));
+          assertThat(props.task().fixedDelay()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.publisher().type()).isNull();
           assertThat(props.publisher().rabbit().confirmTimeout()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(5));
@@ -145,10 +146,10 @@ class EventMessagingCoreAutoConfigurationTest {
         context -> {
           EventMessagingProperties.Purge purge =
               context.getBean(EventMessagingProperties.class).purge();
-          assertThat(purge.fixedDelay()).isEqualTo("3600000");
-          assertThat(purge.initialDelay()).isEqualTo("60000");
-          assertThat(purge.lockAtMost()).isEqualTo("PT10M");
-          assertThat(purge.lockAtLeast()).isEqualTo("PT30S");
+          assertThat(purge.fixedDelay()).isEqualTo(Duration.ofHours(1));
+          assertThat(purge.initialDelay()).isEqualTo(Duration.ofMinutes(1));
+          assertThat(purge.lockAtMost()).isEqualTo(Duration.ofMinutes(10));
+          assertThat(purge.lockAtLeast()).isEqualTo(Duration.ofSeconds(30));
         });
   }
 
@@ -157,7 +158,61 @@ class EventMessagingCoreAutoConfigurationTest {
     contextRunner.run(
         context ->
             assertThat(context.getBean(EventMessagingProperties.class).task().lockAtMost())
-                .isEqualTo("300000"));
+                .isEqualTo(Duration.ofMinutes(5)));
+  }
+
+  @Test
+  void should_bind_zero_dispatch_lock_at_least_when_nothing_configured() {
+    contextRunner.run(
+        context ->
+            assertThat(context.getBean(EventMessagingProperties.class).task().lockAtLeast())
+                .isZero());
+  }
+
+  @Test
+  void should_bind_duration_properties_when_configured_with_units() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.task.fixed-delay=2s",
+            "codehunters.outbox.task.lock-at-most=6m",
+            "codehunters.outbox.task.lock-at-least=1s",
+            "codehunters.outbox.claim.ttl=4m",
+            "codehunters.outbox.backoff.base-delay=10s",
+            "codehunters.outbox.backoff.max-delay=20m",
+            "codehunters.outbox.purge.fixed-delay=2h",
+            "codehunters.outbox.purge.initial-delay=0s",
+            "codehunters.outbox.purge.lock-at-most=15m",
+            "codehunters.outbox.purge.lock-at-least=1m")
+        .run(
+            context -> {
+              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+              assertThat(props.task().fixedDelay()).isEqualTo(Duration.ofSeconds(2));
+              assertThat(props.task().lockAtMost()).isEqualTo(Duration.ofMinutes(6));
+              assertThat(props.task().lockAtLeast()).isEqualTo(Duration.ofSeconds(1));
+              assertThat(props.claim().ttl()).isEqualTo(Duration.ofMinutes(4));
+              assertThat(props.backoff().baseDelay()).isEqualTo(Duration.ofSeconds(10));
+              assertThat(props.backoff().maxDelay()).isEqualTo(Duration.ofMinutes(20));
+              assertThat(props.purge().fixedDelay()).isEqualTo(Duration.ofHours(2));
+              assertThat(props.purge().initialDelay()).isZero();
+              assertThat(props.purge().lockAtMost()).isEqualTo(Duration.ofMinutes(15));
+              assertThat(props.purge().lockAtLeast()).isEqualTo(Duration.ofMinutes(1));
+            });
+  }
+
+  @Test
+  void should_ignore_removed_millisecond_keys_when_only_they_are_set() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.claim.ttl-ms=1000",
+            "codehunters.outbox.backoff.base-delay-ms=1",
+            "codehunters.outbox.backoff.max-delay-ms=2")
+        .run(
+            context -> {
+              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+              assertThat(props.claim().ttl()).isEqualTo(Duration.ofMinutes(5));
+              assertThat(props.backoff().baseDelay()).isEqualTo(Duration.ofSeconds(30));
+              assertThat(props.backoff().maxDelay()).isEqualTo(Duration.ofHours(1));
+            });
   }
 
   @Test
@@ -228,13 +283,13 @@ class EventMessagingCoreAutoConfigurationTest {
         .withPropertyValues(
             "codehunters.outbox.publisher.type=kafka",
             "codehunters.outbox.batch-size=100",
-            "codehunters.outbox.claim.ttl-ms=60000")
+            "codehunters.outbox.claim.ttl=60s")
         .run(
             context -> {
               assertThat(context).hasFailed();
               assertThat(context.getStartupFailure())
                   .rootCause()
-                  .hasMessageContaining("codehunters.outbox.claim.ttl-ms")
+                  .hasMessageContaining("codehunters.outbox.claim.ttl ")
                   .hasMessageContaining("duplicate");
             });
   }
@@ -245,7 +300,7 @@ class EventMessagingCoreAutoConfigurationTest {
         .withPropertyValues(
             "codehunters.outbox.publisher.type=rabbit",
             "codehunters.outbox.publisher.rabbit.confirm-timeout=10s",
-            "codehunters.outbox.claim.ttl-ms=60000")
+            "codehunters.outbox.claim.ttl=60s")
         .run(
             context ->
                 assertThat(context.getStartupFailure())

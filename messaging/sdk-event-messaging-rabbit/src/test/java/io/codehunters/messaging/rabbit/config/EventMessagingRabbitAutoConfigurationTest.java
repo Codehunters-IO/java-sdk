@@ -182,7 +182,7 @@ class EventMessagingRabbitAutoConfigurationTest {
   @Test
   void should_fail_startup_naming_budget_when_type_unset_and_rabbit_claim_budget_exceeded() {
     contextRunner
-        .withPropertyValues("codehunters.outbox.claim.ttl-ms=1000")
+        .withPropertyValues("codehunters.outbox.claim.ttl=1s")
         .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(
             context ->

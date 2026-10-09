@@ -116,7 +116,7 @@ class EventMessagingKafkaAutoConfigurationTest {
   @Test
   void should_fail_startup_naming_budget_when_type_unset_and_kafka_claim_budget_exceeded() {
     contextRunner
-        .withPropertyValues("codehunters.outbox.claim.ttl-ms=1000")
+        .withPropertyValues("codehunters.outbox.claim.ttl=1s")
         .withBean(ProducerFactory.class, EventMessagingKafkaAutoConfigurationTest::producers)
         .run(
             context ->

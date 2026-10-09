@@ -27,5 +27,6 @@ dependencies {
     testImplementation("io.micrometer:micrometer-tracing-bridge-otel")
     testImplementation("io.opentelemetry:opentelemetry-sdk-trace")
     testImplementation(project(":sdk-tracing"))
+    testImplementation("tools.jackson.core:jackson-databind")
     testImplementation(libs.archunit.junit5)
 }
