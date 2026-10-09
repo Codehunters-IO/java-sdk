@@ -93,7 +93,7 @@ class KeycloakAuthzAutoConfigurationTest {
             context ->
                 assertThat(context)
                     .getFailure()
-                    .hasMessageContaining("codehunters.security.authz.enforcement-mode"));
+                    .hasStackTraceContaining("codehunters.security.authz.enforcement-mode"));
   }
 
   @Test

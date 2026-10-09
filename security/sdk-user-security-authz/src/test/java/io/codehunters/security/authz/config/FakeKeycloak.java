@@ -119,7 +119,7 @@ final class FakeKeycloak implements AutoCloseable {
   private void serveToken(HttpExchange exchange) throws IOException {
     Map<String, List<String>> form = form(new String(exchange.getRequestBody().readAllBytes()));
     if (!form.getOrDefault("grant_type", List.of()).contains(UMA_GRANT)) {
-      respond(exchange, 200, "{\"access_token\":\"pat\",\"token_type\":\"Bearer\"}");
+      respond(exchange, 200, "{\"access_token\":\"" + pat() + "\",\"token_type\":\"Bearer\"}");
       return;
     }
     umaCalls.incrementAndGet();
@@ -144,6 +144,18 @@ final class FakeKeycloak implements AutoCloseable {
     String[] parts = permission.split("#", 2);
     return parts.length == 2
         && Arrays.stream(parts[1].split(",")).allMatch(s -> grants.contains(parts[0] + "#" + s));
+  }
+
+  /** The protection API token of the resource server; the client parses it to know its expiry. */
+  private String pat() {
+    Instant now = Instant.now();
+    return sign(
+        new JWTClaimsSet.Builder()
+            .issuer(issuer())
+            .subject("service-account-" + CLIENT_ID)
+            .issueTime(Date.from(now))
+            .expirationTime(Date.from(now.plusSeconds(300)))
+            .build());
   }
 
   private String rpt(List<String> permissions) {
