@@ -12,6 +12,10 @@
   `true`), so applications that only use the helpers get no TOTP bean.
 
 ### Added
+- `io.codehunters.commons.error.ClientInputException`: an `IllegalArgumentException` with a stable
+  `code()` (upper snake case, `[A-Z][A-Z0-9_]*`) for input a client got wrong. Its message is safe
+  for clients by contract: it never repeats the input. `sdk-web` 2.1.0 answers it with 400 and the
+  code; `sdk-jpa` and `sdk-barcode` 2.1.0 throw subclasses of it.
 - `TotpGenerator.verifyAfter(secret, code, variance, lastAcceptedStep[, at])` and `verifyStep`: return
   the matched time step, so a caller can store it and reject replayed codes. Comparison stays
   constant-time. `TotpGenerator.NO_ACCEPTED_STEP` for a secret with no accepted code yet.

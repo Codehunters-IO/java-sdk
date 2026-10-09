@@ -3,7 +3,7 @@ plugins {
 }
 
 version = "3.0.0"
-description = "Framework-free helpers: masking, text, passwords, relative time, file names, RFC 6238 TOTP."
+description = "Framework-free helpers: masking, text, passwords, relative time, file names, client input errors, RFC 6238 TOTP."
 
 codehuntersPackages {
     root = "io.codehunters.commons"
