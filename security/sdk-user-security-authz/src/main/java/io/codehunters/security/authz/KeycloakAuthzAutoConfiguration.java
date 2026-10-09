@@ -1,7 +1,7 @@
 package io.codehunters.security.authz;
 
-import io.codehunters.security.KeycloakSecurityAutoConfiguration;
-import io.codehunters.security.KeycloakSecurityProperties;
+import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
+import io.codehunters.security.config.KeycloakSecurityProperties;
 import java.time.Clock;
 import java.util.function.Supplier;
 import org.keycloak.authorization.client.AuthzClient;

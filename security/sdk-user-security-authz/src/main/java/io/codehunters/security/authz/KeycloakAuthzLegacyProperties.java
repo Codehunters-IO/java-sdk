@@ -13,7 +13,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
  * Honours the 2.x {@code keycloak.policy-enforcer.*}, {@code keycloak.host} and {@code
- * keycloak.realm} keys under their 3.x names until 4.0.
+ * keycloak.realm} keys under their 3.x names until 5.0.
  */
 public class KeycloakAuthzLegacyProperties implements EnvironmentPostProcessor, Ordered {
 

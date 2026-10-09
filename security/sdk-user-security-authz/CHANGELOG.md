@@ -1,5 +1,16 @@
 # Changelog — sdk-user-security-authz
 
+## 4.0.0
+
+### Breaking
+- Requires `sdk-user-security` 4.0.0, whose configuration classes moved to
+  `io.codehunters.security.config` (it is an `api` dependency, so its new packages reach
+  consumers). This artifact's own package, `io.codehunters.security.authz`, and its classes do not
+  change. See [sdk-user-security MIGRATION-4.0.md](../sdk-user-security/MIGRATION-4.0.md).
+
+### Changed
+- The `keycloak.policy-enforcer.*` and `keycloak.*` aliases are honoured until 5.0.0 (was 4.0.0).
+
 ## 3.0.0
 
 First release as its own artifact; the policy enforcer previously shipped inside

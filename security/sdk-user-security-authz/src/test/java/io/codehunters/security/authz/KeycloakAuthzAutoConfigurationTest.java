@@ -2,8 +2,8 @@ package io.codehunters.security.authz;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.security.KeycloakSecurityAutoConfiguration;
 import io.codehunters.security.authz.KeycloakPolicyEnforcerProperties.EnforcementMode;
+import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
 import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;

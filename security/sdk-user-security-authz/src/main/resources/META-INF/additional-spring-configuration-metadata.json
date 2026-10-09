@@ -6,7 +6,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.authz.enabled",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     },
     {
@@ -15,7 +15,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.authz.enforcement-mode",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     },
     {
@@ -24,7 +24,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.authz.resource",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     },
     {
@@ -33,7 +33,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.authz.client-secret",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     },
     {
@@ -42,7 +42,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.authz.paths",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     },
     {
@@ -59,7 +59,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.url",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     },
     {
@@ -68,7 +68,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.security.realm",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     }
   ]
