@@ -60,6 +60,17 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
+  void should_leave_request_alone_when_another_chain_authenticated_it_without_a_bearer_token()
+      throws Exception {
+    authenticate(new TestingAuthenticationToken("actuator", "secret", "ROLE_ADMIN"));
+    request.addHeader("Authorization", "Basic YWN0dWF0b3I6c2VjcmV0");
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(chain.getRequest()).isSameAs(request);
+  }
+
+  @Test
   void should_answer_503_when_keycloak_is_unreachable() throws Exception {
     authenticate(new TestingAuthenticationToken("user-1", null, "ROLE_USER"));
     request.addHeader("Authorization", "Bearer token");
