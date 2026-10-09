@@ -20,6 +20,10 @@ import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
  *       the request has no {@code Accept-Language})
  * </ol>
  *
+ * <p>With supported locales, the answer is always one of them: when neither header nor the
+ * container's locale match, the default locale applies if it is supported, else the first supported
+ * locale.
+ *
  * <p>The custom header accepts BCP 47 tags ({@code en-US}) and Java's {@code en_US} form; values
  * longer than {@value #MAX_OVERRIDE_LENGTH} characters are ignored. Unicode extensions ({@code
  * -u-ca-japanese}) are dropped, so a client cannot change calendars or numbering systems. With
@@ -84,8 +88,19 @@ public class XLocaleAwareLocaleResolver extends AcceptHeaderLocaleResolver {
 
   private Locale resolveFromAcceptLanguage(HttpServletRequest request) {
     Locale resolved = super.resolveLocale(request);
+    List<Locale> supported = getSupportedLocales();
+    if (!supported.isEmpty()) {
+      return supported.contains(resolved) ? resolved : supportedFallback(supported);
+    }
     Locale defaultLocale = getDefaultLocale();
     return resolved.getLanguage().isEmpty() && defaultLocale != null ? defaultLocale : resolved;
+  }
+
+  private Locale supportedFallback(List<Locale> supported) {
+    Locale defaultLocale = getDefaultLocale();
+    return defaultLocale != null && supported.contains(defaultLocale)
+        ? defaultLocale
+        : supported.getFirst();
   }
 
   private static Optional<Locale> chosenLocale(HttpServletRequest request) {
