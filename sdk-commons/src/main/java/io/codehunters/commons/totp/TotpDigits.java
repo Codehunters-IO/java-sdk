@@ -1,4 +1,4 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
 /** Number of digits in a generated TOTP code. */
 public enum TotpDigits {

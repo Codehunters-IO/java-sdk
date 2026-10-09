@@ -1,4 +1,4 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

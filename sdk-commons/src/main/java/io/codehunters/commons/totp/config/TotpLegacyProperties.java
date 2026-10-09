@@ -1,4 +1,4 @@
-package io.codehunters.totp.config;
+package io.codehunters.commons.totp.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
 import java.util.List;
@@ -13,7 +13,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
  * Honours the 1.x {@code vitxo.totp.*} keys under their {@code codehunters.totp.*} names until
- * sdk-commons 2.0. Runs right after the application's configuration files are loaded; a key set
+ * sdk-commons 3.0. Runs right after the application's configuration files are loaded; a key set
  * under the new name always wins.
  */
 public class TotpLegacyProperties implements EnvironmentPostProcessor, Ordered {

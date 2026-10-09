@@ -1,4 +1,4 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
 /** Thrown when TOTP generation, verification or secret handling fails. */
 public class TotpException extends RuntimeException {

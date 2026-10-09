@@ -1,4 +1,4 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;

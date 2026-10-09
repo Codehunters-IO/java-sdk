@@ -1,1 +1,1 @@
-io.codehunters.totp.config.TotpAutoConfiguration
+io.codehunters.commons.totp.config.TotpAutoConfiguration

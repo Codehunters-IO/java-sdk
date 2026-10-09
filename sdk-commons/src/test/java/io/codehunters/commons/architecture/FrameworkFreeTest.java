@@ -17,9 +17,11 @@ class FrameworkFreeTest {
   @Test
   void should_depend_only_on_the_jdk_and_itself() {
     classes()
+        .that()
+        .resideOutsideOfPackage("io.codehunters.commons.totp.config..")
         .should()
         .onlyDependOnClassesThat()
-        .resideInAnyPackage("java..", "io.codehunters.commons..")
+        .resideInAnyPackage("java..", "javax.crypto..", "io.codehunters.commons..")
         .check(CLASSES);
   }
 }

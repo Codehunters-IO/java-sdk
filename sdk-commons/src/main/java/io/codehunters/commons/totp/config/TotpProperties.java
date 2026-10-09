@@ -1,7 +1,7 @@
-package io.codehunters.totp.config;
+package io.codehunters.commons.totp.config;
 
-import io.codehunters.totp.TotpAlgorithm;
-import io.codehunters.totp.TotpDigits;
+import io.codehunters.commons.totp.TotpAlgorithm;
+import io.codehunters.commons.totp.TotpDigits;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

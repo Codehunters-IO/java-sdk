@@ -1,10 +1,10 @@
-package io.codehunters.totp.config;
+package io.codehunters.commons.totp.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.totp.TotpGenerator;
-import io.codehunters.totp.TotpSecret;
+import io.codehunters.commons.totp.TotpGenerator;
+import io.codehunters.commons.totp.TotpSecret;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.SpringApplication;

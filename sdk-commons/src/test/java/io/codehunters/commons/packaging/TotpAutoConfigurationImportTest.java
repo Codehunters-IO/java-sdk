@@ -2,7 +2,7 @@ package io.codehunters.commons.packaging;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.totp.config.TotpAutoConfiguration;
+import io.codehunters.commons.totp.config.TotpAutoConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.context.annotation.ImportCandidates;

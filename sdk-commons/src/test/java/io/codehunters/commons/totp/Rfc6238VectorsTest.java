@@ -1,8 +1,8 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
-import static io.codehunters.totp.TotpAlgorithm.HMAC_SHA1;
-import static io.codehunters.totp.TotpAlgorithm.HMAC_SHA256;
-import static io.codehunters.totp.TotpAlgorithm.HMAC_SHA512;
+import static io.codehunters.commons.totp.TotpAlgorithm.HMAC_SHA1;
+import static io.codehunters.commons.totp.TotpAlgorithm.HMAC_SHA256;
+import static io.codehunters.commons.totp.TotpAlgorithm.HMAC_SHA512;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 

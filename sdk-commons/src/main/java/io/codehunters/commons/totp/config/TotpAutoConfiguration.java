@@ -1,7 +1,7 @@
-package io.codehunters.totp.config;
+package io.codehunters.commons.totp.config;
 
-import io.codehunters.totp.TotpConfig;
-import io.codehunters.totp.TotpGenerator;
+import io.codehunters.commons.totp.TotpConfig;
+import io.codehunters.commons.totp.TotpGenerator;
 import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

@@ -1,11 +1,11 @@
-package io.codehunters.totp.config;
+package io.codehunters.commons.totp.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.totp.TotpAlgorithm;
-import io.codehunters.totp.TotpDigits;
-import io.codehunters.totp.TotpGenerator;
-import io.codehunters.totp.TotpSecret;
+import io.codehunters.commons.totp.TotpAlgorithm;
+import io.codehunters.commons.totp.TotpDigits;
+import io.codehunters.commons.totp.TotpGenerator;
+import io.codehunters.commons.totp.TotpSecret;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;

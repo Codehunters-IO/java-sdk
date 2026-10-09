@@ -1,4 +1,4 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
 import java.time.Duration;
 import java.util.Objects;

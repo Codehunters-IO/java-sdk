@@ -1,4 +1,4 @@
-package io.codehunters.totp;
+package io.codehunters.commons.totp;
 
 /** HMAC algorithm used to derive TOTP codes, mapped to its JCE {@code Mac} name. */
 public enum TotpAlgorithm {

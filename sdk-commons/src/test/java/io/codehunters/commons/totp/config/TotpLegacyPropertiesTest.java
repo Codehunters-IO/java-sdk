@@ -1,9 +1,9 @@
-package io.codehunters.totp.config;
+package io.codehunters.commons.totp.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.totp.TotpAlgorithm;
-import io.codehunters.totp.TotpDigits;
+import io.codehunters.commons.totp.TotpAlgorithm;
+import io.codehunters.commons.totp.TotpDigits;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;

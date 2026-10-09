@@ -12,25 +12,25 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.totp.time-step",
-        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 2.0.0."
+        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 3.0.0."
       }
     },
     {
       "name": "vitxo.totp.digits",
-      "type": "io.codehunters.totp.TotpDigits",
+      "type": "io.codehunters.commons.totp.TotpDigits",
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.totp.digits",
-        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 2.0.0."
+        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 3.0.0."
       }
     },
     {
       "name": "vitxo.totp.algorithm",
-      "type": "io.codehunters.totp.TotpAlgorithm",
+      "type": "io.codehunters.commons.totp.TotpAlgorithm",
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.totp.algorithm",
-        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 2.0.0."
+        "reason": "Renamed in sdk-totp 2.0.0; the old key is honoured until sdk-commons 3.0.0."
       }
     }
   ]
