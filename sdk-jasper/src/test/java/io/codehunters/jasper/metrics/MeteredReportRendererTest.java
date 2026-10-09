@@ -98,6 +98,47 @@ class MeteredReportRendererTest {
   }
 
   @Test
+  void should_tag_failures_of_templates_never_rendered_as_unknown() {
+    var renderer = new MeteredReportRenderer(failing(new ReportException("not found")), registry);
+
+    assertThatThrownBy(() -> renderer.toBytes(ReportRequest.of("a.jrxml", ReportFormat.PDF)));
+    assertThatThrownBy(() -> renderer.toBytes(ReportRequest.of("b.jrxml", ReportFormat.PDF)));
+
+    assertThat(registry.get("report.render").timers())
+        .extracting(timer -> timer.getId().getTag("template"))
+        .containsExactly("unknown");
+  }
+
+  @Test
+  void should_keep_the_template_name_on_failures_after_it_rendered_once() {
+    var delegate =
+        new ReportRenderer() {
+          @Override
+          public void render(ReportRequest request, OutputStream out) {
+            throw new ReportException("fill failed");
+          }
+
+          @Override
+          public byte[] toBytes(ReportRequest request) {
+            return DOCUMENT;
+          }
+        };
+    var renderer = new MeteredReportRenderer(delegate, registry);
+
+    renderer.toBytes(REQUEST);
+    assertThatThrownBy(() -> renderer.render(REQUEST, new ByteArrayOutputStream()));
+
+    assertThat(
+            registry
+                .get("report.render")
+                .tag("template", "orders.jrxml")
+                .tag("outcome", "ERROR")
+                .timer()
+                .count())
+        .isEqualTo(1);
+  }
+
+  @Test
   void should_reject_missing_collaborators() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new MeteredReportRenderer(null, registry))

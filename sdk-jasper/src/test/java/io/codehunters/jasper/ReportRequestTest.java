@@ -195,12 +195,64 @@ class ReportRequestTest {
   }
 
   @Test
-  void should_accept_a_cyclic_structure_of_strings() {
+  void should_reject_a_cyclic_structure_without_showing_it() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+                    .withParameters(Map.of("names", cyclic("secret-value"))))
+        .withMessage("parameter names holds a collection, map or array that contains itself")
+        .withMessageNotContaining("secret-value");
+  }
+
+  @Test
+  void should_accept_the_same_collection_twice_in_one_value() {
+    var shared = List.of("sales/logo.png");
+
     var request =
         ReportRequest.of(TEMPLATE, ReportFormat.PDF)
-            .withParameters(Map.of("names", cyclic("sales/logo.png")));
+            .withParameters(Map.of("names", List.of(shared, shared)));
 
-    assertThat(request.parameters()).containsKey("names");
+    assertThat(request.parameters()).containsEntry("names", List.of(shared, shared));
+  }
+
+  @Test
+  void should_copy_nested_collections_so_later_changes_do_not_leak_in() {
+    var logos = new ArrayList<Object>(List.of("sales/logo.png"));
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("logos", Map.of("header", logos)));
+
+    logos.add(new File("/etc/hosts"));
+
+    assertThat(request.parameters())
+        .containsEntry("logos", Map.of("header", List.of("sales/logo.png")));
+  }
+
+  @Test
+  void should_copy_nested_arrays_so_later_changes_do_not_leak_in() {
+    var logos = new Object[] {"sales/logo.png"};
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("logos", List.of((Object) logos)));
+
+    logos[0] = new File("/etc/hosts");
+
+    assertThat(request.parameters().get("logos"))
+        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        .first()
+        .isEqualTo(new Object[] {"sales/logo.png"});
+  }
+
+  @Test
+  void should_expose_unmodifiable_nested_collections() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("logos", new ArrayList<>(List.of("sales/logo.png"))));
+
+    assertThat(request.parameters().get("logos"))
+        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        .isUnmodifiable();
   }
 
   @Test
