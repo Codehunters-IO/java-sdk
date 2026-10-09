@@ -9,8 +9,10 @@ import io.codehunters.web.errors.servlet.ProblemWriter;
 import io.codehunters.web.errors.servlet.WebErrorsExceptionHandler;
 import io.codehunters.web.errors.trace.MdcTraceIdProvider;
 import io.codehunters.web.errors.trace.TraceIdProvider;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -26,6 +28,8 @@ import org.springframework.boot.webmvc.error.ErrorController;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.AbstractApplicationContext;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
@@ -49,7 +53,10 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
       "org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration",
       "org.springframework.boot.webmvc.autoconfigure.error.ErrorMvcAutoConfiguration"
     },
-    afterName = "io.codehunters.tracing.config.TracingAutoConfiguration")
+    afterName = {
+      "io.codehunters.tracing.config.TracingAutoConfiguration",
+      "org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration"
+    })
 @ConditionalOnWebApplication(type = Type.SERVLET)
 @ConditionalOnClass({ResponseEntityExceptionHandler.class, ProblemDetail.class})
 @ConditionalOnBooleanProperty(name = "codehunters.web.errors.enabled", matchIfMissing = true)
@@ -67,6 +74,36 @@ public class WebErrorsAutoConfiguration {
   @Bean
   static BeanPostProcessor errorBundleRegistrar() {
     return new ErrorBundleRegistrar();
+  }
+
+  /**
+   * A {@code messageSource} holding only the SDK's error bundle, for applications without bundles
+   * of their own: Boot then registers none, and the context's empty placeholder is never
+   * post-processed. Backs off when any {@code messageSource} bean exists, Boot's included.
+   *
+   * @return the message source
+   */
+  @Bean(name = AbstractApplicationContext.MESSAGE_SOURCE_BEAN_NAME)
+  @ConditionalOnMissingBean(
+      name = AbstractApplicationContext.MESSAGE_SOURCE_BEAN_NAME,
+      search = SearchStrategy.CURRENT)
+  public ResourceBundleMessageSource messageSource() {
+    var messages = new ResourceBundleMessageSource();
+    messages.setBasename(ErrorBundleRegistrar.BASENAME);
+    messages.setDefaultEncoding(StandardCharsets.UTF_8.name());
+    messages.setFallbackToSystemLocale(false);
+    return messages;
+  }
+
+  /**
+   * Warns at startup when the SDK's error bundle cannot be resolved through the context.
+   *
+   * @param context the application context, used as message source
+   * @return the check
+   */
+  @Bean
+  static SmartInitializingSingleton errorBundleCheck(ApplicationContext context) {
+    return new ErrorBundleCheck(context);
   }
 
   /**
