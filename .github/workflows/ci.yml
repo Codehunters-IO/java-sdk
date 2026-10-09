@@ -47,6 +47,9 @@ jobs:
         with:
           cache-read-only: true
 
+      - name: Pull the integration-test images
+        run: .github/scripts/pull-test-images.sh
+
       - name: Build, test, coverage, format check
         run: ./gradlew build
 

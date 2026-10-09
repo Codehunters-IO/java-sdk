@@ -70,6 +70,9 @@ jobs:
           GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: echo "path=$(.github/scripts/resolve-release.sh)" >> "$GITHUB_OUTPUT"
 
+      - name: Pull the integration-test images
+        run: .github/scripts/pull-test-images.sh
+
       - name: Build and publish
         env:
           GRADLE_PATH: ${{ steps.module.outputs.path }}
