@@ -3,6 +3,7 @@ package io.codehunters.security.jwt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.codehunters.security.KeycloakAuthenticationToken;
 import io.codehunters.security.KeycloakPrincipal;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +35,31 @@ class KeycloakJwtAuthenticationConverterTest {
     assertThat(authentication.getPrincipal())
         .isEqualTo(
             new KeycloakPrincipal("user-1", "alice", null, null, null, null, null, null, "sid-1"));
+  }
+
+  @Test
+  void should_keep_the_validated_token_when_credentials_are_erased() {
+    Jwt jwt = jwt(Map.of());
+
+    Authentication authentication = converter.convert(jwt);
+    authentication.eraseCredentials();
+
+    assertThat(authentication)
+        .isInstanceOfSatisfying(
+            KeycloakAuthenticationToken.class, token -> assertThat(token.getToken()).isSameAs(jwt));
+  }
+
+  @Test
+  void should_name_the_authentication_after_the_user_id() {
+    assertThat(converter.convert(jwt(Map.of())).getName()).isEqualTo("user-1");
+  }
+
+  @Test
+  void should_expose_the_token_claims_as_token_attributes() {
+    assertThat(converter.convert(jwt(Map.of())))
+        .isInstanceOfSatisfying(
+            KeycloakAuthenticationToken.class,
+            token -> assertThat(token.getTokenAttributes()).containsEntry("sub", "user-1"));
   }
 
   @Test

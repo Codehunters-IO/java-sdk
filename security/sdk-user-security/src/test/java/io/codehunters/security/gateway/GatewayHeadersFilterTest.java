@@ -2,6 +2,7 @@ package io.codehunters.security.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.KeycloakAuthenticationToken;
 import io.codehunters.security.KeycloakPrincipal;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
@@ -17,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -43,6 +45,22 @@ class GatewayHeadersFilterTest {
     filter.doFilter(request, response, chain);
 
     assertThat(chain.getRequest()).isNotNull();
+  }
+
+  @Test
+  void should_keep_the_validated_token_when_adding_gateway_context()
+      throws ServletException, IOException {
+    Jwt jwt = Jwt.withTokenValue("token").header("alg", "RS256").subject("user-1").build();
+    SecurityContextHolder.getContext()
+        .setAuthentication(new KeycloakAuthenticationToken(jwt, TOKEN_PRINCIPAL, List.of()));
+    request.addHeader("x-geo-country", "CO");
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(SecurityContextHolder.getContext().getAuthentication())
+        .isInstanceOfSatisfying(
+            KeycloakAuthenticationToken.class,
+            token -> assertThat(token.getToken()).isSameAs(jwt));
   }
 
   @Test
