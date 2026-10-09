@@ -33,15 +33,6 @@ public final class PostgisDatabase {
     return DATA_SOURCE;
   }
 
-  /**
-   * The container's JDBC URL.
-   *
-   * @return the URL
-   */
-  public static String jdbcUrl() {
-    return CONTAINER.getJdbcUrl();
-  }
-
   private static PostgreSQLContainer start() {
     var container = new PostgreSQLContainer(IMAGE);
     container.start();

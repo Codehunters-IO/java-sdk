@@ -47,3 +47,48 @@ INSERT INTO geo.zones_geometry VALUES
 -- Every zone, three seconds late: for the query timeout.
 CREATE VIEW geo.slow_zones AS
     SELECT z.* FROM geo.zones z CROSS JOIN LATERAL (SELECT pg_sleep(3)) AS pause;
+
+-- "blank": a zone with a blank id covers the point too; it must not hide the real one.
+INSERT INTO geo.zones VALUES
+    ('blank', '', 'CITY', NULL, NULL,
+     'SRID=4326;MULTIPOLYGON(((0 0, 2 0, 2 2, 0 2, 0 0)))'),
+    ('blank', 'real-1', 'CITY', NULL, NULL,
+     'SRID=4326;MULTIPOLYGON(((0 0, 2 0, 2 2, 0 2, 0 0)))');
+
+-- Integer ids, which order numerically (9 before 10), and a scope whose only zone has no shape.
+CREATE TABLE geo.zones_numeric (
+    scope_ref VARCHAR(128) NOT NULL,
+    zone_id   INTEGER NOT NULL,
+    geom      geography(MultiPolygon, 4326)
+);
+INSERT INTO geo.zones_numeric VALUES
+    ('north', 10, 'SRID=4326;MULTIPOLYGON(((0 0, 2 0, 2 2, 0 2, 0 0)))'),
+    ('north', 9, 'SRID=4326;MULTIPOLYGON(((0 0, 2 0, 2 2, 0 2, 0 0)))'),
+    ('hollow', 1, NULL);
+
+-- 5000 small squares in one scope, laid out as the reference DDL indexes them, so the planner has
+-- real statistics to choose the spatial index over the scope index.
+CREATE TABLE geo.dense_zones (
+    scope_ref VARCHAR(128) NOT NULL,
+    zone_id   VARCHAR(128) NOT NULL,
+    geom      geography(MultiPolygon, 4326) NOT NULL
+);
+CREATE INDEX idx_dense_scope ON geo.dense_zones (scope_ref);
+CREATE INDEX idx_dense_geom ON geo.dense_zones USING GIST (geom);
+INSERT INTO geo.dense_zones
+    SELECT 'dense', 'd-' || i,
+           ST_Multi(ST_MakeEnvelope((i % 100) * 0.1, (i / 100) * 0.1,
+                                    (i % 100) * 0.1 + 0.09, (i / 100) * 0.1 + 0.09, 4326))::geography
+    FROM generate_series(0, 4999) AS i;
+ANALYZE geo.dense_zones;
+
+-- The same squares in a geometry column, indexed on the expression the adapter evaluates.
+CREATE TABLE geo.dense_zones_geometry (
+    scope_ref VARCHAR(128) NOT NULL,
+    zone_id   VARCHAR(128) NOT NULL,
+    boundary  geometry(MultiPolygon, 4326) NOT NULL
+);
+CREATE INDEX idx_dense_geometry_scope ON geo.dense_zones_geometry (scope_ref);
+CREATE INDEX idx_dense_geometry_geog ON geo.dense_zones_geometry USING GIST ((boundary::geography));
+INSERT INTO geo.dense_zones_geometry SELECT scope_ref, zone_id, geom::geometry FROM geo.dense_zones;
+ANALYZE geo.dense_zones_geometry;

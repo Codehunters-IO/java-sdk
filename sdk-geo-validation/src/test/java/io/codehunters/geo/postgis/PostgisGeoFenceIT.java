@@ -32,6 +32,13 @@ class PostgisGeoFenceIT {
               "geo.zones_geometry",
               new PostgisZoneTable.Columns("scope_ref", "zone_id", "boundary", "", "", "")));
 
+  private final PostgisGeoFence numericIds =
+      new PostgisGeoFence(
+          JDBC,
+          new PostgisZoneTable(
+              "geo.zones_numeric",
+              new PostgisZoneTable.Columns("scope_ref", "zone_id", "geom", "", "", "")));
+
   @Test
   void should_allow_with_every_attribute_when_the_point_is_inside_a_zone() {
     assertThat(zones.validate(new ZoneRef("north"), GeoPoint.of(1, 1)))
@@ -110,6 +117,24 @@ class PostgisGeoFenceIT {
   @Test
   void should_deny_as_outside_when_a_geometry_column_zone_does_not_cover_the_point() {
     assertThat(geometryColumn.validate(new ZoneRef("north"), GeoPoint.of(20, 20)))
+        .isEqualTo(GeoDecision.denied(DenialReason.OUTSIDE_ZONE));
+  }
+
+  @Test
+  void should_match_the_real_zone_when_a_zone_with_a_blank_id_also_covers_the_point() {
+    assertThat(idOnly.validate(new ZoneRef("blank"), GeoPoint.of(1, 1)))
+        .isEqualTo(GeoDecision.allowed(MatchedZone.of("real-1", null, null, null)));
+  }
+
+  @Test
+  void should_match_the_numerically_lowest_id_when_the_id_column_is_an_integer() {
+    assertThat(numericIds.validate(new ZoneRef("north"), GeoPoint.of(1, 1)))
+        .isEqualTo(GeoDecision.allowed(MatchedZone.of("9", null, null, null)));
+  }
+
+  @Test
+  void should_deny_as_outside_when_the_only_zone_of_the_scope_has_no_shape() {
+    assertThat(numericIds.validate(new ZoneRef("hollow"), GeoPoint.of(1, 1)))
         .isEqualTo(GeoDecision.denied(DenialReason.OUTSIDE_ZONE));
   }
 }
