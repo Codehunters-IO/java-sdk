@@ -85,14 +85,15 @@ public record PostgisZoneTable(String name, Columns columns) {
       zoneType = optional(zoneType);
       zoneName = optional(zoneName);
       zoneParent = optional(zoneParent);
-      boolean valid =
-          identifiers(scope, zoneId, geometry)
-              && optionalIdentifiers(zoneType, zoneName, zoneParent);
-      if (!valid) {
-        throw new IllegalArgumentException(
-            "Zone table column names must be identifiers: scope, zone-id and geometry are"
-                + " required");
+      if (!identifiers(scope, zoneId, geometry)
+          || !optionalIdentifiers(zoneType, zoneName, zoneParent)) {
+        throw invalidColumns();
       }
+    }
+
+    private static IllegalArgumentException invalidColumns() {
+      return new IllegalArgumentException(
+          "Zone table column names must be identifiers: scope, zone-id and geometry are required");
     }
 
     private static String optional(String name) {

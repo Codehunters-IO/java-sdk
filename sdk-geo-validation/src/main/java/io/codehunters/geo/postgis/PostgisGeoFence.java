@@ -18,6 +18,16 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  */
 public final class PostgisGeoFence implements GeoFenceValidator {
 
+  private static final String MATCH =
+      """
+      SELECT EXISTS (SELECT 1 FROM scope_zones) AS has_zones, \
+      m.zone_id, m.zone_type, m.zone_name, m.zone_parent
+      FROM (SELECT 1) AS one LEFT JOIN LATERAL (
+        SELECT zone_id, zone_type, zone_name, zone_parent FROM scope_zones
+        WHERE ST_Covers(geom::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography)
+          AND zone_id IS NOT NULL AND btrim(zone_id::text) <> ''
+        ORDER BY zone_id LIMIT 1) AS m ON TRUE""";
+
   private final JdbcClient jdbc;
   private final String statement;
 
@@ -45,29 +55,25 @@ public final class PostgisGeoFence implements GeoFenceValidator {
         .single();
   }
 
+  /**
+   * The CTE is referenced twice, so it is declared {@code NOT MATERIALIZED}: inlined, the coverage
+   * test reaches the table's spatial index instead of scanning every zone of the scope.
+   */
   static String statement(PostgisZoneTable table) {
+    return "WITH scope_zones AS NOT MATERIALIZED (" + scopeZones(table) + ")\n" + MATCH;
+  }
+
+  private static String scopeZones(PostgisZoneTable table) {
     PostgisZoneTable.Columns c = table.columns();
-    return "WITH scope_zones AS (SELECT "
-        + quoted(c.zoneId())
-        + " AS zone_id, "
-        + optional(c.zoneType(), "zone_type")
-        + ", "
-        + optional(c.zoneName(), "zone_name")
-        + ", "
-        + optional(c.zoneParent(), "zone_parent")
-        + ", "
-        + quoted(c.geometry())
-        + " AS geom FROM "
-        + quoted(table.name())
-        + " WHERE "
-        + quoted(c.scope())
-        + " = :scope)\n"
-        + "SELECT EXISTS (SELECT 1 FROM scope_zones) AS has_zones,"
-        + " m.zone_id, m.zone_type, m.zone_name, m.zone_parent\n"
-        + "FROM (SELECT 1) AS one LEFT JOIN LATERAL (\n"
-        + "  SELECT zone_id, zone_type, zone_name, zone_parent FROM scope_zones\n"
-        + "  WHERE ST_Covers(geom::geography, ST_SetSRID(ST_MakePoint(:lon, :lat), 4326)::geography)\n"
-        + "  ORDER BY zone_id LIMIT 1) AS m ON TRUE";
+    return "SELECT %s AS zone_id, %s, %s, %s, %s AS geom FROM %s WHERE %s = :scope"
+        .formatted(
+            quoted(c.zoneId()),
+            optional(c.zoneType(), "zone_type"),
+            optional(c.zoneName(), "zone_name"),
+            optional(c.zoneParent(), "zone_parent"),
+            quoted(c.geometry()),
+            quoted(table.name()),
+            quoted(c.scope()));
   }
 
   /** Double-quotes each part; the parts are validated identifiers, so they hold no {@code "}. */
