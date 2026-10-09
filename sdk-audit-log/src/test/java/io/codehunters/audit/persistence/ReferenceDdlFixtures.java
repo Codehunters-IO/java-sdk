@@ -12,7 +12,6 @@ import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 final class ReferenceDdlFixtures {
 
   static final String POSTGRES_DDL = "db/migration/audit/postgresql/audit_event_create.sql";
-  static final String SQLSERVER_DDL = "db/migration/audit/sqlserver/audit_event_create.sql";
   static final UUID CORRELATION_ID = UUID.fromString("4bf92f35-77b3-4da6-a3ce-929d0e0e4736");
   static final OffsetDateTime CREATED_AT = OffsetDateTime.parse("2026-10-06T12:00:00Z");
 

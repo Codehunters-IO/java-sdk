@@ -11,7 +11,7 @@ implementation("io.codehunters:sdk-audit-log")
 
 API types live in `io.codehunters.audit`; auto-configuration in `io.codehunters.audit.config` and the
 JDBC adapter and publishers in `io.codehunters.audit.persistence`. Coming from 3.x:
-[MIGRATION-4.0.md](MIGRATION-4.0.md).
+[MIGRATION-4.0.md](MIGRATION-4.0.md); from 4.x: [MIGRATION-5.0.md](MIGRATION-5.0.md).
 
 ## Usage
 
@@ -47,7 +47,7 @@ declare your own provider to fill them.
 When neither the annotation nor the provider names an actor and Spring Security is on the
 classpath, the actor is the authenticated, non-anonymous user of the calling thread's
 `SecurityContextHolder` (`Authentication.getName()`), where a servlet application keeps it (since
-4.1.0). It is read only while a request is bound to the thread (Spring Web's
+5.0.0). It is read only while a request is bound to the thread (Spring Web's
 `RequestContextHolder`): a scheduler, listener or pooled thread can inherit a context
 (`MODE_INHERITABLETHREADLOCAL`) or keep one that leaked, and would record a plausible but wrong
 user, so calls there record no actor unless the provider or annotation names one. In WebFlux it
@@ -189,14 +189,9 @@ factory, not its product. With `codehunters.audit.enabled=false` no check runs.
 
 ## Database
 
-Create the table from the reference DDL shipped in the jar, copied into your own migrations:
-
-| Database | Script |
-|---|---|
-| PostgreSQL | `db/migration/audit/postgresql/audit_event_create.sql` |
-| SQL Server | `db/migration/audit/sqlserver/audit_event_create.sql` |
-
-The scripts have no Flyway version prefix, so the SDK never runs them.
+PostgreSQL is the supported database. Create the table from the reference DDL shipped in the jar,
+`db/migration/audit/postgresql/audit_event_create.sql`, copied into your own migrations. The script
+has no Flyway version prefix, so the SDK never runs it.
 
 ## Configuration
 
@@ -218,8 +213,7 @@ enable AspectJ proxying in your configuration or `@Auditable` has no effect. Sta
 an AspectJ auto-proxy creator: without one it logs a warning, or fails when
 `codehunters.audit.fail-on-error=true`. See [Startup checks](#startup-checks) for the others.
 
-Invalid sizes fail at startup. The 2.x key `vitxo.audit.fail-on-error` works until 5.0.0 and logs
-a deprecation warning.
+Invalid sizes fail at startup.
 
 ## Known limits
 

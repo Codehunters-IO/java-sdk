@@ -3,8 +3,7 @@
 4.0.0 splits the 24 classes of `io.codehunters.audit` by concern. What a service uses stays in
 `io.codehunters.audit`; auto-configuration, the aspect, asynchronous result handling and the
 publishers move to sub-packages. Only imports change: class names, properties
-(`codehunters.audit.*`), the legacy `vitxo.audit.fail-on-error` alias and behaviour are those of
-3.1.0.
+(`codehunters.audit.*`) and behaviour are those of 3.1.0.
 
 ## Unchanged: `io.codehunters.audit`
 
@@ -20,7 +19,6 @@ publishers move to sub-packages. Only imports change: class names, properties
 | `io.codehunters.audit.AuditAutoConfiguration` | `io.codehunters.audit.config.AuditAutoConfiguration` |
 | `io.codehunters.audit.AuditJdbcAutoConfiguration` | `io.codehunters.audit.config.AuditJdbcAutoConfiguration` |
 | `io.codehunters.audit.AuditProperties` | `io.codehunters.audit.config.AuditProperties` |
-| `io.codehunters.audit.AuditLegacyProperties` | `io.codehunters.audit.config.AuditLegacyProperties` |
 | `io.codehunters.audit.AuditAspect` | `io.codehunters.audit.internal.aspect.AuditAspect` |
 | `io.codehunters.audit.AsyncAuditEventPublisher` | `io.codehunters.audit.persistence.AsyncAuditEventPublisher` |
 | `io.codehunters.audit.FailSafeAuditEventPublisher` | `io.codehunters.audit.persistence.FailSafeAuditEventPublisher` |
@@ -44,8 +42,6 @@ reach them; they are not API and may change in any release.
 3. **Names in strings.** `@AutoConfigureAfter(name = ...)`, `excludeName` and
    `spring.autoconfigure.exclude` entries naming `AuditAutoConfiguration` or
    `AuditJdbcAutoConfiguration` need the `config` package.
-
-The `vitxo.audit.fail-on-error` key is now honoured until 5.0.0 (was 4.0.0).
 
 ## Logging
 

@@ -14,8 +14,7 @@ class ReferenceDdlPackagingTest {
   }
 
   @Test
-  void should_ship_reference_ddl_for_postgres_and_sql_server() {
+  void should_ship_reference_ddl_for_postgres() {
     assertThat(new ClassPathResource(ReferenceDdlFixtures.POSTGRES_DDL).exists()).isTrue();
-    assertThat(new ClassPathResource(ReferenceDdlFixtures.SQLSERVER_DDL).exists()).isTrue();
   }
 }
