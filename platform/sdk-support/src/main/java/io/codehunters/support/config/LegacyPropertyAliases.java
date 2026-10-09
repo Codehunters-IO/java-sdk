@@ -17,6 +17,7 @@ import org.springframework.boot.context.properties.source.ConfigurationPropertyS
 import org.springframework.boot.context.properties.source.IterableConfigurationPropertySource;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.env.MapPropertySource;
+import org.springframework.core.env.PropertySource;
 
 /**
  * Keeps renamed configuration keys working for one major version: every declared old key, and every
@@ -76,7 +77,7 @@ public final class LegacyPropertyAliases {
    * @param log where the deprecation warnings go
    */
   public void apply(ConfigurableEnvironment environment, Log log) {
-    Found found = new Found(environment);
+    Found found = new Found(environment, sourceName());
     keys.forEach(key -> copyKey(key, found));
     if (!found.ignored.isEmpty()) {
       log.warn("Deprecated configuration keys ignored, the new key is set: " + found.ignored);
@@ -84,10 +85,12 @@ public final class LegacyPropertyAliases {
     if (found.aliases.isEmpty()) {
       return;
     }
-    environment
-        .getPropertySources()
-        .addLast(new MapPropertySource("legacyAliases-" + name, found.aliases));
+    environment.getPropertySources().addLast(new MapPropertySource(sourceName(), found.aliases));
     log.warn("Deprecated configuration keys, rename them: " + found.renamed);
+  }
+
+  private String sourceName() {
+    return "legacyAliases-" + name;
   }
 
   // Like Boot's binder, the whole value of a key, list or map, comes from the first source defining
@@ -190,10 +193,18 @@ public final class LegacyPropertyAliases {
     private final Map<String, String> renamed = new LinkedHashMap<>();
     private final Map<String, String> ignored = new LinkedHashMap<>();
 
-    private Found(ConfigurableEnvironment environment) {
+    // A second apply (parent and child contexts, a DevTools restart) must not read its own aliases
+    // as new keys already set.
+    private Found(ConfigurableEnvironment environment, String ownSource) {
       this.sources =
           StreamSupport.stream(ConfigurationPropertySources.get(environment).spliterator(), false)
+              .filter(source -> !isOwn(source, ownSource))
               .toList();
+    }
+
+    private static boolean isOwn(ConfigurationPropertySource source, String ownSource) {
+      return source.getUnderlyingSource() instanceof PropertySource<?> propertySource
+          && propertySource.getName().equals(ownSource);
     }
 
     private boolean isDefined(ConfigurationPropertyName key) {
