@@ -183,6 +183,23 @@ public final class TotpGenerator {
     return match(secret, code, variance, window);
   }
 
+  /**
+   * Builds the {@code otpauth://totp/} key URI that authenticator apps import, usually from a QR
+   * code. It carries the secret (Base32, unpadded), the issuer and this generator's algorithm,
+   * digits and period. Every component is percent-encoded as UTF-8 (RFC 3986).
+   *
+   * @param secret the shared secret
+   * @param issuer the service name shown in the app; not blank, no {@code ':'}, no control
+   *     characters
+   * @param account the user's account name, such as an e-mail address; same rules as {@code issuer}
+   * @return the key URI; it contains the secret, so never log it
+   * @throws IllegalArgumentException if {@code issuer} or {@code account} is blank or contains a
+   *     {@code ':'} or a control character; the message never repeats the value
+   */
+  public String provisioningUri(TotpSecret secret, String issuer, String account) {
+    return TotpUri.of(config, secret, new TotpUri.Label(issuer, account));
+  }
+
   private OptionalLong match(TotpSecret secret, String code, int variance, Window window) {
     if (variance < 0 || variance > MAX_VARIANCE) {
       throw new IllegalArgumentException("variance must be between 0 and " + MAX_VARIANCE);
