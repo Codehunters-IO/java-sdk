@@ -18,7 +18,7 @@ public interface MessagePublisherPort {
 
   /**
    * W3C trace context header. Adapters set it in {@link #publish(OutboxMessage)} to the message's
-   * stored {@link OutboxMessage#getTraceparent() traceparent}, when it has one.
+   * stored {@link OutboxMessage} {@code traceparent}, when it has one.
    */
   String TRACEPARENT_HEADER = "traceparent";
 

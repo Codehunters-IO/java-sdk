@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 /**
  * {@link MessagePublisherPort} decorator that publishes each outbox message with the trace context
- * stored with it ({@link OutboxMessage#getTraceparent()}) as the current one, instead of the
+ * stored with it (the {@link OutboxMessage} {@code traceparent}) as the current one, instead of the
  * dispatcher's. Logs written during the publish carry the request's trace id, and a span or
  * observation started inside it (for example a template observation) becomes a child of the stored
  * span. The dispatcher's context is restored afterwards, also when the publish fails.

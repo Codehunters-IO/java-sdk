@@ -88,7 +88,7 @@ public class OutboxEventFactory {
       T payload) {
     EventMessage<T> event =
         eventMessageFactory.create(traceId, locale, aggregate, eventName, eventType, payload);
-    return outboxMessage(topic, aggregate, event).routingKey(routingKey).build();
+    return outboxMessage(topic, routingKey, aggregate, event);
   }
 
   /**
@@ -113,17 +113,20 @@ public class OutboxEventFactory {
       T payload) {
     EventMessage<T> event =
         eventMessageFactory.create(traceId, "es", aggregate, eventName, eventType, payload);
-    return outboxMessage(topic, aggregate, event).build();
+    return outboxMessage(topic, null, aggregate, event);
   }
 
-  private <T> OutboxMessage.OutboxMessageBuilder<EventMessage<T>> outboxMessage(
-      String topic, String aggregate, EventMessage<T> event) {
+  // Returns the built message, not Lombok's builder: javadoc runs on the undelomboked sources.
+  private <T> OutboxMessage<EventMessage<T>> outboxMessage(
+      String topic, String routingKey, String aggregate, EventMessage<T> event) {
     return OutboxMessage.<EventMessage<T>>builder()
         .origin(origin)
         .topic(topic)
+        .routingKey(routingKey)
         .key(aggregate)
         .message(event)
-        .traceparent(traceParentOf(event.getHeader().getTraceId()));
+        .traceparent(traceParentOf(event.getHeader().getTraceId()))
+        .build();
   }
 
   // An explicit trace id that is not the current trace gets no context: the broker header must
