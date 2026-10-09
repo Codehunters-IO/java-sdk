@@ -2,7 +2,8 @@
 
 ## 3.0.0
 
-Unreleased 2.1.0 became 3.0.0: dropping SQL Server support is breaking. See
+Unreleased 2.1.0 became 3.0.0: dropping SQL Server support and making JPA auditing opt-in are
+breaking. See
 [MIGRATION-3.0.md](MIGRATION-3.0.md).
 
 ### Removed
@@ -19,9 +20,16 @@ Unreleased 2.1.0 became 3.0.0: dropping SQL Server support is breaking. See
 - `sdk-commons` is an `api` dependency, so it reaches the application's runtime classpath. Its
   TOTP auto-configuration stays off unless `codehunters.totp.enabled=true`.
 
+### Changed
+- `codehunters.jpa.auditing.enabled` defaults to `false`: JPA auditing is opt-in. Adding the jar
+  no longer enables `@EnableJpaAuditing` for the whole application nor registers an `AuditorAware`
+  that reads the security context.
+
 ### Behaviour changes
 - A search value that cannot be converted now reads "a search value has the wrong format for this
   field": the message no longer names the attribute's Java type, which can be an internal name.
+- Without `codehunters.jpa.auditing.enabled=true`, `AuditableEntity`'s audit columns stay empty.
+  When the SDK enables auditing it logs `SDK JPA auditing is on` once at startup.
 
 ## 2.0.0
 

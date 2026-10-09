@@ -72,8 +72,11 @@ create table orders (
 
 ## Auditing
 
-With JPA on the classpath and an `EntityManagerFactory` bean, the SDK enables Spring Data JPA
-auditing:
+Auditing is **opt-in**. `@EnableJpaAuditing` applies to every entity of the application, not only
+to the ones extending `AuditableEntity`, and the SDK's `AuditorAware` reads the security context, so
+adding the jar never switches it on by itself. With `codehunters.jpa.auditing.enabled=true`, JPA on
+the classpath and an `EntityManagerFactory` bean, the SDK enables Spring Data JPA auditing and logs
+it once at startup (`SDK JPA auditing is on`):
 
 - **Time:** the application's `Clock` bean when there is exactly one, the UTC system clock
   otherwise, cut to microseconds. PostgreSQL keeps exactly microseconds, so the value round-trips.
@@ -87,7 +90,7 @@ auditing:
 codehunters:
   jpa:
     auditing:
-      enabled: true   # false: the SDK does not enable auditing
+      enabled: true   # default false: the SDK does not enable auditing
 ```
 
 ## Pages and sorting
