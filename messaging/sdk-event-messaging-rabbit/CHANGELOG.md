@@ -2,8 +2,23 @@
 
 ## 9.0.0
 
-No changes of its own: versioned with `-core` and `-jdbc` 9.0.0, which support PostgreSQL only and
-drop the old `outbox.*` keys. Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+Versioned with `-core` and `-jdbc` 9.0.0, which support PostgreSQL only, drop the old `outbox.*`
+keys and store the request's trace context with each row. Migration guide:
+[MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
+### Added
+- `RabbitMessagePublisherAdapter(…, boolean legacyTraceparentHeader)`, fed by
+  `codehunters.outbox.publisher.legacy-traceparent-header` (default `false`).
+
+### Fixed
+- Outbox messages lost the request's trace: the published `traceparent` came from the
+  scheduled dispatch (MDC) instead of the request that wrote the row. The adapter now sets the
+  `traceparent` header to the context stored with the row.
+
+### Behaviour changes
+- Every outbox message with a stored context carries it as `traceparent`, unchanged; the adapter
+  adds `x-traceparent` only when the switch is on. `sdk-tracing`'s post-processor, where it is
+  still installed, keeps a `traceparent` already set this way.
 
 ## 8.0.0
 

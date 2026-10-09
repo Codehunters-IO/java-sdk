@@ -30,7 +30,7 @@ is the outbox transport (this artifact alone, or `codehunters.outbox.publisher.t
 | Value | The stored JSON payload, sent as is; an application JSON serializer can no longer double-encode it |
 | Headers | `outbox-message-id` = outbox row id, plus a JSON content type |
 | Send | Blocks for metadata, buffer space and the broker acknowledgement together for at most `send-timeout` |
-| Trace | No `traceparent` header; the trace id travels in the envelope's `header.traceId` |
+| Trace | `traceparent` record header = the context stored with the row (`OutboxMessage.traceparent`), sent unchanged so the consumer continues the request's trace, not the dispatcher's; `x-traceparent` too when `publisher.legacy-traceparent-header=true`. No header when the row has none. The outbox template does not enable Boot's observation |
 
 Why those timeouts: `KafkaTemplate.send()` can itself block for `max.block.ms` (default 60 s) while
 it fetches metadata or waits for buffer space, before the adapter starts waiting for the
@@ -62,6 +62,7 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 |---|---|---|
 | `publisher.type` | unset | Set to `kafka` only when `-rabbit` is also on the classpath |
 | `publisher.kafka.send-timeout` | `5s` | > 0. Startup fails unless `claim.ttl-ms > batch-size x send-timeout` (default 50 x 5 s < 300 s) |
+| `publisher.legacy-traceparent-header` | `false` | `true` also sends the stored context as `x-traceparent` |
 
 Producer settings come from `spring.kafka.producer.*` / `spring.kafka.*`, except the forced ones
 and the timeouts above.
@@ -80,7 +81,8 @@ or a `MessagePublisherPort` to replace the publisher.
 
 ## Migrating from 8.x
 
-No changes of its own; the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
+Each record now carries the `traceparent` stored with its row (add the `traceparent` column before
+deploying); the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
 [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 7.x

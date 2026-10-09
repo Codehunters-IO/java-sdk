@@ -39,7 +39,7 @@ template; the outbox template sets none.
 | Dedupe id | AMQP `messageId` and header `outbox-message-id` = outbox row id |
 | Confirm | Each send runs on a dedicated channel and waits for the broker confirm, at most `confirm-timeout` |
 | Unroutable | `basic.return` (no queue bound) is logged with the message id, exchange and routing key, and fails the send |
-| Trace | When `sdk-tracing` is present, it adds `traceparent` (from the MDC or the envelope's `header.traceId`); this module adds none |
+| Trace | `traceparent` header = the context stored with the row (`OutboxMessage.traceparent`), sent unchanged so the consumer continues the request's trace, not the dispatcher's; `x-traceparent` too when `publisher.legacy-traceparent-header=true`. No header when the row has none. The outbox template does not enable Boot's observation |
 
 ## Failure semantics
 
@@ -67,6 +67,7 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 |---|---|---|
 | `publisher.type` | unset | Set to `rabbit` only when `-kafka` is also on the classpath |
 | `publisher.rabbit.confirm-timeout` | `5s` | > 0. Startup fails unless `claim.ttl-ms > batch-size x confirm-timeout` (default 50 x 5 s < 300 s) |
+| `publisher.legacy-traceparent-header` | `false` | `true` also sends the stored context as `x-traceparent` |
 
 ## Extension points
 
@@ -82,7 +83,8 @@ and a confirms-enabled factory), or a `MessagePublisherPort` to replace the publ
 
 ## Migrating from 8.x
 
-No changes of its own; the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
+Each message now carries the `traceparent` stored with its row (add the `traceparent` column before
+deploying); the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
 [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 7.x

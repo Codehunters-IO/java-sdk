@@ -60,8 +60,15 @@ changeset author and id; including them from the jar would change checksums on e
 
 | File | Use |
 |---|---|
-| `db/migration/outbox/postgresql/outbox_message_create.sql` | `outbox_message` with `seq`, indexes, `shedlock` |
+| `db/migration/outbox/postgresql/outbox_message_create.sql` | `outbox_message` with `seq`, `traceparent`, indexes, `shedlock` |
 | `db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql` | Tables created by 6.x |
+| `db/migration/outbox/postgresql/outbox_message_add_traceparent.sql` | Tables created by 6.x (after the line above), 7.x or 8.x |
+
+**9.0:** apply `outbox_message_add_traceparent.sql` **before** deploying 9.0. `save` writes and the
+claim returns `traceparent` (`VARCHAR(55)`, nullable), the W3C trace context stored with each row
+and sent as the `traceparent` broker header; without it saving and dispatch fail. 8.x ignores the
+column, and the script is idempotent (`ADD COLUMN IF NOT EXISTS`)
+([MIGRATION-9.0](../MIGRATION-9.0.md#traceparent-column)).
 
 **7.0:** apply `outbox_message_add_send_started_at.sql` **before** deploying 7.0. The claim reads and
 clears `send_started_at`, the mark written before each publish; without it every claim fails. The
@@ -113,8 +120,9 @@ are never touched.
 
 ## Migrating from 8.x
 
-The store supports PostgreSQL only, `claim.dialect` and the dialect classes are gone, and the old
-`outbox.*` keys are ignored; see [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+The store supports PostgreSQL only, `claim.dialect` and the dialect classes are gone, the old
+`outbox.*` keys are ignored, and `outbox_message` needs the `traceparent` column before deploying;
+see [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 7.x
 

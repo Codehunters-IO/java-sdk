@@ -14,6 +14,13 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 ### Added
 - A startup check: the outbox data source must report PostgreSQL as its product, or startup fails
   naming the detected product. An unreachable database is skipped with a warning.
+- Column `traceparent VARCHAR(55)` (nullable) in the reference DDL, and the idempotent upgrade
+  script `postgresql/outbox_message_add_traceparent.sql` for tables created by 6.x to 8.x.
+  `save` stores `OutboxMessage.traceparent` and the claim returns it.
+
+### Behaviour changes
+- Saving and claiming reference `traceparent`: apply the upgrade script **before** deploying 9.0,
+  or every save and claim fails.
 
 ### Changed
 - `OutboxJdbcAdapter` issues the PostgreSQL claim and purge itself. `OutboxAdapterSettings` is
