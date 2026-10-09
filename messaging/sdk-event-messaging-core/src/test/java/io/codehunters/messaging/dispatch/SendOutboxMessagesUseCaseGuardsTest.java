@@ -36,7 +36,7 @@ class SendOutboxMessagesUseCaseGuardsTest {
     publisher.takes(PUBLISH_TIME);
     DispatchSettings settings =
         new DispatchSettings(
-            new ClaimRequest("origin", "instance-1", 10, CLAIM_TTL),
+            new ClaimRequest("origin", "instance-1", 10, CLAIM_TTL, 1),
             new RetryPolicy(MAX_ATTEMPTS, Duration.ofSeconds(1), Duration.ofMinutes(1)),
             clock);
     useCase = new SendOutboxMessagesUseCase(store, publisher, settings);

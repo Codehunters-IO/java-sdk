@@ -64,7 +64,7 @@ class OutboxJdbcAdapterPostgresIT {
   void should_round_trip_message_when_saved_and_claimed_on_postgres() {
     adapter.save(message("k1", Map.of("amount", 10)));
 
-    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL, 1));
 
     assertThat(claimed).hasSize(1);
     assertThat(claimed.get(0).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
@@ -86,7 +86,7 @@ class OutboxJdbcAdapterPostgresIT {
   @Test
   void should_mark_published_when_updated_after_claim() {
     adapter.save(message("k1", "payload"));
-    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL)).get(0);
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL, 1)).get(0);
 
     adapter.update(claimed.published(Instant.now()));
 
@@ -104,13 +104,13 @@ class OutboxJdbcAdapterPostgresIT {
   @Test
   void should_fence_out_stale_worker_when_claim_was_taken_over_after_ttl() {
     adapter.save(message("k1", "payload"));
-    var staleClaim = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL)).get(0);
+    var staleClaim = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL, 1)).get(0);
     jdbcClient
         .sql("UPDATE outbox_message SET claimed_at = :old WHERE id = :id")
         .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10))
         .param("id", staleClaim.id())
         .update();
-    var liveClaim = adapter.claim(new ClaimRequest(ORIGIN, "w2", 10, TTL)).get(0);
+    var liveClaim = adapter.claim(new ClaimRequest(ORIGIN, "w2", 10, TTL, 1)).get(0);
 
     adapter.update(staleClaim.published(Instant.now()));
 
@@ -155,7 +155,7 @@ class OutboxJdbcAdapterPostgresIT {
     markStaleInFlight(id);
     markSendStartedByDeadInstance(id);
 
-    var reclaimed = adapter.claim(new ClaimRequest(ORIGIN, "live", 10, Duration.ofMinutes(5)));
+    var reclaimed = adapter.claim(new ClaimRequest(ORIGIN, "live", 10, Duration.ofMinutes(5), 1));
 
     assertThat(reclaimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(2);
     assertThat(attemptsOf(id)).isEqualTo(2);
@@ -167,7 +167,7 @@ class OutboxJdbcAdapterPostgresIT {
     adapter.save(unsent(id));
     recordOneFailedAttempt(id);
 
-    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "live", 10, Duration.ofMinutes(5)));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "live", 10, Duration.ofMinutes(5), 1));
 
     assertThat(claimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
@@ -177,7 +177,7 @@ class OutboxJdbcAdapterPostgresIT {
   void should_return_stored_traceparent_when_message_is_claimed() {
     adapter.save(unsent(UUID.randomUUID()).toBuilder().traceparent(TRACEPARENT).build());
 
-    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL, 1));
 
     assertThat(claimed)
         .singleElement()
@@ -213,7 +213,7 @@ class OutboxJdbcAdapterPostgresIT {
   void should_claim_null_traceparent_when_message_was_saved_without_one() {
     adapter.save(unsent(UUID.randomUUID()));
 
-    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL, 1));
 
     assertThat(claimed).singleElement().extracting(OutboxMessage::traceparent).isNull();
   }

@@ -24,7 +24,7 @@ class SendOutboxMessagesUseCaseTest {
   private static final String ORIGIN = "orders-ms-test";
   private static final Instant NOW = Instant.parse("2026-10-05T10:00:00Z");
   private static final ClaimRequest CLAIM =
-      new ClaimRequest(ORIGIN, "instance-1", 10, Duration.ofSeconds(30));
+      new ClaimRequest(ORIGIN, "instance-1", 10, Duration.ofSeconds(30), 1);
   private static final RetryPolicy RETRY =
       new RetryPolicy(MAX_ATTEMPTS, Duration.ofSeconds(30), Duration.ofHours(1));
   private static final String CLAIM_MARKER = "instance-1:4f1c";

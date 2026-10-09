@@ -54,11 +54,11 @@ abstract class SendStartedReclaimContract {
     UUID started = save("k1");
     UUID notSentA = save("k2");
     UUID notSentB = save("k3");
-    var abandoned = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL));
+    var abandoned = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL, 1));
     var marked = adapter.markSendStarted(byId(abandoned, started));
     ageClaims();
 
-    adapter.claim(new ClaimRequest(ORIGIN, "live", 10, TTL));
+    adapter.claim(new ClaimRequest(ORIGIN, "live", 10, TTL, 1));
 
     assertThat(marked).isPresent();
 
@@ -71,7 +71,7 @@ abstract class SendStartedReclaimContract {
   void should_mark_failed_without_publishing_when_started_row_reaches_max_attempts_on_reclaim() {
     UUID id = save("k1");
     setAttempts(id, MAX_ATTEMPTS - 1);
-    var abandoned = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL));
+    var abandoned = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL, 1));
     var marked = adapter.markSendStarted(byId(abandoned, id));
     ageClaims();
 
@@ -88,9 +88,9 @@ abstract class SendStartedReclaimContract {
   @Test
   void should_refuse_send_mark_when_claim_was_taken_over_by_another_dispatcher() {
     UUID id = save("k1");
-    var stale = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL)).get(0);
+    var stale = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL, 1)).get(0);
     ageClaims();
-    adapter.claim(new ClaimRequest(ORIGIN, "live", 10, TTL));
+    adapter.claim(new ClaimRequest(ORIGIN, "live", 10, TTL, 1));
 
     var marked = adapter.markSendStarted(stale);
 
@@ -137,7 +137,7 @@ abstract class SendStartedReclaimContract {
   private SendOutboxMessagesUseCase useCase(MessagePublisherPort sender) {
     DispatchSettings settings =
         new DispatchSettings(
-            new ClaimRequest(ORIGIN, "live", 10, TTL),
+            new ClaimRequest(ORIGIN, "live", 10, TTL, 1),
             new RetryPolicy(MAX_ATTEMPTS, Duration.ofSeconds(1), Duration.ofMinutes(1)),
             Clock.systemUTC());
     return new SendOutboxMessagesUseCase(adapter, sender, settings);

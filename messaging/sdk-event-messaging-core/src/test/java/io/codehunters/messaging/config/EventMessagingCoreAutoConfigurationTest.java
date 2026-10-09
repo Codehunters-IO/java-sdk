@@ -2,7 +2,9 @@ package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.EventMessage;
@@ -247,6 +249,56 @@ class EventMessagingCoreAutoConfigurationTest {
             context ->
                 assertThat(context.getBean(EventMessagingProperties.class).scheduling().enabled())
                     .isFalse());
+  }
+
+  @Test
+  void should_bind_per_key_batching_and_dispatch_on_commit_when_nothing_configured() {
+    contextRunner.run(
+        context -> {
+          EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+          assertThat(props.claim().maxPerKey()).isEqualTo(10);
+          assertThat(props.scheduling().dispatchOnCommit()).isTrue();
+        });
+  }
+
+  @Test
+  void should_bind_per_key_batching_and_dispatch_on_commit_when_configured() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.claim.max-per-key=3",
+            "codehunters.outbox.scheduling.dispatch-on-commit=false")
+        .run(
+            context -> {
+              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+              assertThat(props.claim().maxPerKey()).isEqualTo(3);
+              assertThat(props.scheduling().dispatchOnCommit()).isFalse();
+            });
+  }
+
+  @Test
+  void should_fail_startup_naming_key_when_max_per_key_below_one() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.max-per-key=0")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.claim.max-per-key"));
+  }
+
+  @Test
+  void should_claim_with_configured_max_per_key_when_dispatching() {
+    OutboxDispatchStore store = mock(OutboxDispatchStore.class);
+
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.max-per-key=7")
+        .withBean(OutboxDispatchStore.class, () -> store)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              context.getBean(SendOutboxMessagesPort.class).execute();
+              verify(store).claim(argThat(request -> request.maxPerKey() == 7));
+            });
   }
 
   @Test

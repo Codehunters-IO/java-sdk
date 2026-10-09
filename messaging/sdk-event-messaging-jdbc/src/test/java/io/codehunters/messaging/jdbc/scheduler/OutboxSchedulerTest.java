@@ -4,16 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.codehunters.messaging.SendOutboxMessagesPort;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.slf4j.LoggerFactory;
@@ -22,12 +23,14 @@ import org.slf4j.LoggerFactory;
 class OutboxSchedulerTest {
 
   @Mock private SendOutboxMessagesPort sendOutboxMessagesPort;
-  @InjectMocks private OutboxScheduler scheduler;
 
+  private final AtomicInteger dispatchRequests = new AtomicInteger();
+  private OutboxScheduler scheduler;
   private ListAppender<ILoggingEvent> logAppender;
 
   @BeforeEach
   void setUp() {
+    scheduler = new OutboxScheduler(sendOutboxMessagesPort, dispatchRequests::incrementAndGet);
     logAppender = new ListAppender<>();
     logAppender.start();
     schedulerLogger().addAppender(logAppender);
@@ -47,6 +50,31 @@ class OutboxSchedulerTest {
     scheduler.run();
 
     verify(sendOutboxMessagesPort).execute();
+  }
+
+  @Test
+  void should_request_dispatch_outside_the_lock_when_claim_came_back_full() {
+    when(sendOutboxMessagesPort.execute()).thenReturn(true);
+
+    scheduler.run();
+
+    assertThat(dispatchRequests).hasValue(1);
+  }
+
+  @Test
+  void should_not_request_dispatch_when_claim_came_back_short() {
+    when(sendOutboxMessagesPort.execute()).thenReturn(false);
+
+    scheduler.run();
+
+    assertThat(dispatchRequests).hasValue(0);
+  }
+
+  @Test
+  void should_not_request_dispatch_when_built_without_trigger() {
+    when(sendOutboxMessagesPort.execute()).thenReturn(true);
+
+    assertDoesNotThrow(() -> new OutboxScheduler(sendOutboxMessagesPort).run());
   }
 
   @Test

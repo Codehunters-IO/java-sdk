@@ -5,9 +5,11 @@ import static org.mockito.Mockito.mock;
 
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxDispatchStore;
+import io.codehunters.messaging.OutboxDispatchTrigger;
 import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
+import io.codehunters.messaging.dispatch.CoalescingDispatchTrigger;
 import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
@@ -37,6 +39,7 @@ class EventMessagingJdbcAutoConfigurationTest {
   private static final String SCHEDULED_ANNOTATION_PROCESSOR =
       TaskManagementConfigUtils.SCHEDULED_ANNOTATION_PROCESSOR_BEAN_NAME;
   private static final String OUTBOX_TASK_SCHEDULER = "outboxTaskScheduler";
+  private static final String DISPATCH_TRIGGER = "outboxDispatchTrigger";
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -114,6 +117,48 @@ class EventMessagingJdbcAutoConfigurationTest {
               assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
               assertThat(context).hasSingleBean(OutboxScheduler.class);
             });
+  }
+
+  @Test
+  void should_create_coalescing_dispatch_trigger_without_bean_cycle_when_scheduling_enabled() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context.getBean(DISPATCH_TRIGGER))
+                  .isInstanceOf(CoalescingDispatchTrigger.class);
+            });
+  }
+
+  @Test
+  void should_not_create_dispatch_trigger_when_dispatch_on_commit_disabled() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.scheduling.dispatch-on-commit=false")
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(OutboxScheduler.class);
+              assertThat(context).doesNotHaveBean(OutboxDispatchTrigger.class);
+            });
+  }
+
+  @Test
+  void should_not_create_dispatch_trigger_when_scheduling_disabled() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.scheduling.enabled=false")
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(context -> assertThat(context).doesNotHaveBean(OutboxDispatchTrigger.class));
+  }
+
+  @Test
+  void should_not_create_dispatch_trigger_when_no_dispatch_use_case() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .run(context -> assertThat(context).doesNotHaveBean(OutboxDispatchTrigger.class));
   }
 
   @Test

@@ -714,7 +714,7 @@ class OutboxJdbcAdapterIT {
   }
 
   private static ClaimRequest claimOf(int batchSize, String claimedBy) {
-    return new ClaimRequest(ORIGIN, claimedBy, batchSize, Duration.ofMinutes(5));
+    return new ClaimRequest(ORIGIN, claimedBy, batchSize, Duration.ofMinutes(5), 1);
   }
 
   private void inCallerTransaction(Runnable work) {

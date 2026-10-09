@@ -3,6 +3,7 @@ package io.codehunters.messaging.jdbc;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.codehunters.messaging.ClaimRequest;
+import io.codehunters.messaging.OutboxDispatchTrigger;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxStatus;
 import java.time.Clock;
@@ -35,7 +36,7 @@ class PerKeyOrderingIT {
   @BeforeEach
   void setUp() {
     PostgresTestSupport.truncate();
-    var settings = new OutboxAdapterSettings(ORIGIN, CLOCK);
+    var settings = new OutboxAdapterSettings(ORIGIN, CLOCK, OutboxDispatchTrigger.none());
     adapter =
         new OutboxJdbcAdapter(
             PostgresTestSupport.dataSource(), JsonMapper.builder().build(), settings);
@@ -74,7 +75,7 @@ class PerKeyOrderingIT {
   void should_not_hand_successor_to_concurrent_claimers_when_head_is_in_flight() throws Exception {
     save(MAIN, "A", "A1");
     save(MAIN, "A", "A2");
-    assertThat(payloads(adapter.claim(new ClaimRequest(ORIGIN, "w0", 1, TTL))))
+    assertThat(payloads(adapter.claim(new ClaimRequest(ORIGIN, "w0", 1, TTL, 1))))
         .containsExactly("A1");
 
     var results = claimConcurrently("w1", "w2");
@@ -92,7 +93,7 @@ class PerKeyOrderingIT {
   }
 
   private List<OutboxMessage<String>> claim(String worker) {
-    return adapter.claim(new ClaimRequest(ORIGIN, worker, 10, TTL));
+    return adapter.claim(new ClaimRequest(ORIGIN, worker, 10, TTL, 1));
   }
 
   private List<List<OutboxMessage<String>>> claimConcurrently(String... workers) throws Exception {

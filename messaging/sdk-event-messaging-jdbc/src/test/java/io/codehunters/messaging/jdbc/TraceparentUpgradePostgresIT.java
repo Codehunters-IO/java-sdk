@@ -40,7 +40,7 @@ class TraceparentUpgradePostgresIT {
             .traceparent(TRACEPARENT)
             .build());
 
-    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, Duration.ofMinutes(5)));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, Duration.ofMinutes(5), 1));
 
     assertThat(claimed)
         .singleElement()

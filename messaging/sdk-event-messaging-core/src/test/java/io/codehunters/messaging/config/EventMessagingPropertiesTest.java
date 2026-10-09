@@ -24,7 +24,7 @@ class EventMessagingPropertiesTest {
   private static final Duration TTL_BELOW_BUDGET = Duration.ofSeconds(250);
   private static final Duration SHORT_TTL = Duration.ofSeconds(1);
   private static final Task TASK = task(Duration.ofMinutes(5), Duration.ZERO);
-  private static final Scheduling SCHEDULING = new Scheduling(true);
+  private static final Scheduling SCHEDULING = new Scheduling(true, true);
   private static final String LOCK_KEY = "codehunters.outbox.task.lock-at-most";
   private static final Backoff BACKOFF = new Backoff(Duration.ofSeconds(30), Duration.ofHours(1));
   private static final Purge PURGE = purge(Duration.ofDays(7), 500);
@@ -48,6 +48,13 @@ class EventMessagingPropertiesTest {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> claim(Duration.ZERO))
         .withMessageContaining("codehunters.outbox.claim.ttl");
+  }
+
+  @Test
+  void should_reject_max_per_key_when_below_one() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new Claim(CLAIM_TTL, 0))
+        .withMessageContaining("codehunters.outbox.claim.max-per-key");
   }
 
   @Test
@@ -268,7 +275,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_skip_lock_check_when_scheduling_disabled() {
     EventMessagingProperties properties =
-        scheduled(lockAtMost(Duration.ofSeconds(60)), new Scheduling(false), kafka());
+        scheduled(lockAtMost(Duration.ofSeconds(60)), new Scheduling(false, true), kafka());
 
     assertThat(properties.scheduling().enabled()).isFalse();
   }
@@ -385,7 +392,7 @@ class EventMessagingPropertiesTest {
   }
 
   private static Claim claim(Duration ttl) {
-    return new Claim(ttl);
+    return new Claim(ttl, 10);
   }
 
   private static Purge purge(Duration retention, int batchSize) {

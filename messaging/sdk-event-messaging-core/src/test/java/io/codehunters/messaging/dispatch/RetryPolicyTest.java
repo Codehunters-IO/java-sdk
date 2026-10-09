@@ -83,7 +83,7 @@ class RetryPolicyTest {
 
   @Test
   void should_reject_settings_when_a_component_is_null() {
-    ClaimRequest claim = new ClaimRequest("o", "c", 1, Duration.ofSeconds(1));
+    ClaimRequest claim = new ClaimRequest("o", "c", 1, Duration.ofSeconds(1), 1);
 
     assertThatThrownBy(() -> new DispatchSettings(claim, null, Clock.systemUTC()))
         .isInstanceOf(NullPointerException.class)
