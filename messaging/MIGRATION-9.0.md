@@ -21,9 +21,11 @@ start with [MIGRATION-7.0.md](MIGRATION-7.0.md) (the `send_started_at` column); 
 ## PostgreSQL only
 
 The adapter issues the PostgreSQL claim (`FOR UPDATE SKIP LOCKED` with `RETURNING`) and purge
-directly; there is no dialect to choose any more. Other databases are no longer supported, and the
-SDK no longer reads the database product name at startup: on another database the first claim
-fails with a SQL error instead of startup. Only the PostgreSQL reference scripts remain in the
+directly; there is no dialect to choose any more. Other databases are no longer supported: at
+startup the SDK reads the database product name and fails with "The outbox supports PostgreSQL
+only, but the data source is <product>". A database that cannot be reached at startup is not
+checked; the first claim then fails if it is not PostgreSQL. Only the PostgreSQL reference scripts
+remain in the
 `-jdbc` jar:
 
 | File | Use |

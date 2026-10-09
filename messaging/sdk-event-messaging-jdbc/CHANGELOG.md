@@ -11,6 +11,10 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 - The dialect selection: `OutboxDialect`, `OutboxDialectResolver`, `PostgresOutboxDialect`,
   `GenericOutboxDialect`, the `OutboxDialect` bean and `codehunters.outbox.claim.dialect`.
 
+### Added
+- A startup check: the outbox data source must report PostgreSQL as its product, or startup fails
+  naming the detected product. An unreachable database is skipped with a warning.
+
 ### Changed
 - `OutboxJdbcAdapter` issues the PostgreSQL claim and purge itself. `OutboxAdapterSettings` is
   `(origin, clock)` and `defaults(origin)` no longer reads the database metadata.

@@ -72,7 +72,8 @@ public class EventMessagingJdbcAutoConfiguration {
 
   /**
    * Provides the JDBC-backed outbox repository. The mapper is injected by qualifier so Boot's
-   * primary {@link JsonMapper} is never used for, nor displaced by, outbox payloads.
+   * primary {@link JsonMapper} is never used for, nor displaced by, outbox payloads. Startup fails
+   * when the data source reports a database other than PostgreSQL.
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the dedicated JSON mapper for outbox payloads
@@ -88,6 +89,7 @@ public class EventMessagingJdbcAutoConfiguration {
       @Qualifier("outboxJsonMapper") JsonMapper outboxJsonMapper,
       Clock clock,
       @Value("${spring.application.name:unknown}") String origin) {
+    OutboxDatabaseCheck.requirePostgres(dataSource);
     return new OutboxJdbcAdapter(
         dataSource, outboxJsonMapper, new OutboxAdapterSettings(origin, clock));
   }

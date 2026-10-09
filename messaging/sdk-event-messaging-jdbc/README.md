@@ -41,8 +41,8 @@ PostgreSQL only. The claim is one statement: it locks the candidate rows with `F
 LOCKED`, so concurrent dispatchers receive disjoint rows, marks them `IN_FLIGHT` and returns them.
 A stale `IN_FLIGHT` reclaim counts as an attempt only when its send had started, and a row is
 skipped while an earlier row with the same `(origin, topic, message_key)` is `PENDING`, `IN_FLIGHT`
-or `FAILED`. The SDK does not check the database at startup: on any other database the first claim
-fails.
+or `FAILED`. At startup the SDK reads the database product name and fails when it is not
+PostgreSQL; when the database cannot be reached at startup the check is skipped with a warning.
 
 ## DDL
 
