@@ -19,6 +19,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
@@ -216,6 +218,8 @@ public class KeycloakSecurityAutoConfiguration {
   @EnableWebSecurity
   static class FilterChainConfiguration {
 
+    private static final Logger LOG = LoggerFactory.getLogger(FilterChainConfiguration.class);
+
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     SecurityFilterChain keycloakExcludedPathsFilterChain(
@@ -237,7 +241,9 @@ public class KeycloakSecurityAutoConfiguration {
         ObjectProvider<AuthenticationEntryPoint> entryPoints,
         ObjectProvider<AccessDeniedHandler> deniedHandlers)
         throws Exception {
-      respondWith(http, entryPoints.getIfUnique(), deniedHandlers.getIfUnique());
+      var entryPoint = single(entryPoints, AuthenticationEntryPoint.class);
+      var denied = single(deniedHandlers, AccessDeniedHandler.class);
+      respondWith(http, entryPoint, denied);
       return http.csrf(AbstractHttpConfigurer::disable)
           .cors(cors -> cors.configurationSource(corsSource(properties.cors())))
           .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -253,16 +259,29 @@ public class KeycloakSecurityAutoConfiguration {
           .oauth2ResourceServer(
               server -> {
                 server.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(converter));
-                respondWith(server, entryPoints.getIfUnique(), deniedHandlers.getIfUnique());
+                respondWith(server, entryPoint, denied);
               })
           .addFilterAfter(
-              new GatewayHeadersFilter(entryPoints.getIfUnique()),
-              BearerTokenAuthenticationFilter.class)
+              new GatewayHeadersFilter(entryPoint), BearerTokenAuthenticationFilter.class)
           .build();
     }
 
-    // A single entry point / access-denied handler bean (sdk-web-errors offers problem-detail ones
-    // that keep the bearer challenge) answers 401 and 403; without one, Spring's defaults apply.
+    // A single entry point / access-denied handler bean, or the primary one (sdk-web-errors offers
+    // problem-detail ones that keep the bearer challenge) answers 401 and 403; without one,
+    // Spring's
+    // defaults apply. Several without a primary are reported, since the defaults then apply too.
+    private static <T> T single(ObjectProvider<T> beans, Class<T> type) {
+      var unique = beans.getIfUnique();
+      var count = beans.stream().count();
+      if (unique == null && count > 1) {
+        LOG.warn(
+            "{} {} beans and none is @Primary; Spring's default is used for the Keycloak chain",
+            count,
+            type.getSimpleName());
+      }
+      return unique;
+    }
+
     private static void respondWith(
         HttpSecurity http, AuthenticationEntryPoint entryPoint, AccessDeniedHandler denied)
         throws Exception {
