@@ -1,6 +1,7 @@
 # Migrating sdk-event-messaging to 7.0
 
-> Going to 8.0? Apply this guide, then [MIGRATION-8.0.md](MIGRATION-8.0.md).
+> Going further? Apply this guide, then [MIGRATION-8.0.md](MIGRATION-8.0.md) and
+> [MIGRATION-9.0.md](MIGRATION-9.0.md).
 
 7.0 charges a reclaim attempt only to rows whose send had started
 ([ADR 0018](../docs/adr/0018-charge-attempts-only-for-started-sends.md)). The four artifacts
@@ -16,7 +17,6 @@ broker settings, the `seq` column), then this guide. You can go straight from 5.
 2. Bump the dependency (or the BOM) to 7.0.0.
 3. If you implement `OutboxRepositoryPort` yourself, add `markSendStarted` (see
    [Custom repositories](#custom-repositories)).
-4. Optional: rename the old `outbox.*` keys. They are honoured until 9.0 (they were due to go in 7.0).
 
 ## What changes
 
@@ -57,13 +57,11 @@ broker call.
 The SDK never runs DDL. Copy the scripts from the `-jdbc` jar (`db/migration/outbox/**`) into your
 own changelog. The column is nullable and 6.x ignores it, so it can be added while 6.x is running.
 
-| Database | Action |
+| Table | Action |
 |---|---|
-| SQL Server, table created by 6.x | Apply `sqlserver/outbox_message_add_send_started_at.sql` |
-| SQL Server, table created before 6.0 | `sqlserver/outbox_message_add_seq.sql`, then `sqlserver/outbox_message_add_send_started_at.sql` |
-| PostgreSQL, table created by 6.x | Apply `postgresql/outbox_message_add_send_started_at.sql` |
-| New install | `postgresql/outbox_message_create.sql` or `outbox_message_create.sql` (SQL Server) |
-| Other engine (`claim.dialect=generic`) | Add a nullable timestamp column `send_started_at` |
+| Created by 6.x | Apply `postgresql/outbox_message_add_send_started_at.sql` |
+| Created before 6.0 | Add `seq` ([MIGRATION-6.0.md](MIGRATION-6.0.md#ddl)), then apply `postgresql/outbox_message_add_send_started_at.sql` |
+| New install | `postgresql/outbox_message_create.sql` |
 
 Without the column every claim fails: the claim SQL reads and clears `send_started_at`.
 

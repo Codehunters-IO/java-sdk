@@ -1,5 +1,10 @@
 # Changelog — sdk-event-messaging-kafka
 
+## 9.0.0
+
+No changes of its own: versioned with `-core` and `-jdbc` 9.0.0, which support PostgreSQL only and
+drop the old `outbox.*` keys. Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
 ## 8.0.0
 
 Migration guide: [MIGRATION-8.0.md](../MIGRATION-8.0.md).

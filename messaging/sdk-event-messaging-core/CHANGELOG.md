@@ -1,5 +1,16 @@
 # Changelog — sdk-event-messaging-core
 
+## 9.0.0
+
+Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
+### Removed
+- The pre-6.0 `outbox.*` property aliases: `OutboxLegacyProperties`, its `spring.factories` entry
+  and the deprecated metadata entries. Only `codehunters.outbox.*` binds; an old key is ignored.
+- `codehunters.outbox.claim.dialect` and `EventMessagingProperties.Claim#dialect()`: the outbox
+  supports PostgreSQL only.
+- The dependency on `sdk-support`.
+
 ## 8.0.0
 
 Migration guide: [MIGRATION-8.0.md](../MIGRATION-8.0.md).

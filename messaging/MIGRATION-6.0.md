@@ -1,6 +1,7 @@
 # Migrating from sdk-event-messaging 5.x to 6.0
 
-> Going to 7.0? Apply this guide, then [MIGRATION-7.0.md](MIGRATION-7.0.md).
+> Going further? Apply this guide, then [MIGRATION-7.0.md](MIGRATION-7.0.md),
+> [MIGRATION-8.0.md](MIGRATION-8.0.md) and [MIGRATION-9.0.md](MIGRATION-9.0.md) in order.
 
 6.0 splits `sdk-event-messaging` into four artifacts
 ([ADR 0001](../docs/adr/0001-split-event-messaging-by-transport.md)) and moves its configuration
@@ -12,9 +13,9 @@ Module docs: [core](sdk-event-messaging-core/README.md) · [jdbc](sdk-event-mess
 
 ## Checklist
 
-1. Apply the DDL changes (SQL Server: **before** deploying 6.0, see [DDL](#ddl)).
+1. Apply the DDL changes (see [DDL](#ddl)).
 2. Replace the dependency.
-3. Rename properties (optional until 9.0) and review the Kafka send timeout.
+3. Rename properties and review the Kafka send timeout.
 4. RabbitMQ: enable publisher confirms and returns.
 5. Consumers: deduplicate on `outbox-message-id`.
 
@@ -33,9 +34,8 @@ the 5.x dependency yourself.
 
 ## Properties
 
-Every key moves from `outbox.*` to `codehunters.outbox.*`. The old keys (in files and environment
-variables) are still honoured until 9.0 (7.0 and 8.0 kept them): each is copied to its new name
-when the new one is unset, with one deprecation warning at startup.
+Every key moves from `outbox.*` to `codehunters.outbox.*`. 9.0 ignores the old keys (in files and
+environment variables), so rename them all.
 
 | 5.x | 6.0 |
 |---|---|
@@ -115,15 +115,13 @@ dashboards keyed on the client id. With several `ProducerFactory` beans, mark th
 The SDK never runs DDL. Copy the reference files from the `-jdbc` jar
 (`db/migration/outbox/**`) into your own changelog.
 
-| Database | Action |
+| Table | Action |
 |---|---|
-| SQL Server, table created before 6.0 | Apply `sqlserver/outbox_message_add_seq.sql` **before** deploying 6.0: the claim orders by `seq` and fails without it |
-| PostgreSQL | Compare with `postgresql/outbox_message_create.sql` (`seq` column and indexes) |
-| New install | `postgresql/outbox_message_create.sql` or `outbox_message_create.sql` (SQL Server) |
+| Created before 6.0 | Compare with `postgresql/outbox_message_create.sql` and add the `seq` column and indexes **before** deploying 6.0: the claim orders by `seq` and fails without it |
+| New install | `postgresql/outbox_message_create.sql` |
 
-Drain the outbox before adding `seq` if the relative order of rows already queued matters.
-
-MySQL and MariaDB are not supported: `claim.dialect` `auto` or `generic` fails startup on them.
+Drain the outbox before adding `seq` if the relative order of rows already queued matters. The
+outbox supports PostgreSQL only.
 
 ## Known limits
 
