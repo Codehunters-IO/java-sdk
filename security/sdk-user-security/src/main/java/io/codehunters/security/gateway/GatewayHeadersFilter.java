@@ -8,18 +8,24 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.web.filter.OncePerRequestFilter;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
@@ -32,6 +38,10 @@ import tools.jackson.databind.json.JsonMapper;
  *
  * <p>Runs after bearer-token authentication. Identity headers on a request without a token are
  * rejected, since only a caller that bypassed the gateway would send them.
+ *
+ * <p>A rejection goes through the configured {@link AuthenticationEntryPoint}, so it answers like
+ * every other 401 of the application (with {@code sdk-web}, a problem detail with {@code code} and
+ * {@code traceId}). Without one, the filter writes a problem detail of the same shape itself.
  */
 public class GatewayHeadersFilter extends OncePerRequestFilter {
 
@@ -44,10 +54,25 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
   private static final String GEO_LONGITUDE = "x-geo-longitude";
   private static final String GEO_IP = "x-geo-ip";
 
-  private final JsonMapper jsonMapper = JsonMapper.builder().build();
+  private static final String UNAUTHORIZED_CODE = "UNAUTHORIZED";
 
-  /** Creates the filter. */
-  public GatewayHeadersFilter() {}
+  private final JsonMapper jsonMapper = JsonMapper.builder().build();
+  private final AuthenticationEntryPoint entryPoint;
+
+  /** Creates the filter, answering rejections with its own problem detail. */
+  public GatewayHeadersFilter() {
+    this(null);
+  }
+
+  /**
+   * Creates the filter, answering rejections through an entry point.
+   *
+   * @param entryPoint answers rejected requests; {@code null} writes the filter's own problem
+   *     detail
+   */
+  public GatewayHeadersFilter(AuthenticationEntryPoint entryPoint) {
+    this.entryPoint = entryPoint;
+  }
 
   @Override
   protected void doFilterInternal(
@@ -62,7 +87,7 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
     }
     Optional<String> mismatch = mismatch(request, tokenPrincipal, authentication);
     if (mismatch.isPresent()) {
-      reject(response, mismatch.get());
+      reject(request, response, mismatch.get());
       return;
     }
     SecurityContextHolder.getContextHolderStrategy()
@@ -74,7 +99,7 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
       HttpServletRequest request, HttpServletResponse response, FilterChain chain)
       throws ServletException, IOException {
     if (request.getHeader(USER_ID) != null) {
-      reject(response, "Identity headers require a bearer token");
+      reject(request, response, "Identity headers require a bearer token");
       return;
     }
     chain.doFilter(request, response);
@@ -144,15 +169,33 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
     return context;
   }
 
-  private static void reject(HttpServletResponse response, String detail) throws IOException {
+  private void reject(HttpServletRequest request, HttpServletResponse response, String detail)
+      throws ServletException, IOException {
     log.warn("Rejected request: {}", detail);
+    if (entryPoint != null) {
+      entryPoint.commence(request, response, new BadCredentialsException(detail));
+      return;
+    }
+    writeProblem(request, response, detail);
+  }
+
+  private void writeProblem(HttpServletRequest request, HttpServletResponse response, String detail)
+      throws IOException {
     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-    response.setContentType("application/problem+json");
-    response
-        .getWriter()
-        .write(
-            "{\"type\":\"about:blank\",\"title\":\"Unauthorized\",\"status\":401,\"detail\":\""
-                + detail
-                + "\"}");
+    response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
+    response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
+    jsonMapper.writeValue(response.getOutputStream(), problem(request, detail));
+  }
+
+  /** The members {@code sdk-web} writes for a 401, minus the {@code traceId} only it resolves. */
+  private static Map<String, Object> problem(HttpServletRequest request, String detail) {
+    Map<String, Object> problem = new LinkedHashMap<>();
+    problem.put("type", "about:blank");
+    problem.put("title", HttpStatus.UNAUTHORIZED.getReasonPhrase());
+    problem.put("status", HttpStatus.UNAUTHORIZED.value());
+    problem.put("detail", detail);
+    problem.put("instance", request.getRequestURI());
+    problem.put("code", UNAUTHORIZED_CODE);
+    return problem;
   }
 }

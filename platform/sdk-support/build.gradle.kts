@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "1.0.1"
 description = "Internal support code shared by the io.codehunters SDK modules; not a public API."
 
 codehuntersPackages {

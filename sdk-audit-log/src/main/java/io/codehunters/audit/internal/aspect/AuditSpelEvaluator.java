@@ -15,6 +15,7 @@ import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionException;
 import org.springframework.expression.ExpressionParser;
+import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 
 /**
@@ -25,7 +26,16 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * #result} is reserved: it is {@code null} when the method failed, even if a parameter is named
  * {@code result}. Parsed expressions are cached up to a fixed bound; once full, new expressions are
  * parsed on every call. Syntax errors, evaluation errors and exceptions thrown by methods the
- * expression calls resolve to {@code null}.
+ * expression calls resolve to {@code null}; the first such failure per method and attribute is
+ * logged as a warning naming the exception class or SpEL message code, never the message, which can
+ * echo argument values. Later ones are logged at debug level. A {@code #result} expression that
+ * fails because the call itself failed, leaving {@code #result} null, is expected and not warned
+ * about; write {@code #result?.id} to make that explicit.
+ *
+ * <p>The context is a full {@code StandardEvaluationContext}: expressions may call any method of
+ * the arguments and reference types with {@code T(...)}. Expressions come from the application's
+ * own annotations, never from input, so this is accepted; switching to a restricted context would
+ * break expressions that call methods.
  *
  * @since 1.0.0
  */
@@ -33,11 +43,14 @@ final class AuditSpelEvaluator {
 
   static final int DEFAULT_CACHE_SIZE = 1024;
 
+  private static final String EXPRESSION = "expression";
+
   private static final Logger log = LoggerFactory.getLogger(AuditSpelEvaluator.class);
 
   private final ExpressionParser parser = new SpelExpressionParser();
   private final ParameterNameDiscoverer nameDiscoverer = new DefaultParameterNameDiscoverer();
   private final ConcurrentMap<String, Expression> cache = new ConcurrentHashMap<>();
+  private final WarnOnce warnOnce = new WarnOnce(log);
   private final int maxCacheSize;
 
   AuditSpelEvaluator() {
@@ -49,7 +62,20 @@ final class AuditSpelEvaluator {
   }
 
   EvaluationContext buildContext(Method method, Object[] args, Object result) {
-    var ctx = new AuditEvaluationContext(method, args, result, nameDiscoverer);
+    return buildContext(method, args, result, false);
+  }
+
+  /**
+   * Builds the context of one evaluation.
+   *
+   * @param method the audited method
+   * @param args its arguments
+   * @param result its return value, or {@code null}
+   * @param failed whether the call failed, so a {@code #result} expression is expected to fail
+   * @return the context
+   */
+  EvaluationContext buildContext(Method method, Object[] args, Object result, boolean failed) {
+    var ctx = new AuditEvaluationContext(method, args, result, failed, nameDiscoverer);
     for (int i = 0; i < args.length; i++) {
       ctx.setVariable("arg" + i, args[i]);
     }
@@ -57,14 +83,22 @@ final class AuditSpelEvaluator {
   }
 
   String evaluate(String expression, EvaluationContext ctx) {
+    return evaluate(EXPRESSION, expression, ctx);
+  }
+
+  String evaluate(String attribute, String expression, EvaluationContext ctx) {
     if (expression == null || expression.isBlank()) {
       return null;
     }
-    return valueOf(expression, ctx, String.class).orElse(null);
+    return valueOf(new Site(attribute, expression), ctx, String.class).orElse(null);
   }
 
   Object evaluateValue(String expression, EvaluationContext ctx) {
-    return valueOf(expression, ctx, Object.class).orElse(null);
+    return evaluateValue(EXPRESSION, expression, ctx);
+  }
+
+  Object evaluateValue(String attribute, String expression, EvaluationContext ctx) {
+    return valueOf(new Site(attribute, expression), ctx, Object.class).orElse(null);
   }
 
   Map<String, Object> evaluatePayload(String[] expressions, EvaluationContext ctx) {
@@ -72,8 +106,8 @@ final class AuditSpelEvaluator {
     for (String entry : expressions) {
       String[] parts = entry.split("=", 2);
       if (parts.length == 2) {
-        valueOf(parts[1].trim(), ctx, Object.class)
-            .ifPresent(value -> payload.put(parts[0].trim(), value));
+        Site site = new Site(AuditExpressionCheck.payloadAttribute(parts[0]), parts[1].trim());
+        valueOf(site, ctx, Object.class).ifPresent(value -> payload.put(parts[0].trim(), value));
       }
     }
     return payload;
@@ -83,16 +117,51 @@ final class AuditSpelEvaluator {
     return cache.size();
   }
 
-  private <T> Optional<T> valueOf(String expression, EvaluationContext ctx, Class<T> type) {
+  private <T> Optional<T> valueOf(Site site, EvaluationContext ctx, Class<T> type) {
     try {
-      return Optional.ofNullable(parse(expression).getValue(ctx, type));
+      return Optional.ofNullable(parse(site.expression()).getValue(ctx, type));
     } catch (ExpressionException ex) {
-      log.debug("SpEL expression '{}' could not be resolved: {}", expression, ex.getMessage());
+      log.debug(
+          "SpEL expression '{}' could not be resolved: {}", site.expression(), ex.getMessage());
+      warn(site, ctx, ex);
       return Optional.empty();
     } catch (RuntimeException ex) {
-      log.debug("SpEL expression '{}' threw {}", expression, ex.getClass().getName());
+      log.debug("SpEL expression '{}' threw {}", site.expression(), ex.getClass().getName());
+      warn(site, ctx, ex);
       return Optional.empty();
     }
+  }
+
+  private void warn(Site site, EvaluationContext ctx, RuntimeException failure) {
+    if (expectedFailure(site, ctx)) {
+      return;
+    }
+    String method =
+        ctx instanceof AuditEvaluationContext audit ? audit.label() : "an audited method";
+    warnOnce.warn(
+        method + " " + site.attribute(),
+        "An @Auditable expression could not be evaluated for {} of {} ({}); the field is recorded"
+            + " as null. Later failures of it are logged at debug level.",
+        site.attribute(),
+        method,
+        reason(failure));
+  }
+
+  /**
+   * Whether the failure is the expected one of a {@code #result} expression after the call failed,
+   * where {@code #result} is {@code null} by design.
+   */
+  private static boolean expectedFailure(Site site, EvaluationContext ctx) {
+    return ctx instanceof AuditEvaluationContext audit
+        && audit.failed()
+        && site.expression().contains("#" + AuditEvaluationContext.RESULT);
+  }
+
+  private static String reason(RuntimeException failure) {
+    if (failure instanceof SpelEvaluationException spel) {
+      return spel.getMessageCode().name();
+    }
+    return failure.getClass().getName();
   }
 
   private Expression parse(String expression) {
@@ -113,11 +182,27 @@ final class AuditSpelEvaluator {
     private static final String RESULT = "result";
 
     private final Object result;
+    private final boolean failed;
+    private final String label;
 
     AuditEvaluationContext(
-        Method method, Object[] args, Object result, ParameterNameDiscoverer nameDiscoverer) {
+        Method method,
+        Object[] args,
+        Object result,
+        boolean failed,
+        ParameterNameDiscoverer nameDiscoverer) {
       super(null, method, args, nameDiscoverer);
       this.result = result;
+      this.failed = failed;
+      this.label = MethodLabels.of(method);
+    }
+
+    String label() {
+      return label;
+    }
+
+    boolean failed() {
+      return failed;
     }
 
     @Override
@@ -128,4 +213,7 @@ final class AuditSpelEvaluator {
       return super.lookupVariable(name);
     }
   }
+
+  /** An expression and the annotation attribute it was written in. */
+  private record Site(String attribute, String expression) {}
 }

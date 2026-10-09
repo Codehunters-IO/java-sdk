@@ -5,19 +5,23 @@ import io.codehunters.audit.AuditEventPublisherPort;
 import io.codehunters.audit.NoOpAuditContextProvider;
 import io.codehunters.audit.internal.aspect.AuditAspect;
 import io.codehunters.audit.internal.aspect.AuditProxyCheck;
+import io.codehunters.audit.internal.aspect.AuditStartupCheck;
 import io.codehunters.audit.internal.device.DeviceAuditContextProvider;
 import io.codehunters.web.device.servlet.ClientContextResolver;
 import java.time.Clock;
 import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.SmartInitializingSingleton;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Spring Boot auto-configuration enabling the {@link io.codehunters.audit.Auditable} aspect.
@@ -32,10 +36,22 @@ import org.springframework.context.annotation.Configuration;
  * <p>When the device SDK is on the classpath of a servlet application, the default context provider
  * reports the IP and {@code User-Agent} of the current request, resolved behind the device SDK's
  * trusted proxies, instead of nothing.
+ *
+ * <p>At startup, when beans declare {@code @Auditable} methods but no {@link
+ * AuditEventPublisherPort} exists, the reason is logged as an error, or fails startup when {@code
+ * codehunters.audit.startup-check.fail-fast} is set. {@code codehunters.audit.enabled=false} turns
+ * the SDK off.
  */
 @AutoConfiguration(afterName = "io.codehunters.web.device.config.DeviceAutoConfiguration")
+@ConditionalOnBooleanProperty(name = AuditAutoConfiguration.ENABLED, matchIfMissing = true)
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditAutoConfiguration {
+
+  /** The property that turns the SDK off when {@code false}. */
+  static final String ENABLED = "codehunters.audit.enabled";
+
+  /** The property that makes a failed startup check stop the application instead of logging. */
+  static final String STARTUP_FAIL_FAST = "codehunters.audit.startup-check.fail-fast";
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public AuditAutoConfiguration() {}
@@ -102,5 +118,20 @@ public class AuditAutoConfiguration {
   static SmartInitializingSingleton auditProxyCheck(
       ListableBeanFactory beanFactory, AuditProperties properties) {
     return new AuditProxyCheck(beanFactory, properties.failOnError());
+  }
+
+  /**
+   * Checks at startup that {@code @Auditable} methods are actually audited; logs why they are not,
+   * or fails when {@code codehunters.audit.startup-check.fail-fast} is set.
+   *
+   * @param beanFactory the application's bean factory
+   * @param environment the environment, for the fail-fast switch
+   * @return the startup check
+   */
+  @Bean
+  static SmartInitializingSingleton auditStartupCheck(
+      ConfigurableListableBeanFactory beanFactory, Environment environment) {
+    return new AuditStartupCheck(
+        beanFactory, environment.getProperty(STARTUP_FAIL_FAST, Boolean.class, false));
   }
 }

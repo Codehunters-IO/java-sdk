@@ -3,6 +3,7 @@ package io.codehunters.jpa.specification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.codehunters.commons.error.ClientInputException;
 import io.codehunters.jpa.fixture.Order;
 import java.util.Collections;
 import java.util.Map;
@@ -23,6 +24,22 @@ class SpecificationBuilderTest {
         .isInstanceOf(InvalidSearchException.class)
         .hasMessageNotContaining("passwordHash")
         .hasMessageContaining("customer, status");
+  }
+
+  @Test
+  void should_reject_an_attribute_outside_the_whitelist_with_the_invalid_search_code() {
+    var criteria = SearchCriteria.of("passwordHash", SearchOperation.EQUAL, "x");
+
+    assertThatThrownBy(() -> builder.where(criteria))
+        .isInstanceOf(ClientInputException.class)
+        .hasFieldOrPropertyWithValue("code", "INVALID_SEARCH");
+  }
+
+  @Test
+  void should_reject_a_bad_whitelist_as_a_programming_error_not_as_client_input() {
+    assertThatThrownBy(() -> SpecificationBuilder.of(Order.class, Map.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .isNotInstanceOf(ClientInputException.class);
   }
 
   @Test

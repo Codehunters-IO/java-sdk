@@ -12,6 +12,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 
 /**
  * Turns a verified Keycloak access token into an authentication whose principal is a {@link
@@ -34,6 +35,9 @@ public class KeycloakJwtAuthenticationConverter
 
   @Override
   public AbstractAuthenticationToken convert(Jwt jwt) {
+    if (jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+      throw new InvalidBearerTokenException("The token has no subject");
+    }
     var principal =
         new KeycloakPrincipal(
             jwt.getSubject(),

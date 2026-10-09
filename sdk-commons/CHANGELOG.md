@@ -1,5 +1,31 @@
 # Changelog — sdk-commons
 
+## 3.0.0
+
+### Breaking
+- TOTP defaults follow RFC 6238 and what authenticator apps support: `TotpConfig.defaultConfig()`
+  and an unset `codehunters.totp.algorithm` are HMAC-SHA1 (was HMAC-SHA512), and
+  `TotpSecret.generate()` creates 20 bytes (was 64). Codes from the 2.x defaults did not match
+  Google or Microsoft Authenticator. Secrets enrolled with SHA-512 must keep it:
+  `codehunters.totp.algorithm=hmac-sha512`. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+- The TOTP auto-configuration is opt-in: `codehunters.totp.enabled` defaults to `false` (was
+  `true`), so applications that only use the helpers get no TOTP bean.
+
+### Added
+- `io.codehunters.commons.error.ClientInputException`: an `IllegalArgumentException` with a stable
+  `code()` (upper snake case, `[A-Z][A-Z0-9_]*`) for input a client got wrong. Its message is safe
+  for clients by contract: it never repeats the input. `sdk-web` 2.1.0 answers it with 400 and the
+  code; `sdk-jpa` and `sdk-barcode` 2.1.0 throw subclasses of it.
+- `TotpGenerator.verifyAfter(secret, code, variance, lastAcceptedStep[, at])` and `verifyStep`: return
+  the matched time step, so a caller can store it and reject replayed codes. Comparison stays
+  constant-time. `TotpGenerator.NO_ACCEPTED_STEP` for a secret with no accepted code yet.
+- `TotpGenerator.provisioningUri(secret, issuer, account)`: the `otpauth://totp/` key URI, with
+  RFC 3986 percent-encoding; issuer and account are validated and must not contain `:`, control
+  characters or invisible format characters (bidi overrides, zero-width spaces).
+
+### Changed
+- The `vitxo.totp.*` aliases are honoured until 4.0.0 (was 3.0.0).
+
 ## 2.0.0
 
 ### Breaking

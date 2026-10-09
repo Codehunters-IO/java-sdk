@@ -3,6 +3,7 @@ package io.codehunters.jpa.pagination;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.codehunters.commons.error.ClientInputException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -44,6 +45,28 @@ class SortWhitelistTest {
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageNotContaining("passwordHash")
         .hasMessageContaining("created, customer");
+  }
+
+  @Test
+  void should_reject_a_property_outside_the_whitelist_with_the_invalid_sort_code() {
+    assertThatThrownBy(() -> whitelist.apply(Sort.by("passwordHash")))
+        .isInstanceOf(InvalidSortException.class)
+        .isInstanceOf(ClientInputException.class)
+        .hasFieldOrPropertyWithValue("code", "INVALID_SORT");
+  }
+
+  @Test
+  void should_reject_the_same_property_twice_with_the_invalid_sort_code() {
+    assertThatThrownBy(() -> whitelist.apply(Sort.by("created", "created")))
+        .isInstanceOf(InvalidSortException.class)
+        .hasFieldOrPropertyWithValue("code", "INVALID_SORT");
+  }
+
+  @Test
+  void should_reject_a_bad_whitelist_as_a_programming_error_not_as_client_input() {
+    assertThatThrownBy(() -> SortWhitelist.of(Map.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .isNotInstanceOf(ClientInputException.class);
   }
 
   @Test

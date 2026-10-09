@@ -27,6 +27,14 @@ class TotpGeneratorTest {
   }
 
   @Test
+  void should_match_authenticator_apps_when_default_config_is_used() {
+    var generator = new TotpGenerator();
+    var secret = TotpSecret.fromBytes(SEED_20);
+
+    assertEquals("287082", generator.generate(secret, Instant.ofEpochSecond(59)));
+  }
+
+  @Test
   void should_generate_eight_digit_code() {
     var config =
         new TotpConfig(Duration.ofSeconds(30), TotpDigits.EIGHT, TotpAlgorithm.HMAC_SHA512);

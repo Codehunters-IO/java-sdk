@@ -1,5 +1,6 @@
 package io.codehunters.security.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -11,14 +12,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.codehunters.web.errors.config.WebErrorsAutoConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+@ExtendWith(OutputCaptureExtension.class)
 class KeycloakSecurityProblemDetailsTest {
 
   private final FakeKeycloak keycloak = new FakeKeycloak();
@@ -69,6 +79,23 @@ class KeycloakSecurityProblemDetailsTest {
   }
 
   @Test
+  void should_answer_problem_detail_when_gateway_headers_disagree_with_token() {
+    runner.run(
+        context ->
+            mockMvc(context)
+                .perform(
+                    get("/api/me")
+                        .header("Authorization", "Bearer " + keycloak.token())
+                        .header("x-user-id", "someone-else"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", startsWith("Bearer")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.instance").value("/api/me")));
+  }
+
+  @Test
   void should_keep_plain_bearer_challenge_when_web_errors_is_absent() {
     new WebApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(KeycloakSecurityAutoConfiguration.class))
@@ -86,6 +113,38 @@ class KeycloakSecurityProblemDetailsTest {
                     .andExpect(status().isUnauthorized())
                     .andExpect(header().string("WWW-Authenticate", startsWith("Bearer")))
                     .andExpect(content().string("")));
+  }
+
+  @Test
+  void should_warn_when_several_entry_points_leave_none_to_use(CapturedOutput output) {
+    new WebApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(KeycloakSecurityAutoConfiguration.class))
+        .withUserConfiguration(KeycloakSecurityEndToEndTest.WebApp.class, TwoEntryPoints.class)
+        .withPropertyValues(
+            "codehunters.security.url=" + keycloak.url(),
+            "codehunters.security.realm=" + FakeKeycloak.REALM,
+            "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
+            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
+            "codehunters.security.introspection.client-secret=secret")
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output)
+        .contains(
+            "2 AuthenticationEntryPoint beans and none is @Primary; Spring's default is used");
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class TwoEntryPoints {
+
+    @Bean
+    AuthenticationEntryPoint first() {
+      return new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Bean
+    AuthenticationEntryPoint second() {
+      return new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED);
+    }
   }
 
   private static MockMvc mockMvc(WebApplicationContext context) {

@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.0.0"
+version = "2.1.0"
 description = "Barcode and QR code rendering (PNG, SVG) and decoding on ZXing, with size limits."
 
 codehuntersPackages {
@@ -10,6 +10,8 @@ codehuntersPackages {
 }
 
 dependencies {
+    // BarcodeRejectedException is a ClientInputException: part of the API.
+    api(project(":sdk-commons"))
     implementation(libs.zxing.core)
 
     testImplementation(libs.archunit.junit5)

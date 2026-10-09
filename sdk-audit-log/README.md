@@ -19,7 +19,7 @@ JDBC adapter and publishers in `io.codehunters.audit.persistence`. Coming from 3
 @Auditable(
     entityType = "ORDER",
     action = "CREATE",
-    entityId = "#result.id",
+    entityId = "#result?.id",
     correlationId = "#command.requestId",
     payload = {"amount=#command.amount", "customer=#command.customerId"})
 public Order createOrder(CreateOrderCommand command) { ... }
@@ -27,9 +27,13 @@ public Order createOrder(CreateOrderCommand command) { ... }
 
 SpEL expressions see the parameters by name (`#command`, needs `-parameters`), by position (`#p0`,
 `#a0`, `#arg0`) and the return value (`#result`). `#result` is reserved: it is `null` when the
-method throws, even if a parameter is called `result`. An expression that fails to parse, fails to
-evaluate, or calls a method that throws leaves its field `null`; the event is still published. A
-`correlationId` that is not a UUID is recorded as `null`.
+method throws, even if a parameter is called `result`; write `#result?.id` so the failure event
+records `null` cleanly. An expression that fails to evaluate, or calls a method that throws, leaves
+its field `null`; the event is still published, and the first failure of each method (overloads
+apart) and attribute is logged at `WARN` with the exception class or SpEL message code, never the
+message or the values. A `#result` expression that fails only because the method threw is not
+warned about. Expressions are parsed at startup; see
+[Startup checks](#startup-checks). A `correlationId` that is not a UUID is recorded as `null`.
 
 Declare an `AuditContextProvider` bean to fill the actor, IP, user agent, HTTP method, resource
 and source service from the security context or the request. Values set on the annotation win. A
@@ -37,8 +41,18 @@ provider method that throws leaves its field `null`.
 
 Without one, the default provider fills nothing, unless [`sdk-web`](../sdk-web/README.md#device--iocodehunterswebdevice)
 (its device part) is on the classpath of a servlet application: then it records the IP of the current request, resolved
-behind the device SDK's trusted proxies, and its sanitized `User-Agent`. The actor and the rest stay
-empty; declare your own provider to fill them.
+behind the device SDK's trusted proxies, and its sanitized `User-Agent`. The rest stay empty;
+declare your own provider to fill them.
+
+When neither the annotation nor the provider names an actor and Spring Security is on the
+classpath, the actor is the authenticated, non-anonymous user of the calling thread's
+`SecurityContextHolder` (`Authentication.getName()`), where a servlet application keeps it (since
+4.1.0). It is read only while a request is bound to the thread (Spring Web's
+`RequestContextHolder`): a scheduler, listener or pooled thread can inherit a context
+(`MODE_INHERITABLETHREADLOCAL`) or keep one that leaked, and would record a plausible but wrong
+user, so calls there record no actor unless the provider or annotation names one. In WebFlux it
+comes from the subscriber's Reactor context instead; see below. Spring
+Security stays optional.
 
 The event is recorded when the method returns. A method returning a `CompletionStage` (such as
 `CompletableFuture`), or a Reactor `Mono` or `Flux`, is recorded when that work finishes instead,
@@ -96,7 +110,8 @@ for a `Flux`).
 | `codehunters.audit.fail-on-error=true` | Written on the caller's thread; a failure throws `AuditPersistenceException` |
 
 The JDBC publisher needs a single `DataSource` candidate: one bean, or one marked `@Primary`. With
-several and no primary, the SDK stays off and the application starts without it.
+several and no primary, or none, there is no publisher and nothing is audited; startup says so
+(see [Startup checks](#startup-checks)).
 
 Without `fail-on-error`, publishing never fails the caller. The executor is bounded: when its
 queue is full, or the application is shutting down, the event is rejected, logged at `WARN` and
@@ -151,6 +166,27 @@ Keep `codehunters.audit.order` at its default, or higher than the order of
 `@EnableTransactionManagement`. With `fail-on-error=true` and the aspect outside the transaction, a
 call whose commit succeeded could still fail on the audit insert, and a client might retry it.
 
+## Startup checks
+
+Once every singleton exists, the SDK checks that `@Auditable` methods will actually be audited.
+Each problem is logged at `ERROR`, or fails startup with `IllegalStateException` when
+`codehunters.audit.startup-check.fail-fast=true`. `fail-on-error` does not make these checks fail
+startup, so upgrading within 4.x never stops an application that starts today:
+
+| Problem | Reported when |
+|---|---|
+| No `AuditEventPublisherPort` | A bean declares `@Auditable` methods, and you define no publisher while the JDBC one backs off: no `DataSource`, several `DataSource` beans with none `@Primary`, or Spring JDBC, Spring transactions or Jackson missing from the classpath. The message names the reason and one audited method |
+| No `AuditEventPublisherPort` (excluded) | The same, when the JDBC auto-configuration is excluded or its classes are missing: the message says "missing classes or auto-configuration excluded" |
+| No AspectJ weaver | A publisher exists but `org.aspectj:aspectjweaver` is not on the runtime classpath, so no AspectJ proxy is created |
+| Invalid expression | An `entityId`, `actorId`, `correlationId` or `payload` expression cannot be parsed. The message names `Class#method(Params)`, the attribute (`payload[key]` for a payload entry) and the parser's error, never evaluated values |
+| No AspectJ auto-proxy creator | A publisher exists but nothing applies the aspect (`spring.aop.auto=false` without `@EnableAspectJAutoProxy`). Logged at `WARN` |
+
+Beans are inspected through their target class, so proxies are seen through; lazy beans are
+inspected by type without being created. Publishers and `DataSource` beans of parent contexts
+count. Like the aspect, only `@Auditable` on the class's own method counts: an annotation declared
+only on an interface method is not audited and not reported. A factory bean is inspected as the
+factory, not its product. With `codehunters.audit.enabled=false` no check runs.
+
 ## Database
 
 Create the table from the reference DDL shipped in the jar, copied into your own migrations:
@@ -166,7 +202,9 @@ The scripts have no Flyway version prefix, so the SDK never runs them.
 
 | Property | Default | Meaning |
 |---|---|---|
+| `codehunters.audit.enabled` | `true` | Turns the SDK off: no aspect, publisher, context provider or startup check |
 | `codehunters.audit.fail-on-error` | `false` | Publish synchronously, inside the caller's transaction, and propagate failures |
+| `codehunters.audit.startup-check.fail-fast` | `false` | A failed [startup check](#startup-checks) stops the application instead of logging an `ERROR` |
 | `codehunters.audit.order` | `2147483647` | Precedence of the audit aspect; the lowest runs it inside `@Transactional` |
 | `codehunters.audit.async.enabled` | `true` | Publish off the caller's thread |
 | `codehunters.audit.async.core-pool-size` | `2` | Threads kept alive |
@@ -178,7 +216,7 @@ The aspect is applied by Boot's AOP auto-configuration (`spring.aop.auto`, on by
 AspectJ on the classpath); the SDK does not enable proxying itself. With `spring.aop.auto=false`,
 enable AspectJ proxying in your configuration or `@Auditable` has no effect. Startup checks for
 an AspectJ auto-proxy creator: without one it logs a warning, or fails when
-`codehunters.audit.fail-on-error=true`.
+`codehunters.audit.fail-on-error=true`. See [Startup checks](#startup-checks) for the others.
 
 Invalid sizes fail at startup. The 2.x key `vitxo.audit.fail-on-error` works until 5.0.0 and logs
 a deprecation warning.
@@ -197,3 +235,8 @@ a deprecation warning.
 - With `fail-on-error=true`, the cause of an `AuditPersistenceException` is redacted: it keeps
   the failure class, SQLState, vendor code and stack trace, never the database message, which can
   echo the row. Read them from `failureClass()`, `sqlState()` and `vendorCode()`.
+- Expressions run in a full SpEL `StandardEvaluationContext`: they may call any method of the
+  arguments and reach any type with `T(...)`. They come from your own annotations, never from
+  input, so this is accepted for now. A restricted `SimpleEvaluationContext` would break
+  expressions that call methods, so it is left for a major version. Keep expressions to property
+  reads and simple calls.

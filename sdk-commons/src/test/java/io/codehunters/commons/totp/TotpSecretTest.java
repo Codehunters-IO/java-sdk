@@ -78,10 +78,10 @@ class TotpSecretTest {
   }
 
   @Test
-  void should_generate_key_as_long_as_default_algorithm_hash_when_no_length_given() {
+  void should_generate_twenty_byte_sha1_key_when_no_length_given() {
     var secret = TotpSecret.generate();
 
-    assertEquals(64, secret.key().length);
+    assertEquals(20, secret.key().length);
   }
 
   @ParameterizedTest

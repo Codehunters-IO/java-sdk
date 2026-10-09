@@ -11,7 +11,8 @@ implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 ```
 
 Spring Data JPA, Hibernate, Jackson 3 and Spring Security are not brought in: the application
-already has the ones it uses.
+already has the ones it uses. `sdk-commons` is (an `api` dependency since 2.1.0): the sort and
+search exceptions are its `ClientInputException`s.
 
 **Where it belongs.** Everything here is for the infrastructure layer. Entities extending
 `BaseEntity` are persistence models; the domain model stays free of JPA and of this module, and the
@@ -109,9 +110,11 @@ PageResponse<OrderView> list(Pageable pageable) {
   can send back, and leaves out orders the whitelist does not name; without the whitelist the
   `sort` lists entity property paths.
 - **`SortWhitelist`** maps API sort names to entity property paths, keeps direction, case and null
-  handling, and rejects anything else, and the same name twice, with an `IllegalArgumentException`
-  that lists the allowed names without repeating the request. Clients cannot sort by internal
-  columns or make the query fail.
+  handling, and rejects anything else, and the same name twice, with an `InvalidSortException`
+  (code `INVALID_SORT`) that lists the allowed names without repeating the request. Clients cannot
+  sort by internal columns or make the query fail. It is a `ClientInputException` from
+  `sdk-commons`, and still an `IllegalArgumentException`; `sdk-web` answers it with 400. An invalid
+  whitelist (`SortWhitelist.of(...)`) is a programming error: a plain `IllegalArgumentException`.
 - **Page size.** The cap is Spring Data's: `spring.data.web.pageable.max-page-size` (2000 by
   default). Set it to what your queries can afford.
 
@@ -193,10 +196,13 @@ orders.findAll(SEARCH.allOf(List.of(
   "some element has it null".
 - **Combining.** `allOf` (AND) and `anyOf` (OR) take up to 32 criteria; none means no restriction.
   Compose further with `Specification.and`/`or`.
-- **Errors.** `InvalidSearchException` (an `IllegalArgumentException`) never repeats the client's
-  input. Whitelist and value-count errors are thrown when the specification is built; conversion
-  and unsupported-operation errors when the query runs, where Spring wraps them in
-  `InvalidDataAccessApiUsageException`. Map it to a 400 by looking for it in the cause chain.
+- **Errors.** `InvalidSearchException` (code `INVALID_SEARCH`) never repeats the client's input. It
+  is a `ClientInputException` from `sdk-commons`, and still an `IllegalArgumentException`.
+  Whitelist and value-count errors are thrown when the specification is built; conversion and
+  unsupported-operation errors when the query runs, where Spring wraps them in
+  `InvalidDataAccessApiUsageException`. `sdk-web` 2.1.0 finds it in the cause chain and answers
+  400 with the code; without `sdk-web`, look for it in the cause chain. An invalid whitelist
+  (`SpecificationBuilder.of(...)`) is a programming error: a plain `IllegalArgumentException`.
 - **Indexes.** `LIKE` compares `lower(column)` with a leading `%`: no plain B-tree index helps.
   Searchable text columns on large tables need a trigram (`pg_trgm`) or full-text index.
 

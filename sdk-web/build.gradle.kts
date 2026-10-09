@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.0.0"
+version = "2.1.0"
 description = "Servlet web toolkit: RFC 9457 problem details, client IP and User-Agent, X-Locale i18n."
 
 codehuntersPackages {
@@ -30,9 +30,13 @@ dependencies {
     compileOnly("org.springframework.security:spring-security-oauth2-resource-server")
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly(project(":sdk-tracing"))
+    // Optional: ClientInputException is answered with 400 only when the application has sdk-commons.
+    compileOnly(project(":sdk-commons"))
     compileOnly(libs.uap.java)
 
     testImplementation(project(":sdk-tracing"))
+    testImplementation(project(":sdk-commons"))
+    testImplementation("org.springframework:spring-tx")
     testImplementation("org.springframework.boot:spring-boot-webmvc")
     testImplementation("org.springframework.boot:spring-boot-http-converter")
     testImplementation("org.springframework.boot:spring-boot-jackson")

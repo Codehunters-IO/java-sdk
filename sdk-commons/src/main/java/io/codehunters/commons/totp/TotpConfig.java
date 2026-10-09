@@ -32,11 +32,12 @@ public record TotpConfig(Duration timeStep, TotpDigits digits, TotpAlgorithm alg
   }
 
   /**
-   * Default configuration: 30s step, six digits, HMAC-SHA512.
+   * Default configuration, the one authenticator apps (Google, Microsoft and most others) support:
+   * 30s step, six digits, HMAC-SHA1, as in RFC 6238.
    *
    * @return a default {@link TotpConfig}
    */
   public static TotpConfig defaultConfig() {
-    return new TotpConfig(DEFAULT_TIME_STEP, TotpDigits.SIX, TotpAlgorithm.HMAC_SHA512);
+    return new TotpConfig(DEFAULT_TIME_STEP, TotpDigits.SIX, TotpAlgorithm.HMAC_SHA1);
   }
 }

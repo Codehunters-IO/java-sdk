@@ -12,8 +12,9 @@ import org.springframework.data.domain.Sort;
 
 /**
  * The sort properties clients may request, each mapped from an API name to an entity property path.
- * Anything else is rejected, so a client cannot sort by an internal column or make the query fail
- * on an unknown property. Immutable and thread-safe.
+ * Anything else is rejected with an {@link InvalidSortException} (code {@code INVALID_SORT}), so a
+ * client cannot sort by an internal column or make the query fail on an unknown property. Immutable
+ * and thread-safe.
  *
  * <pre>{@code
  * SortWhitelist SORTS = SortWhitelist.of(Map.of("created", "createdAt", "customer", "customer.name"));
@@ -68,7 +69,7 @@ public final class SortWhitelist {
    *
    * @param requested the request, typically bound from query parameters
    * @return the request sorted by entity properties
-   * @throws IllegalArgumentException if a sort name is not allowed or appears twice
+   * @throws InvalidSortException if a sort name is not allowed or appears twice
    */
   public Pageable apply(Pageable requested) {
     var sort = apply(requested.getSort());
@@ -82,7 +83,7 @@ public final class SortWhitelist {
    *
    * @param requested the requested sort
    * @return the sort by entity properties
-   * @throws IllegalArgumentException if a sort name is not allowed or appears twice
+   * @throws InvalidSortException if a sort name is not allowed or appears twice
    */
   public Sort apply(Sort requested) {
     var seen = new HashSet<String>();
@@ -121,7 +122,7 @@ public final class SortWhitelist {
 
   private static void require(boolean condition, String message) {
     if (!condition) {
-      throw new IllegalArgumentException(message);
+      throw new InvalidSortException(message);
     }
   }
 }

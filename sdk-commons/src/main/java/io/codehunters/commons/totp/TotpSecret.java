@@ -75,7 +75,8 @@ public final class TotpSecret {
   }
 
   /**
-   * Generates a random secret for the default algorithm, HMAC-SHA512: 64 bytes.
+   * Generates a random secret for the default algorithm, HMAC-SHA1: 20 bytes. Use {@link
+   * #generate(TotpAlgorithm)} for another algorithm.
    *
    * @return a randomly generated secret
    */

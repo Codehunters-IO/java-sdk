@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.StringReader;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,7 +166,12 @@ class ReportRequestTest {
         new StringReader(""),
         List.of(new File("/etc/hosts")),
         new Object[] {Path.of("/etc/hosts")},
-        Map.of("logo", URI.create("file:///etc/hosts")));
+        Map.of("logo", URI.create("file:///etc/hosts")),
+        Map.of("logos", List.of(URI.create("https://example.com/logo.png").toURL())),
+        List.<Object[]>of(new Object[] {new File("/etc/hosts")}),
+        Map.of(new File("/etc/hosts"), "logo"),
+        new Object[] {new Object[] {List.of(Map.of("logo", Path.of("/etc/hosts")))}},
+        cyclic(List.of(new StringReader(""))));
   }
 
   @ParameterizedTest
@@ -186,5 +192,106 @@ class ReportRequestTest {
         ReportRequest.of(TEMPLATE, ReportFormat.PDF).withParameters(Map.of("logo", new byte[1]));
 
     assertThat(request.parameters()).containsKey("logo");
+  }
+
+  @Test
+  void should_reject_a_cyclic_structure_without_showing_it() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+                    .withParameters(Map.of("names", cyclic("secret-value"))))
+        .withMessage("parameter names holds a collection, map or array that contains itself")
+        .withMessageNotContaining("secret-value");
+  }
+
+  @Test
+  void should_accept_the_same_collection_twice_in_one_value() {
+    var shared = List.of("sales/logo.png");
+
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("names", List.of(shared, shared)));
+
+    assertThat(request.parameters()).containsEntry("names", List.of(shared, shared));
+  }
+
+  @Test
+  void should_copy_nested_collections_so_later_changes_do_not_leak_in() {
+    var logos = new ArrayList<Object>(List.of("sales/logo.png"));
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("logos", Map.of("header", logos)));
+
+    logos.add(new File("/etc/hosts"));
+
+    assertThat(request.parameters())
+        .containsEntry("logos", Map.of("header", List.of("sales/logo.png")));
+  }
+
+  @Test
+  void should_copy_nested_arrays_so_later_changes_do_not_leak_in() {
+    var logos = new Object[] {"sales/logo.png"};
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("logos", List.of((Object) logos)));
+
+    logos[0] = new File("/etc/hosts");
+
+    assertThat(request.parameters().get("logos"))
+        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        .first()
+        .isEqualTo(new Object[] {"sales/logo.png"});
+  }
+
+  @Test
+  void should_expose_unmodifiable_nested_collections() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("logos", new ArrayList<>(List.of("sales/logo.png"))));
+
+    assertThat(request.parameters().get("logos"))
+        .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        .isUnmodifiable();
+  }
+
+  @Test
+  void should_accept_strings_nested_eight_levels_deep() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("names", nested("sales/logo.png", 8)));
+
+    assertThat(request.parameters()).containsKey("names");
+  }
+
+  @Test
+  void should_reject_a_value_nested_more_than_eight_levels_deep_without_showing_it() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+                    .withParameters(Map.of("names", nested("secret-value", 9))))
+        .withMessage("parameter names nests collections, maps or arrays more than 8 levels deep")
+        .withMessageNotContaining("secret-value");
+  }
+
+  @Test
+  void should_accept_primitive_arrays_inside_a_collection() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("images", List.of(new byte[1], new int[] {1})));
+
+    assertThat(request.parameters()).containsKey("images");
+  }
+
+  private static List<Object> cyclic(Object element) {
+    var list = new ArrayList<Object>();
+    list.add(element);
+    list.add(list);
+    return list;
+  }
+
+  private static Object nested(Object innermost, int levels) {
+    return Stream.iterate(innermost, List::of).skip(levels).findFirst().orElseThrow();
   }
 }

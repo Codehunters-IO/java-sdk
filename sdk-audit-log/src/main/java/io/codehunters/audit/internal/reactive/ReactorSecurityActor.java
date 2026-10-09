@@ -1,8 +1,7 @@
 package io.codehunters.audit.internal.reactive;
 
+import io.codehunters.audit.internal.security.SecurityActor;
 import java.util.Optional;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.ReactiveSecurityContextHolder;
 import org.springframework.security.core.context.SecurityContext;
 import reactor.core.publisher.Mono;
@@ -23,14 +22,9 @@ final class ReactorSecurityActor {
   static Mono<Optional<String>> current() {
     return ReactiveSecurityContextHolder.getContext()
         .mapNotNull(SecurityContext::getAuthentication)
-        .filter(ReactorSecurityActor::isUser)
+        .filter(SecurityActor::isUser)
         .map(authentication -> Optional.of(authentication.getName()))
         .onErrorResume(ex -> Mono.empty())
         .defaultIfEmpty(Optional.empty());
-  }
-
-  private static boolean isUser(Authentication authentication) {
-    return authentication.isAuthenticated()
-        && !(authentication instanceof AnonymousAuthenticationToken);
   }
 }

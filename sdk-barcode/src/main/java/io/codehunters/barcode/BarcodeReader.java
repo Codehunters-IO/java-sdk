@@ -85,8 +85,9 @@ public final class BarcodeReader {
    *
    * @param image the image bytes
    * @return the barcode, or empty when none is found or it cannot be read
-   * @throws IllegalArgumentException if the image exceeds the limits, its format is not supported,
-   *     or it cannot be read
+   * @throws BarcodeRejectedException with code {@value BarcodeRejectedException#IMAGE_REJECTED} if
+   *     the image exceeds the limits, its format is not supported, or it cannot be read
+   * @throws IllegalArgumentException if {@code image} is null
    */
   public Optional<DecodedBarcode> read(InputStream image) {
     if (image == null) {
@@ -121,7 +122,8 @@ public final class BarcodeReader {
     stream.read();
     stream.reset();
     return supportedReader(stream)
-        .orElseThrow(() -> new IllegalArgumentException("the image format is not supported"));
+        .orElseThrow(
+            () -> BarcodeRejectedException.image("the image format is not supported", null));
   }
 
   /** Format detection runs each plugin's header parser, which may throw on a crafted file. */
@@ -158,8 +160,8 @@ public final class BarcodeReader {
   private DecodePlan plan(ImageReader reader) throws IOException {
     long pixels = header(() -> (long) reader.getWidth(0) * reader.getHeight(0));
     if (pixels > limits.maxDecodePixels()) {
-      throw new IllegalArgumentException(
-          "the image exceeds the limit of " + limits.maxDecodePixels() + " pixels");
+      throw BarcodeRejectedException.image(
+          "the image exceeds the limit of " + limits.maxDecodePixels() + " pixels", null);
     }
     return header(
         () ->
@@ -188,8 +190,9 @@ public final class BarcodeReader {
 
   private void requireWithinMemoryLimit(DecodePlan plan) {
     if (plan.bytes() > limits.maxDecodeBytes()) {
-      throw new IllegalArgumentException(
-          "the image exceeds the decode memory limit of " + limits.maxDecodeBytes() + " bytes");
+      throw BarcodeRejectedException.image(
+          "the image exceeds the decode memory limit of " + limits.maxDecodeBytes() + " bytes",
+          null);
     }
   }
 
@@ -204,8 +207,8 @@ public final class BarcodeReader {
     }
   }
 
-  private static IllegalArgumentException unreadable(Exception cause) {
-    return new IllegalArgumentException("the image could not be read", cause);
+  private static BarcodeRejectedException unreadable(Exception cause) {
+    return BarcodeRejectedException.image("the image could not be read", cause);
   }
 
   /**

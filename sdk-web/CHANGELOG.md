@@ -1,5 +1,21 @@
 # Changelog — sdk-web
 
+## 2.1.0
+
+### Added
+- `ClientInputException` from `sdk-commons` 3.0.0 is answered with `400` and its `code()`, also
+  behind exceptions that merely wrap it: `InvalidDataAccessApiUsageException` (around `sdk-jpa`'s
+  `InvalidSearchException`), `CompletionException`, `ExecutionException`,
+  `UndeclaredThrowableException` and `ServletException`. Before, these answered `500
+  INTERNAL_ERROR`. Any other wrapper keeps the `500`, and an `@ResponseStatus` exception keeps its
+  status. The detail is the application's bundle message `error.<CODE>`, else the SDK's English or
+  Spanish default for its own codes, else the exception message, safe by the exception's contract.
+  A `ClientInputException` raised while Spring binds the request (Jackson, converters) still gets
+  the framework's generic `400` without the code.
+  Codes from the SDK: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa` 2.1.0), `BARCODE_IMAGE_REJECTED`,
+  `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). See the README's "Client input errors".
+- `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
+
 ## 2.0.0
 
 ### Breaking

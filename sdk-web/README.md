@@ -23,14 +23,17 @@ implementation("com.github.ua-parser:uap-java:1.6.1")
 ```
 
 Web dependencies (Spring MVC, the servlet API, Spring Security, Jackson, `sdk-tracing`) are
-`compileOnly`: the parts that need them activate only when the application has them.
+`compileOnly`: the parts that need them activate only when the application has them. So is
+`sdk-commons`: its `ClientInputException` is answered with 400 only when the application has it
+(see [Client input errors](#client-input-errors)).
 
 ## Errors — `io.codehunters.web.errors`
 
 One error format for every Spring MVC service: [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
 problem details with a stable error `code`, a localized `detail`, the `traceId` and, for validation
 failures, the list of violated constraints. Rejected values, exception messages and stack traces
-never reach the client.
+never reach the client; the one exception is the message of a `ClientInputException`, safe by its
+contract (see [Client input errors](#client-input-errors)).
 
 It covers exceptions handled by Spring MVC, the servlet container's error dispatch, and — once wired
 into the filter chain — Spring Security's 401 and 403 (see
@@ -100,11 +103,61 @@ throw new ApiException(OrderErrorCode.ORDER_NOT_FOUND, List.of(orderId));
   the placeholders of the detail and are sent to the client: never pass secrets or personal data.
 - `new ApiException(code, arguments, cause)` keeps the cause for the server log only.
 
+### Client input errors
+
+Other SDK modules reject bad client input with `io.codehunters.commons.error.ClientInputException`
+from `sdk-commons`: an `IllegalArgumentException` with a stable `code()`. The handler answers it with
+`400` when it is thrown directly or reached only through exceptions that merely wrap it:
+`InvalidDataAccessApiUsageException` (Spring Data wraps exceptions raised while a query is built in
+it), `CompletionException`, `ExecutionException`, `UndeclaredThrowableException` and
+`ServletException`, up to 16 levels deep. Any other exception on the way means the server decided
+the outcome: an `IllegalStateException` around it stays a `500`, and an exception annotated with
+`@ResponseStatus` keeps its status.
+
+When the input is rejected while Spring binds the request — a `ClientInputException` thrown from a
+constructor Jackson calls for a `@RequestBody`, or from a converter for a `@RequestParam` — Spring
+reports `HttpMessageNotReadableException` or `MethodArgumentTypeMismatchException` first, and the
+client gets the framework's generic `400` without the code. Validate in the controller or service
+to keep the code.
+
+```http
+HTTP/1.1 400 Bad Request
+Content-Type: application/problem+json
+
+{
+  "title": "Bad Request",
+  "status": 400,
+  "detail": "sort property is not allowed; allowed: created, customer",
+  "instance": "/orders",
+  "code": "INVALID_SORT"
+}
+```
+
+The `detail` is the application's bundle message `error.<CODE>` when there is one, so it can be
+localized like any other code; else, for the codes below, the SDK's own default in English or
+Spanish (`io/codehunters/web/errors/client-input*.properties`); else the exception message. That message is safe by the exception's contract:
+it states the rule that was broken and never repeats the client's input. Applications may throw
+`ClientInputException` (or a subclass) themselves under the same contract.
+
+| Code | Thrown by | When |
+|---|---|---|
+| `INVALID_SORT` | `sdk-jpa` `SortWhitelist` (`InvalidSortException`) | a sort property outside the whitelist, or the same one twice |
+| `INVALID_SEARCH` | `sdk-jpa` `SpecificationBuilder`, `SearchCriteria` (`InvalidSearchException`) | an attribute outside the whitelist, a wrong number of values, a value that does not convert to the attribute's type, an operation the attribute does not support |
+| `BARCODE_IMAGE_REJECTED` | `sdk-barcode` `BarcodeReader` (`BarcodeRejectedException`) | an unsupported image format, an image above the pixel or decode memory limit, an unreadable image |
+| `BARCODE_CONTENT_REJECTED` | `sdk-barcode` `BarcodeRequest`, `BarcodeRenderer` (`BarcodeRejectedException`) | content missing, breaking its format's rules or not fitting the symbol; a size or margin out of range or above the limits |
+
+```properties
+error.INVALID_SORT=This list cannot be sorted that way
+```
+
+A plain `IllegalArgumentException` is still a programming error and answers `500`.
+
 ### What is mapped
 
 | Exception | Status | `code` |
 |---|---|---|
 | `ApiException` | the code's status | the code |
+| `ClientInputException` (sdk-commons), also as a cause, e.g. inside `InvalidDataAccessApiUsageException` | 400 | the exception's `code()` |
 | `MethodArgumentNotValidException` (`@Valid @RequestBody`, `@ModelAttribute` binding) | 400 | `VALIDATION_FAILED` + `errors` |
 | `HandlerMethodValidationException` (constraints on `@RequestParam`, `@PathVariable`…) | 400 | `VALIDATION_FAILED` + `errors` |
 | `HandlerMethodValidationException` for a controller's return value | 500 | `INTERNAL_ERROR`, no `errors` |
@@ -138,6 +191,7 @@ when that part is enabled), in the request locale:
 | Error | Key | Arguments |
 |---|---|---|
 | `ApiException` | `ErrorCode.messageKey()`, by default `error.<CODE>` | the exception's arguments |
+| `ClientInputException` | `error.<CODE>`; the exception message when the key has no message | — |
 | Validation failure | `error.VALIDATION_FAILED` | — |
 | Unmapped exception | `error.INTERNAL_ERROR` | — |
 | Spring MVC exception, `@ResponseStatus` | `web-errors.<STATUS_NAME>`, e.g. `web-errors.NOT_FOUND` | — |
@@ -205,7 +259,8 @@ other servlet code.
   filter, so `http.server.requests` and the server span record it.
 - Async request timeouts (503): `WARN` without the stack trace.
 - 4xx: `DEBUG` with the status, code and trace id, never the arguments or rejected values. When an
-  `ApiException` has a cause, the exception and its cause are logged at `DEBUG`.
+  `ApiException` has a cause, or a `ClientInputException` arrives wrapped, the exception and its
+  cause are logged at `DEBUG`.
 - Log lines carry the trace id even with `include-trace-id=false`.
 
 ### Configuration

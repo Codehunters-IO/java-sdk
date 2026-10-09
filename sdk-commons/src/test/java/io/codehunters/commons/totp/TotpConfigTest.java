@@ -9,12 +9,12 @@ import org.junit.jupiter.api.Test;
 class TotpConfigTest {
 
   @Test
-  void should_create_default_config() {
+  void should_use_authenticator_app_settings_when_default_config_is_requested() {
     var config = TotpConfig.defaultConfig();
 
     assertEquals(Duration.ofSeconds(30), config.timeStep());
     assertEquals(TotpDigits.SIX, config.digits());
-    assertEquals(TotpAlgorithm.HMAC_SHA512, config.algorithm());
+    assertEquals(TotpAlgorithm.HMAC_SHA1, config.algorithm());
   }
 
   @Test

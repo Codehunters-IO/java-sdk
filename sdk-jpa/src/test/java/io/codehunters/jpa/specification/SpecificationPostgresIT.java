@@ -14,6 +14,7 @@ import static io.codehunters.jpa.specification.SearchOperation.NOT_EQUAL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.codehunters.commons.error.ClientInputException;
 import io.codehunters.jpa.fixture.Customer;
 import io.codehunters.jpa.fixture.CustomerRepository;
 import io.codehunters.jpa.fixture.JpaFixtures;
@@ -165,6 +166,34 @@ class SpecificationPostgresIT {
               .hasRootCauseInstanceOf(InvalidSearchException.class)
               .rootCause()
               .hasMessageNotContaining("ten-dollars");
+        });
+  }
+
+  @Test
+  void should_not_name_the_internal_attribute_type_when_a_value_cannot_be_converted() {
+    runner.run(
+        context -> {
+          seed(context);
+          var spec = search.where(SearchCriteria.of("status", EQUAL, "NOT_A_STATUS"));
+
+          assertThatThrownBy(() -> context.getBean(OrderRepository.class).findAll(spec))
+              .rootCause()
+              .hasMessageNotContaining("OrderStatus")
+              .hasMessageNotContaining("NOT_A_STATUS");
+        });
+  }
+
+  @Test
+  void should_surface_a_conversion_failure_as_client_input_with_the_invalid_search_code() {
+    runner.run(
+        context -> {
+          seed(context);
+          var spec = search.where(SearchCriteria.of("amount", EQUAL, "ten-dollars"));
+
+          assertThatThrownBy(() -> context.getBean(OrderRepository.class).findAll(spec))
+              .rootCause()
+              .isInstanceOf(ClientInputException.class)
+              .hasFieldOrPropertyWithValue("code", "INVALID_SEARCH");
         });
   }
 

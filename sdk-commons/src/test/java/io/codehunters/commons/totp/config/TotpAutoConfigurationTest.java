@@ -16,12 +16,25 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class TotpAutoConfigurationTest {
 
-  private final ApplicationContextRunner contextRunner =
+  private final ApplicationContextRunner disabledRunner =
       new ApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(TotpAutoConfiguration.class));
 
+  private final ApplicationContextRunner contextRunner =
+      disabledRunner.withPropertyValues("codehunters.totp.enabled=true");
+
   @Test
-  void should_create_totp_generator_bean() {
+  void should_create_no_totp_bean_when_enabled_is_not_set() {
+    disabledRunner.run(
+        context ->
+            assertThat(context)
+                .hasNotFailed()
+                .doesNotHaveBean(TotpGenerator.class)
+                .doesNotHaveBean(TotpProperties.class));
+  }
+
+  @Test
+  void should_create_totp_generator_bean_when_enabled() {
     contextRunner.run(
         context -> {
           assertThat(context).hasSingleBean(TotpGenerator.class);
@@ -65,13 +78,13 @@ class TotpAutoConfigurationTest {
   }
 
   @Test
-  void should_apply_defaults_when_no_property_is_set() {
+  void should_apply_authenticator_app_defaults_when_no_property_is_set() {
     contextRunner.run(
         context -> {
           var props = context.getBean(TotpProperties.class);
           assertThat(props.timeStep()).isEqualTo(Duration.ofSeconds(30));
           assertThat(props.digits()).isEqualTo(TotpDigits.SIX);
-          assertThat(props.algorithm()).isEqualTo(TotpAlgorithm.HMAC_SHA512);
+          assertThat(props.algorithm()).isEqualTo(TotpAlgorithm.HMAC_SHA1);
         });
   }
 

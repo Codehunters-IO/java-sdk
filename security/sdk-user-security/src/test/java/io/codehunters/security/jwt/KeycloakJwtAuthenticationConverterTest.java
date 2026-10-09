@@ -1,6 +1,7 @@
 package io.codehunters.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.security.KeycloakPrincipal;
 import java.util.List;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 
 class KeycloakJwtAuthenticationConverterTest {
 
@@ -69,6 +71,16 @@ class KeycloakJwtAuthenticationConverterTest {
         converter.convert(jwt(Map.of("realm_access", Map.of("roles", List.of("admin")))));
 
     assertThat(authorities(authentication)).containsExactly("ROLE_ADMIN");
+  }
+
+  @Test
+  void should_reject_a_token_without_a_subject_as_an_invalid_bearer_token() {
+    var withoutSubject =
+        Jwt.withTokenValue("token").header("alg", "RS256").claim("sid", "sid-1").build();
+
+    assertThatThrownBy(() -> converter.convert(withoutSubject))
+        .isInstanceOf(InvalidBearerTokenException.class)
+        .hasMessage("The token has no subject");
   }
 
   private static Jwt jwt(Map<String, Object> extraClaims) {

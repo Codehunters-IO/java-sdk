@@ -106,12 +106,55 @@ class JasperAutoConfigurationTest {
                       context
                           .getBean(MeterRegistry.class)
                           .get("report.render")
+                          .tag("template", "orders.jrxml")
                           .tag("format", "pdf")
                           .tag("outcome", "SUCCESS")
                           .timer()
                           .count())
                   .isEqualTo(1);
             });
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class TwoMeters {
+    @Bean
+    MeterRegistry firstRegistry() {
+      return new SimpleMeterRegistry();
+    }
+
+    @Bean
+    MeterRegistry secondRegistry() {
+      return new SimpleMeterRegistry();
+    }
+  }
+
+  @Test
+  void should_declare_a_single_renderer_bean_when_a_meter_registry_exists() {
+    runner
+        .withUserConfiguration(Meters.class)
+        .run(
+            context ->
+                assertThat(context.getBeanNamesForType(ReportRenderer.class))
+                    .containsExactly("reportRenderer"));
+  }
+
+  @Test
+  void should_register_a_plain_renderer_when_the_meter_registry_is_ambiguous() {
+    runner
+        .withUserConfiguration(TwoMeters.class)
+        .run(
+            context ->
+                assertThat(context.getBean(ReportRenderer.class))
+                    .isInstanceOf(JasperReportRenderer.class));
+  }
+
+  @Test
+  void should_back_off_when_the_application_defines_its_own_renderer_without_meters() {
+    runner
+        .withUserConfiguration(OwnRenderer.class)
+        .run(
+            context ->
+                assertThat(context).getBean(ReportRenderer.class).isSameAs(OwnRenderer.RENDERER));
   }
 
   @Test

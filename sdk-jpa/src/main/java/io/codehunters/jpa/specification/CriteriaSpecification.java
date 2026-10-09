@@ -118,11 +118,11 @@ final class CriteriaSpecification<T> implements Specification<T> {
     try {
       var converted = conversionService().convert(value, target);
       if (converted == null) {
-        throw cannotConvert(target);
+        throw cannotConvert();
       }
       return converted;
     } catch (ConversionException | IllegalArgumentException e) {
-      throw cannotConvert(target);
+      throw cannotConvert();
     }
   }
 
@@ -130,9 +130,12 @@ final class CriteriaSpecification<T> implements Specification<T> {
     return conversions != null ? conversions : ApplicationConversionService.getSharedInstance();
   }
 
-  private static InvalidSearchException cannotConvert(Class<?> target) {
-    return new InvalidSearchException(
-        "a search value cannot be converted to " + target.getSimpleName());
+  /**
+   * The message names neither the value nor the attribute's Java type, which can be an internal
+   * name (an enum such as {@code InternalRiskTier}) the client never sees.
+   */
+  private static InvalidSearchException cannotConvert() {
+    return new InvalidSearchException("a search value has the wrong format for this field");
   }
 
   private static Class<?> targetType(Path<?> path) {

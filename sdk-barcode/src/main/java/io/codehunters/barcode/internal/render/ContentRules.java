@@ -1,6 +1,7 @@
 package io.codehunters.barcode.internal.render;
 
 import io.codehunters.barcode.BarcodeFormat;
+import io.codehunters.barcode.BarcodeRejectedException;
 import java.util.regex.Pattern;
 
 /**
@@ -35,12 +36,12 @@ public final class ContentRules {
   private static void gtin(String name, String content, int dataDigits) {
     int length = content.length();
     if (!DIGITS.matcher(content).matches() || length < dataDigits || length > dataDigits + 1) {
-      throw new IllegalArgumentException(
+      throw BarcodeRejectedException.content(
           name + " content must be " + dataDigits + " or " + (dataDigits + 1) + " digits");
     }
     if (length > dataDigits
         && checkDigit(content, dataDigits) != content.charAt(dataDigits) - '0') {
-      throw new IllegalArgumentException(name + " check digit does not match");
+      throw BarcodeRejectedException.content(name + " check digit does not match");
     }
   }
 
@@ -56,7 +57,7 @@ public final class ContentRules {
 
   private static void itf(String content) {
     if (!DIGITS.matcher(content).matches() || content.length() % 2 != 0) {
-      throw new IllegalArgumentException("ITF content must be an even number of digits");
+      throw BarcodeRejectedException.content("ITF content must be an even number of digits");
     }
     maxLength("ITF", content, LINEAR_MAX);
   }
@@ -64,13 +65,14 @@ public final class ContentRules {
   private static void linear(String name, String content, Pattern alphabet, String allowed) {
     maxLength(name, content, LINEAR_MAX);
     if (!alphabet.matcher(content).matches()) {
-      throw new IllegalArgumentException(name + " content may only contain " + allowed);
+      throw BarcodeRejectedException.content(name + " content may only contain " + allowed);
     }
   }
 
   private static void maxLength(String name, String content, int max) {
     if (content.length() > max) {
-      throw new IllegalArgumentException(name + " content must be at most " + max + " characters");
+      throw BarcodeRejectedException.content(
+          name + " content must be at most " + max + " characters");
     }
   }
 }

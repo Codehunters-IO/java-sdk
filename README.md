@@ -15,8 +15,8 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 
 | Module | Package | Version | Docs |
 |---|---|---|---|
-| `sdk-bom` | — (BOM, `java-platform`) | 2.0.0 | [below](#using-the-bom) |
-| `sdk-user-security` | `io.codehunters.security` | 4.0.0 | [README](security/sdk-user-security/README.md) · [MIGRATION 4.0](security/sdk-user-security/MIGRATION-4.0.md) |
+| `sdk-bom` | — (BOM, `java-platform`) | 3.1.0 | [below](#using-the-bom) |
+| `sdk-user-security` | `io.codehunters.security` | 4.1.0 | [README](security/sdk-user-security/README.md) · [MIGRATION 4.0](security/sdk-user-security/MIGRATION-4.0.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 4.0.0 | [README](security/sdk-user-security-authz/README.md) · [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 2.0.0 | [README](sdk-tracing/README.md) · [MIGRATION 2.0](sdk-tracing/MIGRATION-2.0.md) |
 | `sdk-event-messaging-core` | `io.codehunters.messaging` | 8.0.0 | [README](messaging/sdk-event-messaging-core/README.md) · [MIGRATION 6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) · [8.0](messaging/MIGRATION-8.0.md) |
@@ -24,16 +24,16 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-event-messaging-rabbit` | `io.codehunters.messaging.rabbit` | 8.0.0 | [README](messaging/sdk-event-messaging-rabbit/README.md) |
 | `sdk-event-messaging-kafka` | `io.codehunters.messaging.kafka` | 8.0.0 | [README](messaging/sdk-event-messaging-kafka/README.md) |
 | `sdk-file-share` | `io.codehunters.fileshare` | 3.0.0 | [README](sdk-file-share/README.md) · [MIGRATION 3.0](sdk-file-share/MIGRATION-3.0.md) |
-| `sdk-audit-log` | `io.codehunters.audit` | 4.0.0 | [README](sdk-audit-log/README.md) · [MIGRATION 4.0](sdk-audit-log/MIGRATION-4.0.md) |
+| `sdk-audit-log` | `io.codehunters.audit` | 4.1.0 | [README](sdk-audit-log/README.md) · [MIGRATION 4.0](sdk-audit-log/MIGRATION-4.0.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 4.0.0 | [README](sdk-measure-micrometer/README.md) · [MIGRATION 4.0](sdk-measure-micrometer/MIGRATION-4.0.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | 3.0.0 | [README](sdk-parameter/README.md) · [MIGRATION 3.0](sdk-parameter/MIGRATION-3.0.md) |
-| `sdk-commons` (includes the former `sdk-totp`) | `io.codehunters.commons` (TOTP in `io.codehunters.commons.totp`) | 2.0.0 | [README](sdk-commons/README.md) · [MIGRATION 2.0](sdk-commons/MIGRATION-2.0.md) |
-| `sdk-web` (former `sdk-web-errors`, `sdk-device`, `sdk-i18n`) | `io.codehunters.web.errors`, `io.codehunters.web.device`, `io.codehunters.web.i18n` | 2.0.0 | [README](sdk-web/README.md) · [MIGRATION 2.0](sdk-web/MIGRATION-2.0.md) |
-| `sdk-barcode` | `io.codehunters.barcode` | 2.0.0 | [README](sdk-barcode/README.md) · [MIGRATION 2.0](sdk-barcode/MIGRATION-2.0.md) |
-| `sdk-jasper` | `io.codehunters.jasper` | 2.0.0 | [README](sdk-jasper/README.md) · [MIGRATION 2.0](sdk-jasper/MIGRATION-2.0.md) |
-| `sdk-jpa` | `io.codehunters.jpa` | 2.0.0 | [README](sdk-jpa/README.md) · [MIGRATION 2.0](sdk-jpa/MIGRATION-2.0.md) |
+| `sdk-commons` (includes the former `sdk-totp`) | `io.codehunters.commons` (TOTP in `io.codehunters.commons.totp`) | 3.0.0 | [README](sdk-commons/README.md) · [MIGRATION 3.0](sdk-commons/MIGRATION-3.0.md) |
+| `sdk-web` (former `sdk-web-errors`, `sdk-device`, `sdk-i18n`) | `io.codehunters.web.errors`, `io.codehunters.web.device`, `io.codehunters.web.i18n` | 2.1.0 | [README](sdk-web/README.md) · [MIGRATION 2.0](sdk-web/MIGRATION-2.0.md) |
+| `sdk-barcode` | `io.codehunters.barcode` | 2.1.0 | [README](sdk-barcode/README.md) · [MIGRATION 2.0](sdk-barcode/MIGRATION-2.0.md) |
+| `sdk-jasper` | `io.codehunters.jasper` | 2.1.0 | [README](sdk-jasper/README.md) · [MIGRATION 2.0](sdk-jasper/MIGRATION-2.0.md) |
+| `sdk-jpa` | `io.codehunters.jpa` | 2.1.0 | [README](sdk-jpa/README.md) · [MIGRATION 2.0](sdk-jpa/MIGRATION-2.0.md) |
 | `sdk-geo-validation` | `io.codehunters.geo` | 1.1.0 | [README](sdk-geo-validation/README.md) · [MIGRATION](sdk-geo-validation/MIGRATION-1.0.md) |
-| `sdk-support` | `io.codehunters.support` | 1.0.0, internal | Legacy property aliases; brought in transitively |
+| `sdk-support` | `io.codehunters.support` | 1.0.1, internal | Legacy property aliases; brought in transitively |
 
 Packages follow one layout ([ADR 0020](docs/adr/0020-package-by-capability.md)): the module's root
 package is its API, sub-packages are named by capability, `config` holds auto-configuration and
@@ -52,7 +52,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.codehunters:sdk-bom:2.0.0"))
+    implementation(platform("io.codehunters:sdk-bom:3.1.0"))
     implementation("io.codehunters:sdk-user-security")
     implementation("io.codehunters:sdk-event-messaging-jdbc")
     implementation("io.codehunters:sdk-event-messaging-rabbit")
@@ -67,7 +67,7 @@ Maven:
     <dependency>
       <groupId>io.codehunters</groupId>
       <artifactId>sdk-bom</artifactId>
-      <version>2.0.0</version>
+      <version>3.1.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -84,16 +84,16 @@ but Maven's nearest-wins mediation can still mix versions of `sdk-support` and
 Do it one module at a time; each module's `MIGRATION-*.md` (or CHANGELOG, for security and tracing)
 has the full checklist. What every service has to look at:
 
-1. **Coordinates.** Import `sdk-bom:2.0.0` and drop explicit SDK versions.
+1. **Coordinates.** Import `sdk-bom:3.1.0` and drop explicit SDK versions.
 
    | Before | Now |
    |---|---|
-   | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 7.0.0 (`-core` alone for the model) |
-   | `sdk-user-security:2.x` with the policy enforcer | `sdk-user-security` + `sdk-user-security-authz` 3.0.0 |
-   | `sdk-utils:1.x`, `sdk-totp:2.0.0` | `sdk-commons:1.1.0` |
-   | `sdk-i18n:0.x` or `1.0.0` | `sdk-web:1.0.0` |
-   | `sdk-web-errors:1.0.0`, `sdk-device:1.0.0` | `sdk-web:1.0.0` |
-   | `sdk-geo-validation:0.2.0` (raffle port) | `sdk-geo-validation:1.0.0`, domain-agnostic: see its MIGRATION-1.0 |
+   | `sdk-event-messaging:5.x` | `sdk-event-messaging-jdbc` + `-rabbit` or `-kafka` 8.0.0 (`-core` alone for the model) |
+   | `sdk-user-security:2.x` with the policy enforcer | `sdk-user-security` 4.1.0 + `sdk-user-security-authz` 4.0.0 |
+   | `sdk-utils:1.x`, `sdk-totp:2.0.0` | `sdk-commons:3.0.0` (see TOTP below) |
+   | `sdk-i18n:0.x` or `1.0.0` | `sdk-web:2.1.0` |
+   | `sdk-web-errors:1.0.0`, `sdk-device:1.0.0` | `sdk-web:2.1.0` |
+   | `sdk-geo-validation:0.2.0` (raffle port) | `sdk-geo-validation:1.1.0`, domain-agnostic: see its MIGRATION-1.0 |
 
 2. **Duplicate classes (Maven only).** `sdk-event-messaging-core` replaces `sdk-event-messaging`,
    `sdk-commons` replaces `sdk-totp` and `sdk-utils`, and `sdk-web` replaces `sdk-web-errors`,
@@ -134,9 +134,23 @@ has the full checklist. What every service has to look at:
    - Both: consumers deduplicate on the `outbox-message-id` header.
 7. **Security.** `codehunters.security.audiences` is required (or `allow-any-audience=true`),
    introspection `fail-open` now defaults to `false`, and gateway identity headers must agree with the token.
-8. **Dashboards.** `sdk-measure-micrometer` renames its meters
+8. **TOTP.** From `sdk-commons` 3.0.0 the defaults are HMAC-SHA1, 6 digits and 30 s, which
+   authenticator apps expect, and the TOTP auto-configuration is opt-in: set
+   `codehunters.totp.enabled=true`. Secrets created with the old SHA-512 default must keep
+   `codehunters.totp.algorithm=hmac-sha512` ([commons 3.0](sdk-commons/MIGRATION-3.0.md)).
+9. **Dashboards.** `sdk-measure-micrometer` renames its meters
    ([table](sdk-measure-micrometer/MIGRATION-3.0.md)); audit `errorMessage` holds exception class
    names.
+10. **Client input errors.** From `sdk-web` 2.1.0 an exception extending `sdk-commons`'
+    `ClientInputException` answers 400 with its stable `code`, also behind known wrappers such as
+    `InvalidDataAccessApiUsageException`: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa` 2.1.0),
+    `BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). Before, these
+    answered 500. Rejections raised while Spring binds the request keep the framework's generic 400
+    ([sdk-web](sdk-web/README.md)).
+11. **Audit startup checks.** From `sdk-audit-log` 4.1.0, `@Auditable` methods with no publisher or
+    no `aspectjweaver`, or with an unparseable expression, log an ERROR at startup, or fail it with
+    `codehunters.audit.startup-check.fail-fast=true`; on servlet apps the actor defaults to the
+    Spring Security user while a request is bound ([audit](sdk-audit-log/README.md)).
 
 ## Build
 
