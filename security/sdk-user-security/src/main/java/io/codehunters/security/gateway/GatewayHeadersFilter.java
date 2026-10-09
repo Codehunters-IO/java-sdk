@@ -1,6 +1,7 @@
 package io.codehunters.security.gateway;
 
 import io.codehunters.security.Authorities;
+import io.codehunters.security.KeycloakAuthenticationToken;
 import io.codehunters.security.KeycloakPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -160,13 +161,22 @@ public class GatewayHeadersFilter extends OncePerRequestFilter {
             request.getHeader(GEO_IP),
             request.getHeader(HttpHeaders.USER_AGENT),
             principal.sessionId());
+    SecurityContext context = SecurityContextHolder.getContextHolderStrategy().createEmptyContext();
+    context.setAuthentication(rewrap(authentication, enriched));
+    return context;
+  }
+
+  // The validated token stays with the authentication, so later filters never read it again from
+  // the request.
+  private static Authentication rewrap(Authentication authentication, KeycloakPrincipal enriched) {
+    if (authentication instanceof KeycloakAuthenticationToken keycloak) {
+      return keycloak.withPrincipal(enriched);
+    }
     var token =
         UsernamePasswordAuthenticationToken.authenticated(
             enriched, authentication.getCredentials(), authentication.getAuthorities());
     token.setDetails(authentication.getDetails());
-    SecurityContext context = SecurityContextHolder.getContextHolderStrategy().createEmptyContext();
-    context.setAuthentication(token);
-    return context;
+    return token;
   }
 
   private void reject(HttpServletRequest request, HttpServletResponse response, String detail)

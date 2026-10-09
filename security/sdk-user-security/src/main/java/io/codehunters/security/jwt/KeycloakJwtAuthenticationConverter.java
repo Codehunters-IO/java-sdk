@@ -1,6 +1,7 @@
 package io.codehunters.security.jwt;
 
 import io.codehunters.security.Authorities;
+import io.codehunters.security.KeycloakAuthenticationToken;
 import io.codehunters.security.KeycloakPrincipal;
 import java.util.Collection;
 import java.util.List;
@@ -8,16 +9,16 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 
 /**
- * Turns a verified Keycloak access token into an authentication whose principal is a {@link
- * KeycloakPrincipal} and whose authorities are the realm roles plus the roles of the configured
- * clients, as {@code ROLE_<NAME>}.
+ * Turns a verified Keycloak access token into a {@link KeycloakAuthenticationToken}: the principal
+ * is a {@link KeycloakPrincipal}, the authorities are the realm roles plus the roles of the
+ * configured clients, as {@code ROLE_<NAME>}, and the token stays available after Spring Security
+ * erases credentials.
  */
 public class KeycloakJwtAuthenticationConverter
     implements Converter<Jwt, AbstractAuthenticationToken> {
@@ -49,7 +50,7 @@ public class KeycloakJwtAuthenticationConverter
             null,
             null,
             jwt.getClaimAsString("sid"));
-    return UsernamePasswordAuthenticationToken.authenticated(principal, jwt, authorities(jwt));
+    return new KeycloakAuthenticationToken(jwt, principal, authorities(jwt));
   }
 
   private List<GrantedAuthority> authorities(Jwt jwt) {

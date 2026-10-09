@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -41,7 +42,7 @@ class KeycloakJwtAuthenticationConverterTest {
   void should_keep_the_validated_token_when_credentials_are_erased() {
     Jwt jwt = jwt(Map.of());
 
-    Authentication authentication = converter.convert(jwt);
+    AbstractAuthenticationToken authentication = converter.convert(jwt);
     authentication.eraseCredentials();
 
     assertThat(authentication)

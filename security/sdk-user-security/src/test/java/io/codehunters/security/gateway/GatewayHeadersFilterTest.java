@@ -59,8 +59,7 @@ class GatewayHeadersFilterTest {
 
     assertThat(SecurityContextHolder.getContext().getAuthentication())
         .isInstanceOfSatisfying(
-            KeycloakAuthenticationToken.class,
-            token -> assertThat(token.getToken()).isSameAs(jwt));
+            KeycloakAuthenticationToken.class, token -> assertThat(token.getToken()).isSameAs(jwt));
   }
 
   @Test
