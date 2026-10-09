@@ -10,27 +10,22 @@ import jakarta.validation.constraints.NotNull;
 import java.util.Locale;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.validation.autoconfigure.ValidationAutoConfiguration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
-import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.context.support.ReloadableResourceBundleMessageSource;
-import org.springframework.context.support.StaticMessageSource;
+import org.springframework.context.support.DelegatingMessageSource;
+import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.validation.beanvalidation.LocalValidatorFactoryBean;
 import org.springframework.web.servlet.LocaleResolver;
+import org.springframework.web.servlet.i18n.FixedLocaleResolver;
 
-@ExtendWith(OutputCaptureExtension.class)
 class I18nAutoConfigurationTest {
 
   private static final Locale ENGLISH = Locale.of("en");
@@ -40,9 +35,15 @@ class I18nAutoConfigurationTest {
       new WebApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class));
 
-  private final ApplicationContextRunner plainRunner =
-      new ApplicationContextRunner()
-          .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class));
+  private final WebApplicationContextRunner bootRunner =
+      new WebApplicationContextRunner()
+          .withConfiguration(
+              AutoConfigurations.of(
+                  I18nAutoConfiguration.class,
+                  MessageSourceAutoConfiguration.class,
+                  ValidationAutoConfiguration.class,
+                  WebMvcAutoConfiguration.class))
+          .withPropertyValues("spring.messages.fallback-to-system-locale=false");
 
   @AfterEach
   void resetLocale() {
@@ -50,26 +51,35 @@ class I18nAutoConfigurationTest {
   }
 
   @Test
-  void should_register_all_beans_when_running_in_a_servlet_application() {
+  void should_register_the_header_locale_resolver_when_running_in_a_servlet_application() {
     webRunner.run(
-        context -> {
-          assertThat(context.getBean("messageSource"))
-              .isInstanceOf(ReloadableResourceBundleMessageSource.class);
-          assertThat(context.getBean("localeResolver"))
-              .isInstanceOf(XLocaleAwareLocaleResolver.class);
-          assertThat(context).hasSingleBean(FilterRegistrationBean.class);
-          assertThat(context).doesNotHaveBean(Validator.class);
-        });
+        context ->
+            assertThat(context.getBean("localeResolver"))
+                .isInstanceOf(XLocaleAwareLocaleResolver.class));
   }
 
   @Test
-  void should_skip_web_beans_when_application_is_not_a_servlet_application() {
-    plainRunner.run(
-        context -> {
-          assertThat(context).hasBean("messageSource");
-          assertThat(context).doesNotHaveBean(LocaleResolver.class);
-          assertThat(context).doesNotHaveBean(FilterRegistrationBean.class);
-        });
+  void should_register_no_mdc_filter_when_it_is_not_enabled() {
+    webRunner.run(context -> assertThat(context).doesNotHaveBean(FilterRegistrationBean.class));
+  }
+
+  @Test
+  void should_register_no_message_source_of_its_own() {
+    webRunner.run(
+        context ->
+            assertThat(context.getBean("messageSource"))
+                .isInstanceOf(DelegatingMessageSource.class));
+  }
+
+  @Test
+  void should_register_nothing_when_application_is_not_a_servlet_application() {
+    new ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class))
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(I18nProperties.class);
+              assertThat(context).doesNotHaveBean(LocaleResolver.class);
+            });
   }
 
   @Test
@@ -80,73 +90,51 @@ class I18nAutoConfigurationTest {
             context -> {
               assertThat(context).doesNotHaveBean(I18nProperties.class);
               assertThat(context).doesNotHaveBean(LocaleResolver.class);
-              assertThat(context).doesNotHaveBean(LocalValidatorFactoryBean.class);
             });
   }
 
   @Test
-  void should_read_messages_from_configured_basenames() {
-    plainRunner
-        .withPropertyValues(
-            "codehunters.web.i18n.basename=classpath:i18n/messages,classpath:i18n/extra")
-        .run(
-            context -> {
-              assertThat(context.getMessage("greeting", null, ENGLISH)).isEqualTo("Hello");
-              assertThat(context.getMessage("farewell", null, ENGLISH)).isEqualTo("Bye");
-            });
-  }
-
-  @Test
-  void should_use_default_locale_bundle_when_requested_locale_has_none() {
-    plainRunner
-        .withPropertyValues("codehunters.web.i18n.default-locale=en")
-        .run(
-            context ->
-                assertThat(context.getMessage("greeting", null, Locale.of("fr")))
-                    .isEqualTo("Hello"));
-  }
-
-  @Test
-  void should_apply_locale_properties_to_the_resolver() {
+  void should_take_the_default_locale_from_spring_web_locale() {
     webRunner
-        .withPropertyValues(
-            "codehunters.web.i18n.default-locale=en",
-            "codehunters.web.i18n.supported-locales=en,es")
+        .withPropertyValues("spring.web.locale=en")
         .run(
-            context -> {
-              var resolver = context.getBean(XLocaleAwareLocaleResolver.class);
-              assertThat(resolver.resolveLocale(new MockHttpServletRequest())).isEqualTo(ENGLISH);
-              assertThat(resolver.getSupportedLocales()).containsExactly(ENGLISH, SPANISH);
-            });
+            context ->
+                assertThat(
+                        context
+                            .getBean(XLocaleAwareLocaleResolver.class)
+                            .resolveLocale(new MockHttpServletRequest()))
+                    .isEqualTo(ENGLISH));
   }
 
   @Test
-  void should_back_off_message_source_when_application_defines_one_named_message_source() {
-    plainRunner
-        .withUserConfiguration(NamedMessageSourceConfig.class)
-        .run(
-            context ->
-                assertThat(context.getBean("messageSource"))
-                    .isInstanceOf(StaticMessageSource.class));
+  void should_use_container_locale_without_headers_when_spring_web_locale_is_not_set() {
+    webRunner.run(
+        context ->
+            assertThat(
+                    context
+                        .getBean(XLocaleAwareLocaleResolver.class)
+                        .resolveLocale(requestWithContainerLocale(Locale.JAPAN)))
+                .isEqualTo(Locale.JAPAN));
+  }
+
+  // The container's locale without an Accept-Language header is the server's default locale.
+  private static MockHttpServletRequest requestWithContainerLocale(Locale locale) {
+    return new MockHttpServletRequest() {
+      @Override
+      public Locale getLocale() {
+        return locale;
+      }
+    };
   }
 
   @Test
-  void should_keep_its_message_source_when_application_message_source_has_another_name() {
-    plainRunner
-        .withUserConfiguration(OtherMessageSourceConfig.class)
+  void should_apply_supported_locales_to_the_resolver() {
+    webRunner
+        .withPropertyValues("codehunters.web.i18n.supported-locales=en,es")
         .run(
             context ->
-                assertThat(context.getBean("messageSource"))
-                    .isInstanceOf(ReloadableResourceBundleMessageSource.class));
-  }
-
-  @Test
-  void should_warn_when_spring_messages_basename_is_set(CapturedOutput output) {
-    plainRunner
-        .withPropertyValues("spring.messages.basename=messages")
-        .run(
-            context ->
-                assertThat(output).contains("spring.messages.*").contains("codehunters.web.i18n"));
+                assertThat(context.getBean(XLocaleAwareLocaleResolver.class).getSupportedLocales())
+                    .containsExactly(ENGLISH, SPANISH));
   }
 
   @Test
@@ -154,102 +142,82 @@ class I18nAutoConfigurationTest {
     webRunner
         .withUserConfiguration(LocaleResolverConfig.class)
         .run(
-            context -> {
-              assertThat(context).hasSingleBean(LocaleResolver.class);
-              assertThat(context.getBean(LocaleResolver.class))
-                  .isNotInstanceOf(XLocaleAwareLocaleResolver.class);
-            });
+            context ->
+                assertThat(context.getBean(LocaleResolver.class))
+                    .isInstanceOf(FixedLocaleResolver.class));
   }
 
   @Test
-  void should_register_filter_at_configured_order_when_running_in_a_servlet_application() {
-    webRunner.run(
-        context -> {
-          FilterRegistrationBean<?> registration = context.getBean(FilterRegistrationBean.class);
-          assertThat(registration.getOrder())
-              .isEqualTo(I18nAutoConfiguration.LOCALE_MDC_FILTER_ORDER);
-          assertThat(registration.getFilter()).isInstanceOf(LocaleMdcFilter.class);
-          assertThat(registration.getUrlPatterns()).contains("/*");
-          assertThat(registration.determineDispatcherTypes())
-              .containsExactlyInAnyOrder(
-                  DispatcherType.REQUEST, DispatcherType.ASYNC, DispatcherType.ERROR);
-        });
-  }
-
-  @Test
-  void should_warn_when_spring_web_locale_is_set(CapturedOutput output) {
-    webRunner
-        .withPropertyValues("spring.web.locale=en")
+  void should_leave_boot_fixed_locale_resolver_when_spring_web_locale_resolver_is_fixed() {
+    bootRunner
+        .withPropertyValues("spring.web.locale-resolver=fixed", "spring.web.locale=en")
         .run(
             context ->
-                assertThat(output).contains("spring.web.locale").contains("codehunters.web.i18n"));
+                assertThat(context.getBean("localeResolver"))
+                    .isInstanceOf(FixedLocaleResolver.class));
   }
 
   @Test
-  void should_warn_when_spring_web_locale_resolver_is_set(CapturedOutput output) {
+  void should_replace_boot_accept_header_resolver_when_spring_web_locale_resolver_is_default() {
+    bootRunner
+        .withPropertyValues("spring.web.locale-resolver=accept-header")
+        .run(
+            context ->
+                assertThat(context.getBean("localeResolver"))
+                    .isInstanceOf(XLocaleAwareLocaleResolver.class));
+  }
+
+  @Test
+  void should_register_mdc_filter_at_its_order_when_enabled() {
     webRunner
-        .withPropertyValues("spring.web.locale-resolver=fixed")
-        .run(context -> assertThat(output).contains("spring.web.locale-resolver"));
-  }
-
-  @Test
-  void should_resolve_constraint_messages_through_boot_validator() {
-    LocaleContextHolder.setLocale(ENGLISH);
-
-    plainRunner
-        .withConfiguration(AutoConfigurations.of(ValidationAutoConfiguration.class))
+        .withPropertyValues("codehunters.web.i18n.mdc.enabled=true")
         .run(
             context -> {
-              assertThat(context).hasSingleBean(Validator.class).hasBean("defaultValidator");
-              assertThat(context.getBean(Validator.class).validate(new Order(null)))
-                  .extracting(violation -> violation.getMessage())
-                  .containsExactly("The order id is required");
+              FilterRegistrationBean<?> registration =
+                  context.getBean(FilterRegistrationBean.class);
+              assertThat(registration.getOrder())
+                  .isEqualTo(I18nAutoConfiguration.LOCALE_MDC_FILTER_ORDER);
+              assertThat(registration.getFilter()).isInstanceOf(LocaleMdcFilter.class);
+              assertThat(registration.getUrlPatterns()).contains("/*");
+              assertThat(registration.determineDispatcherTypes())
+                  .containsExactlyInAnyOrder(
+                      DispatcherType.REQUEST, DispatcherType.ASYNC, DispatcherType.ERROR);
             });
   }
 
   @Test
-  void should_take_precedence_over_boot_auto_configurations() {
-    new WebApplicationContextRunner()
-        .withConfiguration(
-            AutoConfigurations.of(
-                I18nAutoConfiguration.class,
-                MessageSourceAutoConfiguration.class,
-                ValidationAutoConfiguration.class,
-                WebMvcAutoConfiguration.class))
-        .withPropertyValues("spring.messages.basename=i18n/extra")
+  void should_keep_boot_message_source_when_spring_messages_basename_is_set() {
+    bootRunner
+        .withPropertyValues("spring.messages.basename=i18n/messages,i18n/extra")
         .run(
             context -> {
               assertThat(context.getBean("messageSource"))
-                  .isInstanceOf(ReloadableResourceBundleMessageSource.class);
-              assertThat(context.getBean("localeResolver"))
-                  .isInstanceOf(XLocaleAwareLocaleResolver.class);
-              assertThat(context).hasSingleBean(Validator.class).hasBean("defaultValidator");
+                  .isInstanceOf(ResourceBundleMessageSource.class);
+              assertThat(context.getMessage("greeting", null, SPANISH)).isEqualTo("Hola");
+              assertThat(context.getMessage("farewell", null, ENGLISH)).isEqualTo("Bye");
             });
+  }
+
+  @Test
+  void should_resolve_constraint_messages_through_boot_message_source() {
+    LocaleContextHolder.setLocale(SPANISH);
+
+    bootRunner
+        .withPropertyValues("spring.messages.basename=i18n/messages")
+        .run(
+            context ->
+                assertThat(context.getBean(Validator.class).validate(new Order(null)))
+                    .extracting(violation -> violation.getMessage())
+                    .containsExactly("El id del pedido es obligatorio"));
   }
 
   record Order(@NotNull(message = "{order.id.required}") String id) {}
 
   @Configuration(proxyBeanMethods = false)
-  static class NamedMessageSourceConfig {
-    @Bean
-    MessageSource messageSource() {
-      return new StaticMessageSource();
-    }
-  }
-
-  @Configuration(proxyBeanMethods = false)
-  static class OtherMessageSourceConfig {
-    @Bean
-    MessageSource customSource() {
-      return new StaticMessageSource();
-    }
-  }
-
-  @Configuration(proxyBeanMethods = false)
   static class LocaleResolverConfig {
     @Bean
     LocaleResolver localeResolver() {
-      return new org.springframework.web.servlet.i18n.FixedLocaleResolver(ENGLISH);
+      return new FixedLocaleResolver(ENGLISH);
     }
   }
 }

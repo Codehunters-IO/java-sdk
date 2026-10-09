@@ -1,5 +1,5 @@
 /**
- * The servlet filter that enforces Keycloak Authorization Services policies on each request. The
- * auto-configuration registers it; applications rarely need to reference it directly.
+ * Keycloak's official servlet policy enforcer, adapted to run inside the Spring Security filter
+ * chain. The auto-configuration adds it; applications rarely need to reference it directly.
  */
 package io.codehunters.security.authz.servlet;

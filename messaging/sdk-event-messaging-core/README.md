@@ -49,6 +49,28 @@ A `null` or blank trace id takes the current trace when `sdk-tracing` is on the 
 `TraceContextPort` bean exists; an explicit trace id always wins. Without `sdk-tracing` the header
 keeps what the caller passed.
 
+## Trace continuity
+
+A row is published later, by a scheduled dispatch that has its own trace. So that the consumer
+continues the trace of the request that wrote the row, not the dispatcher's:
+
+1. `OutboxEventFactory` stores the current W3C context on the row (`OutboxMessage.traceparent`,
+   column `traceparent`), read from `TraceIdSource.currentTraceParent()`; with `sdk-tracing`, that
+   is `TraceContextPort.currentTraceParent()`. Nothing is stored when no trace is active, or when
+   an explicit trace id names another trace than the current one. Build the row on the thread that
+   does the work; a row built by hand can set `traceparent` itself.
+2. The transport adapter sends the stored value, unchanged, as the `traceparent` header (and as
+   `x-traceparent` when `publisher.legacy-traceparent-header=true`). The consumer's span thus
+   parents on the span that wrote the row. The outbox templates do not enable Boot's observation,
+   so no dispatcher context can override it.
+3. With Micrometer Tracing and a `Tracer` bean, `TracedMessagePublisher` makes the stored context
+   current around each publish: logs carry the request's trace id, and any span or observation
+   started inside the publish (for example on a template you instrument yourself) is a child of
+   the stored span, not of the scheduled run. The dispatcher's context comes back afterwards.
+
+Rows written before the `traceparent` column existed, or without a trace, are sent without the
+header.
+
 ## Dispatch semantics
 
 `SendOutboxMessagesUseCase` runs on every scheduler tick (from `-jdbc`), on one instance at a time.
@@ -99,6 +121,7 @@ All keys are under `codehunters.outbox`. Invalid values fail startup with a mess
 | `publisher.type` | unset | `rabbit` or `kafka`, case-insensitive; only needed with both transports present |
 | `publisher.rabbit.confirm-timeout` | `5s` | > 0 |
 | `publisher.kafka.send-timeout` | `5s` | > 0 (was `10s` in 5.x) |
+| `publisher.legacy-traceparent-header` | `false` | `true` also sends the stored context as `x-traceparent`, for consumers that read only that header |
 | `scheduling.enabled` | `true` | `false` leaves dispatch and purge scheduling to the application, see [`-jdbc`](../sdk-event-messaging-jdbc/README.md) |
 | `task.*`, `purge.*` | | Scheduler settings, see [`-jdbc`](../sdk-event-messaging-jdbc/README.md) |
 
@@ -107,7 +130,8 @@ All keys are under `codehunters.outbox`. Invalid values fail startup with a mess
 Every bean backs off when the application defines its own: `Clock` (UTC by default),
 `EventMessageFactory`, `OutboxEventFactory`, `SendOutboxMessagesPort`, `TraceIdSource`.
 `MessagePublisherDecorator` beans wrap the publisher handed to the use case, in bean order; the
-`outbox.publish` timer is one.
+`outbox.publish` timer is one, and so is the stored-trace restoration (`outboxTraceContextDecorator`,
+registered when a Micrometer `Tracer` bean exists).
 
 ## Known limits
 
@@ -128,12 +152,14 @@ Every bean backs off when the application defines its own: `Clock` (UTC by defau
 | `io.codehunters.messaging.factory` | `EventMessageFactory`, `OutboxEventFactory`, `TraceIdSource` |
 | `io.codehunters.messaging.dispatch` | `SendOutboxMessagesUseCase` |
 | `io.codehunters.messaging.metrics` | `MeteredMessagePublisher` |
+| `io.codehunters.messaging.tracing` | `TracedMessagePublisher` |
 | `io.codehunters.messaging.config` | Auto-configuration, `EventMessagingProperties`, transport condition |
 
 ## Migrating from 8.x
 
-The outbox supports PostgreSQL only, `claim.dialect` is gone and the old `outbox.*` keys are
-ignored; see [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+The outbox supports PostgreSQL only, `claim.dialect` is gone, the old `outbox.*` keys are ignored
+and rows store their `traceparent` (a new column to add before deploying); see
+[MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 7.x
 

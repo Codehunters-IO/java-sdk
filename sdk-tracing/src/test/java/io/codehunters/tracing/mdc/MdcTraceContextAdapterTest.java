@@ -41,12 +41,20 @@ class MdcTraceContextAdapterTest {
   }
 
   @Test
-  void should_treat_missing_flags_as_sampled() {
+  void should_report_not_sampled_when_mdc_has_no_trace_flags() {
     MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
     MDC.put(TraceHeaders.MDC_SPAN_ID, SPAN_ID);
 
-    assertThat(adapter.currentTraceParent())
-        .hasValueSatisfying(parent -> assertThat(parent.sampled()).isTrue());
+    assertThat(adapter.currentTraceParent()).contains(new TraceParent(TRACE_ID, SPAN_ID, false));
+  }
+
+  @Test
+  void should_report_sampled_when_mdc_trace_flags_are_sampled() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+    MDC.put(TraceHeaders.MDC_SPAN_ID, SPAN_ID);
+    MDC.put(TraceHeaders.MDC_TRACE_FLAGS, "01");
+
+    assertThat(adapter.currentTraceParent()).contains(new TraceParent(TRACE_ID, SPAN_ID, true));
   }
 
   @Test
@@ -55,6 +63,32 @@ class MdcTraceContextAdapterTest {
 
     assertThat(adapter.currentTraceParent())
         .hasValueSatisfying(parent -> assertThat(parent.traceId()).isEqualTo(TRACE_ID));
+  }
+
+  @Test
+  void should_report_not_sampled_when_mdc_holds_only_a_trace_id() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+
+    assertThat(adapter.currentTraceParent())
+        .hasValueSatisfying(parent -> assertThat(parent.sampled()).isFalse());
+  }
+
+  @Test
+  void should_keep_mdc_trace_flags_when_mdc_holds_no_span_id() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+    MDC.put(TraceHeaders.MDC_TRACE_FLAGS, "01");
+
+    assertThat(adapter.currentTraceParent())
+        .hasValueSatisfying(parent -> assertThat(parent.sampled()).isTrue());
+  }
+
+  @Test
+  void should_report_not_sampled_when_mdc_trace_flags_are_invalid() {
+    MDC.put(TraceHeaders.MDC_TRACE_ID, TRACE_ID);
+    MDC.put(TraceHeaders.MDC_SPAN_ID, SPAN_ID);
+    MDC.put(TraceHeaders.MDC_TRACE_FLAGS, "zz");
+
+    assertThat(adapter.currentTraceParent()).contains(new TraceParent(TRACE_ID, SPAN_ID, false));
   }
 
   @Test

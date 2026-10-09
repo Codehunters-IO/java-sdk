@@ -7,10 +7,10 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 4.0.0 | [below](#sdk-bom-400) | — |
+| `sdk-bom` | 5.0.0 | [below](#sdk-bom-500) | — |
 | `sdk-user-security` | 5.0.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | [4.0](security/sdk-user-security/MIGRATION-4.0.md) · [5.0](security/sdk-user-security/MIGRATION-5.0.md) |
 | `sdk-user-security-authz` | 5.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | [4.0](security/sdk-user-security-authz/MIGRATION-4.0.md) · [5.0](security/sdk-user-security-authz/MIGRATION-5.0.md) |
-| `sdk-tracing` | 2.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | [2.0](sdk-tracing/MIGRATION-2.0.md) |
+| `sdk-tracing` | 3.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | [2.0](sdk-tracing/MIGRATION-2.0.md) · [3.0](sdk-tracing/MIGRATION-3.0.md) |
 | `sdk-event-messaging-core` | 9.0.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) · [8.0](messaging/MIGRATION-8.0.md) · [9.0](messaging/MIGRATION-9.0.md) |
 | `sdk-event-messaging-jdbc` | 9.0.0 | [CHANGELOG](messaging/sdk-event-messaging-jdbc/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
 | `sdk-event-messaging-rabbit` | 9.0.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
@@ -26,7 +26,42 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-jpa` | 3.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [2.0](sdk-jpa/MIGRATION-2.0.md) · [3.0](sdk-jpa/MIGRATION-3.0.md) · [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-geo-validation` | 2.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [2.0](sdk-geo-validation/MIGRATION-2.0.md) |
 
-## sdk-bom 4.0.0
+## sdk-bom 5.0.0
+
+Shrinks the SDK onto the platform (architecture review, block 3). Folds in 4.0.0, which was never
+published:
+
+- `sdk-tracing` 3.0.0: built on Micrometer Tracing; keeps only the OpenTelemetry propagator for the
+  legacy gateway headers and a `TraceContextPort` backed by the `Tracer`
+  ([ADR 0022](docs/adr/0022-tracing-on-micrometer-tracing.md)). The servlet filter, task decorator
+  and RabbitMQ instrumentation are removed in favour of Boot's. Legacy `x-trace-id` requests are
+  sampled by trace-id ratio instead of always; the MDC fallback reports unsampled traces when it has
+  no flags, and the trace id is empty without a tracer bridge.
+- `sdk-event-messaging-*` 9.0.0: outbox rows store the writing request's `traceparent` (new column,
+  `postgresql/outbox_message_add_traceparent.sql`) and both transports publish it
+  ([ADR 0024](docs/adr/0024-outbox-carries-its-own-trace-context.md)). Values pass the shared
+  `W3cTraceParent` check first; invalid ones are stored as `NULL` and never sent.
+- `sdk-user-security-authz` 5.0.0: Keycloak's official policy enforcer inside the Spring Security
+  chain. It fails closed: every authenticated request is enforced unless its path is in
+  `skip-paths`; Keycloak only gets the token Spring Security validated, read from the
+  authentication, never from the request; other authentications, ambiguous encoded paths and
+  tokens outside the bearer charset, tokens that are not JWTs and permission tokens issued to
+  another client answer 403; paths match as Spring MVC matches them; a slow first build answers 503
+  after 5 s and a failed one during `retry-backoff`; startup fails when a public, excluded or
+  skipped path overlaps an enforced catalogued path in either direction; failures are counted as
+  `codehunters.authz.enforcer.failures`
+  ([ADR 0023](docs/adr/0023-authz-on-keycloak-policy-enforcer.md)).
+- `sdk-user-security` 5.0.0: bearer requests authenticate as `KeycloakAuthenticationToken`
+  (`AbstractOAuth2TokenAuthenticationToken<Jwt>`), so the validated token survives credential
+  erasure; the principal is still the `KeycloakPrincipal`. Only access tokens (`typ` = `Bearer`)
+  are accepted by default (`codehunters.security.require-access-token-type`).
+- `sdk-web` 3.0.0: i18n on Boot's message source and an `X-Locale` resolver with Boot's defaults
+  that always answers a supported locale; 401/403 details follow the application's locale
+  resolver; without an application bundle the errors part registers a message source with the SDK
+  bundle, which now ships an explicit English file
+  ([ADR 0025](docs/adr/0025-i18n-on-boot-message-source.md)).
+
+## sdk-bom 4.0.0 (not published on its own)
 
 PostgreSQL only, configuration under `codehunters.*` only, no aliases for older property prefixes
 ([ADR 0021](docs/adr/0021-postgresql-only-and-codehunters-properties.md)). Folds in 3.1.0, which

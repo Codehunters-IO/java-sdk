@@ -96,8 +96,8 @@
       "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
       "deprecation": {
         "level": "error",
-        "replacement": "codehunters.web.i18n.basename",
-        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+        "replacement": "spring.messages.basename",
+        "reason": "sdk-web 3.0.0 uses Spring Boot's spring.messages.basename."
       }
     },
     {
@@ -106,8 +106,8 @@
       "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
       "deprecation": {
         "level": "error",
-        "replacement": "codehunters.web.i18n.default-locale",
-        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+        "replacement": "spring.web.locale",
+        "reason": "sdk-web 3.0.0 uses Spring Boot's spring.web.locale."
       }
     },
     {
@@ -136,8 +136,8 @@
       "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
       "deprecation": {
         "level": "error",
-        "replacement": "codehunters.web.i18n.encoding",
-        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+        "replacement": "spring.messages.encoding",
+        "reason": "sdk-web 3.0.0 uses Spring Boot's spring.messages.encoding."
       }
     },
     {
@@ -146,8 +146,8 @@
       "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
       "deprecation": {
         "level": "error",
-        "replacement": "codehunters.web.i18n.fallback-to-system-locale",
-        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+        "replacement": "spring.messages.fallback-to-system-locale",
+        "reason": "sdk-web 3.0.0 uses Spring Boot's spring.messages.fallback-to-system-locale."
       }
     }
   ]

@@ -30,7 +30,9 @@ import org.springframework.kafka.core.ProducerFactory;
  *
  * <p>The publisher sends through its own idempotent {@code outboxKafkaTemplate}, derived from the
  * application's {@link ProducerFactory} configuration, so the application's template and
- * serializers are never used for outbox records.
+ * serializers are never used for outbox records. The template does not enable Boot's observation:
+ * the publisher writes the {@code traceparent} stored with each outbox row itself, so the consumer
+ * continues the request's trace, not the dispatcher's.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
@@ -158,6 +160,8 @@ public class EventMessagingKafkaAutoConfiguration {
       EventMessagingProperties properties) {
     properties.requireClaimBudget("kafka");
     return new KafkaMessagePublisherAdapter(
-        outboxKafkaTemplate, properties.publisher().kafka().sendTimeout());
+        outboxKafkaTemplate,
+        properties.publisher().kafka().sendTimeout(),
+        properties.publisher().legacyTraceparentHeader());
   }
 }

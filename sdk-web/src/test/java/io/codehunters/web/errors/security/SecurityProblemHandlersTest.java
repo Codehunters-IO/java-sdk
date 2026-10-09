@@ -9,9 +9,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.codehunters.web.errors.config.WebErrorsAutoConfiguration;
+import io.codehunters.web.i18n.config.I18nAutoConfiguration;
 import jakarta.servlet.Filter;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Locale;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.http.converter.autoconfigure.HttpMessageConvertersAutoConfiguration;
@@ -19,6 +22,7 @@ import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -54,6 +58,65 @@ class SecurityProblemHandlersTest {
                     .andExpect(header().string(HttpHeaders.WWW_AUTHENTICATE, startsWith("Bearer")))
                     .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
                     .andExpect(jsonPath("$.instance").value("/orders/order-42")));
+  }
+
+  @AfterEach
+  void resetLocale() {
+    LocaleContextHolder.resetLocaleContext();
+  }
+
+  @Test
+  void should_answer_401_in_the_x_locale_language_when_accept_language_names_another() {
+    runner
+        .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class))
+        .withUserConfiguration(SecureApplication.class, SecurityMessages.class)
+        .run(
+            context ->
+                secured(context)
+                    .perform(
+                        get("/orders/order-42")
+                            .header("X-Locale", "es")
+                            .header(HttpHeaders.ACCEPT_LANGUAGE, "en"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.detail").value(SecurityMessages.SPANISH_UNAUTHORIZED)));
+  }
+
+  @Test
+  void should_answer_403_in_the_x_locale_language_when_accept_language_names_another() {
+    runner
+        .withConfiguration(AutoConfigurations.of(I18nAutoConfiguration.class))
+        .withUserConfiguration(SecureApplication.class, SecurityMessages.class)
+        .run(
+            context ->
+                secured(context)
+                    .perform(
+                        get("/admin")
+                            .header(HttpHeaders.AUTHORIZATION, basicCredentials())
+                            .header("X-Locale", "es")
+                            .header(HttpHeaders.ACCEPT_LANGUAGE, "en"))
+                    .andExpect(status().isForbidden())
+                    .andExpect(jsonPath("$.detail").value(SecurityMessages.SPANISH_FORBIDDEN)));
+  }
+
+  @Test
+  void should_answer_401_in_the_current_locale_when_no_locale_resolver_is_registered() {
+    LocaleContextHolder.setLocale(Locale.of("es"));
+
+    new WebApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(WebErrorsAutoConfiguration.class))
+        .withUserConfiguration(SecurityMessages.class)
+        .run(
+            context -> {
+              var response = new MockHttpServletResponse();
+              context
+                  .getBean(ProblemAuthenticationEntryPoint.class)
+                  .commence(
+                      new MockHttpServletRequest("GET", "/orders"),
+                      response,
+                      new BadCredentialsException("bad"));
+              assertThat(response.getContentAsString())
+                  .contains(SecurityMessages.SPANISH_UNAUTHORIZED);
+            });
   }
 
   @Test

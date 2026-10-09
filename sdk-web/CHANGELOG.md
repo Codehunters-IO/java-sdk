@@ -7,12 +7,48 @@
 ### Changed
 - Properties move under the artifact's prefix: `codehunters.web-errors.*` →
   `codehunters.web.errors.*`, `codehunters.device.*` → `codehunters.web.device.*`,
-  `codehunters.i18n.*` → `codehunters.web.i18n.*`. Keys below the prefix keep their names; the old
-  prefixes are not read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+  `codehunters.i18n.*` → `codehunters.web.i18n.*`. Keys below the prefix keep their names, except the
+  i18n message-source and default-locale keys, now Boot's (see Removed); the old prefixes are not
+  read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
 - The configuration metadata lists every renamed key with `level: error` and its replacement, so
   IDEs and `spring-boot-properties-migrator` report keys still using the old prefixes.
+- i18n builds on Spring Boot instead of replacing it: the i18n part no longer registers a
+  `messageSource`, so Boot's applies and `spring.messages.*` is honoured (2.x ignored it with a
+  warning). The errors part appends its bundle to the application's message source, after the
+  application's bundles. When the application has no bundle (Boot registers no message source), the
+  errors part registers a `messageSource` with only its own bundle (UTF-8, no fallback to the JVM
+  locale), backing off on any bean named `messageSource`.
+- `XLocaleAwareLocaleResolver` extends Spring's `AcceptHeaderLocaleResolver` semantics: its
+  constructors are `(headerName)` and `(headerName, supportedLocales)`, the default locale comes
+  from `setDefaultLocale` (`spring.web.locale`), and `Accept-Language` without `supported-locales`
+  is the container's parse of it.
+
+### Behaviour changes
+- No SDK default locale: when no header resolves, the locale is `spring.web.locale`, else the
+  container's (the JVM default without `Accept-Language`), as with Boot. 2.x answered `es`.
+- Bundles follow Boot's defaults: base name `messages` at the class path root (2.x:
+  `classpath:i18n/messages`), fallback to the JVM locale on (2.x: off).
+- `XLocaleAwareLocaleResolver.setLocale` applies the locale to the rest of the request instead of
+  throwing `UnsupportedOperationException`, so `LocaleChangeInterceptor` works.
+- `spring.web.locale-resolver=fixed` makes the SDK's resolver back off for Boot's
+  `FixedLocaleResolver`; 2.x ignored it with a warning.
+- Spring Security 401 and 403 problem details resolve their locale with the application's
+  `localeResolver`, so they follow `X-Locale`; before they used `Accept-Language` only.
+- `LocaleMdcFilter` is registered only with `codehunters.web.i18n.mdc.enabled=true`. Its `locale`
+  MDC key reaches `@Async` threads only when the application propagates the MDC (e.g. Micrometer's
+  `Slf4jThreadLocalAccessor`).
+- With `supported-locales` set, the resolved locale is always a supported one: an unmatched
+  `Accept-Language`, or an unsupported container locale, gives `spring.web.locale` if supported,
+  else the first supported locale, as the `X-Locale` path already did.
+- The SDK's error bundle ships an explicit English file (`client-input_en.properties`), so an
+  English request on a JVM whose default locale is Spanish no longer falls back to the Spanish
+  details when `spring.messages.fallback-to-system-locale` is on.
 
 ### Removed
+- The i18n `messageSource` and the properties that configured it: `codehunters.i18n.basename`,
+  `encoding` and `fallback-to-system-locale` (use `spring.messages.*`), and `default-locale` (use
+  `spring.web.locale`). The startup warnings about `spring.messages.*` and `spring.web.locale*`
+  go with them.
 - The pre-1.0 i18n property aliases, their `EnvironmentPostProcessor` and their deprecated
   configuration metadata.
 - The dependency on `sdk-support`.
@@ -30,6 +66,10 @@
   Codes from the SDK: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa` 2.1.0), `BARCODE_IMAGE_REJECTED`,
   `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). See the README's "Client input errors".
 - `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
+- `codehunters.web.i18n.mdc.enabled` (default `false`).
+- `ProblemWriter.withLocaleResolver(LocaleResolver)`.
+- A startup `WARN` when the SDK's error bundle does not resolve through the application context
+  (probed with `error.INVALID_SORT`), e.g. with a `messageSource` that is not resource-based.
 
 ## 2.0.0
 

@@ -6,6 +6,9 @@ decision-makers: [andres]
 
 # 0002. Move the Keycloak policy enforcer to sdk-user-security-authz
 
+> The adapter technology (custom filter on `keycloak-authz-client`) is superseded by
+> [ADR 0023](0023-authz-on-keycloak-policy-enforcer.md); the separate artifact stays.
+
 ## Context and Problem Statement
 
 `sdk-user-security` contains the request authentication filter that every service uses and the

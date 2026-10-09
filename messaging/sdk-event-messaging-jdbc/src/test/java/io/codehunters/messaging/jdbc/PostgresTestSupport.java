@@ -16,6 +16,8 @@ final class PostgresTestSupport {
   static final String REFERENCE_DDL = "db/migration/outbox/postgresql/outbox_message_create.sql";
   static final String UPGRADE_DDL =
       "db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql";
+  static final String TRACEPARENT_UPGRADE_DDL =
+      "db/migration/outbox/postgresql/outbox_message_add_traceparent.sql";
 
   private static final String UPGRADE_SCHEMA = "upgraded_from_6x";
 
@@ -40,8 +42,9 @@ final class PostgresTestSupport {
   }
 
   /**
-   * A separate schema shaped like a 6.x install: the reference DDL without {@code send_started_at},
-   * then the 7.0 upgrade script applied twice to prove it is idempotent.
+   * A separate schema shaped like a 6.x install: the reference DDL without {@code send_started_at}
+   * and {@code traceparent}, then the 7.0 and 9.0 upgrade scripts, each applied twice to prove it
+   * is idempotent.
    */
   static synchronized DataSource upgradedDataSource() {
     if (upgradedDataSource == null) {
@@ -49,10 +52,12 @@ final class PostgresTestSupport {
       DataSource upgraded = createDataSource(UPGRADE_SCHEMA);
       loadReferenceDdl(upgraded);
       JdbcClient.create(upgraded)
-          .sql("ALTER TABLE outbox_message DROP COLUMN send_started_at")
+          .sql("ALTER TABLE outbox_message DROP COLUMN send_started_at, DROP COLUMN traceparent")
           .update();
       runScript(upgraded, UPGRADE_DDL);
       runScript(upgraded, UPGRADE_DDL);
+      runScript(upgraded, TRACEPARENT_UPGRADE_DDL);
+      runScript(upgraded, TRACEPARENT_UPGRADE_DDL);
       upgradedDataSource = upgraded;
     }
     return upgradedDataSource;

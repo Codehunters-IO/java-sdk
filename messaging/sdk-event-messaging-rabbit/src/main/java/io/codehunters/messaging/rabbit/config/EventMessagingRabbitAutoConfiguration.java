@@ -28,8 +28,9 @@ import org.springframework.context.annotation.Bean;
  * {@link ConnectionFactory} and kept out of by-type injection, so the application's {@link
  * RabbitTemplate}, message converter and listeners are never touched. That factory MUST enable
  * publisher confirms and returns ({@code spring.rabbitmq.publisher-confirm-type=simple} or {@code
- * correlated}, {@code spring.rabbitmq.publisher-returns=true}); otherwise startup fails. Trace
- * propagation is left to {@code sdk-tracing}, which instruments every {@link RabbitTemplate} bean.
+ * correlated}, {@code spring.rabbitmq.publisher-returns=true}); otherwise startup fails. The
+ * template does not enable Boot's observation: the publisher sends the {@code traceparent} stored
+ * with each outbox row itself, so the consumer continues the request's trace, not the dispatcher's.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the publisher is visible to the use
  * case's {@code @ConditionalOnBean}.
@@ -96,7 +97,9 @@ public class EventMessagingRabbitAutoConfiguration {
       EventMessagingProperties properties) {
     properties.requireClaimBudget("rabbit");
     return new RabbitMessagePublisherAdapter(
-        outboxRabbitTemplate, properties.publisher().rabbit().confirmTimeout());
+        outboxRabbitTemplate,
+        properties.publisher().rabbit().confirmTimeout(),
+        properties.publisher().legacyTraceparentHeader());
   }
 
   // waitForConfirmsOrDie works on any channel in confirm mode, simple or correlated.

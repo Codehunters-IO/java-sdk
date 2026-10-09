@@ -1,9 +1,11 @@
 # Migrating sdk-event-messaging to 9.0
 
-9.0 makes the outbox PostgreSQL-only and drops the pre-6.0 property names. The four artifacts
-(`-core`, `-jdbc`, `-rabbit`, `-kafka`) move to 9.0.0 together; import the matching
-`io.codehunters:sdk-bom` to keep them aligned. Java packages, beans, the `codehunters.outbox.*`
-keys (except `claim.dialect`), the dispatch semantics and the PostgreSQL DDL do not change.
+9.0 makes the outbox PostgreSQL-only, drops the pre-6.0 property names and stores the request's
+trace context with each row so the published message continues it. The four artifacts (`-core`,
+`-jdbc`, `-rabbit`, `-kafka`) move to 9.0.0 together; import the matching `io.codehunters:sdk-bom`
+to keep them aligned. Java packages, beans, the `codehunters.outbox.*` keys (except
+`claim.dialect`) and the dispatch semantics do not change; the PostgreSQL DDL gains one nullable
+column.
 
 **Coming from 7.x?** Apply [MIGRATION-8.0.md](MIGRATION-8.0.md) first (imports only). From 6.x,
 start with [MIGRATION-7.0.md](MIGRATION-7.0.md) (the `send_started_at` column); from 5.x, with
@@ -12,12 +14,19 @@ start with [MIGRATION-7.0.md](MIGRATION-7.0.md) (the `send_started_at` column); 
 ## Checklist
 
 1. Make sure the outbox runs on PostgreSQL. Other databases are no longer supported.
-2. Rename any remaining `outbox.*` key to `codehunters.outbox.*`; the old names are ignored now.
-3. Remove `codehunters.outbox.claim.dialect` from your configuration.
-4. Recompile if you build `OutboxJdbcAdapter` or `OutboxAdapterSettings` yourself, or reference a
+2. **Before deploying 9.0**, add the `traceparent` column to `outbox_message` (see
+   [traceparent column](#traceparent-column)).
+3. Rename any remaining `outbox.*` key to `codehunters.outbox.*`; the old names are ignored now.
+4. Remove `codehunters.outbox.claim.dialect` from your configuration.
+5. Recompile if you build `OutboxJdbcAdapter` or `OutboxAdapterSettings` yourself, or reference a
    dialect class (see [Removed API](#removed-api)).
-5. Fix tests that run the outbox on an embedded H2 (see [Tests on H2](#tests-on-h2)).
-6. Bump the dependencies (or the BOM) to 9.0.0.
+6. Fix tests that run the outbox on an embedded H2 (see [Tests on H2](#tests-on-h2)).
+7. If a consumer reads only `x-traceparent`, set
+   `codehunters.outbox.publisher.legacy-traceparent-header=true` (see
+   [Trace continuity](#trace-continuity)).
+8. Make sure the application has a Micrometer tracer bridge, or events carry no trace (see
+   [Without a tracer bridge](#without-a-tracer-bridge)).
+9. Bump the dependencies (or the BOM) to 9.0.0.
 
 ## PostgreSQL only
 
@@ -36,8 +45,57 @@ Only the PostgreSQL reference scripts remain in the `-jdbc` jar:
 
 | File | Use |
 |---|---|
-| `db/migration/outbox/postgresql/outbox_message_create.sql` | New installs: `outbox_message` with `seq`, indexes, `shedlock` |
+| `db/migration/outbox/postgresql/outbox_message_create.sql` | New installs: `outbox_message` with `seq`, `traceparent`, indexes, `shedlock` |
 | `db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql` | Tables created by 6.x |
+| `db/migration/outbox/postgresql/outbox_message_add_traceparent.sql` | Tables created by 6.x (after the line above), 7.x or 8.x |
+
+## traceparent column
+
+9.0 writes and claims `outbox_message.traceparent`, so saving and dispatch fail until the column
+exists. Copy `postgresql/outbox_message_add_traceparent.sql` from the `-jdbc` jar into your
+changelog (adapt the changeset author and id) and apply it **before** deploying 9.0:
+
+```sql
+--changeset codehunters-sdk:outbox-message-add-traceparent
+ALTER TABLE outbox_message ADD COLUMN IF NOT EXISTS traceparent VARCHAR(55);
+--rollback ALTER TABLE outbox_message DROP COLUMN traceparent;
+```
+
+The column is nullable without a default, so adding it does not rewrite the table, and 8.x ignores
+it: add it while 8.x still runs, then roll out 9.0. Running it twice is harmless. Rows written
+before the upgrade keep `NULL` and are published without a `traceparent` header.
+
+## Trace continuity
+
+Up to 8.x only the trace id reached the event envelope; the dispatch, a scheduled run with its own
+trace, published under that run's context, so RabbitMQ consumers joined the scheduler's trace and
+Kafka records carried no `traceparent` at all. In 9.0:
+
+- `OutboxEventFactory` stores the current W3C context with the row (`OutboxMessage.traceparent`),
+  from `sdk-tracing`'s `TraceContextPort` when it is present. A row you build by hand can set
+  `traceparent` itself.
+- The RabbitMQ and Kafka publishers send it unchanged as the `traceparent` header, so the consumer's
+  span is a child of the span that wrote the row. They add `x-traceparent` only when
+  `codehunters.outbox.publisher.legacy-traceparent-header=true` (default `false`).
+- Every step checks the value with `W3cTraceParent` (exactly 55 lowercase-hex characters, version
+  not `ff`, trace and span ids not all zeros). An invalid context is not stored by the factory, is
+  saved as `NULL` by the JDBC store (a hand-built row never fails the business transaction), is not
+  sent as a header and is not continued by `TracedMessagePublisher`. An explicit trace id passed to
+  `OutboxEventFactory` stores the context only when it equals the context's trace id.
+- With Micrometer Tracing and a `Tracer` bean, each publish runs with the stored context as the
+  current one (`TracedMessagePublisher`): log lines written while publishing carry the request's
+  trace id, and spans started there parent on it.
+
+The SDK-owned `outboxRabbitTemplate` and `outboxKafkaTemplate` keep Boot's observation off; the
+header comes from the adapter, not from the dispatching thread.
+
+### Without a tracer bridge
+
+The trace comes from `sdk-tracing`'s `TraceContextPort`. With a Micrometer tracer bridge
+(`micrometer-tracing-bridge-otel` or `-brave`) it reads the current span. Without one it falls
+back to the logging MDC, which `sdk-tracing` 3.0 no longer writes: unless your own code puts the
+trace there, events created without an explicit trace id get an empty envelope `traceId`, and rows
+store no `traceparent` and are published without the header. Add a tracer bridge to keep both.
 
 ## Tests on H2
 
@@ -86,6 +144,20 @@ value is ignored.
 
 `OutboxJdbcAdapter(dataSource, outboxJsonMapper, origin)` and
 `OutboxJdbcAdapter(dataSource, outboxJsonMapper, settings)` keep their shape.
+
+## Added API
+
+| 9.0 | Use |
+|---|---|
+| `OutboxMessage#getTraceparent()` / `traceparent(...)` | W3C context stored with the row |
+| `TraceIdSource#currentTraceParent()` | Default method, empty; implement it in a custom `TraceIdSource` to store the context |
+| `MessagePublisherPort.TRACEPARENT_HEADER`, `LEGACY_TRACEPARENT_HEADER` | `traceparent`, `x-traceparent` |
+| `EventMessagingProperties.Publisher#legacyTraceparentHeader()` | `codehunters.outbox.publisher.legacy-traceparent-header` |
+| `RabbitMessagePublisherAdapter(ops, confirmTimeout, legacyTraceparentHeader)`, `KafkaMessagePublisherAdapter(template, sendTimeout, legacyTraceparentHeader)` | The two-argument constructors remain and send `traceparent` only |
+| `io.codehunters.messaging.tracing.TracedMessagePublisher`, bean `outboxTraceContextDecorator` | Registered when a Micrometer `Tracer` bean exists |
+
+A custom `TraceIdSource` bean that only implements `currentTraceId()` stores no context; add
+`currentTraceParent()` to keep trace continuity.
 
 ## Known limits
 

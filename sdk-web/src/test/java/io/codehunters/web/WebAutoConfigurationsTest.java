@@ -13,7 +13,6 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.context.annotation.ImportCandidates;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
-import org.springframework.context.MessageSource;
 import org.springframework.web.servlet.LocaleResolver;
 
 /** sdk-web ships three auto-configurations; each must still load and switch off on its own. */
@@ -50,7 +49,7 @@ class WebAutoConfigurationsTest {
   }
 
   @Test
-  void should_keep_device_and_message_source_when_application_is_not_a_servlet_app() {
+  void should_keep_only_device_when_application_is_not_a_servlet_app() {
     new ApplicationContextRunner()
         .withConfiguration(
             AutoConfigurations.of(
@@ -63,10 +62,7 @@ class WebAutoConfigurationsTest {
                     .doesNotHaveBean(WebErrorsExceptionHandler.class)
                     .doesNotHaveBean("localeResolver")
                     .doesNotHaveBean("localeMdcFilterRegistration")
-                    .hasSingleBean(ClientIpResolver.class)
-                    .hasBean("messageSource")
-                    .getBean("messageSource", MessageSource.class)
-                    .isNotNull());
+                    .hasSingleBean(ClientIpResolver.class));
   }
 
   @Test

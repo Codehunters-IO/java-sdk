@@ -90,6 +90,9 @@ public class KeycloakSecurityAutoConfiguration {
 
   private static final int JWKS_READ_TIMEOUT_MILLIS = 3_000;
   private static final int JWKS_SIZE_LIMIT_BYTES = 50 * 1024;
+  // Keycloak marks access tokens with typ=Bearer; ID and refresh tokens carry other types.
+  private static final String TOKEN_TYPE = "typ";
+  private static final String ACCESS_TOKEN_TYPE = "Bearer";
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public KeycloakSecurityAutoConfiguration() {}
@@ -195,6 +198,9 @@ public class KeycloakSecurityAutoConfiguration {
     validators.add(new JwtIssuerValidator(properties.issuerUri()));
     validators.add(
         new JwtClaimValidator<String>(JwtClaimNames.SUB, sub -> sub != null && !sub.isBlank()));
+    if (properties.requireAccessTokenType()) {
+      validators.add(new JwtClaimValidator<String>(TOKEN_TYPE, ACCESS_TOKEN_TYPE::equals));
+    }
     if (!properties.audiences().isEmpty()) {
       validators.add(
           new JwtClaimValidator<List<String>>(

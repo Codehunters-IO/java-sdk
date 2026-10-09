@@ -6,7 +6,10 @@
 -- same (origin, topic, message_key) is still PENDING, IN_FLIGHT or FAILED.
 -- Timestamps are TIMESTAMP without time zone: the adapter binds LocalDateTime from a UTC clock.
 -- send_started_at marks a claimed row whose publish began; a reclaim charges an attempt only then.
--- Tables created by 6.x: run postgresql/outbox_message_add_send_started_at.sql instead.
+-- traceparent stores the W3C trace context of the work that created the row (00-<trace>-<span>-<flags>,
+-- 55 characters); the publisher sends it as the traceparent broker header.
+-- Tables created by 6.x: run postgresql/outbox_message_add_send_started_at.sql, then
+-- postgresql/outbox_message_add_traceparent.sql. Tables created by 7.x or 8.x: run the latter only.
 
 --changeset codehunters-sdk:outbox-message-create
 CREATE TABLE outbox_message (
@@ -25,7 +28,8 @@ CREATE TABLE outbox_message (
     published_at TIMESTAMP,
     claimed_at TIMESTAMP,
     claimed_by VARCHAR(255),
-    send_started_at TIMESTAMP
+    send_started_at TIMESTAMP,
+    traceparent VARCHAR(55)
 );
 --rollback DROP TABLE outbox_message;
 

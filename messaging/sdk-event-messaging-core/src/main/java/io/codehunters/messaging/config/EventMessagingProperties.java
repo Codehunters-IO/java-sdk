@@ -216,8 +216,15 @@ public record EventMessagingProperties(
    *     transport artifact on the classpath decide; with both artifacts present, startup fails
    * @param kafka the Kafka publisher settings, used when the transport is Kafka
    * @param rabbit the RabbitMQ publisher settings, used when the transport is RabbitMQ
+   * @param legacyTraceparentHeader {@code true} also sends the stored trace context as the {@code
+   *     x-traceparent} header, for consumers that still read only that one; {@code false} (the
+   *     default) sends {@code traceparent} only
    */
-  public record Publisher(String type, @DefaultValue Kafka kafka, @DefaultValue Rabbit rabbit) {
+  public record Publisher(
+      String type,
+      @DefaultValue Kafka kafka,
+      @DefaultValue Rabbit rabbit,
+      @DefaultValue("false") boolean legacyTraceparentHeader) {
 
     /** Validates and normalises the publisher type. */
     public Publisher {

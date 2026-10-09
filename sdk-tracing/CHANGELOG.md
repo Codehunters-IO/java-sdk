@@ -1,5 +1,61 @@
 # Changelog — sdk-tracing
 
+## 3.0.0
+
+The module is now a thin layer on top of Micrometer Tracing; Spring Boot propagates and exports the
+trace. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+
+### Removed
+- `TraceIdFilter` and `WebTracingAutoConfiguration`: Boot's server observation filter (servlet and
+  WebFlux).
+- MDC span generation and `internal.TraceMdc`: the tracer bridge fills the MDC.
+- `MdcTaskDecorator`: use a `ContextPropagatingTaskDecorator` bean.
+- The `amqp` package (`TracePropagationMessagePostProcessor`, `InboundTraceMethodInterceptor`,
+  `RabbitTracingBeanPostProcessor`) and `RabbitTracingAutoConfiguration`: use
+  `spring.rabbitmq.template.observation-enabled` and
+  `spring.rabbitmq.listener.{simple,direct}.observation-enabled`.
+- Compile-time dependencies on `spring-web`, `spring-rabbit`, the servlet API and Jackson.
+
+### Changed
+- Depends on `io.micrometer:micrometer-tracing` (API only); the application chooses the bridge.
+  `LegacyTraceHeadersPropagator` also needs `opentelemetry-sdk-trace` at runtime, which Boot's
+  OpenTelemetry tracing already brings.
+- `TraceContextPort` is backed by the Micrometer `Tracer` (`MicrometerTraceContextAdapter`) when a
+  tracer bean exists; `MdcTraceContextAdapter` is only the fallback without one, or with Boot's
+  no-op tracer. `TraceContextPort`, `TraceParent` and `TraceHeaders` keep their signatures.
+- `TracingAutoConfiguration` runs after Boot's tracing auto-configurations.
+- `codehunters.tracing.*` is bound to `TracingProperties`; its metadata is generated.
+
+### Added
+- `LegacyTraceHeadersPropagator` (`io.codehunters.tracing.otel`): an OpenTelemetry
+  `TextMapPropagator` that Boot composes with its own; it reads `x-traceparent`, then `x-trace-id`
+  (+ `x-span-id`) when no valid `traceparent` is present, and optionally writes `x-traceparent`.
+- `LegacyTraceHeadersAutoConfiguration`, active with Boot's OpenTelemetry tracing and
+  `management.tracing.export.enabled`. It passes Boot's `management.tracing.sampling.probability`
+  (or `0.1` when Boot's tracing properties are not registered) to the propagator, whose constructor
+  is `LegacyTraceHeadersPropagator(boolean inject, double samplingProbability)`.
+- `codehunters.tracing.legacy-headers.enabled` (default `true`) and
+  `codehunters.tracing.legacy-headers.inject` (default `false`).
+
+### Behaviour changes
+- Without a tracer bridge no trace is started; 2.x generated one per request.
+- Spans are exported and sampled by Boot (`management.tracing.sampling.probability`, default
+  `0.1`); 2.x flagged every trace as sampled and exported nothing.
+- Outbound HTTP through Boot's client builders and WebFlux are now propagated; Kafka is propagated
+  once its observation properties are on.
+- `x-traceparent`, `x-trace-id` and `x-span-id` are no longer written unless
+  `codehunters.tracing.legacy-headers.inject=true` (which writes `x-traceparent` only).
+- Legacy headers are read only with the OpenTelemetry bridge; with Brave they are ignored.
+- `traceFlags` is no longer put in the MDC.
+- `traceId` / `spanId` are no longer put in the MDC by this module: without a tracer bridge the
+  trace id in logs, problem responses and events is empty.
+- A parent read from `x-trace-id` (with or without `x-span-id`) has no sampled flag and is sampled
+  by trace-id ratio at Boot's sampling probability, not always; `x-traceparent` keeps its flag.
+- `MdcTraceContextAdapter` reports not sampled when the MDC has no valid `traceFlags` key, also for
+  a bare trace id; 2.x reported sampled.
+- `ContextPropagatingTaskDecorator`, which replaces `MdcTaskDecorator`, copies MDC keys other than
+  `traceId` / `spanId` only with a registered `Slf4jThreadLocalAccessor` (see the migration guide).
+
 ## 2.0.0
 
 ### Breaking

@@ -8,6 +8,8 @@ amends: 0010
 
 # 0016. Merge the servlet web modules into sdk-web and TOTP into sdk-commons
 
+> The i18n part is amended by [ADR 0025](0025-i18n-on-boot-message-source.md).
+
 ## Context and Problem Statement
 
 The migration left 21 artifacts. Several are small and always travel together: `sdk-web-errors`

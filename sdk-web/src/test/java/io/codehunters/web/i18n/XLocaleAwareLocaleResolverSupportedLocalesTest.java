@@ -67,10 +67,65 @@ class XLocaleAwareLocaleResolverSupportedLocalesTest {
   }
 
   @Test
+  void should_use_first_supported_locale_when_accept_language_is_not_supported_and_no_default() {
+    request.addHeader("Accept-Language", "fr-FR,fr;q=0.9");
+
+    assertThat(resolverWithoutDefault(SPANISH, ENGLISH).resolveLocale(request)).isEqualTo(SPANISH);
+  }
+
+  @Test
+  void should_use_first_supported_locale_when_the_container_locale_is_not_supported() {
+    assertThat(resolverWithoutDefault(SPANISH, Locale.FRENCH).resolveLocale(request))
+        .isEqualTo(SPANISH);
+  }
+
+  @Test
+  void should_use_first_supported_locale_when_the_default_locale_is_not_supported() {
+    var resolver = resolverWithoutDefault(ENGLISH, SPANISH);
+    resolver.setDefaultLocale(Locale.FRENCH);
+
+    assertThat(resolver.resolveLocale(request)).isEqualTo(ENGLISH);
+  }
+
+  @Test
+  void should_use_first_supported_locale_when_accept_language_names_no_language() {
+    request.addHeader("Accept-Language", "*");
+
+    assertThat(resolverWithoutDefault(ENGLISH, SPANISH).resolveLocale(request)).isEqualTo(ENGLISH);
+  }
+
+  @Test
   void should_use_supported_language_when_accept_language_country_is_not_supported() {
     request.addHeader("Accept-Language", "en-GB");
 
     assertThat(resolverSupporting(SPANISH, ENGLISH).resolveLocale(request)).isEqualTo(ENGLISH);
+  }
+
+  @Test
+  void should_match_supported_locale_when_x_locale_carries_extensions() {
+    request.addHeader("X-Locale", "en-US-u-nu-thai");
+
+    assertThat(resolverSupporting(SPANISH, US_ENGLISH).resolveLocale(request))
+        .isEqualTo(US_ENGLISH);
+  }
+
+  @Test
+  void should_keep_the_headers_when_the_set_locale_is_not_supported() {
+    request.addHeader("X-Locale", "en");
+    var resolver = resolverSupporting(SPANISH, ENGLISH);
+
+    resolver.setLocale(request, null, Locale.FRENCH);
+
+    assertThat(resolver.resolveLocale(request)).isEqualTo(ENGLISH);
+  }
+
+  @Test
+  void should_use_supported_language_when_the_set_locale_country_is_not_supported() {
+    var resolver = resolverSupporting(SPANISH, ENGLISH);
+
+    resolver.setLocale(request, null, Locale.UK);
+
+    assertThat(resolver.resolveLocale(request)).isEqualTo(ENGLISH);
   }
 
   @Test
@@ -79,7 +134,13 @@ class XLocaleAwareLocaleResolverSupportedLocalesTest {
         .containsExactly(SPANISH, ENGLISH);
   }
 
+  private static XLocaleAwareLocaleResolver resolverWithoutDefault(Locale... supported) {
+    return new XLocaleAwareLocaleResolver("X-Locale", List.of(supported));
+  }
+
   private static XLocaleAwareLocaleResolver resolverSupporting(Locale... supported) {
-    return new XLocaleAwareLocaleResolver(SPANISH, "X-Locale", List.of(supported));
+    var resolver = new XLocaleAwareLocaleResolver("X-Locale", List.of(supported));
+    resolver.setDefaultLocale(SPANISH);
+    return resolver;
   }
 }

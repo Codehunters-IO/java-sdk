@@ -2,10 +2,14 @@ package io.codehunters.messaging.factory;
 
 import io.codehunters.messaging.EventMessage;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.W3cTraceParent;
 
 /**
  * Wraps an {@link EventMessage} into an {@link OutboxMessage} ready to persist, stamping the
- * configured origin, topic and key.
+ * configured origin, topic and key, and the current W3C {@code traceparent} from the event-message
+ * factory's {@link TraceIdSource} when it is a valid {@link W3cTraceParent} and its trace id is the
+ * one the event names. Build messages on the thread that does the work, so the stored context is
+ * that work's.
  */
 public class OutboxEventFactory {
 
@@ -86,13 +90,7 @@ public class OutboxEventFactory {
       T payload) {
     EventMessage<T> event =
         eventMessageFactory.create(traceId, locale, aggregate, eventName, eventType, payload);
-    return OutboxMessage.<EventMessage<T>>builder()
-        .origin(origin)
-        .topic(topic)
-        .routingKey(routingKey)
-        .key(aggregate)
-        .message(event)
-        .build();
+    return outboxMessage(topic, routingKey, aggregate, event);
   }
 
   /**
@@ -117,11 +115,34 @@ public class OutboxEventFactory {
       T payload) {
     EventMessage<T> event =
         eventMessageFactory.create(traceId, "es", aggregate, eventName, eventType, payload);
+    return outboxMessage(topic, null, aggregate, event);
+  }
+
+  // Returns the built message, not Lombok's builder: javadoc runs on the undelomboked sources.
+  private <T> OutboxMessage<EventMessage<T>> outboxMessage(
+      String topic, String routingKey, String aggregate, EventMessage<T> event) {
     return OutboxMessage.<EventMessage<T>>builder()
         .origin(origin)
         .topic(topic)
+        .routingKey(routingKey)
         .key(aggregate)
         .message(event)
+        .traceparent(traceParentOf(event.getHeader().getTraceId()))
         .build();
+  }
+
+  // An explicit trace id that is not the current trace gets no context: the broker header must
+  // name the same trace as the envelope. An invalid current context is not stored either.
+  private String traceParentOf(String traceId) {
+    if (traceId == null) {
+      return null;
+    }
+    return eventMessageFactory
+        .traceIdSource()
+        .currentTraceParent()
+        .flatMap(W3cTraceParent::parse)
+        .filter(traceparent -> traceparent.traceId().equals(traceId))
+        .map(W3cTraceParent::value)
+        .orElse(null);
   }
 }

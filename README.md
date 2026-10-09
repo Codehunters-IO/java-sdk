@@ -16,10 +16,10 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 
 | Module | Package | Version | Docs |
 |---|---|---|---|
-| `sdk-bom` | — (BOM, `java-platform`) | 4.0.0 | [below](#using-the-bom) |
+| `sdk-bom` | — (BOM, `java-platform`) | 5.0.0 | [below](#using-the-bom) |
 | `sdk-user-security` | `io.codehunters.security` | 5.0.0 | [README](security/sdk-user-security/README.md) · [MIGRATION 5.0](security/sdk-user-security/MIGRATION-5.0.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 5.0.0 | [README](security/sdk-user-security-authz/README.md) · [MIGRATION 5.0](security/sdk-user-security-authz/MIGRATION-5.0.md) |
-| `sdk-tracing` | `io.codehunters.tracing` | 2.0.0 | [README](sdk-tracing/README.md) · [MIGRATION 2.0](sdk-tracing/MIGRATION-2.0.md) |
+| `sdk-tracing` | `io.codehunters.tracing` | 3.0.0 | [README](sdk-tracing/README.md) · [MIGRATION 3.0](sdk-tracing/MIGRATION-3.0.md) |
 | `sdk-event-messaging-core` | `io.codehunters.messaging` | 9.0.0 | [README](messaging/sdk-event-messaging-core/README.md) · [MIGRATION 9.0](messaging/MIGRATION-9.0.md) |
 | `sdk-event-messaging-jdbc` | `io.codehunters.messaging.jdbc` | 9.0.0 | [README](messaging/sdk-event-messaging-jdbc/README.md) |
 | `sdk-event-messaging-rabbit` | `io.codehunters.messaging.rabbit` | 9.0.0 | [README](messaging/sdk-event-messaging-rabbit/README.md) |
@@ -52,7 +52,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.codehunters:sdk-bom:4.0.0"))
+    implementation(platform("io.codehunters:sdk-bom:5.0.0"))
     implementation("io.codehunters:sdk-user-security")
     implementation("io.codehunters:sdk-event-messaging-jdbc")
     implementation("io.codehunters:sdk-event-messaging-rabbit")
@@ -67,7 +67,7 @@ Maven:
     <dependency>
       <groupId>io.codehunters</groupId>
       <artifactId>sdk-bom</artifactId>
-      <version>4.0.0</version>
+      <version>5.0.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -82,15 +82,15 @@ but Maven's nearest-wins mediation can still mix versions of `sdk-commons` and
 ## Upgrading a service
 
 Do it one module at a time; each module's `MIGRATION-*.md` has the full checklist. What every
-service has to look at when moving to `sdk-bom` 4.0.0:
+service has to look at when moving to `sdk-bom` 5.0.0:
 
-1. **Coordinates.** Import `sdk-bom:4.0.0` and drop explicit SDK versions. `sdk-web` replaces
+1. **Coordinates.** Import `sdk-bom:5.0.0` and drop explicit SDK versions. `sdk-web` replaces
    `sdk-web-errors`, `sdk-device` and `sdk-i18n`, and `sdk-commons` replaces `sdk-totp` and
    `sdk-utils`, through Gradle capabilities ([ADR 0016](docs/adr/0016-consolidate-web-and-commons-artifacts.md)).
    Maven does not check capabilities: exclude the old artifacts yourself. `sdk-support` is gone.
 2. **Database.** PostgreSQL only. The outbox fails startup on any other database. Apply the
    PostgreSQL DDL shipped under each module's `db/migration/<module>/postgresql/` (outbox
-   `send_started_at`, audit table, parameters table) before deploying.
+   `send_started_at` and `traceparent`, audit table, parameters table) before deploying.
 3. **Properties.** Only `codehunters.*` keys are read; there are no aliases for older prefixes
    ([ADR 0021](docs/adr/0021-postgresql-only-and-codehunters-properties.md)). `sdk-web` 3.0 moves
    its keys under `codehunters.web`:
@@ -127,6 +127,23 @@ service has to look at when moving to `sdk-bom` 4.0.0:
     an unparseable expression, log an ERROR at startup, or fail it with
     `codehunters.audit.startup-check.fail-fast=true`; on servlet apps the actor defaults to the
     Spring Security user while a request is bound ([audit](sdk-audit-log/README.md)).
+11. **Tracing.** `sdk-tracing` 3.0 builds on Micrometer Tracing
+    ([ADR 0022](docs/adr/0022-tracing-on-micrometer-tracing.md)): add a tracing bridge
+    (OpenTelemetry for the legacy gateway headers) and turn on Boot's observation for Rabbit and
+    Kafka; the removed filter, task decorator and Rabbit instrumentation map to Boot properties in
+    its [MIGRATION-3.0](sdk-tracing/MIGRATION-3.0.md). Legacy `x-trace-id` requests are sampled by
+    trace-id ratio (`management.tracing.sampling.probability`), and without a bridge the trace id is
+    empty in logs, problems and events. Outbox messages carry the writing request's validated
+    `traceparent` ([ADR 0024](docs/adr/0024-outbox-carries-its-own-trace-context.md)).
+12. **i18n.** `sdk-web` uses Boot's message source (`spring.messages.*`) and has no default locale;
+    set `spring.web.locale=es` to keep the old default. Without an application bundle the SDK still
+    registers a message source for its own error texts
+    ([ADR 0025](docs/adr/0025-i18n-on-boot-message-source.md)).
+13. **Authorization.** `sdk-user-security-authz` runs Keycloak's official policy enforcer with
+    Keycloak's semantics (an unmapped path is denied under `ENFORCING`) on every request authenticated
+    from an OAuth2 token, and answers 503 during `retry-backoff` after a failed enforcer build
+    ([ADR 0023](docs/adr/0023-authz-on-keycloak-policy-enforcer.md),
+    [MIGRATION-5.0](security/sdk-user-security-authz/MIGRATION-5.0.md)).
 
 ## Build
 

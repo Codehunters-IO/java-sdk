@@ -20,6 +20,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param audiences accepted {@code aud} values; at least one is required unless {@code
  *     allowAnyAudience} is set
  * @param allowAnyAudience accept tokens issued to any client of the realm
+ * @param requireAccessTokenType accept only tokens whose {@code typ} claim is {@code Bearer}, the
+ *     type of Keycloak access tokens: ID and refresh tokens of the realm are then rejected even
+ *     when their audience is accepted
  * @param roleClients clients whose {@code resource_access} roles become authorities, in addition to
  *     the realm roles
  * @param publicPaths path patterns open to anonymous callers; a bearer token, when sent, must still
@@ -37,6 +40,7 @@ public record KeycloakSecurityProperties(
     String jwkSetUri,
     @DefaultValue List<String> audiences,
     boolean allowAnyAudience,
+    @DefaultValue("true") boolean requireAccessTokenType,
     @DefaultValue List<String> roleClients,
     @DefaultValue List<String> publicPaths,
     @DefaultValue List<String> excludedPaths,

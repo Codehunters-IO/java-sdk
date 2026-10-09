@@ -3,6 +3,7 @@ package io.codehunters.messaging.jdbc;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.OutboxStatus;
+import io.codehunters.messaging.W3cTraceParent;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -25,7 +26,9 @@ import tools.jackson.databind.json.JsonMapper;
  * while an earlier row with the same {@code (origin, topic, message_key)} is unresolved. Updates of
  * a claimed row, including the send mark written before each publish, are fenced by its claim
  * marker, so a worker whose claim was taken over after the TTL cannot overwrite the new owner's
- * state.
+ * state. The {@code traceparent} captured with each message is stored and returned by the claim, so
+ * the publisher can continue the trace that created the row. A value that is not a valid {@link
+ * W3cTraceParent} is stored as null instead of failing the business transaction.
  */
 @Slf4j
 public class OutboxJdbcAdapter implements OutboxRepositoryPort {
@@ -33,9 +36,10 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   private static final String INSERT_SQL =
       """
       INSERT INTO outbox_message (id, origin, routing_key, topic, message_key, payload, status,
-          attempts, error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by)
+          attempts, error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by,
+          traceparent)
       VALUES (:id, :origin, :routingKey, :topic, :messageKey, :payload, :status, :attempts,
-          :error, :occurredAt, :nextAttemptAt, :publishedAt, :claimedAt, :claimedBy)
+          :error, :occurredAt, :nextAttemptAt, :publishedAt, :claimedAt, :claimedBy, :traceparent)
       """;
 
   // Locks the candidate rows, skips rows locked by a concurrent claimer, marks them IN_FLIGHT and
@@ -67,7 +71,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
       WHERE m.id = c.id
       RETURNING m.id, m.origin, m.routing_key, m.topic, m.message_key, m.payload, m.status,
           m.attempts, m.error, m.occurred_at, m.next_attempt_at, m.published_at, m.claimed_at,
-          m.claimed_by, m.seq, m.send_started_at
+          m.claimed_by, m.seq, m.send_started_at, m.traceparent
       """;
 
   private static final String PURGE_PUBLISHED_SQL =
@@ -127,6 +131,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
               .claimedBy(rs.getString("claimed_by"))
               .seq(readSeq(rs))
               .sendStartedAt(rs.getObject("send_started_at", LocalDateTime.class))
+              .traceparent(rs.getString("traceparent"))
               .build();
 
   private static final Comparator<OutboxMessage<String>> BY_SEQ =
@@ -188,6 +193,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
         .param("publishedAt", null)
         .param("claimedAt", null)
         .param("claimedBy", null)
+        .param("traceparent", W3cTraceParent.validOrNull(outboxMessage.getTraceparent()))
         .update();
     log.debug("[END] - saved outbox message with id: {}", id);
   }

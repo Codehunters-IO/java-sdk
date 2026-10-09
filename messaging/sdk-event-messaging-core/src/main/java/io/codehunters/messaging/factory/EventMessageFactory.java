@@ -83,6 +83,11 @@ public class EventMessageFactory {
         .build();
   }
 
+  // The outbox factory reads the same source to store the current trace context with its rows.
+  TraceIdSource traceIdSource() {
+    return traceIdSource;
+  }
+
   private String resolveTraceId(String traceId) {
     if (traceId != null && !traceId.isBlank()) {
       return traceId;
