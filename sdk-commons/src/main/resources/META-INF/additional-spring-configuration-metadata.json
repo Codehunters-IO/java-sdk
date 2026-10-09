@@ -3,8 +3,8 @@
     {
       "name": "codehunters.totp.enabled",
       "type": "java.lang.Boolean",
-      "description": "Whether to auto-configure the TotpGenerator bean.",
-      "defaultValue": true
+      "description": "Whether to auto-configure the TotpGenerator bean. Opt-in since sdk-commons 3.0.0.",
+      "defaultValue": false
     },
     {
       "name": "vitxo.totp.time-step",

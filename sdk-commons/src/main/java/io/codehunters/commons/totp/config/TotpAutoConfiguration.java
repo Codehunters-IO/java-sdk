@@ -12,12 +12,12 @@ import org.springframework.context.annotation.Bean;
 
 /**
  * Spring Boot auto-configuration exposing a {@link TotpGenerator} bean built from {@link
- * TotpProperties}. Consumers may override the bean to customize behavior, or set {@code
- * codehunters.totp.enabled=false} to leave TOTP out of an application that only uses the other
- * sdk-commons helpers.
+ * TotpProperties}. Opt-in: it applies only with {@code codehunters.totp.enabled=true}, so an
+ * application that only uses the other sdk-commons helpers gets no TOTP bean. Consumers may
+ * override the bean to customize behavior.
  */
 @AutoConfiguration
-@ConditionalOnBooleanProperty(name = "codehunters.totp.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "codehunters.totp.enabled")
 @EnableConfigurationProperties(TotpProperties.class)
 public class TotpAutoConfiguration {
 
