@@ -1,1 +1,1 @@
-io.codehunters.messaging.config.EventMessagingRabbitAutoConfiguration
+io.codehunters.messaging.rabbit.config.EventMessagingRabbitAutoConfiguration

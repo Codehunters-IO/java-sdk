@@ -3,8 +3,8 @@ package io.codehunters.audit.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.audit.AuditAutoConfiguration;
-import io.codehunters.audit.AuditJdbcAutoConfiguration;
+import io.codehunters.audit.config.AuditAutoConfiguration;
+import io.codehunters.audit.config.AuditJdbcAutoConfiguration;
 import java.util.List;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeAll;

@@ -1,5 +1,20 @@
 # Changelog — sdk-web
 
+## 2.0.0
+
+### Breaking
+- Packages move under the artifact's own: `io.codehunters.weberrors` → `io.codehunters.web.errors`,
+  `io.codehunters.device` → `io.codehunters.web.device`, `io.codehunters.i18n` →
+  `io.codehunters.web.i18n`. Sub-packages keep their names.
+- `io.codehunters.weberrors.web` is split by concern: the MVC handler, error controller and writer
+  go to `web.errors.servlet`, the Spring Security handlers to `web.errors.security`, and
+  `TraceIdProvider` with `MdcTraceIdProvider` to `web.errors.trace`.
+- Only imports change: class names, properties and behaviour are those of 1.0.0. See
+  [MIGRATION-2.0.md](MIGRATION-2.0.md).
+
+### Changed
+- The `vitxo.i18n.*` aliases are honoured until 3.0.0 (was 2.0.0).
+
 ## 1.0.0
 
 First release ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)).

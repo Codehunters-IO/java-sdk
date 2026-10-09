@@ -1,5 +1,15 @@
 # Changelog — sdk-commons
 
+## 2.0.0
+
+### Breaking
+- TOTP moves from `io.codehunters.totp` to `io.codehunters.commons.totp` (and `.config`), so every
+  package in the artifact starts with `io.codehunters.commons`. Only imports change; class names,
+  properties and behaviour do not. See [MIGRATION-2.0.md](MIGRATION-2.0.md).
+
+### Changed
+- The `vitxo.totp.*` aliases are honoured until 3.0.0 (was 2.0.0).
+
 ## 1.1.0
 
 Absorbs `sdk-totp` ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)).

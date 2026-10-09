@@ -13,7 +13,13 @@ JDBC driver.
 
 ## Usage
 
+`ParameterClient`, `Parameter`, `ParameterModule`, `ParameterType` and the exceptions are in
+`io.codehunters.parameter`. Upgrading from 2.x: see [MIGRATION-3.0.md](MIGRATION-3.0.md).
+
 ```java
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterModule;
+
 Optional<Parameter> max = parameters.lookup(ParameterModule.RAFFLES, "tickets", "MAX");
 int limit = max.map(Parameter::asInteger).orElse(100);
 

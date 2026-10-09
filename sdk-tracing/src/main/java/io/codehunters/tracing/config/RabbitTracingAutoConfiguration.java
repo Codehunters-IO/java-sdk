@@ -1,8 +1,8 @@
 package io.codehunters.tracing.config;
 
-import io.codehunters.tracing.InboundTraceMethodInterceptor;
-import io.codehunters.tracing.RabbitTracingBeanPostProcessor;
-import io.codehunters.tracing.TracePropagationMessagePostProcessor;
+import io.codehunters.tracing.amqp.InboundTraceMethodInterceptor;
+import io.codehunters.tracing.amqp.RabbitTracingBeanPostProcessor;
+import io.codehunters.tracing.amqp.TracePropagationMessagePostProcessor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

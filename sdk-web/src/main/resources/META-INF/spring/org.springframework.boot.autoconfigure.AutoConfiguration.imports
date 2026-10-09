@@ -1,3 +1,3 @@
-io.codehunters.weberrors.config.WebErrorsAutoConfiguration
-io.codehunters.device.config.DeviceAutoConfiguration
-io.codehunters.i18n.config.I18nAutoConfiguration
+io.codehunters.web.errors.config.WebErrorsAutoConfiguration
+io.codehunters.web.device.config.DeviceAutoConfiguration
+io.codehunters.web.i18n.config.I18nAutoConfiguration

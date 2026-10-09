@@ -13,11 +13,10 @@ import org.springframework.util.ClassUtils;
 class OnOutboxTransportCondition extends SpringBootCondition {
 
   private static final String TYPE_KEY = "codehunters.outbox.publisher.type";
-  private static final String CONFIG_PACKAGE = "io.codehunters.messaging.config.";
   private static final Map<String, String> ARTIFACT_MARKERS =
       Map.of(
-          "rabbit", CONFIG_PACKAGE + "EventMessagingRabbitAutoConfiguration",
-          "kafka", CONFIG_PACKAGE + "EventMessagingKafkaAutoConfiguration");
+          "rabbit", TransportAutoConfigurations.RABBIT,
+          "kafka", TransportAutoConfigurations.KAFKA);
 
   private final Map<String, String> artifactMarkers;
 

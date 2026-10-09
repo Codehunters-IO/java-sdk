@@ -31,7 +31,7 @@ class LayeringTest {
   void should_keep_base_entities_free_of_web_security_and_json() {
     classes()
         .that()
-        .resideInAPackage("io.codehunters.jpa.domain")
+        .resideInAPackage("io.codehunters.jpa.entity")
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(
@@ -39,7 +39,7 @@ class LayeringTest {
             "jakarta.persistence..",
             "org.hibernate..",
             "org.springframework.data..",
-            "io.codehunters.jpa.domain")
+            "io.codehunters.jpa.entity")
         .check(CLASSES);
   }
 

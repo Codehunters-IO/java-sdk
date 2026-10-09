@@ -1,33 +1,28 @@
 package io.codehunters.barcode;
 
-import java.util.Arrays;
-import java.util.Optional;
-
 /** The symbologies the SDK renders and decodes. */
 public enum BarcodeFormat {
   /** QR Code, 2D. */
-  QR_CODE(true, com.google.zxing.BarcodeFormat.QR_CODE),
+  QR_CODE(true),
   /** Data Matrix (ECC 200), 2D. */
-  DATA_MATRIX(true, com.google.zxing.BarcodeFormat.DATA_MATRIX),
+  DATA_MATRIX(true),
   /** PDF417, stacked 2D. */
-  PDF_417(true, com.google.zxing.BarcodeFormat.PDF_417),
+  PDF_417(true),
   /** Code 128, linear, printable ASCII. */
-  CODE_128(false, com.google.zxing.BarcodeFormat.CODE_128),
+  CODE_128(false),
   /** Code 39, linear, upper-case letters, digits and {@code - . $ / + %} and space. */
-  CODE_39(false, com.google.zxing.BarcodeFormat.CODE_39),
+  CODE_39(false),
   /** EAN-13, linear, 12 digits plus a check digit. */
-  EAN_13(false, com.google.zxing.BarcodeFormat.EAN_13),
+  EAN_13(false),
   /** UPC-A, linear, 11 digits plus a check digit. */
-  UPC_A(false, com.google.zxing.BarcodeFormat.UPC_A),
+  UPC_A(false),
   /** Interleaved 2 of 5, linear, an even number of digits. */
-  ITF(false, com.google.zxing.BarcodeFormat.ITF);
+  ITF(false);
 
   private final boolean twoDimensional;
-  private final com.google.zxing.BarcodeFormat zxing;
 
-  BarcodeFormat(boolean twoDimensional, com.google.zxing.BarcodeFormat zxing) {
+  BarcodeFormat(boolean twoDimensional) {
     this.twoDimensional = twoDimensional;
-    this.zxing = zxing;
   }
 
   /**
@@ -37,13 +32,5 @@ public enum BarcodeFormat {
    */
   public boolean isTwoDimensional() {
     return twoDimensional;
-  }
-
-  com.google.zxing.BarcodeFormat zxing() {
-    return zxing;
-  }
-
-  static Optional<BarcodeFormat> of(com.google.zxing.BarcodeFormat zxing) {
-    return Arrays.stream(values()).filter(format -> format.zxing == zxing).findFirst();
   }
 }

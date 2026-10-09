@@ -4,15 +4,16 @@ Servlet web toolkit for Spring MVC services, in three independent parts:
 
 | Part | Package | Properties | What it does |
 |---|---|---|---|
-| [Errors](#errors--iocodehuntersweberrors) | `io.codehunters.weberrors` | `codehunters.web-errors.*` | RFC 9457 problem details with stable codes |
-| [Device](#device--iocodehuntersdevice) | `io.codehunters.device` | `codehunters.device.*` | Client IP behind trusted proxies, User-Agent, geo-IP port |
-| [i18n](#i18n--iocodehuntersi18n) | `io.codehunters.i18n` | `codehunters.i18n.*` | `X-Locale` resolution, `MessageSource`, localized validation |
+| [Errors](#errors--iocodehuntersweberrors) | `io.codehunters.web.errors` | `codehunters.web-errors.*` | RFC 9457 problem details with stable codes |
+| [Device](#device--iocodehunterswebdevice) | `io.codehunters.web.device` | `codehunters.device.*` | Client IP behind trusted proxies, User-Agent, geo-IP port |
+| [i18n](#i18n--iocodehunterswebi18n) | `io.codehunters.web.i18n` | `codehunters.i18n.*` | `X-Locale` resolution, `MessageSource`, localized validation |
 
 Each part has its own auto-configuration and switch: set `codehunters.web-errors.enabled`,
 `codehunters.device.enabled` or `codehunters.i18n.enabled` to `false` to drop it. Until 1.0.0 the
 parts were three artifacts, `sdk-web-errors`, `sdk-device` and `sdk-i18n`
-([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)); packages and properties did
-not change, and [MIGRATION-1.0.md](MIGRATION-1.0.md) covers the switch.
+([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)); properties did not change,
+and [MIGRATION-1.0.md](MIGRATION-1.0.md) covers the switch. In 2.0.0 the packages moved under
+`io.codehunters.web`: [MIGRATION-2.0.md](MIGRATION-2.0.md).
 
 ```kotlin
 implementation(platform("io.codehunters:sdk-bom:<version>"))
@@ -24,7 +25,7 @@ implementation("com.github.ua-parser:uap-java:1.6.1")
 Web dependencies (Spring MVC, the servlet API, Spring Security, Jackson, `sdk-tracing`) are
 `compileOnly`: the parts that need them activate only when the application has them.
 
-## Errors — `io.codehunters.weberrors`
+## Errors — `io.codehunters.web.errors`
 
 One error format for every Spring MVC service: [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
 problem details with a stable error `code`, a localized `detail`, the `traceId` and, for validation
@@ -131,7 +132,7 @@ which starts with the method and parameter (`create.order.name`).
 
 ### Messages
 
-Details are resolved through the application's `MessageSource` (the [i18n](#i18n--iocodehuntersi18n) bundles
+Details are resolved through the application's `MessageSource` (the [i18n](#i18n--iocodehunterswebi18n) bundles
 when that part is enabled), in the request locale:
 
 | Error | Key | Arguments |
@@ -236,7 +237,7 @@ other servlet code.
   (Spring Boot's Gradle and Maven plugins enable it); without it the field is `argN`.
 - `ApiException` cannot be serialized: its code and arguments are not required to be.
 
-## Device — `io.codehunters.device`
+## Device — `io.codehunters.web.device`
 
 Who is calling a service: the client IP as resolved behind **trusted** proxies, the parsed
 `User-Agent`, and a port for geo-IP lookups that keeps addresses inside the service.
@@ -287,7 +288,7 @@ codehunters:
   `X-Forwarded-For` value without any trust check, so any client can choose its address. Turn it
   off and configure `trusted-proxies` instead, or accept that the address can be spoofed.
 
-The resolution itself is plain Java (`io.codehunters.device.ip`), usable outside Spring:
+The resolution itself is plain Java (`io.codehunters.web.device.ip`), usable outside Spring:
 
 ```java
 var resolver = new ClientIpResolver(
@@ -358,7 +359,7 @@ application defines its own. `ClientContextResolver` is registered in servlet ap
   `ClientIpResolver` can be called with a `ProxyChain` built from a `ServerHttpRequest`.
 - `RFC 7239` `by`, `host` and `proto` parameters are not used.
 
-## i18n — `io.codehunters.i18n`
+## i18n — `io.codehunters.web.i18n`
 
 Request locale resolution, a resource-bundle `MessageSource` and localized bean validation
 messages for Spring Boot 4 applications.
@@ -451,7 +452,7 @@ Invalid values fail at startup: an empty or blank base name, a locale without a 
 default locale missing from a non-empty `supported-locales`, a header name that is not an HTTP
 token, or an unknown charset.
 
-The 0.x `vitxo.i18n.*` keys keep working until 2.0.0 under their new names; a key set under
+The 0.x `vitxo.i18n.*` keys keep working until 3.0.0 under their new names; a key set under
 `codehunters.i18n.*` wins, and startup logs which old keys were found. See
 [MIGRATION-1.0.md](MIGRATION-1.0.md#from-sdk-i18n-0x).
 

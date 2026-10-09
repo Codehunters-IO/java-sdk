@@ -2,8 +2,12 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.1.0"
+version = "4.0.0"
 description = "Keycloak-backed request authentication for servlet applications."
+
+codehuntersPackages {
+    root = "io.codehunters.security"
+}
 
 dependencies {
     api("org.springframework.security:spring-security-config")

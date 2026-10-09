@@ -2,8 +2,12 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "7.0.0"
+version = "8.0.0"
 description = "Kafka publisher for the transactional outbox."
+
+codehuntersPackages {
+    root = "io.codehunters.messaging.kafka"
+}
 
 dependencies {
     api(project(":sdk-event-messaging-core"))

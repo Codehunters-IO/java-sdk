@@ -6,7 +6,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.i18n.basename",
-        "reason": "Renamed in 1.0.0; the old key is honoured until 2.0.0."
+        "reason": "Renamed in 1.0.0; the old key is honoured until 3.0.0."
       }
     },
     {
@@ -15,7 +15,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.i18n.default-locale",
-        "reason": "Renamed in 1.0.0; the old key is honoured until 2.0.0."
+        "reason": "Renamed in 1.0.0; the old key is honoured until 3.0.0."
       }
     },
     {
@@ -24,7 +24,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.i18n.header-name",
-        "reason": "Renamed in 1.0.0; the old key is honoured until 2.0.0."
+        "reason": "Renamed in 1.0.0; the old key is honoured until 3.0.0."
       }
     },
     {
@@ -33,7 +33,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.i18n.encoding",
-        "reason": "Renamed in 1.0.0; the old key is honoured until 2.0.0."
+        "reason": "Renamed in 1.0.0; the old key is honoured until 3.0.0."
       }
     },
     {
@@ -42,7 +42,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.i18n.fallback-to-system-locale",
-        "reason": "Renamed in 1.0.0; the old key is honoured until 2.0.0."
+        "reason": "Renamed in 1.0.0; the old key is honoured until 3.0.0."
       }
     }
   ]

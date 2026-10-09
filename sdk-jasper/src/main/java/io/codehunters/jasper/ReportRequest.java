@@ -1,5 +1,6 @@
 package io.codehunters.jasper;
 
+import io.codehunters.jasper.internal.template.TemplateNames;
 import java.io.File;
 import java.io.InputStream;
 import java.io.Reader;

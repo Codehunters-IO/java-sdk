@@ -1,5 +1,6 @@
 package io.codehunters.fileshare.config;
 
+import io.codehunters.fileshare.FileShareRequestInterceptor;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 
 /**

@@ -1,5 +1,14 @@
 # Changelog — sdk-parameter
 
+## 3.0.0
+
+### Breaking
+- Packages reorganised by purpose instead of by layer; only imports change, properties and beans
+  are unchanged. The API (`ParameterClient`, `Parameter`, `ParameterModule`, `ParameterType`,
+  exceptions) is in `io.codehunters.parameter`, `JdbcParameterAdapter` in
+  `io.codehunters.parameter.jdbc`, `CachingParameterClient` in `io.codehunters.parameter.cache`.
+  See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+
 ## 2.0.0
 
 ### Breaking

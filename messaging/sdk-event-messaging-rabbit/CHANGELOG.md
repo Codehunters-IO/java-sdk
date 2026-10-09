@@ -1,5 +1,14 @@
 # Changelog — sdk-event-messaging-rabbit
 
+## 8.0.0
+
+Migration guide: [MIGRATION-8.0.md](../MIGRATION-8.0.md).
+
+### Breaking
+- Packages reorganised by capability: `RabbitMessagePublisherAdapter` moves to
+  `io.codehunters.messaging.rabbit` and the auto-configuration to
+  `io.codehunters.messaging.rabbit.config`. Only imports change.
+
 ## 7.0.0
 
 No changes of its own: versioned with `-core` and `-jdbc` 7.0.0, which charge reclaim attempts only

@@ -14,14 +14,27 @@ class FrameworkFreeCoreTest {
           .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
           .importPackages("io.codehunters.jasper");
 
+  private static final String[] CORE = {
+    "io.codehunters.jasper",
+    "io.codehunters.jasper.internal.template",
+    "io.codehunters.jasper.internal.fill",
+    "io.codehunters.jasper.internal.export"
+  };
+
   @Test
   void should_keep_the_core_on_the_jdk_and_jasperreports_so_any_stack_can_use_it() {
     classes()
         .that()
-        .resideInAPackage("io.codehunters.jasper")
+        .resideInAnyPackage(CORE)
         .should()
         .onlyDependOnClassesThat()
-        .resideInAnyPackage("java..", "net.sf.jasperreports..", "io.codehunters.jasper")
+        .resideInAnyPackage(
+            "java..",
+            "net.sf.jasperreports..",
+            "io.codehunters.jasper",
+            "io.codehunters.jasper.internal.template",
+            "io.codehunters.jasper.internal.fill",
+            "io.codehunters.jasper.internal.export")
         .check(CLASSES);
   }
 

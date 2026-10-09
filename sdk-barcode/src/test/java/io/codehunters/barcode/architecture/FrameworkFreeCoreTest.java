@@ -18,11 +18,21 @@ class FrameworkFreeCoreTest {
   void should_keep_the_core_on_the_jdk_and_zxing_so_any_stack_can_use_it() {
     classes()
         .that()
-        .resideInAPackage("io.codehunters.barcode")
+        .resideInAnyPackage(
+            "io.codehunters.barcode",
+            "io.codehunters.barcode.internal.render",
+            "io.codehunters.barcode.internal.read",
+            "io.codehunters.barcode.internal")
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(
-            "java..", "javax.imageio..", "com.google.zxing..", "io.codehunters.barcode")
+            "java..",
+            "javax.imageio..",
+            "com.google.zxing..",
+            "io.codehunters.barcode",
+            "io.codehunters.barcode.internal.render",
+            "io.codehunters.barcode.internal.read",
+            "io.codehunters.barcode.internal")
         .check(CLASSES);
   }
 }

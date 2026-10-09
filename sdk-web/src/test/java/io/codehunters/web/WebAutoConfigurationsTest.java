@@ -2,11 +2,11 @@ package io.codehunters.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.device.config.DeviceAutoConfiguration;
-import io.codehunters.device.ip.ClientIpResolver;
-import io.codehunters.i18n.config.I18nAutoConfiguration;
-import io.codehunters.weberrors.config.WebErrorsAutoConfiguration;
-import io.codehunters.weberrors.web.WebErrorsExceptionHandler;
+import io.codehunters.web.device.config.DeviceAutoConfiguration;
+import io.codehunters.web.device.ip.ClientIpResolver;
+import io.codehunters.web.errors.config.WebErrorsAutoConfiguration;
+import io.codehunters.web.errors.servlet.WebErrorsExceptionHandler;
+import io.codehunters.web.i18n.config.I18nAutoConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

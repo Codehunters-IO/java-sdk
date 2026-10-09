@@ -40,6 +40,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D17 | `sdk-event-messaging` 7.0: el despachador marca cada fila (`send_started_at`) justo antes de publicarla y un reclamo solo cobra intento a las filas marcadas. Los cuatro artefactos van a 7.0.0 y los alias `outbox.*` siguen hasta 8.0 porque ningún servicio migró desde 5.x (2026-10-08) | `docs/adr/0018-charge-attempts-only-for-started-sends.md` |
 | D18 | `sdk-audit-log` 3.1.0: en WebFlux, sin actor de la anotación ni del provider, un `Mono` o `Flux` toma el usuario autenticado del contexto Reactor del suscriptor (`ReactiveSecurityContextHolder`); Spring Security sigue opcional. JTA y cancelación ya eran correctos: solo se fijan con tests (2026-10-08) | — |
 | D19 | `sdk-geo-validation` 1.1.0 suma un adaptador PostGIS sobre una tabla o vista del servicio (nombres configurados y validados), con `ST_Covers` sobre `geography`: geodésico, cruza el antimeridiano, el borde es de la zona. Una sola consulta distingue `ZONE_NOT_FOUND` de `OUTSIDE_ZONE` (2026-10-09) | `docs/adr/0019-postgis-geofence-adapter.md` |
+| D20 | Los SDK no usan estructura hexagonal: se empaquetan por capacidad. El paquete raíz es la API, los subpaquetes se nombran por lo que hacen, `config` tiene la auto-configuración y `internal` lo que no es API; ningún paquete se reparte entre dos jars. Se mueven sin shims y cada módulo afectado sube de major, porque ningún servicio los consume todavía (2026-10-09) | `docs/adr/0020-package-by-capability.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1484,3 +1485,31 @@ Decisión D19 ([ADR 0019](../adr/0019-postgis-geofence-adapter.md)).
   otra que también cubre el punto. Se documentan la columna de scope de texto, el orden del id
   según su tipo, SRID 0 como 4326, qué se valida al arrancar y que el timeout no cubre la espera de
   conexión.
+
+## Fase 24 — Paquetes por capacidad (rama `refactor/package-layout`, sobre `master`)
+
+Decisión D20 ([ADR 0020](../adr/0020-package-by-capability.md)). Solo cambian los imports; las
+propiedades `codehunters.*`, los alias y el comportamiento no cambian. Los plazos de alias que caían
+en la nueva major se corren una major más.
+
+| Módulo | Antes | Ahora | Cambio principal |
+|---|---|---|---|
+| `sdk-tracing` | 1.0.0 | 2.0.0 | `servlet`, `mdc`, `amqp`, `internal`; la API sigue en la raíz |
+| `sdk-event-messaging-*` | 7.0.0 | 8.0.0 | sin capas; `messaging`, `factory`, `dispatch`, `metrics`; transportes en `messaging.jdbc`, `.kafka`, `.rabbit` |
+| `sdk-web` | 1.0.0 | 2.0.0 | `io.codehunters.web.errors`, `.device`, `.i18n` |
+| `sdk-commons` | 1.1.0 | 2.0.0 | TOTP en `io.codehunters.commons.totp` |
+| `sdk-audit-log` | 3.1.0 | 4.0.0 | `aspect`, `reactive`, `persistence`, `device`, `config` |
+| `sdk-user-security` / `-authz` | 3.1.0 / 3.0.0 | 4.0.0 | `jwt`, `session`, `gateway`, `mvc`, `config` |
+| `sdk-jasper` | 1.0.0 | 2.0.0 | `template`, `export`, `fill` |
+| `sdk-barcode` | 1.0.0 | 2.0.0 | `render`, `read`, `internal` (mapeo ZXing fuera de la API) |
+| `sdk-measure-micrometer` | 3.0.0 | 4.0.0 | `config`, `internal` |
+| `sdk-file-share` | 2.0.0 | 3.0.0 | sin capas; `model`, `http` |
+| `sdk-parameter` | 2.0.0 | 3.0.0 | sin capas; `jdbc`, `cache`, `internal` |
+| `sdk-jpa` | 1.0.0 | 2.0.0 | `domain` pasa a `entity` |
+| `sdk-geo-validation` | 1.1.0 | 1.1.0 | ya cumplía |
+| `sdk-bom` | 1.5.0 | 2.0.0 | versiones nuevas |
+
+- `build-logic`: `codehuntersPackages { root = ... }` en cada módulo y `verifyPackageLayout` en
+  `check`: sin nombres de capa, `package-info.java` en cada paquete, todo bajo la raíz declarada,
+  nada bajo la raíz de otro módulo y la API sin imports de `config`.
+- Se trabajó en cuatro ramas paralelas por grupo de módulos, integradas en una sola.

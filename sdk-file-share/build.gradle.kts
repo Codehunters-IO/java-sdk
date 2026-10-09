@@ -2,8 +2,12 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.0.0"
+version = "3.0.0"
 description = "HTTP client for the file-share service: presigned upload and download tickets."
+
+codehuntersPackages {
+    root = "io.codehunters.fileshare"
+}
 
 dependencies {
     implementation(project(":sdk-support"))

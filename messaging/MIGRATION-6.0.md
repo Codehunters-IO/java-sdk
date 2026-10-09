@@ -14,7 +14,7 @@ Module docs: [core](sdk-event-messaging-core/README.md) · [jdbc](sdk-event-mess
 
 1. Apply the DDL changes (SQL Server: **before** deploying 6.0, see [DDL](#ddl)).
 2. Replace the dependency.
-3. Rename properties (optional until 8.0) and review the Kafka send timeout.
+3. Rename properties (optional until 9.0) and review the Kafka send timeout.
 4. RabbitMQ: enable publisher confirms and returns.
 5. Consumers: deduplicate on `outbox-message-id`.
 
@@ -34,8 +34,8 @@ the 5.x dependency yourself.
 ## Properties
 
 Every key moves from `outbox.*` to `codehunters.outbox.*`. The old keys (in files and environment
-variables) are still honoured until 8.0 (7.0 kept them): each is copied to its new name when the new one is unset,
-with one deprecation warning at startup.
+variables) are still honoured until 9.0 (7.0 and 8.0 kept them): each is copied to its new name
+when the new one is unset, with one deprecation warning at startup.
 
 | 5.x | 6.0 |
 |---|---|

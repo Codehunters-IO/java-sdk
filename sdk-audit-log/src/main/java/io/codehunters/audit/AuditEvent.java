@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Immutable audit event produced by {@link AuditAspect}.
+ * Immutable audit event produced by {@link io.codehunters.audit.internal.aspect.AuditAspect}.
  *
  * @param entityType the type of entity audited
  * @param entityId the identifier of the audited entity

@@ -1,5 +1,17 @@
 # Changelog — sdk-measure-micrometer
 
+## 4.0.0
+
+### Breaking
+- Package reorganisation; behaviour, meters and `codehunters.measure.*` properties unchanged. See
+  [MIGRATION-4.0.md](MIGRATION-4.0.md).
+- `@Measured` stays in `io.codehunters.measure`.
+- `MeasureAutoConfiguration`, `MeasureProperties` and `MeasuredBeanValidator` moved to
+  `io.codehunters.measure.config`.
+- `MeasureAspect` and its helpers (definitions, plans, expressions, cardinality limiter, warnings)
+  moved to `io.codehunters.measure.internal`, which is not API. `MeasuredDefinition` is public there
+  for the startup validator.
+
 ## 3.0.0
 
 ### Breaking

@@ -1,5 +1,7 @@
 package io.codehunters.jasper;
 
+import io.codehunters.jasper.internal.template.TemplateNames;
+
 /**
  * How the renderer loads templates and bounds its work.
  *
@@ -60,9 +62,5 @@ public record ReportSettings(
   public ReportSettings(
       String templateBase, int cacheSize, long maxOutputBytes, Virtualization virtualization) {
     this(templateBase, cacheSize, maxOutputBytes, FillLimits.DEFAULT, virtualization);
-  }
-
-  String resolve(String name) {
-    return templateBase + "/" + name;
   }
 }

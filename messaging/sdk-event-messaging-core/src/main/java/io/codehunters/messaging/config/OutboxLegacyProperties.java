@@ -13,7 +13,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
  * Honours the pre-6.0 {@code outbox.*} keys under their {@code codehunters.outbox.*} names until
- * 8.0. Runs right after the application's configuration files are loaded; a key set under the new
+ * 9.0. Runs right after the application's configuration files are loaded; a key set under the new
  * name always wins.
  */
 public class OutboxLegacyProperties implements EnvironmentPostProcessor, Ordered {

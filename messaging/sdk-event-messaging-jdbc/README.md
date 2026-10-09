@@ -5,8 +5,8 @@ ShedLock-protected dispatch and purge schedulers. Model and dispatch semantics a
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:6.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:6.0.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:8.0.0") // or -kafka
 ```
 
 Brings `-core` and ShedLock (`shedlock-spring`, `shedlock-provider-jdbc-template`). The application
@@ -110,6 +110,19 @@ are never touched.
 | Dispatch or purge throws | Logged with the exception class only; the next tick runs normally |
 | Instance dies with a claimed batch | Rows are reclaimed after `claim.ttl-ms`, counting one attempt |
 | `outbox_message` lacks `seq` | Every claim fails until the DDL is applied |
+
+## Packages
+
+| Package | Contents |
+|---|---|
+| `io.codehunters.messaging.jdbc` | `OutboxJdbcAdapter`, `OutboxDialect` and its implementations |
+| `io.codehunters.messaging.jdbc.scheduler` | Dispatch and purge schedulers |
+| `io.codehunters.messaging.jdbc.metrics` | `OutboxFailedGauge` |
+| `io.codehunters.messaging.jdbc.config` | Auto-configuration |
+
+## Migrating from 7.x
+
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
 
 ## Migrating from 5.x
 

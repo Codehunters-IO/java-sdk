@@ -12,7 +12,11 @@ implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
 
 ## Usage
 
-Inject `FileShareClient`:
+Inject `FileShareClient` (`io.codehunters.fileshare`). Value types such as `FileRef` and the
+tickets are in `io.codehunters.fileshare.model`; the REST implementation is in
+`io.codehunters.fileshare.http`. Upgrading from 2.x: see [MIGRATION-3.0.md](MIGRATION-3.0.md).
+
+Methods:
 
 | Method | Does |
 |---|---|
@@ -53,7 +57,7 @@ any user info are hidden. Do not log `uploadUrl()` or
 | `codehunters.file-share.auth.principal` | `codehunters-file-share` | Name the token is cached under |
 | `codehunters.file-share.auth.allow-insecure-http` | `false` | Allows sending the token to an `http` base URL (for example inside a mesh that adds mTLS) |
 
-The 1.x keys `vitxo.file-share.*` still work until 3.0.0 and log a deprecation warning.
+The 1.x keys `vitxo.file-share.*` still work until 4.0.0 and log a deprecation warning.
 
 ### Authentication
 

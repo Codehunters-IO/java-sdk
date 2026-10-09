@@ -5,6 +5,10 @@ plugins {
 version = "1.1.0"
 description = "Geofencing: decides whether a point falls inside the zones of a caller-defined scope."
 
+codehuntersPackages {
+    root = "io.codehunters.geo"
+}
+
 dependencies {
     implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")

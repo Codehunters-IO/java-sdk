@@ -3,9 +3,10 @@ package io.codehunters.fileshare.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.fileshare.application.FileShareClient;
-import io.codehunters.fileshare.domain.exception.FileShareUnauthorizedException;
-import io.codehunters.fileshare.domain.exception.FileShareUnavailableException;
+import io.codehunters.fileshare.FileShareClient;
+import io.codehunters.fileshare.FileShareRequestInterceptor;
+import io.codehunters.fileshare.FileShareUnauthorizedException;
+import io.codehunters.fileshare.FileShareUnavailableException;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.UUID;

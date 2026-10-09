@@ -5,8 +5,8 @@ the shared configuration. It sends nothing on its own; add `sdk-event-messaging-
 transport.
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:6.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:6.0.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:8.0.0") // or -kafka
 ```
 
 Depend on `-core` alone only to build events without storing or sending them.
@@ -120,6 +120,20 @@ Every bean backs off when the application defines its own: `Clock` (UTC by defau
   fail when the 5.x `sdk-event-messaging` jar is still resolved, or when artifacts of different
   versions meet, is invisible to Maven. Import `io.codehunters:sdk-bom` so all
   `sdk-event-messaging-*` artifacts resolve to the same version, and remove the 5.x dependency.
+
+## Packages
+
+| Package | Contents |
+|---|---|
+| `io.codehunters.messaging` | Model, ports, `MessagePublishException`, `MessagePublisherDecorator` |
+| `io.codehunters.messaging.factory` | `EventMessageFactory`, `OutboxEventFactory`, `TraceIdSource` |
+| `io.codehunters.messaging.dispatch` | `SendOutboxMessagesUseCase` |
+| `io.codehunters.messaging.metrics` | `MeteredMessagePublisher` |
+| `io.codehunters.messaging.config` | Auto-configuration, `EventMessagingProperties`, transport condition |
+
+## Migrating from 7.x
+
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
 
 ## Migrating from 5.x
 

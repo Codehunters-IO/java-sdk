@@ -20,6 +20,9 @@ are shaped that way; otherwise map at the adapter boundary.
 
 ## Base entities
 
+`BaseEntity` and `AuditableEntity` are in `io.codehunters.jpa.entity` (`io.codehunters.jpa.domain`
+before 2.0.0; see [MIGRATION-2.0.md](MIGRATION-2.0.md)).
+
 ```java
 @Entity
 @Table(name = "orders")

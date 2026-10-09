@@ -1,6 +1,6 @@
 package io.codehunters.tracing.config;
 
-import io.codehunters.tracing.TraceIdFilter;
+import io.codehunters.tracing.servlet.TraceIdFilter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;

@@ -4,7 +4,7 @@ W3C trace context propagation through servlet requests, async tasks and RabbitMQ
 MDC (`traceId`, `spanId`, `traceFlags`) so every log line carries the trace.
 
 ```kotlin
-implementation("io.codehunters:sdk-tracing:1.0.0")
+implementation("io.codehunters:sdk-tracing:2.0.0")
 ```
 
 ## What it does
@@ -56,6 +56,21 @@ Application code reads the context through `TraceContextPort` (`currentTraceId()
 
 RabbitMQ propagation needs `spring-rabbit` and Jackson on the classpath; the servlet filter needs a
 servlet web application.
+
+## Packages
+
+| Package | Contents |
+|---|---|
+| `io.codehunters.tracing` | `TraceContextPort`, `TraceParent`, `TraceHeaders` |
+| `io.codehunters.tracing.servlet` | `TraceIdFilter` |
+| `io.codehunters.tracing.mdc` | `MdcTraceContextAdapter`, `MdcTaskDecorator` |
+| `io.codehunters.tracing.amqp` | RabbitMQ post-processor, listener interceptor, bean post-processor |
+| `io.codehunters.tracing.config` | Auto-configuration |
+| `io.codehunters.tracing.internal` | Not API; may change in any release |
+
+## Migrating from 1.x
+
+Only imports change; see [MIGRATION-2.0.md](MIGRATION-2.0.md).
 
 ## Migrating from 0.x
 

@@ -7,6 +7,9 @@ import com.google.zxing.MultiFormatReader;
 import com.google.zxing.ReaderException;
 import com.google.zxing.Result;
 import com.google.zxing.common.HybridBinarizer;
+import io.codehunters.barcode.internal.ZxingMapping;
+import io.codehunters.barcode.internal.read.DecodePlan;
+import io.codehunters.barcode.internal.read.Luminance;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBuffer;
 import java.awt.image.SampleModel;
@@ -213,7 +216,7 @@ public final class BarcodeReader {
     BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
     try {
       Result result = decoder.decode(bitmap);
-      return BarcodeFormat.of(result.getBarcodeFormat())
+      return ZxingMapping.fromZxing(result.getBarcodeFormat())
           .map(format -> new DecodedBarcode(format, result.getText()));
     } catch (ReaderException | RuntimeException e) {
       return Optional.empty();
@@ -232,7 +235,7 @@ public final class BarcodeReader {
     Map<DecodeHintType, Object> hints = new EnumMap<>(DecodeHintType.class);
     hints.put(
         DecodeHintType.POSSIBLE_FORMATS,
-        Arrays.stream(BarcodeFormat.values()).map(BarcodeFormat::zxing).toList());
+        Arrays.stream(BarcodeFormat.values()).map(ZxingMapping::toZxing).toList());
     hints.put(DecodeHintType.TRY_HARDER, Boolean.TRUE);
     hints.put(DecodeHintType.ALLOWED_LENGTHS, ITF_LENGTHS);
     return Map.copyOf(hints);

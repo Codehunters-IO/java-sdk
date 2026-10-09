@@ -2,8 +2,12 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "2.0.0"
 description = "JPA building blocks: audited UUIDv7 entities, page responses, JSON converters, safe search specifications."
+
+codehuntersPackages {
+    root = "io.codehunters.jpa"
+}
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-autoconfigure")

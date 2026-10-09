@@ -2,8 +2,12 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "2.0.0"
 description = "JasperReports 7 rendering to PDF, XLSX or CSV from classpath templates, with limits."
+
+codehuntersPackages {
+    root = "io.codehunters.jasper"
+}
 
 dependencies {
     api(libs.jasperreports)

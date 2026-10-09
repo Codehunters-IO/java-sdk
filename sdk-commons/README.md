@@ -1,11 +1,12 @@
 # sdk-commons
 
 Small, framework-free helpers that the JDK does not provide, and RFC 6238 TOTP. Artifact
-`io.codehunters:sdk-commons`, packages `io.codehunters.commons.*` and `io.codehunters.totp`.
+`io.codehunters:sdk-commons`, packages `io.codehunters.commons.*` and `io.codehunters.commons.totp`.
 
 The helpers in `io.codehunters.commons.*` depend on the JDK only and have no auto-configuration: call
-the classes directly. The [TOTP](#totp--iocodehunterstotp) core is JDK-only too; its optional
-Spring Boot auto-configuration (`io.codehunters.totp.config`) activates only in a Boot application.
+the classes directly. The [TOTP](#totp--iocodehunterscommonstotp) core is JDK-only too; its optional
+Spring Boot auto-configuration (`io.codehunters.commons.totp.config`) activates only in a Boot
+application.
 The one runtime dependency is `sdk-support`, which carries the old `vitxo.totp.*` property aliases.
 ArchUnit tests enforce these boundaries.
 
@@ -26,7 +27,7 @@ its replacement. Why the module is not called `sdk-utils`:
 | `time` | `CronExpressions` | `quartzAt(LocalDateTime)`: a Quartz expression that fires once |
 | `file` | `FileNames` | `extension(name)` as `Optional`, `withBaseName(name, base)` |
 | `stream` | `Predicates` | `distinctByKey(keyExtractor)` |
-| `io.codehunters.totp` | `TotpGenerator`, `TotpSecret`, `TotpConfig` | RFC 6238 codes: generate and verify ([below](#totp--iocodehunterstotp)) |
+| `io.codehunters.commons.totp` | `TotpGenerator`, `TotpSecret`, `TotpConfig` | RFC 6238 codes: generate and verify ([below](#totp--iocodehunterscommonstotp)) |
 
 ## Usage
 
@@ -80,13 +81,13 @@ FileNames.withBaseName("photo.JPG", "avatar");             // "avatar.JPG"
 - **`Predicates.distinctByKey`** is stateful: create one per stream. In a parallel stream "first"
   means first to be tested.
 
-## TOTP — `io.codehunters.totp`
+## TOTP — `io.codehunters.commons.totp`
 
 RFC 6238 time-based one-time passwords: generation, verification and shared-secret handling.
-Formerly the `sdk-totp` artifact (and `sdk-utils` before it); the package and the
-`codehunters.totp.*` properties did not change
-([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)). Coming from either:
-[MIGRATION-1.1.md](MIGRATION-1.1.md).
+Formerly the `sdk-totp` artifact (and `sdk-utils` before it); the `codehunters.totp.*` properties
+did not change ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)). Coming from
+either: [MIGRATION-1.1.md](MIGRATION-1.1.md). In 2.0.0 the package moved from `io.codehunters.totp`
+to `io.codehunters.commons.totp`: [MIGRATION-2.0.md](MIGRATION-2.0.md).
 
 ### Usage
 
@@ -128,8 +129,8 @@ test vectors). `toString()` never shows the key, and an invalid Base32 or hex in
 | `codehunters.totp.digits` | `six` | `six` or `eight`; `four` is deprecated (below RFC 4226). |
 | `codehunters.totp.algorithm` | `hmac-sha512` | `hmac-sha1`, `hmac-sha256` or `hmac-sha512`. |
 
-The 1.x keys under `vitxo.totp.*` are still read, with a deprecation warning, until sdk-commons 2.0.0. A key set
-under `codehunters.totp.*` wins over the old one.
+The 1.x keys under `vitxo.totp.*` are still read, with a deprecation warning, until sdk-commons 3.0.0. A
+key set under `codehunters.totp.*` wins over the old one.
 
 Most authenticator apps only support HMAC-SHA1 with six digits and a 30-second step. Set
 `codehunters.totp.algorithm=hmac-sha1` when codes are entered from such an app.

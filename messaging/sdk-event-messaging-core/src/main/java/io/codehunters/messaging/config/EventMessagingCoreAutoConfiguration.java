@@ -1,13 +1,14 @@
 package io.codehunters.messaging.config;
 
-import io.codehunters.messaging.application.port.MessagePublisherPort;
-import io.codehunters.messaging.application.port.OutboxRepositoryPort;
-import io.codehunters.messaging.application.port.SendOutboxMessagesPort;
-import io.codehunters.messaging.application.usecase.SendOutboxMessagesUseCase;
-import io.codehunters.messaging.domain.factory.EventMessageFactory;
-import io.codehunters.messaging.domain.factory.OutboxEventFactory;
-import io.codehunters.messaging.domain.factory.TraceIdSource;
-import io.codehunters.messaging.infrastructure.metrics.MeteredMessagePublisher;
+import io.codehunters.messaging.MessagePublisherDecorator;
+import io.codehunters.messaging.MessagePublisherPort;
+import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.SendOutboxMessagesPort;
+import io.codehunters.messaging.dispatch.SendOutboxMessagesUseCase;
+import io.codehunters.messaging.factory.EventMessageFactory;
+import io.codehunters.messaging.factory.OutboxEventFactory;
+import io.codehunters.messaging.factory.TraceIdSource;
+import io.codehunters.messaging.metrics.MeteredMessagePublisher;
 import io.codehunters.tracing.TraceContextPort;
 import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -39,9 +40,9 @@ import org.springframework.context.annotation.Configuration;
  */
 @AutoConfiguration(
     afterName = {
-      "io.codehunters.messaging.config.EventMessagingJdbcAutoConfiguration",
-      "io.codehunters.messaging.config.EventMessagingRabbitAutoConfiguration",
-      "io.codehunters.messaging.config.EventMessagingKafkaAutoConfiguration",
+      TransportAutoConfigurations.JDBC,
+      TransportAutoConfigurations.RABBIT,
+      TransportAutoConfigurations.KAFKA,
       "io.codehunters.tracing.config.TracingAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",

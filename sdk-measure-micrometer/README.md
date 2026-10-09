@@ -3,7 +3,7 @@
 `@Measured` records Micrometer meters for a method, or for every method of a class.
 
 ```kotlin
-implementation("io.codehunters:sdk-measure-micrometer:3.0.0")
+implementation("io.codehunters:sdk-measure-micrometer:4.0.0")
 ```
 
 The application needs Boot's metrics auto-configuration (for example through
@@ -107,6 +107,12 @@ channel, never an id.
   inherited from an unannotated superclass.
 - Spring AOP proxies only intercept calls made through the bean: a method calling another
   measured method of the same class is not measured again.
+
+## Upgrading from 3.x
+
+4.0.0 moves the auto-configuration to `io.codehunters.measure.config` and the aspect to
+`io.codehunters.measure.internal`; `@Measured` and every property are unchanged. See
+[MIGRATION-4.0.md](MIGRATION-4.0.md).
 
 ## Upgrading from 2.x
 

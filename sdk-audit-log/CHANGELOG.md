@@ -1,5 +1,21 @@
 # Changelog — sdk-audit-log
 
+## 4.0.0
+
+### Breaking
+- `io.codehunters.audit` keeps only what services use: `Auditable`, `AuditEvent`,
+  `AuditEventPublisherPort`, `AuditContextProvider`, `NoOpAuditContextProvider`, the failure and
+  rejection listeners and `AuditPersistenceException`. Auto-configurations and properties move to
+  `audit.config`, the aspect to `audit.internal.aspect`, `AsyncAuditEventPublisher` and
+  `FailSafeAuditEventPublisher` to `audit.persistence`. Only imports change; see
+  [MIGRATION-4.0.md](MIGRATION-4.0.md).
+- Internals move too (`audit.internal.aspect`, `audit.internal.reactive`, `audit.internal.device`); the few made public for the
+  auto-configuration are not API.
+- The device context provider names sdk-web 2.0's `io.codehunters.web.device` classes.
+
+### Changed
+- The `vitxo.audit.fail-on-error` alias is honoured until 5.0.0 (was 4.0.0).
+
 ## 3.1.0
 
 ### Added

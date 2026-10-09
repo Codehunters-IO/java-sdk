@@ -1,5 +1,15 @@
 # Changelog — sdk-jasper
 
+## 2.0.0
+
+Package reorganisation; behaviour and `codehunters.jasper.*` properties unchanged. See
+[MIGRATION-2.0.md](MIGRATION-2.0.md).
+
+- The public API stays in `io.codehunters.jasper`; `config` and `metrics` are unchanged.
+- The implementation moved by concern: template loading and the hardened context to
+  `io.codehunters.jasper.internal.template`, exporting and the capped buffer to `io.codehunters.jasper.internal.export`,
+  the bean data source and swap files to `io.codehunters.jasper.internal.fill`. These packages are not API.
+
 ## 1.0.0
 
 First release.
