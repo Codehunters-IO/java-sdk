@@ -12,6 +12,8 @@ codehuntersPackages {
 dependencies {
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
+    implementation("com.github.ben-manes.caffeine:caffeine")
+    compileOnly("io.micrometer:micrometer-core")
     compileOnly("org.springframework:spring-jdbc")
     compileOnly("org.springframework:spring-context")
 
@@ -19,6 +21,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-jdbc")
     testImplementation("org.springframework:spring-jdbc")
     testImplementation("org.mockito:mockito-core")
+    testImplementation("io.micrometer:micrometer-core")
     testImplementation("org.awaitility:awaitility")
     testImplementation(libs.archunit.junit5)
     testImplementation("com.h2database:h2")
