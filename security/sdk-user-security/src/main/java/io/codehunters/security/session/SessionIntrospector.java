@@ -1,13 +1,18 @@
 package io.codehunters.security.session;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.codehunters.security.config.KeycloakSecurityProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.LongAdder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -20,8 +25,10 @@ import org.springframework.web.client.RestClientException;
  * session. Signature, issuer and expiry are verified locally before this runs; introspection only
  * closes the gap left by revoked sessions whose tokens have not expired yet.
  *
- * <p>Results are cached by token hash for a bounded time and size. Failed calls are never cached;
- * {@code failOpen} decides whether a verified token is accepted while Keycloak is unreachable.
+ * <p>Results are cached by token hash in a Caffeine cache that expires them {@code cache-ttl} after
+ * they were written and keeps at most {@code cache-max-entries}. Failed calls are never cached and
+ * are counted; {@code failOpen} decides whether a verified token is accepted while Keycloak is
+ * unreachable.
  */
 public class SessionIntrospector {
 
@@ -32,7 +39,8 @@ public class SessionIntrospector {
   private final String clientId;
   private final String clientSecret;
   private final boolean failOpen;
-  private final BoundedTtlCache<Boolean> cache;
+  private final Cache<String, Boolean> cache;
+  private final LongAdder failures = new LongAdder();
 
   /**
    * Creates the introspector.
@@ -52,7 +60,35 @@ public class SessionIntrospector {
     this.clientId = config.clientId();
     this.clientSecret = config.clientSecret();
     this.failOpen = config.failOpen();
-    this.cache = new BoundedTtlCache<>(config.cacheMaxEntries(), config.cacheTtl(), clock);
+    this.cache = cache(config, clock);
+  }
+
+  private static Cache<String, Boolean> cache(
+      KeycloakSecurityProperties.Introspection config, Clock clock) {
+    return Caffeine.newBuilder()
+        .maximumSize(config.cacheMaxEntries())
+        .expireAfterWrite(config.cacheTtl())
+        .ticker(() -> Duration.between(Instant.EPOCH, clock.instant()).toNanos())
+        .recordStats()
+        .build();
+  }
+
+  /**
+   * The result cache, for metrics and diagnostics.
+   *
+   * @return the cache, keyed by token hash
+   */
+  public Cache<String, Boolean> cache() {
+    return cache;
+  }
+
+  /**
+   * Introspection calls that got no answer from Keycloak since startup.
+   *
+   * @return the number of failed calls
+   */
+  public long failures() {
+    return failures.sum();
   }
 
   /**
@@ -63,9 +99,9 @@ public class SessionIntrospector {
    */
   public boolean isActive(String token) {
     String key = sha256(token);
-    Optional<Boolean> cached = cache.get(key);
-    if (cached.isPresent()) {
-      return cached.get();
+    Boolean cached = cache.getIfPresent(key);
+    if (cached != null) {
+      return cached;
     }
     return introspect(token).map(active -> remember(key, active)).orElse(failOpen);
   }
@@ -88,6 +124,7 @@ public class SessionIntrospector {
               .body(Map.class);
       return Optional.of(body != null && Boolean.TRUE.equals(body.get("active")));
     } catch (RestClientException e) {
+      failures.increment();
       log.warn(
           "Keycloak token introspection failed ({}); failing {}",
           e.getClass().getSimpleName(),

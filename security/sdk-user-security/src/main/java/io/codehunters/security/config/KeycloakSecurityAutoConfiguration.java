@@ -13,6 +13,11 @@ import io.codehunters.security.jwt.KeycloakJwtAuthenticationConverter;
 import io.codehunters.security.mvc.CurrentPrincipalArgumentResolver;
 import io.codehunters.security.session.ActiveSessionValidator;
 import io.codehunters.security.session.SessionIntrospector;
+import io.micrometer.core.instrument.FunctionCounter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.time.Clock;
@@ -63,7 +68,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
  * Secures servlet applications with Keycloak access tokens verified locally: signature against the
- * realm's JWK set, issuer, expiry, optional audience, and, unless disabled, an introspection check
+ * realm's JWK set, issuer, expiry, optional audience, and, when enabled, an introspection check
  * that the Keycloak session is still active. Gateway {@code x-user-*} headers are only accepted
  * when they agree with the token.
  *
@@ -85,6 +90,12 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @EnableConfigurationProperties(KeycloakSecurityProperties.class)
 public class KeycloakSecurityAutoConfiguration {
 
+  /** Name of the introspection result cache in the {@code cache.*} metrics. */
+  public static final String INTROSPECTION_CACHE_NAME = "codehunters.security.introspection.cache";
+
+  /** Counter of introspection calls that got no answer from Keycloak. */
+  public static final String INTROSPECTION_FAILURES = "codehunters.security.introspection.failures";
+
   /** JWK set fetches are rare and small; these bounds keep a slow realm from stalling requests. */
   private static final int JWKS_CONNECT_TIMEOUT_MILLIS = 2_000;
 
@@ -98,7 +109,7 @@ public class KeycloakSecurityAutoConfiguration {
   public KeycloakSecurityAutoConfiguration() {}
 
   /**
-   * Introspector that rejects tokens of revoked Keycloak sessions.
+   * Introspector that rejects tokens of revoked Keycloak sessions, when introspection is enabled.
    *
    * @param properties the security configuration
    * @param restClientBuilder the application's builder, when present
@@ -106,9 +117,7 @@ public class KeycloakSecurityAutoConfiguration {
    */
   @Bean
   @ConditionalOnMissingBean
-  @ConditionalOnBooleanProperty(
-      name = "codehunters.security.introspection.enabled",
-      matchIfMissing = true)
+  @ConditionalOnBooleanProperty(name = "codehunters.security.introspection.enabled")
   public SessionIntrospector sessionIntrospector(
       KeycloakSecurityProperties properties, ObjectProvider<RestClient.Builder> restClientBuilder) {
     var introspection = properties.introspection();
@@ -332,6 +341,31 @@ public class KeycloakSecurityAutoConfiguration {
       var source = new UrlBasedCorsConfigurationSource();
       source.registerCorsConfiguration("/**", configuration);
       return source;
+    }
+  }
+
+  /** Publishes introspection metrics when introspection is on and Micrometer is present. */
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(name = "io.micrometer.core.instrument.binder.MeterBinder")
+  @ConditionalOnBooleanProperty(name = "codehunters.security.introspection.enabled")
+  static class IntrospectionMetricsConfiguration {
+
+    /**
+     * Binds the {@code cache.*} meters of the result cache, tagged {@code
+     * cache=codehunters.security.introspection.cache}, and the {@code
+     * codehunters.security.introspection.failures} counter to every registry Spring Boot hands it.
+     */
+    @Bean
+    MeterBinder sessionIntrospectorMetrics(ObjectProvider<SessionIntrospector> introspector) {
+      return registry -> introspector.ifUnique(sessions -> bind(sessions, registry));
+    }
+
+    private static void bind(SessionIntrospector sessions, MeterRegistry registry) {
+      new CaffeineCacheMetrics<>(sessions.cache(), INTROSPECTION_CACHE_NAME, Tags.empty())
+          .bindTo(registry);
+      FunctionCounter.builder(INTROSPECTION_FAILURES, sessions, SessionIntrospector::failures)
+          .description("Token introspection calls that got no answer from Keycloak")
+          .register(registry);
     }
   }
 

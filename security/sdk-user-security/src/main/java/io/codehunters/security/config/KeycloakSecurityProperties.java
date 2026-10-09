@@ -7,8 +7,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
  * Configuration of the user-security SDK, bound from {@code codehunters.security}. Access tokens
- * are verified locally against the realm's published keys; token introspection additionally rejects
- * tokens whose Keycloak session was revoked.
+ * are verified locally against the realm's published keys; token introspection, when enabled,
+ * additionally rejects tokens whose Keycloak session was revoked.
  *
  * @param enabled whether the SDK configures request security at all
  * @param url Keycloak base URL, e.g. {@code https://kc.example.com}
@@ -110,7 +110,8 @@ public record KeycloakSecurityProperties(
   /**
    * Per-request session validation through Keycloak token introspection.
    *
-   * @param enabled whether tokens are checked against their Keycloak session
+   * @param enabled whether tokens are checked against their Keycloak session; off by default. When
+   *     on, every request with a token missing from the cache calls Keycloak
    * @param clientId confidential client that authenticates the introspection call
    * @param clientSecret secret of that client
    * @param cacheTtl how long a result is reused; also the worst-case revocation latency
@@ -120,7 +121,7 @@ public record KeycloakSecurityProperties(
    * @param readTimeout read timeout of the introspection call
    */
   public record Introspection(
-      @DefaultValue("true") boolean enabled,
+      boolean enabled,
       String clientId,
       String clientSecret,
       @DefaultValue("30s") Duration cacheTtl,
