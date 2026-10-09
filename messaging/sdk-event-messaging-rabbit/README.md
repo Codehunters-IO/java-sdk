@@ -100,7 +100,7 @@ Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md), then
 | `publisher.type` defaulted to `rabbit` | No default; this artifact alone selects RabbitMQ |
 | Unconfirmed send through the SDK-defined `RabbitTemplate` | Confirmed, mandatory send through `outboxRabbitTemplate` |
 | SDK defined a global `RabbitTemplate` and `JacksonJsonMessageConverter` | Not defined; declare your own if you injected them |
-| SDK attached its own trace post-processor | `sdk-tracing` owns trace propagation |
+| SDK attached its own trace post-processor | The outbox writes the stored `traceparent` (see core README) |
 | No message id | `messageId` and `outbox-message-id` header |
 | — | `spring.rabbitmq.publisher-confirm-type=simple` and `publisher-returns=true` required |
 
