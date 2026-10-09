@@ -16,5 +16,7 @@ dependencies {
     testImplementation(libs.archunit.junit5)
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-mssqlserver")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
     testRuntimeOnly("com.microsoft.sqlserver:mssql-jdbc")
+    testRuntimeOnly("org.postgresql:postgresql")
 }
