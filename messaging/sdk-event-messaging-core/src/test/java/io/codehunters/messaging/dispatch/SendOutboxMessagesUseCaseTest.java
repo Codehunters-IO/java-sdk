@@ -38,7 +38,7 @@ class SendOutboxMessagesUseCaseTest {
   private static final int BATCH_SIZE = 10;
   private static final int MAX_ATTEMPTS = 3;
   private static final String INSTANCE_ID = "instance-1";
-  private static final String ORIGIN = "vitxo-ms-test";
+  private static final String ORIGIN = "orders-ms-test";
   private static final long CLAIM_TTL_MS = 30_000L;
   private static final long BASE_BACKOFF_MS = 100L;
   private static final long MAX_BACKOFF_MS = 60_000L;

@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 
 class OutboxEventFactoryTest {
 
-  private static final String ORIGIN = "vitxo-ms-test";
+  private static final String ORIGIN = "orders-ms-test";
 
   private final OutboxEventFactory factory =
       new OutboxEventFactory(ORIGIN, new EventMessageFactory(ORIGIN));
