@@ -20,6 +20,7 @@ import org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.context.support.DelegatingMessageSource;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.servlet.LocaleResolver;
@@ -64,7 +65,10 @@ class I18nAutoConfigurationTest {
 
   @Test
   void should_register_no_message_source_of_its_own() {
-    webRunner.run(context -> assertThat(context).doesNotHaveBean("messageSource"));
+    webRunner.run(
+        context ->
+            assertThat(context.getBean("messageSource"))
+                .isInstanceOf(DelegatingMessageSource.class));
   }
 
   @Test

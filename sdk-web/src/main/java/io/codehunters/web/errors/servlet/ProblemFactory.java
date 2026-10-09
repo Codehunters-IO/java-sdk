@@ -47,7 +47,12 @@ final class ProblemFactory {
   }
 
   ProblemDetail create(ProblemSpec spec, WebRequest request) {
-    var problem = ProblemDetail.forStatusAndDetail(spec.status(), detail(spec));
+    return create(spec, request, LocaleContextHolder.getLocale());
+  }
+
+  /** A problem whose detail is resolved in the given locale rather than the current one. */
+  ProblemDetail create(ProblemSpec spec, WebRequest request, Locale locale) {
+    var problem = ProblemDetail.forStatusAndDetail(spec.status(), detail(spec, locale));
     problem.setTitle(StatusCodes.reasonPhrase(spec.status()));
     typeOf(spec.code()).ifPresent(problem::setType);
     instanceOf(request).ifPresent(problem::setInstance);
@@ -83,9 +88,8 @@ final class ProblemFactory {
     return traceIds.currentTraceId().filter(id -> !id.isBlank());
   }
 
-  private String detail(ProblemSpec spec) {
+  private String detail(ProblemSpec spec, Locale locale) {
     Object[] arguments = spec.arguments().toArray();
-    Locale locale = LocaleContextHolder.getLocale();
     try {
       return messages.getMessage(spec.messageKey(), arguments, locale);
     } catch (NoSuchMessageException missing) {

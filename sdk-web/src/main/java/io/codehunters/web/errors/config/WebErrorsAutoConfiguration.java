@@ -9,6 +9,10 @@ import io.codehunters.web.errors.servlet.ProblemWriter;
 import io.codehunters.web.errors.servlet.WebErrorsExceptionHandler;
 import io.codehunters.web.errors.trace.MdcTraceIdProvider;
 import io.codehunters.web.errors.trace.TraceIdProvider;
+import java.util.Optional;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
@@ -25,6 +29,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.ProblemDetail;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenAuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.access.BearerTokenAccessDeniedHandler;
+import org.springframework.web.servlet.DispatcherServlet;
+import org.springframework.web.servlet.LocaleResolver;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -54,8 +60,18 @@ public class WebErrorsAutoConfiguration {
   public WebErrorsAutoConfiguration() {}
 
   /**
+   * Adds the SDK's error bundle to the application's {@code messageSource}, after its own bundles.
+   *
+   * @return the post-processor
+   */
+  @Bean
+  static BeanPostProcessor errorBundleRegistrar() {
+    return new ErrorBundleRegistrar();
+  }
+
+  /**
    * The exception handler. It resolves messages through the application context, which delegates to
-   * the application's {@code messageSource} (the i18n SDK's, when present).
+   * the application's {@code messageSource} (Boot's, configured by {@code spring.messages.*}).
    *
    * @param context the application context, used as message source
    * @param traceIds the trace id provider
@@ -109,11 +125,18 @@ public class WebErrorsAutoConfiguration {
       })
   static class SecurityConfiguration {
 
+    /** Resolves the locale with the application's {@code localeResolver} when there is one. */
     @Bean
     @ConditionalOnMissingBean
     ProblemWriter problemWriter(
-        ApplicationContext context, TraceIdProvider traceIds, WebErrorsProperties properties) {
-      return new ProblemWriter(context, traceIds, settings(properties));
+        ApplicationContext context,
+        TraceIdProvider traceIds,
+        WebErrorsProperties properties,
+        @Qualifier(DispatcherServlet.LOCALE_RESOLVER_BEAN_NAME)
+            ObjectProvider<LocaleResolver> localeResolver) {
+      return Optional.ofNullable(localeResolver.getIfAvailable())
+          .map(resolver -> new ProblemWriter(context, traceIds, settings(properties), resolver))
+          .orElseGet(() -> new ProblemWriter(context, traceIds, settings(properties)));
     }
 
     @Bean
