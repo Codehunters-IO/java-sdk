@@ -126,7 +126,7 @@ class AuditExpressionStartupCheckTest {
         action = "READ",
         entityId = "#tags['id']",
         actorId = "#result?.name",
-        payload = {"size=#tags.size", "upper=#tags?.['k'] ?: 'none'"})
+        payload = {"first=#tags['first']", "upper=#tags?.['k'] ?: 'none'"})
     public Object find(java.util.Map<String, String> tags) {
       return null;
     }
