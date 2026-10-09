@@ -9,6 +9,13 @@ public final class Authorities {
 
   private Authorities() {}
 
+  /**
+   * The authority Spring Security checks for a Keycloak role, e.g. {@code admin} → {@code
+   * ROLE_ADMIN}.
+   *
+   * @param role a Keycloak realm or client role name
+   * @return the authority name
+   */
   public static String fromRole(String role) {
     return ROLE_PREFIX + role.trim().toUpperCase(Locale.ROOT);
   }
