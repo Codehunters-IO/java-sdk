@@ -117,7 +117,22 @@ class EventMessagingCoreAutoConfigurationTest {
           assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(7));
           assertThat(props.purge().batchSize()).isEqualTo(500);
+          assertThat(props.publisher().legacyTraceparentHeader()).isFalse();
         });
+  }
+
+  @Test
+  void should_bind_legacy_traceparent_header_when_configured_on() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.publisher.legacy-traceparent-header=true")
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(EventMessagingProperties.class)
+                            .publisher()
+                            .legacyTraceparentHeader())
+                    .isTrue());
   }
 
   @Test

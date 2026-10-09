@@ -175,7 +175,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_ignore_kafka_send_timeout_when_publisher_is_rabbit() {
     Publisher publisher =
-        new Publisher("rabbit", new Kafka(Duration.ofHours(1)), new Rabbit(CONFIRM_TIMEOUT));
+        new Publisher("rabbit", new Kafka(Duration.ofHours(1)), new Rabbit(CONFIRM_TIMEOUT), false);
 
     EventMessagingProperties properties =
         properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher);
@@ -217,7 +217,8 @@ class EventMessagingPropertiesTest {
         new Publisher(
             "kafka",
             new Kafka(Duration.ofMillis(Long.MAX_VALUE / 25)),
-            new Rabbit(CONFIRM_TIMEOUT));
+            new Rabbit(CONFIRM_TIMEOUT),
+            false);
 
     assertThatIllegalArgumentException()
         .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher))
@@ -228,7 +229,10 @@ class EventMessagingPropertiesTest {
   void should_reject_confirm_timeout_when_it_overflows_milliseconds() {
     Publisher publisher =
         new Publisher(
-            "rabbit", new Kafka(SEND_TIMEOUT), new Rabbit(Duration.ofSeconds(Long.MAX_VALUE)));
+            "rabbit",
+            new Kafka(SEND_TIMEOUT),
+            new Rabbit(Duration.ofSeconds(Long.MAX_VALUE)),
+            false);
 
     assertThatIllegalArgumentException()
         .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher))
@@ -327,7 +331,7 @@ class EventMessagingPropertiesTest {
   }
 
   private static Publisher publisher(String type) {
-    return new Publisher(type, new Kafka(SEND_TIMEOUT), new Rabbit(CONFIRM_TIMEOUT));
+    return new Publisher(type, new Kafka(SEND_TIMEOUT), new Rabbit(CONFIRM_TIMEOUT), false);
   }
 
   private static Publisher rabbit() {
