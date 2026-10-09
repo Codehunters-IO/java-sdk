@@ -9,8 +9,10 @@ import java.io.Serial;
  * the rule that was broken and never repeat the content, so they are safe to return as a 400
  * detail; sdk-web does so out of the box.
  *
- * <p>Still an {@link IllegalArgumentException}, which the reader and renderer threw before. Missing
- * ({@code null}) arguments are programming errors and stay plain {@code IllegalArgumentException}s.
+ * <p>Still an {@link IllegalArgumentException}, which the reader and renderer threw before. A
+ * missing ({@code null}) content counts as client input and is {@value #CONTENT_REJECTED}, like an
+ * empty one; any other missing argument, such as a {@code null} format or stream, is a programming
+ * error and stays a plain {@code IllegalArgumentException}.
  */
 public final class BarcodeRejectedException extends ClientInputException {
 
