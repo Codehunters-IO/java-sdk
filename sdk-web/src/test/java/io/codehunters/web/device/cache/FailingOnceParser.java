@@ -1,5 +1,7 @@
-package io.codehunters.web.device.useragent;
+package io.codehunters.web.device.cache;
 
+import io.codehunters.web.device.useragent.UserAgentInfo;
+import io.codehunters.web.device.useragent.UserAgentParser;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Test fake: throws the given {@link Error} on its first call, then echoes the header. */

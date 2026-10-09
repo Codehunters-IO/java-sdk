@@ -2,13 +2,16 @@ package io.codehunters.web.device.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.web.device.cache.CachingUserAgentParser;
 import io.codehunters.web.device.ip.ClientIpResolver;
 import io.codehunters.web.device.ip.ProxyChain;
 import io.codehunters.web.device.servlet.ClientContextResolver;
-import io.codehunters.web.device.useragent.CachingUserAgentParser;
+import io.codehunters.web.device.servlet.ForwardedClientIpFilter;
 import io.codehunters.web.device.useragent.UnknownUserAgentParser;
 import io.codehunters.web.device.useragent.UserAgentInfo;
 import io.codehunters.web.device.useragent.UserAgentParser;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.InetAddress;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -69,12 +72,53 @@ class DeviceAutoConfigurationTest {
   }
 
   @Test
-  void should_skip_the_request_resolver_outside_servlet_applications() {
+  void should_register_nothing_outside_servlet_applications() {
     plain.run(
         context -> {
-          assertThat(context).hasSingleBean(ClientIpResolver.class);
+          assertThat(context).doesNotHaveBean(ClientIpResolver.class);
+          assertThat(context).doesNotHaveBean(UserAgentParser.class);
           assertThat(context).doesNotHaveBean(ClientContextResolver.class);
         });
+  }
+
+  @Test
+  void should_publish_user_agent_cache_metrics_when_micrometer_is_present() {
+    web.run(
+        context -> {
+          var registry = new SimpleMeterRegistry();
+          context.getBean("userAgentCacheMetrics", MeterBinder.class).bindTo(registry);
+          context.getBean(UserAgentParser.class).parse("Mozilla/5.0 Chrome/120.0.1.2");
+
+          assertThat(
+                  registry
+                      .get("cache.gets")
+                      .tag("cache", "codehunters.web.device.user-agent.cache")
+                      .tag("result", "miss")
+                      .functionCounter()
+                      .count())
+              .isEqualTo(1.0);
+        });
+  }
+
+  @Test
+  void should_skip_user_agent_cache_metrics_when_micrometer_is_absent() {
+    web.withClassLoader(new FilteredClassLoader("io.micrometer"))
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context).doesNotHaveBean("userAgentCacheMetrics");
+            });
+  }
+
+  @Test
+  void should_not_rewrite_the_remote_address_by_default() {
+    web.run(context -> assertThat(context).doesNotHaveBean(ForwardedClientIpFilter.class));
+  }
+
+  @Test
+  void should_register_the_forwarded_request_filter_when_enabled() {
+    web.withPropertyValues("codehunters.web.device.forwarded-request-filter.enabled=true")
+        .run(context -> assertThat(context).hasSingleBean(ForwardedClientIpFilter.class));
   }
 
   @Test
@@ -179,8 +223,7 @@ class DeviceAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).hasNotFailed();
-              assertThat(context).hasSingleBean(ClientIpResolver.class);
-              assertThat(context).doesNotHaveBean(ClientContextResolver.class);
+              assertThat(context).doesNotHaveBean(ClientIpResolver.class);
             });
   }
 
