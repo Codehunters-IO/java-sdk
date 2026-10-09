@@ -24,7 +24,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-event-messaging-rabbit` | `io.codehunters.messaging` | 7.0.0 | [README](messaging/sdk-event-messaging-rabbit/README.md) |
 | `sdk-event-messaging-kafka` | `io.codehunters.messaging` | 7.0.0 | [README](messaging/sdk-event-messaging-kafka/README.md) |
 | `sdk-file-share` | `io.codehunters.fileshare` | 2.0.0 | [README](sdk-file-share/README.md) · [MIGRATION](sdk-file-share/MIGRATION-2.0.md) |
-| `sdk-audit-log` | `io.codehunters.audit` | 3.0.0 | [README](sdk-audit-log/README.md) · [MIGRATION](sdk-audit-log/MIGRATION-3.0.md) |
+| `sdk-audit-log` | `io.codehunters.audit` | 3.1.0 | [README](sdk-audit-log/README.md) · [MIGRATION](sdk-audit-log/MIGRATION-3.0.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 3.0.0 | [README](sdk-measure-micrometer/README.md) · [MIGRATION](sdk-measure-micrometer/MIGRATION-3.0.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | 2.0.0 | [README](sdk-parameter/README.md) · [MIGRATION](sdk-parameter/MIGRATION-2.0.md) |
 | `sdk-commons` (includes the former `sdk-totp`) | `io.codehunters.commons`, `io.codehunters.totp` | 1.1.0 | [README](sdk-commons/README.md) · [MIGRATION](sdk-commons/MIGRATION-1.1.md) |

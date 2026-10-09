@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "3.1.0"
 description = "Declarative @Auditable audit trail with SpEL context and an async JDBC adapter."
 
 dependencies {
@@ -19,6 +19,7 @@ dependencies {
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.projectreactor:reactor-core")
+    compileOnly("org.springframework.security:spring-security-core")
     compileOnly("jakarta.transaction:jakarta.transaction-api")
     compileOnly(project(":sdk-web"))
 
@@ -30,6 +31,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-jackson")
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("io.projectreactor:reactor-core")
+    testImplementation("org.springframework.security:spring-security-core")
     testImplementation("jakarta.transaction:jakarta.transaction-api")
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation(project(":sdk-web"))

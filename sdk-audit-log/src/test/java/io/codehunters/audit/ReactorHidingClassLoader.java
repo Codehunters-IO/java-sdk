@@ -8,18 +8,25 @@ import java.nio.file.Path;
 import java.util.Arrays;
 
 /**
- * Loads the test classpath as if Reactor were absent: the SDK's classes are loaded afresh, and any
- * {@code reactor.*} class is reported missing.
+ * Loads the test classpath as if Reactor, or another library, were absent: the SDK's classes are
+ * loaded afresh, and any class under the hidden package is reported missing.
  */
 final class ReactorHidingClassLoader extends URLClassLoader {
 
+  private final String hiddenPackage;
+
   ReactorHidingClassLoader() {
+    this("reactor.");
+  }
+
+  ReactorHidingClassLoader(String hiddenPackage) {
     super(classpath(), ClassLoader.getPlatformClassLoader());
+    this.hiddenPackage = hiddenPackage;
   }
 
   @Override
   protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-    if (name.startsWith("reactor.")) {
+    if (name.startsWith(hiddenPackage)) {
       throw new ClassNotFoundException(name);
     }
     return super.loadClass(name, resolve);

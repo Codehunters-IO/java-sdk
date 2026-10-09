@@ -10,9 +10,10 @@ import org.springframework.util.ClassUtils;
  * when it does. A {@link CompletionStage} is observed and returned unchanged, and its duration runs
  * from the method call. A Reactor {@code Mono} or {@code Flux} is returned decorated and reports
  * once per subscription, with its duration running from the subscription; cancellation is reported
- * as a {@link java.util.concurrent.CancellationException}. When Reactor is present, an outcome
- * signalled on a non-blocking thread is reported on Reactor's bounded elastic scheduler instead, so
- * a blocking write never stalls an event loop.
+ * as a {@link java.util.concurrent.CancellationException}. With Spring Security present, the
+ * authenticated user of the subscriber's Reactor context is reported along with the outcome. When
+ * Reactor is present, an outcome signalled on a non-blocking thread is reported on Reactor's
+ * bounded elastic scheduler instead, so a blocking write never stalls an event loop.
  */
 final class AsyncResults {
 
@@ -36,7 +37,7 @@ final class AsyncResults {
         REACTOR_PRESENT ? ReactorResults.offBlockingThreads(completion) : completion;
     if (result instanceof CompletionStage<?> stage) {
       stage.whenComplete(
-          (value, failure) -> reported.completed(value, unwrap(failure), callStartNanos));
+          (value, failure) -> reported.completed(value, unwrap(failure), callStartNanos, null));
       return Optional.of(stage);
     }
     if (REACTOR_PRESENT) {
@@ -62,7 +63,8 @@ final class AsyncResults {
      * @param value the produced value, or {@code null}
      * @param failure the failure, or {@code null} on success
      * @param startNanos the {@link System#nanoTime()} from which the duration is measured
+     * @param subscriberActor the authenticated user of the Reactor subscriber, or {@code null}
      */
-    void completed(Object value, Throwable failure, long startNanos);
+    void completed(Object value, Throwable failure, long startNanos, String subscriberActor);
   }
 }

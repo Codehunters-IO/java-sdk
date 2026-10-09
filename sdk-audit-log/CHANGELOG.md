@@ -1,5 +1,20 @@
 # Changelog — sdk-audit-log
 
+## 3.1.0
+
+### Added
+- With Spring Security on the classpath, a `Mono` or `Flux` event whose annotation and
+  `AuditContextProvider` name no actor records the authenticated, non-anonymous user of the
+  subscriber's Reactor context (`ReactiveSecurityContextHolder`), so WebFlux calls get an actor.
+  Each subscription reads its own context. A context that cannot be read leaves the actor empty.
+  Spring Security stays optional.
+
+### Verified
+- One event per subscription when a caller's `timeout(...)` or `take(n)` races the work's own
+  completion.
+- With a `JtaTransactionManager` that has a JTA `TransactionManager`, the isolated write suspends
+  the caller's global transaction and survives its rollback.
+
 ## 3.0.0
 
 ### Breaking
