@@ -1,4 +1,4 @@
-package io.codehunters.barcode.render;
+package io.codehunters.barcode.internal.render;
 
 import java.io.IOException;
 import java.io.OutputStream;

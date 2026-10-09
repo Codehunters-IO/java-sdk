@@ -13,12 +13,12 @@ package-private in 1.x and are not API in 2.0 either: they may change in any rel
 
 | 1.x | 2.0 |
 |---|---|
-| `io.codehunters.barcode.ContentRules` | `io.codehunters.barcode.render.ContentRules` |
-| `io.codehunters.barcode.Symbol` | `io.codehunters.barcode.render.Symbol` |
-| `io.codehunters.barcode.PngWriter` | `io.codehunters.barcode.render.PngWriter` |
-| `io.codehunters.barcode.SvgWriter` | `io.codehunters.barcode.render.SvgWriter` |
-| `io.codehunters.barcode.DecodePlan` | `io.codehunters.barcode.read.DecodePlan` |
-| `io.codehunters.barcode.Luminance` | `io.codehunters.barcode.read.Luminance` |
+| `io.codehunters.barcode.ContentRules` | `io.codehunters.barcode.internal.render.ContentRules` |
+| `io.codehunters.barcode.Symbol` | `io.codehunters.barcode.internal.render.Symbol` |
+| `io.codehunters.barcode.PngWriter` | `io.codehunters.barcode.internal.render.PngWriter` |
+| `io.codehunters.barcode.SvgWriter` | `io.codehunters.barcode.internal.render.SvgWriter` |
+| `io.codehunters.barcode.DecodePlan` | `io.codehunters.barcode.internal.read.DecodePlan` |
+| `io.codehunters.barcode.Luminance` | `io.codehunters.barcode.internal.read.Luminance` |
 
 `BarcodeFormat` and `ErrorCorrection` no longer carry ZXing types: the mapping lives in the internal
 `io.codehunters.barcode.internal` package, which is not API.

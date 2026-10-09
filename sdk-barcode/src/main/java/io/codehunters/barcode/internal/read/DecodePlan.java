@@ -1,4 +1,4 @@
-package io.codehunters.barcode.read;
+package io.codehunters.barcode.internal.read;
 
 /**
  * How an image will be decoded, worked out from its header before any pixel is read.

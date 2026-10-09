@@ -20,8 +20,8 @@ class FrameworkFreeCoreTest {
         .that()
         .resideInAnyPackage(
             "io.codehunters.barcode",
-            "io.codehunters.barcode.render",
-            "io.codehunters.barcode.read",
+            "io.codehunters.barcode.internal.render",
+            "io.codehunters.barcode.internal.read",
             "io.codehunters.barcode.internal")
         .should()
         .onlyDependOnClassesThat()
@@ -30,8 +30,8 @@ class FrameworkFreeCoreTest {
             "javax.imageio..",
             "com.google.zxing..",
             "io.codehunters.barcode",
-            "io.codehunters.barcode.render",
-            "io.codehunters.barcode.read",
+            "io.codehunters.barcode.internal.render",
+            "io.codehunters.barcode.internal.read",
             "io.codehunters.barcode.internal")
         .check(CLASSES);
   }

@@ -1,4 +1,4 @@
-package io.codehunters.barcode.render;
+package io.codehunters.barcode.internal.render;
 
 import com.google.zxing.EncodeHintType;
 import com.google.zxing.MultiFormatWriter;

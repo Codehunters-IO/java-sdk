@@ -1,4 +1,4 @@
-package io.codehunters.barcode.render;
+package io.codehunters.barcode.internal.render;
 
 import io.codehunters.barcode.BarcodeFormat;
 import java.util.regex.Pattern;

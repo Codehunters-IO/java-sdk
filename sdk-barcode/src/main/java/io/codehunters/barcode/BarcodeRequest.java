@@ -1,6 +1,6 @@
 package io.codehunters.barcode;
 
-import io.codehunters.barcode.render.ContentRules;
+import io.codehunters.barcode.internal.render.ContentRules;
 
 /**
  * What to render. Content is checked against the rules of its format on construction; whether it

@@ -4,4 +4,4 @@
  *
  * <p>Not API; may change in any release.
  */
-package io.codehunters.barcode.render;
+package io.codehunters.barcode.internal.render;

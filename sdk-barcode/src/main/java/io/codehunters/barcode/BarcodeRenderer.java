@@ -1,8 +1,8 @@
 package io.codehunters.barcode;
 
-import io.codehunters.barcode.render.PngWriter;
-import io.codehunters.barcode.render.SvgWriter;
-import io.codehunters.barcode.render.Symbol;
+import io.codehunters.barcode.internal.render.PngWriter;
+import io.codehunters.barcode.internal.render.SvgWriter;
+import io.codehunters.barcode.internal.render.Symbol;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;

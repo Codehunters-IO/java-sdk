@@ -1,4 +1,4 @@
-package io.codehunters.barcode.read;
+package io.codehunters.barcode.internal.read;
 
 import com.google.zxing.LuminanceSource;
 import com.google.zxing.PlanarYUVLuminanceSource;
