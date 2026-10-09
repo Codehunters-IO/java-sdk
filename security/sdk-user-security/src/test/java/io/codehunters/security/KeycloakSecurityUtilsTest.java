@@ -12,6 +12,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
+// The deprecated gateway getters stay covered until they are removed.
+@SuppressWarnings("removal")
 class KeycloakSecurityUtilsTest {
 
   private static final String USER_ID = "user-456";

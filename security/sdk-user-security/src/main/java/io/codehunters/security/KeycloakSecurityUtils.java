@@ -57,48 +57,76 @@ public final class KeycloakSecurityUtils {
   }
 
   /**
+   * Client context the gateway forwarded for the current request: geolocation, IP and {@code
+   * User-Agent}. <strong>Client-supplied via gateway headers — not verified</strong>: a caller that
+   * bypasses the gateway sets any value it likes. See {@link GatewayContext} for what it is safe to
+   * use for; for a trusted client IP use {@code sdk-web}'s {@code ClientContextResolver}.
+   *
+   * @return the gateway context, or empty when no user is authenticated
+   */
+  public static Optional<GatewayContext> getGatewayContext() {
+    return getCurrentUser().map(KeycloakPrincipal::gatewayContext);
+  }
+
+  /**
    * Country code of the current user, derived from the gateway geolocation headers.
    *
    * @return the country code, or empty when unavailable
+   * @deprecated client-supplied via gateway headers and not verified; use {@link
+   *     #getGatewayContext()}{@code .country()}.
    */
+  @Deprecated(since = "4.1.0", forRemoval = true)
   public static Optional<String> getCurrentCountry() {
-    return getCurrentUser().map(KeycloakPrincipal::country);
+    return getGatewayContext().map(GatewayContext::country);
   }
 
   /**
    * City of the current user, derived from the gateway geolocation headers.
    *
    * @return the city, or empty when unavailable
+   * @deprecated client-supplied via gateway headers and not verified; use {@link
+   *     #getGatewayContext()}{@code .city()}.
    */
+  @Deprecated(since = "4.1.0", forRemoval = true)
   public static Optional<String> getCurrentCity() {
-    return getCurrentUser().map(KeycloakPrincipal::city);
+    return getGatewayContext().map(GatewayContext::city);
   }
 
   /**
    * Latitude of the current user, derived from the gateway geolocation headers.
    *
    * @return the latitude, or empty when unavailable
+   * @deprecated client-supplied via gateway headers and not verified; use {@link
+   *     #getGatewayContext()}{@code .latitude()}.
    */
+  @Deprecated(since = "4.1.0", forRemoval = true)
   public static Optional<String> getCurrentLatitude() {
-    return getCurrentUser().map(KeycloakPrincipal::latitude);
+    return getGatewayContext().map(GatewayContext::latitude);
   }
 
   /**
    * Longitude of the current user, derived from the gateway geolocation headers.
    *
    * @return the longitude, or empty when unavailable
+   * @deprecated client-supplied via gateway headers and not verified; use {@link
+   *     #getGatewayContext()}{@code .longitude()}.
    */
+  @Deprecated(since = "4.1.0", forRemoval = true)
   public static Optional<String> getCurrentLongitude() {
-    return getCurrentUser().map(KeycloakPrincipal::longitude);
+    return getGatewayContext().map(GatewayContext::longitude);
   }
 
   /**
    * IP address of the current user, derived from the gateway geolocation headers.
    *
    * @return the IP address, or empty when unavailable
+   * @deprecated client-supplied via gateway headers and not verified; use {@link
+   *     #getGatewayContext()}{@code .ip()}, or {@code sdk-web}'s {@code ClientContextResolver} for
+   *     an IP resolved behind trusted proxies.
    */
+  @Deprecated(since = "4.1.0", forRemoval = true)
   public static Optional<String> getCurrentIp() {
-    return getCurrentUser().map(KeycloakPrincipal::ip);
+    return getGatewayContext().map(GatewayContext::ip);
   }
 
   /**

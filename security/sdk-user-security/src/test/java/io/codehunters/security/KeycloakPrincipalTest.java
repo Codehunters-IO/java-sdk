@@ -51,6 +51,20 @@ class KeycloakPrincipalTest {
   }
 
   @Test
+  @SuppressWarnings("removal")
+  void should_keep_deprecated_gateway_accessors_working_until_removed() {
+    assertThat(
+            List.of(
+                principal.country(),
+                principal.city(),
+                principal.latitude(),
+                principal.longitude(),
+                principal.ip(),
+                principal.userAgent()))
+        .containsExactly(COUNTRY, CITY, LATITUDE, LONGITUDE, IP, USER_AGENT);
+  }
+
+  @Test
   void should_keep_gateway_values_out_of_gateway_context_to_string() {
     assertThat(principal.gatewayContext().toString())
         .doesNotContain(COUNTRY, CITY, LATITUDE, LONGITUDE, IP, USER_AGENT);
