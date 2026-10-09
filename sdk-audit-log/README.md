@@ -19,7 +19,7 @@ JDBC adapter and publishers in `io.codehunters.audit.persistence`. Coming from 3
 @Auditable(
     entityType = "ORDER",
     action = "CREATE",
-    entityId = "#result.id",
+    entityId = "#result?.id",
     correlationId = "#command.requestId",
     payload = {"amount=#command.amount", "customer=#command.customerId"})
 public Order createOrder(CreateOrderCommand command) { ... }
@@ -27,10 +27,12 @@ public Order createOrder(CreateOrderCommand command) { ... }
 
 SpEL expressions see the parameters by name (`#command`, needs `-parameters`), by position (`#p0`,
 `#a0`, `#arg0`) and the return value (`#result`). `#result` is reserved: it is `null` when the
-method throws, even if a parameter is called `result`. An expression that fails to evaluate, or
-calls a method that throws, leaves its field `null`; the event is still published, and the first
-failure of each method and attribute is logged at `WARN` with the exception class or SpEL message
-code, never the message or the values. Expressions are parsed at startup; see
+method throws, even if a parameter is called `result`; write `#result?.id` so the failure event
+records `null` cleanly. An expression that fails to evaluate, or calls a method that throws, leaves
+its field `null`; the event is still published, and the first failure of each method (overloads
+apart) and attribute is logged at `WARN` with the exception class or SpEL message code, never the
+message or the values. A `#result` expression that fails only because the method threw is not
+warned about. Expressions are parsed at startup; see
 [Startup checks](#startup-checks). A `correlationId` that is not a UUID is recorded as `null`.
 
 Declare an `AuditContextProvider` bean to fill the actor, IP, user agent, HTTP method, resource
@@ -45,7 +47,11 @@ declare your own provider to fill them.
 When neither the annotation nor the provider names an actor and Spring Security is on the
 classpath, the actor is the authenticated, non-anonymous user of the calling thread's
 `SecurityContextHolder` (`Authentication.getName()`), where a servlet application keeps it (since
-4.1.0). In WebFlux it comes from the subscriber's Reactor context instead; see below. Spring
+4.1.0). It is read only while a request is bound to the thread (Spring Web's
+`RequestContextHolder`): a scheduler, listener or pooled thread can inherit a context
+(`MODE_INHERITABLETHREADLOCAL`) or keep one that leaked, and would record a plausible but wrong
+user, so calls there record no actor unless the provider or annotation names one. In WebFlux it
+comes from the subscriber's Reactor context instead; see below. Spring
 Security stays optional.
 
 The event is recorded when the method returns. A method returning a `CompletionStage` (such as
@@ -164,16 +170,22 @@ call whose commit succeeded could still fail on the audit insert, and a client m
 
 Once every singleton exists, the SDK checks that `@Auditable` methods will actually be audited.
 Each problem is logged at `ERROR`, or fails startup with `IllegalStateException` when
-`codehunters.audit.fail-on-error=true`:
+`codehunters.audit.startup-check.fail-fast=true`. `fail-on-error` does not make these checks fail
+startup, so upgrading within 4.x never stops an application that starts today:
 
 | Problem | Reported when |
 |---|---|
 | No `AuditEventPublisherPort` | A bean declares `@Auditable` methods, and you define no publisher while the JDBC one backs off: no `DataSource`, several `DataSource` beans with none `@Primary`, or Spring JDBC, Spring transactions or Jackson missing from the classpath. The message names the reason and one audited method |
-| Invalid expression | An `entityId`, `actorId`, `correlationId` or `payload` expression cannot be parsed. The message names `Class#method`, the attribute (`payload[key]` for a payload entry) and the parser's error, never evaluated values |
+| No `AuditEventPublisherPort` (excluded) | The same, when the JDBC auto-configuration is excluded or its classes are missing: the message says "missing classes or auto-configuration excluded" |
+| No AspectJ weaver | A publisher exists but `org.aspectj:aspectjweaver` is not on the runtime classpath, so no AspectJ proxy is created |
+| Invalid expression | An `entityId`, `actorId`, `correlationId` or `payload` expression cannot be parsed. The message names `Class#method(Params)`, the attribute (`payload[key]` for a payload entry) and the parser's error, never evaluated values |
 | No AspectJ auto-proxy creator | A publisher exists but nothing applies the aspect (`spring.aop.auto=false` without `@EnableAspectJAutoProxy`). Logged at `WARN` |
 
 Beans are inspected through their target class, so proxies are seen through; lazy beans are
-inspected by type without being created. With `codehunters.audit.enabled=false` no check runs.
+inspected by type without being created. Publishers and `DataSource` beans of parent contexts
+count. Like the aspect, only `@Auditable` on the class's own method counts: an annotation declared
+only on an interface method is not audited and not reported. A factory bean is inspected as the
+factory, not its product. With `codehunters.audit.enabled=false` no check runs.
 
 ## Database
 
@@ -192,6 +204,7 @@ The scripts have no Flyway version prefix, so the SDK never runs them.
 |---|---|---|
 | `codehunters.audit.enabled` | `true` | Turns the SDK off: no aspect, publisher, context provider or startup check |
 | `codehunters.audit.fail-on-error` | `false` | Publish synchronously, inside the caller's transaction, and propagate failures |
+| `codehunters.audit.startup-check.fail-fast` | `false` | A failed [startup check](#startup-checks) stops the application instead of logging an `ERROR` |
 | `codehunters.audit.order` | `2147483647` | Precedence of the audit aspect; the lowest runs it inside `@Transactional` |
 | `codehunters.audit.async.enabled` | `true` | Publish off the caller's thread |
 | `codehunters.audit.async.core-pool-size` | `2` | Threads kept alive |

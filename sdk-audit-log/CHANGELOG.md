@@ -5,23 +5,28 @@
 ### Added
 - Startup checks, run once every singleton exists. When a bean declares `@Auditable` methods but
   no `AuditEventPublisherPort` exists (no `DataSource`, several with none `@Primary`, or Spring
-  JDBC, Spring transactions or Jackson missing), the reason is logged at `ERROR`; until now every
-  audited call went unrecorded without a word. Every `@Auditable` expression is parsed at startup;
-  one that cannot be parsed is logged at `ERROR` naming `Class#method` and the attribute, never
-  evaluated values. Both fail startup only when `codehunters.audit.fail-on-error=true`.
+  JDBC, Spring transactions or Jackson missing, or the JDBC auto-configuration excluded), the
+  reason is logged at `ERROR`; until now every audited call went unrecorded without a word. A
+  missing `aspectjweaver` is reported the same way. Every `@Auditable` expression is parsed at
+  startup; one that cannot be parsed is logged at `ERROR` naming `Class#method(Params)` and the
+  attribute, never evaluated values. Publishers and data sources of parent contexts count, data
+  sources registered as plain singletons are handled, and annotations declared only on interface
+  methods, which the aspect does not apply to, are not reported.
+- `codehunters.audit.startup-check.fail-fast` (default `false`) makes those problems fail startup
+  instead of logging. `fail-on-error` does not, so a minor upgrade never stops an application.
 - `codehunters.audit.enabled` (default `true`) turns the SDK off, as in the other modules.
 - Servlet applications get an actor by default: when neither the annotation nor the
   `AuditContextProvider` names one and Spring Security is on the classpath, the authenticated,
-  non-anonymous user of the calling thread's `SecurityContextHolder` is recorded. Spring Security
-  stays optional.
+  non-anonymous user of the calling thread's `SecurityContextHolder` is recorded, only while a
+  request is bound to the thread, so pooled threads with an inherited or leaked context record no
+  actor. Spring Security and Spring Web stay optional.
 
 ### Behaviour changes
 - New log lines: `ERROR` at startup for the problems above; `WARN` the first time an expression
   of a method and attribute fails to evaluate (later failures stay at `DEBUG`). The warning names
   the exception class or SpEL message code, never its message or the values. The field is still
-  recorded as `null`.
-- With `fail-on-error=true`, a context with audited methods but no publisher, or with an
-  unparseable expression, now fails startup.
+  recorded as `null`. Overloads warn separately. A `#result` expression that fails because the
+  method threw is expected and not warned about; prefer `#result?.id`.
 - The `actor_id` of servlet calls that recorded no actor is now the authenticated user's name;
   reports or queries that read a `null` actor as "unknown user" see it filled.
 
