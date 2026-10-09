@@ -7,9 +7,12 @@ import io.codehunters.messaging.OutboxStatus;
 import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.W3cTraceParent;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
@@ -27,12 +30,12 @@ import tools.jackson.databind.json.JsonMapper;
  * topic, message_key)} are claimed together, in insertion order, and a row is held back while an
  * earlier row of its key is unresolved outside the claim. A save asks the settings' {@link
  * io.codehunters.messaging.OutboxDispatchTrigger} for a dispatch once the surrounding transaction
- * commits, or right away without one. Updates of a claimed row, including the send mark written
- * before each publish, are fenced by its claim marker, so a worker whose claim was taken over after
- * the TTL cannot overwrite the new owner's state. The {@code traceparent} captured with each
- * message is stored and returned by the claim, so the publisher can continue the trace that created
- * the row. A value that is not a valid {@link W3cTraceParent} is stored as null instead of failing
- * the business transaction.
+ * commits, or right away without one; so does a requeue of FAILED rows. Updates of a claimed row,
+ * including the send mark written before each publish, are fenced by its claim marker, so a worker
+ * whose claim was taken over after the TTL cannot overwrite the new owner's state. The {@code
+ * traceparent} captured with each message is stored and returned by the claim, so the publisher can
+ * continue the trace that created the row. A value that is not a valid {@link W3cTraceParent} is
+ * stored as null instead of failing the business transaction.
  */
 public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
 
@@ -141,6 +144,20 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
   private static final String COUNT_FAILED_SQL =
       "SELECT COUNT(*) FROM outbox_message WHERE origin = :origin AND status = 'FAILED'";
 
+  // Puts FAILED rows of the origin back to PENDING, due now, as if never attempted: no error, no
+  // claim, no send mark. Callers append the row filter.
+  private static final String REQUEUE_SQL =
+      """
+      UPDATE outbox_message
+      SET status = 'PENDING', attempts = 0, error = NULL, next_attempt_at = :now,
+          claimed_at = NULL, claimed_by = NULL, send_started_at = NULL
+      WHERE origin = :origin AND status = 'FAILED'
+      """;
+
+  private static final String REQUEUE_BY_ID_SQL = REQUEUE_SQL + "  AND id IN (:ids)";
+
+  private static final String REQUEUE_BY_KEY_SQL = REQUEUE_SQL + "  AND message_key = :key";
+
   private static final Comparator<OutboxMessage<String>> BY_SEQ =
       Comparator.comparing(OutboxMessage::seq, Comparator.nullsLast(Comparator.naturalOrder()));
 
@@ -199,7 +216,8 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
     requestDispatchAfterCommit();
   }
 
-  // One synchronization per transaction, whatever the number of saves: they are equal per trigger.
+  // One synchronization per transaction, whatever the number of saves and requeues: they are equal
+  // per trigger.
   private void requestDispatchAfterCommit() {
     if (!TransactionSynchronizationManager.isSynchronizationActive()) {
       settings.trigger().requestDispatch();
@@ -288,6 +306,33 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
         .param("origin", settings.origin())
         .query(Long.class)
         .single();
+  }
+
+  @Override
+  public int requeue(Collection<UUID> ids) {
+    if (ids.isEmpty()) {
+      return 0;
+    }
+    return requeued(jdbcClient.sql(REQUEUE_BY_ID_SQL).param("ids", Set.copyOf(ids)));
+  }
+
+  @Override
+  public int requeueFailed(String key) {
+    Objects.requireNonNull(key, "key");
+    return requeued(jdbcClient.sql(REQUEUE_BY_KEY_SQL).param("key", key));
+  }
+
+  private int requeued(JdbcClient.StatementSpec statement) {
+    int requeued =
+        statement
+            .param("origin", settings.origin())
+            .param("now", OutboxRows.utc(settings.clock().instant()))
+            .update();
+    log.info("Requeued {} failed outbox messages for origin={}", requeued, settings.origin());
+    if (requeued > 0) {
+      requestDispatchAfterCommit();
+    }
+    return requeued;
   }
 
   private static JdbcClient.StatementSpec bindUpdate(

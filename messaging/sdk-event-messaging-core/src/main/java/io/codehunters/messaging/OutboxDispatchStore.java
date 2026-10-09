@@ -1,12 +1,14 @@
 package io.codehunters.messaging;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Outbound port the dispatcher, the purge job and operators use on stored outbox messages: claim,
- * mark, update, purge and count. Applications write through {@link OutboxWriter} instead.
+ * mark, update, purge, count and requeue. Applications write through {@link OutboxWriter} instead.
  */
 public interface OutboxDispatchStore {
 
@@ -59,4 +61,24 @@ public interface OutboxDispatchStore {
    * @return the number of FAILED rows
    */
   long countFailed();
+
+  /**
+   * Puts the listed FAILED rows of this store's origin back to PENDING, due now, with zero attempts
+   * and no error, claim or send mark, so the dispatcher publishes them again and their keys are no
+   * longer blocked. Rows of other origins or in any other status are left untouched. When at least
+   * one row is requeued, a dispatch is requested once the surrounding transaction commits.
+   *
+   * @param ids the ids of the rows to requeue; an empty collection requeues nothing
+   * @return the number of rows requeued
+   */
+  int requeue(Collection<UUID> ids);
+
+  /**
+   * Puts every FAILED row of this store's origin whose message key is {@code key}, in any topic,
+   * back to PENDING as {@link #requeue} does.
+   *
+   * @param key the message key whose failed rows are requeued; never null
+   * @return the number of rows requeued
+   */
+  int requeueFailed(String key);
 }
