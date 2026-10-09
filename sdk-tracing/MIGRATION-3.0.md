@@ -11,7 +11,11 @@ The stable API is unchanged: `TraceContextPort` (`currentTraceId()`, `currentSpa
 
 ## 1. Add a tracer bridge
 
-Without a bridge there is no trace at all any more (2.x invented one in the servlet filter).
+Without a bridge there is no trace at all any more (2.x invented one in the servlet filter). The
+SDK no longer writes `traceId` / `spanId` to the MDC either, so without a bridge the trace id is
+**empty** everywhere this platform reads it: log lines, the `traceId` of problem responses
+(`sdk-web`) and the `traceId` of published events (`sdk-event-messaging-core`), unless the
+application fills the MDC itself.
 
 ```kotlin
 implementation("io.codehunters:sdk-tracing:3.0.0")
@@ -44,8 +48,25 @@ TaskDecorator contextPropagatingTaskDecorator() {
 }
 ```
 
-Boot applies a single `TaskDecorator` bean to the executors it auto-configures. It carries the
-whole Micrometer context (span, MDC, baggage), not just a copy of the MDC.
+Boot applies a single `TaskDecorator` bean to the executors it auto-configures. It carries what is
+registered in the context-propagation `ContextRegistry`: the current observation and span, and with
+them the `traceId` / `spanId` MDC keys and baggage the bridge writes. It does **not** copy other MDC
+keys (`tenantId`, `userId`, ...) that `MdcTaskDecorator` used to copy, unless a
+`Slf4jThreadLocalAccessor` (`io.micrometer.context.integration`, in `io.micrometer:context-propagation`,
+which the bridge already brings) is registered for them:
+
+```java
+@Bean
+TaskDecorator contextPropagatingTaskDecorator() {
+  ContextRegistry.getInstance() // io.micrometer.context
+      .registerThreadLocalAccessor(new Slf4jThreadLocalAccessor("tenantId", "userId"));
+  return new ContextPropagatingTaskDecorator();
+}
+```
+
+List the keys: with no arguments the accessor copies the whole MDC map, `traceId` / `spanId`
+included, which the span scope already restores. Register it once, before the first task runs; the
+registry is global to the JVM.
 
 Outbound HTTP needs the clients built from Boot's `RestClient.Builder`, `RestTemplateBuilder` or
 `WebClient.Builder`; a client created with `RestClient.create()` is not instrumented.
@@ -71,6 +92,14 @@ messaging modules write the trace headers of each event themselves (see their ch
   decision is reported as not sampled. It falls back to the MDC only when there is no tracer bean
   or the tracer is Boot's no-op tracer.
 - Spans are exported, so they appear in the tracing backend and count against its quota.
+- A parent read from `x-trace-id` (with or without `x-span-id`) carries no sampled flag, and is
+  sampled by trace-id ratio at `management.tracing.sampling.probability` (default `0.1`), the same
+  decision Boot's root sampler makes; 2.x marked it sampled, which with Boot's parent-based sampler
+  would record all gateway traffic. `x-traceparent` keeps the flag the gateway sent.
+- The MDC fallback (`MdcTraceContextAdapter`) reports a trace as sampled only when the MDC holds a
+  `traceFlags` key with the sampled bit set; without it (this SDK no longer writes the key) the
+  context is reported as not sampled, so the `traceparent` stored with outbox events is `-00`.
+- Without a tracer bridge, `traceId` in logs, problem responses and events is empty (see step 1).
 
 ## Logging
 

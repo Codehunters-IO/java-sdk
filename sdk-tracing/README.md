@@ -46,8 +46,13 @@ applies to every instrumented server, client, template and listener above. On ex
 1. a valid `traceparent` (or a parent another propagator already extracted, for example B3) always
    wins: the legacy headers are ignored;
 2. otherwise `x-traceparent` (W3C format, sampled flag kept);
-3. otherwise `x-trace-id` with `x-span-id`, sampled;
-4. otherwise `x-trace-id` alone, sampled, with a generated parent span id.
+3. otherwise `x-trace-id` with `x-span-id`;
+4. otherwise `x-trace-id` alone, with a generated parent span id.
+
+`x-trace-id` carries no sampled flag, so in cases 3 and 4 the parent is sampled by trace-id ratio
+at `management.tracing.sampling.probability` (Boot's default `0.1`, also used when Boot's tracing
+properties are not registered): the decision Boot's root sampler would take for that trace id.
+Boot's sampler is parent-based, so marking these parents sampled would record all gateway traffic.
 
 Ids that are not W3C ids (wrong length, upper case, all zeros, UUIDs) are ignored and Boot starts a
 new trace. Injection stays standard W3C; set `codehunters.tracing.legacy-headers.inject=true` to
@@ -66,11 +71,12 @@ with no extension point for an extra extractor. With Brave, standard W3C/B3 prop
 | Application has | Port |
 |---|---|
 | a Micrometer `Tracer` bean (OpenTelemetry or Brave) | `MicrometerTraceContextAdapter`: the ids the tracer exports and propagates; a deferred sampling decision is reported as not sampled |
-| no `Tracer` bean, or Boot's no-op tracer | `MdcTraceContextAdapter`: reads `traceId` / `spanId` / `traceFlags` from the MDC; never starts or propagates a trace |
+| no `Tracer` bean, or Boot's no-op tracer | `MdcTraceContextAdapter`: reads `traceId` / `spanId` / `traceFlags` from the MDC; never starts or propagates a trace; without a valid `traceFlags` key the trace is reported as not sampled |
 | its own `TraceContextPort` bean | that bean |
 
 `sdk-event-messaging-core` and `sdk-web` read the port to stamp the trace id on events and error
-responses.
+responses. This module no longer writes the MDC: **without a tracer bridge the trace id is empty**
+in log lines, problem responses and events, unless the application puts `traceId` in the MDC itself.
 
 ## Configuration
 

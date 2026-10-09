@@ -18,6 +18,8 @@ trace. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
 
 ### Changed
 - Depends on `io.micrometer:micrometer-tracing` (API only); the application chooses the bridge.
+  `LegacyTraceHeadersPropagator` also needs `opentelemetry-sdk-trace` at runtime, which Boot's
+  OpenTelemetry tracing already brings.
 - `TraceContextPort` is backed by the Micrometer `Tracer` (`MicrometerTraceContextAdapter`) when a
   tracer bean exists; `MdcTraceContextAdapter` is only the fallback without one, or with Boot's
   no-op tracer. `TraceContextPort`, `TraceParent` and `TraceHeaders` keep their signatures.
@@ -29,7 +31,9 @@ trace. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
   `TextMapPropagator` that Boot composes with its own; it reads `x-traceparent`, then `x-trace-id`
   (+ `x-span-id`) when no valid `traceparent` is present, and optionally writes `x-traceparent`.
 - `LegacyTraceHeadersAutoConfiguration`, active with Boot's OpenTelemetry tracing and
-  `management.tracing.export.enabled`.
+  `management.tracing.export.enabled`. It passes Boot's `management.tracing.sampling.probability`
+  (or `0.1` when Boot's tracing properties are not registered) to the propagator, whose constructor
+  is `LegacyTraceHeadersPropagator(boolean inject, double samplingProbability)`.
 - `codehunters.tracing.legacy-headers.enabled` (default `true`) and
   `codehunters.tracing.legacy-headers.inject` (default `false`).
 
@@ -43,6 +47,14 @@ trace. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
   `codehunters.tracing.legacy-headers.inject=true` (which writes `x-traceparent` only).
 - Legacy headers are read only with the OpenTelemetry bridge; with Brave they are ignored.
 - `traceFlags` is no longer put in the MDC.
+- `traceId` / `spanId` are no longer put in the MDC by this module: without a tracer bridge the
+  trace id in logs, problem responses and events is empty.
+- A parent read from `x-trace-id` (with or without `x-span-id`) has no sampled flag and is sampled
+  by trace-id ratio at Boot's sampling probability, not always; `x-traceparent` keeps its flag.
+- `MdcTraceContextAdapter` reports not sampled when the MDC has no valid `traceFlags` key, also for
+  a bare trace id; 2.x reported sampled.
+- `ContextPropagatingTaskDecorator`, which replaces `MdcTaskDecorator`, copies MDC keys other than
+  `traceId` / `spanId` only with a registered `Slf4jThreadLocalAccessor` (see the migration guide).
 
 ## 2.0.0
 
