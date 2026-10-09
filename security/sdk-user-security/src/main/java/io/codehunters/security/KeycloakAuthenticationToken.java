@@ -21,9 +21,12 @@ public class KeycloakAuthenticationToken extends AbstractOAuth2TokenAuthenticati
   private static final long serialVersionUID = 1L;
 
   /**
-   * Creates an authenticated token.
+   * Creates an authenticated token. Pass only a {@link Jwt} produced by a {@code JwtDecoder} that
+   * verified its signature and claims: the token is marked authenticated as it is, and components
+   * such as Keycloak's policy enforcer trust the permissions it carries without checking them
+   * again. The SDK's {@code KeycloakJwtAuthenticationConverter} is the intended factory.
    *
-   * @param token the validated access token
+   * @param token the validated access token, never one built from unverified input
    * @param principal the user the token names
    * @param authorities the authorities the token grants
    */
