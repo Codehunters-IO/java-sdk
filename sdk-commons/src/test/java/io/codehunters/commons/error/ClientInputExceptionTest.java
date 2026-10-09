@@ -38,7 +38,8 @@ class ClientInputExceptionTest {
 
   @Test
   void should_stay_an_illegal_argument_exception_so_existing_catch_blocks_keep_working() {
-    assertThat(new ClientInputException(CODE, MESSAGE)).isInstanceOf(IllegalArgumentException.class);
+    assertThat(new ClientInputException(CODE, MESSAGE))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @ParameterizedTest
