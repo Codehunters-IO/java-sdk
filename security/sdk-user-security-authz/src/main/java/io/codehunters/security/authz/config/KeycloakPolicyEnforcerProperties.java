@@ -6,6 +6,8 @@ import java.util.Locale;
 import java.util.Map;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
+import org.springframework.web.util.pattern.PathPatternParser;
+import org.springframework.web.util.pattern.PatternParseException;
 
 /**
  * Configuration of the Keycloak policy enforcer, bound from {@code codehunters.security.authz} and
@@ -26,6 +28,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param maxConnections upper bound of concurrent connections to Keycloak
  * @param retryBackoff how long requests answer 503 after the enforcer failed to build, before one
  *     of them tries again
+ * @param skipPaths path patterns (Spring's syntax, as in {@code public-paths}) never enforced,
+ *     whatever authenticated the request; for chains that authenticate without a bearer token, such
+ *     as actuator endpoints behind basic auth, whose requests are otherwise denied
  */
 @ConfigurationProperties("codehunters.security.authz")
 public record KeycloakPolicyEnforcerProperties(
@@ -41,7 +46,8 @@ public record KeycloakPolicyEnforcerProperties(
     @DefaultValue("2s") Duration connectTimeout,
     @DefaultValue("3s") Duration readTimeout,
     @DefaultValue("50") int maxConnections,
-    @DefaultValue("10s") Duration retryBackoff) {
+    @DefaultValue("10s") Duration retryBackoff,
+    @DefaultValue List<String> skipPaths) {
 
   private static final String PREFIX = "codehunters.security.authz.";
 
@@ -55,6 +61,17 @@ public record KeycloakPolicyEnforcerProperties(
     require(isPositive(readTimeout), PREFIX + "read-timeout must be positive");
     require(maxConnections > 0, PREFIX + "max-connections must be positive");
     require(isPositive(retryBackoff), PREFIX + "retry-backoff must be positive");
+    skipPaths = List.copyOf(skipPaths);
+    skipPaths.forEach(KeycloakPolicyEnforcerProperties::requirePattern);
+  }
+
+  private static void requirePattern(String pattern) {
+    try {
+      PathPatternParser.defaultInstance.parse(pattern);
+    } catch (PatternParseException e) {
+      throw new IllegalArgumentException(
+          PREFIX + "skip-paths entry " + pattern + " is not a valid path pattern", e);
+    }
   }
 
   @Override

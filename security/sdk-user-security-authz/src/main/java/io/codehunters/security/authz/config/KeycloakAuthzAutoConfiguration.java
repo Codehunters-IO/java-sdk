@@ -6,6 +6,7 @@ import io.codehunters.security.config.KeycloakSecurityProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
+import java.util.List;
 import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -28,10 +29,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
-import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * Adds Keycloak's official policy enforcer to the Spring Security filter chain. Opt-in per service
@@ -40,9 +42,9 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
  * <p>The enforcer is placed right after Spring Security's {@link AuthorizationFilter}, through a
  * {@code Customizer<HttpSecurity>} bean that Spring Security applies to every {@link HttpSecurity}
  * it builds: the sdk-user-security chains and any chain the application defines. Requests are
- * therefore authenticated (or rejected with 401) before Keycloak is asked; requests another chain
- * authenticated without a bearer token pass through untouched. The application's {@link
- * BearerTokenResolver}, when it defines one, reads tokens the authentication no longer holds.
+ * therefore authenticated (or rejected with 401) before Keycloak is asked. Only the token Spring
+ * Security validated reaches Keycloak; requests authenticated without one are denied unless their
+ * path is listed in {@code skip-paths}. A public path may not cover a catalogued one.
  *
  * <p>The enforcer is built on the first enforced request, so a service starts while Keycloak is
  * unreachable; a failed build is retried after {@code retry-backoff}. Calls to Keycloak go through
@@ -70,7 +72,6 @@ public class KeycloakAuthzAutoConfiguration {
    * @param security Keycloak URL and realm
    * @param properties the catalog and enforcement settings
    * @param httpClient the client for calls to Keycloak
-   * @param tokenResolvers the application's bearer token resolver, if it defines one
    * @param counters the failure counter, present when Micrometer is
    * @return the enforcer filter
    */
@@ -80,12 +81,12 @@ public class KeycloakAuthzAutoConfiguration {
       KeycloakSecurityProperties security,
       KeycloakPolicyEnforcerProperties properties,
       @Qualifier(HTTP_CLIENT) CloseableHttpClient httpClient,
-      ObjectProvider<BearerTokenResolver> tokenResolvers,
       ObjectProvider<EnforcerFailureCounter> counters) {
+    CatalogChecks.requireNoPublicPathCovers(security.publicPaths(), properties.paths());
     EnforcerFailureCounter counter = counters.getIfAvailable(EnforcerFailureCounter::none);
     var options =
         KeycloakPolicyEnforcerFilter.Options.defaults()
-            .withTokenResolver(tokenResolvers.getIfUnique(DefaultBearerTokenResolver::new))
+            .withSkipPaths(skipPaths(properties.skipPaths()))
             .withRetryBackoff(properties.retryBackoff())
             .withFailureListener(e -> counter.increment(EnforcerFailureCounter.ENFORCER));
     return new KeycloakPolicyEnforcerFilter(
@@ -157,6 +158,14 @@ public class KeycloakAuthzAutoConfiguration {
       return DefaultHttpRequestRetryHandler.INSTANCE.retryRequest(
           exception, executionCount, context);
     };
+  }
+
+  private static RequestMatcher skipPaths(List<String> patterns) {
+    if (patterns.isEmpty()) {
+      return request -> false;
+    }
+    var paths = PathPatternRequestMatcher.withDefaults();
+    return new OrRequestMatcher(patterns.stream().<RequestMatcher>map(paths::matcher).toList());
   }
 
   private static int millis(Duration duration) {

@@ -243,7 +243,8 @@ class KeycloakAuthzEndToEndTest {
         .run(
             context ->
                 mockMvc(context)
-                    .perform(get("/api/users/1").header(CUSTOM_HEADER, "Bearer " + keycloak.token()))
+                    .perform(
+                        get("/api/users/1").header(CUSTOM_HEADER, "Bearer " + keycloak.token()))
                     .andExpect(status().isOk()));
   }
 

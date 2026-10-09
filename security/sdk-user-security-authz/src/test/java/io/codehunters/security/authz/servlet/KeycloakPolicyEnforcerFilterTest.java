@@ -197,8 +197,7 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
-  void should_give_keycloak_the_validated_token_when_request_carries_another()
-      throws Exception {
+  void should_give_keycloak_the_validated_token_when_request_carries_another() throws Exception {
     request.addHeader("Authorization", "Bearer " + HEADER_TOKEN);
 
     HttpRequest seen = enforceGranted(keycloakAuthentication(jwt()));
@@ -512,10 +511,7 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   private static Jwt jwtWithValue(String value) {
-    return Jwt.withTokenValue(value)
-        .header("alg", "none")
-        .claims(c -> c.putAll(claims()))
-        .build();
+    return Jwt.withTokenValue(value).header("alg", "none").claims(c -> c.putAll(claims())).build();
   }
 
   private static Authentication keycloakAuthentication(Jwt jwt) {
