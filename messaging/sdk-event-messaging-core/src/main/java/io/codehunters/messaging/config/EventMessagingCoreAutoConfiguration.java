@@ -9,11 +9,14 @@ import io.codehunters.messaging.factory.EventMessageFactory;
 import io.codehunters.messaging.factory.OutboxEventFactory;
 import io.codehunters.messaging.factory.TraceIdSource;
 import io.codehunters.messaging.metrics.MeteredMessagePublisher;
+import io.codehunters.messaging.tracing.TracedMessagePublisher;
 import io.codehunters.tracing.TraceContextPort;
 import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.tracing.Tracer;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
+import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -35,8 +38,10 @@ import org.springframework.context.annotation.Configuration;
  * sdk-event-messaging-rabbit} or {@code sdk-event-messaging-kafka}). This configuration therefore
  * runs after their auto-configurations, referenced by name because any of them may be absent. It
  * also runs after Boot's metrics auto-configuration so a {@link MeterRegistry} bean, when present,
- * turns on the {@code outbox.publish} timer, and after {@code sdk-tracing}'s so its {@link
- * TraceContextPort}, when present, supplies the trace id of events created without one.
+ * turns on the {@code outbox.publish} timer, after {@code sdk-tracing}'s so its {@link
+ * TraceContextPort}, when present, supplies the trace id of events created without one and the
+ * {@code traceparent} stored with each outbox message, and after Boot's tracing so its {@link
+ * Tracer}, when present, restores that stored context around each publish.
  */
 @AutoConfiguration(
     afterName = {
@@ -44,6 +49,9 @@ import org.springframework.context.annotation.Configuration;
       TransportAutoConfigurations.RABBIT,
       TransportAutoConfigurations.KAFKA,
       "io.codehunters.tracing.config.TracingAutoConfiguration",
+      "org.springframework.boot.micrometer.tracing.autoconfigure.MicrometerTracingAutoConfiguration",
+      "org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.OpenTelemetryTracingAutoConfiguration",
+      "org.springframework.boot.micrometer.tracing.brave.autoconfigure.BraveAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.export.simple.SimpleMetricsExportAutoConfiguration"
@@ -184,7 +192,45 @@ public class EventMessagingCoreAutoConfiguration {
     @ConditionalOnBean(TraceContextPort.class)
     @ConditionalOnMissingBean(TraceIdSource.class)
     TraceIdSource outboxTraceIdSource(TraceContextPort traceContextPort) {
-      return () -> traceContextPort.currentTraceParent().map(TraceParent::traceId);
+      return new TraceContextPortSource(traceContextPort);
+    }
+  }
+
+  /**
+   * Stored-trace restoration. Loaded only when Micrometer Tracing is on the classpath, and active
+   * when a {@link Tracer} bean exists.
+   */
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(Tracer.class)
+  static class OutboxTracerConfiguration {
+
+    /**
+     * Wraps the dispatch publisher in a {@link TracedMessagePublisher}, so each publish runs with
+     * the trace context stored with its message as the current one.
+     *
+     * @param tracer the application's tracer
+     * @return the decorator
+     */
+    @Bean
+    @ConditionalOnBean(Tracer.class)
+    @ConditionalOnMissingBean(name = "outboxTraceContextDecorator")
+    MessagePublisherDecorator outboxTraceContextDecorator(Tracer tracer) {
+      return publisher -> new TracedMessagePublisher(publisher, tracer);
+    }
+  }
+
+  // Both trace id and full context come from sdk-tracing's view of the current thread.
+  private record TraceContextPortSource(TraceContextPort traceContextPort)
+      implements TraceIdSource {
+
+    @Override
+    public Optional<String> currentTraceId() {
+      return traceContextPort.currentTraceParent().map(TraceParent::traceId);
+    }
+
+    @Override
+    public Optional<String> currentTraceParent() {
+      return traceContextPort.currentTraceParent().map(TraceParent::format);
     }
   }
 }

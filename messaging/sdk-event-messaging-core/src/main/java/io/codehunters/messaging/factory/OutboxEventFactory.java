@@ -5,7 +5,9 @@ import io.codehunters.messaging.OutboxMessage;
 
 /**
  * Wraps an {@link EventMessage} into an {@link OutboxMessage} ready to persist, stamping the
- * configured origin, topic and key.
+ * configured origin, topic and key, and the current W3C {@code traceparent} from the event-message
+ * factory's {@link TraceIdSource} when it belongs to the trace the event names. Build messages on
+ * the thread that does the work, so the stored context is that work's.
  */
 public class OutboxEventFactory {
 
@@ -86,13 +88,7 @@ public class OutboxEventFactory {
       T payload) {
     EventMessage<T> event =
         eventMessageFactory.create(traceId, locale, aggregate, eventName, eventType, payload);
-    return OutboxMessage.<EventMessage<T>>builder()
-        .origin(origin)
-        .topic(topic)
-        .routingKey(routingKey)
-        .key(aggregate)
-        .message(event)
-        .build();
+    return outboxMessage(topic, aggregate, event).routingKey(routingKey).build();
   }
 
   /**
@@ -117,11 +113,29 @@ public class OutboxEventFactory {
       T payload) {
     EventMessage<T> event =
         eventMessageFactory.create(traceId, "es", aggregate, eventName, eventType, payload);
+    return outboxMessage(topic, aggregate, event).build();
+  }
+
+  private <T> OutboxMessage.OutboxMessageBuilder<EventMessage<T>> outboxMessage(
+      String topic, String aggregate, EventMessage<T> event) {
     return OutboxMessage.<EventMessage<T>>builder()
         .origin(origin)
         .topic(topic)
         .key(aggregate)
         .message(event)
-        .build();
+        .traceparent(traceParentOf(event.getHeader().getTraceId()));
+  }
+
+  // An explicit trace id that is not the current trace gets no context: the broker header must
+  // name the same trace as the envelope.
+  private String traceParentOf(String traceId) {
+    if (traceId == null) {
+      return null;
+    }
+    return eventMessageFactory
+        .traceIdSource()
+        .currentTraceParent()
+        .filter(traceparent -> traceparent.contains("-" + traceId + "-"))
+        .orElse(null);
   }
 }

@@ -50,4 +50,11 @@ public class OutboxMessage<T> {
    * their attempt count.
    */
   private LocalDateTime sendStartedAt;
+
+  /**
+   * W3C {@code traceparent} of the work that created the message, captured when it was built; the
+   * transport adapters send it as the {@code traceparent} broker header so the consumer continues
+   * that trace rather than the dispatcher's. {@code null} when no trace was active.
+   */
+  private String traceparent;
 }
