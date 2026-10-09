@@ -1,7 +1,9 @@
-package io.codehunters.security;
+package io.codehunters.security.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.config.FakeKeycloak;
+import io.codehunters.security.config.KeycloakSecurityProperties;
 import java.time.Clock;
 import java.time.Duration;
 import org.junit.jupiter.api.AfterEach;

@@ -1,4 +1,4 @@
-package io.codehunters.security;
+package io.codehunters.security.session;
 
 import java.time.Clock;
 import java.time.Duration;

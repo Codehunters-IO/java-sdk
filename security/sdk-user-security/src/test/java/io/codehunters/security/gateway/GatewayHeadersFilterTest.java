@@ -1,7 +1,8 @@
-package io.codehunters.security;
+package io.codehunters.security.gateway;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.KeycloakPrincipal;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.util.List;

@@ -1,7 +1,9 @@
-package io.codehunters.security;
+package io.codehunters.security.mvc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.CurrentPrincipal;
+import io.codehunters.security.KeycloakPrincipal;
 import java.lang.reflect.Method;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;

@@ -1,4 +1,4 @@
-package io.codehunters.security;
+package io.codehunters.security.config;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -29,11 +29,11 @@ import java.util.function.Consumer;
  * endpoint, and signs access tokens with its own RSA key. Tokens default to a valid user with the
  * {@code user} realm role; tests override single claims through the builder.
  */
-final class FakeKeycloak implements AutoCloseable {
+public final class FakeKeycloak implements AutoCloseable {
 
   static final String REALM = "test";
   static final String USER_ID = "user-1";
-  static final String CLIENT_ID = "svc";
+  public static final String CLIENT_ID = "svc";
 
   private final RSAKey signingKey = generateKey("realm-key");
   private final RSAKey foreignKey = generateKey("realm-key");
@@ -43,7 +43,7 @@ final class FakeKeycloak implements AutoCloseable {
   private volatile int introspectionStatus = 200;
   private volatile boolean sessionActive = true;
 
-  FakeKeycloak() {
+  public FakeKeycloak() {
     try {
       server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
     } catch (IOException e) {
@@ -63,11 +63,11 @@ final class FakeKeycloak implements AutoCloseable {
     return url() + "/realms/" + REALM;
   }
 
-  String introspectionUri() {
+  public String introspectionUri() {
     return issuer() + "/protocol/openid-connect/token/introspect";
   }
 
-  int introspectionCalls() {
+  public int introspectionCalls() {
     return introspectionCalls.get();
   }
 
@@ -75,19 +75,19 @@ final class FakeKeycloak implements AutoCloseable {
     return jwksCalls.get();
   }
 
-  void sessionActive(boolean active) {
+  public void sessionActive(boolean active) {
     this.sessionActive = active;
   }
 
-  void introspectionFailsWith(int status) {
+  public void introspectionFailsWith(int status) {
     this.introspectionStatus = status;
   }
 
-  String token() {
+  public String token() {
     return token(claims -> {});
   }
 
-  String token(Consumer<JWTClaimsSet.Builder> customizer) {
+  public String token(Consumer<JWTClaimsSet.Builder> customizer) {
     return sign(signingKey, claims(customizer));
   }
 

@@ -1,4 +1,4 @@
-package io.codehunters.security;
+package io.codehunters.security.config;
 
 import io.codehunters.support.config.LegacyPropertyAliases;
 import java.util.List;
@@ -12,7 +12,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
- * Honours the 2.x {@code keycloak.security.*} keys under their 3.x names until 4.0. Runs right
+ * Honours the 2.x {@code keycloak.security.*} keys under their 3.x names until 5.0. Runs right
  * after the application's configuration files are loaded.
  */
 public class KeycloakSecurityLegacyProperties implements EnvironmentPostProcessor, Ordered {

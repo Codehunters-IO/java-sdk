@@ -1,5 +1,7 @@
-package io.codehunters.security;
+package io.codehunters.security.jwt;
 
+import io.codehunters.security.Authorities;
+import io.codehunters.security.KeycloakPrincipal;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;

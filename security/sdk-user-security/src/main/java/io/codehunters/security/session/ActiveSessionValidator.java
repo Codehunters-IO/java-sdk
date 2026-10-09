@@ -1,4 +1,4 @@
-package io.codehunters.security;
+package io.codehunters.security.session;
 
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes;
@@ -10,7 +10,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
  * Runs the claim validators first and asks Keycloak about the session only for tokens that passed
  * them, so expired or foreign tokens never cost an introspection call.
  */
-final class ActiveSessionValidator implements OAuth2TokenValidator<Jwt> {
+public final class ActiveSessionValidator implements OAuth2TokenValidator<Jwt> {
 
   private static final OAuth2Error INACTIVE_SESSION =
       new OAuth2Error(
@@ -19,7 +19,7 @@ final class ActiveSessionValidator implements OAuth2TokenValidator<Jwt> {
   private final OAuth2TokenValidator<Jwt> claimValidator;
   private final SessionIntrospector introspector;
 
-  ActiveSessionValidator(
+  public ActiveSessionValidator(
       OAuth2TokenValidator<Jwt> claimValidator, SessionIntrospector introspector) {
     this.claimValidator = claimValidator;
     this.introspector = introspector;

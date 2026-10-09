@@ -1,4 +1,4 @@
-package io.codehunters.security;
+package io.codehunters.security.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

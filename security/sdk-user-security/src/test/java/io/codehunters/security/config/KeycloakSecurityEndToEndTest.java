@@ -1,10 +1,13 @@
-package io.codehunters.security;
+package io.codehunters.security.config;
 
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import io.codehunters.security.CurrentPrincipal;
+import io.codehunters.security.KeycloakPrincipal;
+import io.codehunters.security.KeycloakSecurityUtils;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;

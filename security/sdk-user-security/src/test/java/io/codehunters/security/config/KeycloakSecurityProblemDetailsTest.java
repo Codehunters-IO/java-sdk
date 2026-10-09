@@ -1,4 +1,4 @@
-package io.codehunters.security;
+package io.codehunters.security.config;
 
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -8,7 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import io.codehunters.weberrors.config.WebErrorsAutoConfiguration;
+import io.codehunters.web.errors.config.WebErrorsAutoConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

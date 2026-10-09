@@ -1,7 +1,8 @@
-package io.codehunters.security;
+package io.codehunters.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.KeycloakPrincipal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;

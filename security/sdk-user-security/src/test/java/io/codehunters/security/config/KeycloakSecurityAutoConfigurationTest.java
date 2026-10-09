@@ -1,7 +1,9 @@
-package io.codehunters.security;
+package io.codehunters.security.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.security.jwt.KeycloakJwtAuthenticationConverter;
+import io.codehunters.security.session.SessionIntrospector;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

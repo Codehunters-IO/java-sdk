@@ -1,5 +1,6 @@
-package io.codehunters.security;
+package io.codehunters.security.session;
 
+import io.codehunters.security.config.KeycloakSecurityProperties;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

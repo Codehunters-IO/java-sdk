@@ -1,5 +1,7 @@
-package io.codehunters.security;
+package io.codehunters.security.gateway;
 
+import io.codehunters.security.Authorities;
+import io.codehunters.security.KeycloakPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
