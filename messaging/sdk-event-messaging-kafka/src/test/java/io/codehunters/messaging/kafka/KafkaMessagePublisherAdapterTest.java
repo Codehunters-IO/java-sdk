@@ -33,6 +33,8 @@ class KafkaMessagePublisherAdapterTest {
   private static final String PII_SENTINEL = "PII-SENTINEL-4242 holder Juan";
   private static final UUID ID = UUID.fromString("0b9c6a3e-7d1f-4a51-9f0e-2a7c1d4e5f60");
   private static final Duration SEND_TIMEOUT = Duration.ofMillis(50);
+  private static final String TRACEPARENT =
+      "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
   private KafkaTemplate<String, String> kafkaTemplate;
   private KafkaMessagePublisherAdapter adapter;
@@ -140,6 +142,59 @@ class KafkaMessagePublisherAdapterTest {
     ProducerRecord<String, String> record = sentRecord();
     assertThat(record.topic()).isEqualTo(TOPIC);
     assertThat(record.key()).isNull();
+  }
+
+  @Test
+  void should_send_stored_traceparent_header_when_message_has_one() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    adapter.publish(traced(TRACEPARENT));
+
+    assertThat(header(sentRecord(), MessagePublisherPort.TRACEPARENT_HEADER))
+        .isEqualTo(TRACEPARENT);
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_message_has_none() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    adapter.publish(message());
+
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_is_blank() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    adapter.publish(traced(""));
+
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_legacy_traceparent_header_when_switch_is_off() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    adapter.publish(traced(TRACEPARENT));
+
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.LEGACY_TRACEPARENT_HEADER))
+        .isNull();
+  }
+
+  @Test
+  void should_send_legacy_traceparent_header_when_switch_is_on() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    new KafkaMessagePublisherAdapter(kafkaTemplate, SEND_TIMEOUT, true)
+        .publish(traced(TRACEPARENT));
+
+    assertThat(header(sentRecord(), MessagePublisherPort.LEGACY_TRACEPARENT_HEADER))
+        .isEqualTo(TRACEPARENT);
+  }
+
+  private static OutboxMessage<String> traced(String traceparent) {
+    return message().toBuilder().traceparent(traceparent).build();
   }
 
   private static CompletableFuture<SendResult<String, String>> blockThenReturnPending(
