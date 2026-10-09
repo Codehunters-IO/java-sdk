@@ -9,6 +9,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 /**
  * Runs the claim validators first and asks Keycloak about the session only for tokens that passed
  * them, so expired or foreign tokens never cost an introspection call.
+ *
+ * <p>Public only so the auto-configuration in {@code io.codehunters.security.config} can build it;
+ * not API, and it may change in any release. Customise session checks through {@link
+ * SessionIntrospector} instead.
  */
 public final class ActiveSessionValidator implements OAuth2TokenValidator<Jwt> {
 
