@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "4.0.0"
+version = "5.0.0"
 description = "Keycloak Authorization Services policy enforcement point for sdk-user-security."
 
 codehuntersPackages {
@@ -11,7 +11,6 @@ codehuntersPackages {
 
 dependencies {
     api(project(":sdk-user-security"))
-    implementation(project(":sdk-support"))
     implementation(libs.keycloak.authz.client)
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework:spring-web")
