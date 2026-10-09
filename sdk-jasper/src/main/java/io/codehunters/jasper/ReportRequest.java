@@ -10,9 +10,11 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * What to render: a classpath template, its parameters, its rows and the output format.
@@ -20,7 +22,8 @@ import java.util.Set;
  * @param template the template name under the configured base folder, ending in {@code .jasper}
  *     (precompiled, preferred) or {@code .jrxml}
  * @param parameters the report parameters, unmodifiable; values may be null but never a URL, URI,
- *     File, Path, stream or reader, which JasperReports would load from directly
+ *     File, Path, stream or reader, which JasperReports would load from directly, nor hold one in a
+ *     collection, map or array nested up to 8 levels deep
  * @param data the rows
  * @param format the output format
  */
@@ -39,6 +42,9 @@ public record ReportRequest(
           "REPORT_FILE_RESOLVER",
           "REPORT_PARAMETERS_MAP",
           "JASPER_REPORTS_CONTEXT");
+
+  // Collections, maps and arrays nested inside a parameter value; deeper values are refused.
+  private static final int MAX_NESTING = 8;
 
   /** Validates the request and copies the parameters. */
   public ReportRequest {
@@ -102,23 +108,63 @@ public record ReportRequest(
   }
 
   // JasperReports loads an image, subreport or style template directly from a value of these types,
-  // bypassing the classpath-only repository; a stream may even be deserialized as a report.
+  // bypassing the classpath-only repository; a stream may even be deserialized as a report. They
+  // are
+  // looked for at any depth, in map keys too; cycles are visited once and the nesting is bounded.
   private static void checkValue(String name, Object value) {
-    if (isLocation(value) || containsLocation(value)) {
-      throw new IllegalArgumentException(
-          "parameter "
-              + name
-              + " holds a URL, URI, File, Path, stream or reader; pass a classpath location as a"
-              + " String");
+    switch (scan(value, 0, Collections.newSetFromMap(new IdentityHashMap<>()))) {
+      case LOCATION ->
+          throw new IllegalArgumentException(
+              "parameter "
+                  + name
+                  + " holds a URL, URI, File, Path, stream or reader; pass a classpath location as"
+                  + " a String");
+      case TOO_DEEP ->
+          throw new IllegalArgumentException(
+              "parameter "
+                  + name
+                  + " nests collections, maps or arrays more than "
+                  + MAX_NESTING
+                  + " levels deep");
+      case CLEAN -> {}
     }
   }
 
-  private static boolean containsLocation(Object value) {
+  private enum Finding {
+    CLEAN,
+    LOCATION,
+    TOO_DEEP
+  }
+
+  private static Finding scan(Object value, int depth, Set<Object> visited) {
+    if (isLocation(value)) {
+      return Finding.LOCATION;
+    }
+    if (!isContainer(value) || !visited.add(value)) {
+      return Finding.CLEAN;
+    }
+    if (depth == MAX_NESTING) {
+      return Finding.TOO_DEEP;
+    }
+    return children(value)
+        .map(child -> scan(child, depth + 1, visited))
+        .filter(finding -> finding != Finding.CLEAN)
+        .findFirst()
+        .orElse(Finding.CLEAN);
+  }
+
+  private static boolean isContainer(Object value) {
+    return value instanceof Collection<?>
+        || value instanceof Map<?, ?>
+        || value instanceof Object[];
+  }
+
+  private static Stream<?> children(Object value) {
     return switch (value) {
-      case Collection<?> values -> values.stream().anyMatch(ReportRequest::isLocation);
-      case Map<?, ?> values -> values.values().stream().anyMatch(ReportRequest::isLocation);
-      case Object[] values -> Arrays.stream(values).anyMatch(ReportRequest::isLocation);
-      case null, default -> false;
+      case Collection<?> values -> values.stream();
+      case Map<?, ?> values -> Stream.concat(values.keySet().stream(), values.values().stream());
+      case Object[] values -> Arrays.stream(values);
+      default -> Stream.empty();
     };
   }
 
