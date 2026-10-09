@@ -16,7 +16,8 @@ start with [MIGRATION-7.0.md](MIGRATION-7.0.md) (the `send_started_at` column); 
 3. Remove `codehunters.outbox.claim.dialect` from your configuration.
 4. Recompile if you build `OutboxJdbcAdapter` or `OutboxAdapterSettings` yourself, or reference a
    dialect class (see [Removed API](#removed-api)).
-5. Bump the dependencies (or the BOM) to 9.0.0.
+5. Fix tests that run the outbox on an embedded H2 (see [Tests on H2](#tests-on-h2)).
+6. Bump the dependencies (or the BOM) to 9.0.0.
 
 ## PostgreSQL only
 
@@ -24,14 +25,31 @@ The adapter issues the PostgreSQL claim (`FOR UPDATE SKIP LOCKED` with `RETURNIN
 directly; there is no dialect to choose any more. Other databases are no longer supported: at
 startup the SDK reads the database product name and fails with "The outbox supports PostgreSQL
 only, but the data source is <product>". A database that cannot be reached at startup is not
-checked; the first claim then fails if it is not PostgreSQL. Only the PostgreSQL reference scripts
-remain in the
-`-jdbc` jar:
+checked; the first claim then fails if it is not PostgreSQL.
+
+The check reads the JDBC driver's product name, not the server's: pgjdbc reports `PostgreSQL` for
+every server it talks to. Amazon Redshift, CockroachDB or YugabyteDB reached through pgjdbc pass
+the check but may fail at the first claim, which needs `FOR UPDATE ... SKIP LOCKED`. A vendor
+driver that reports another name, such as EDB's (`EnterpriseDB`), is rejected.
+
+Only the PostgreSQL reference scripts remain in the `-jdbc` jar:
 
 | File | Use |
 |---|---|
 | `db/migration/outbox/postgresql/outbox_message_create.sql` | New installs: `outbox_message` with `seq`, indexes, `shedlock` |
 | `db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql` | Tables created by 6.x |
+
+## Tests on H2
+
+An embedded H2 now fails startup with "The outbox supports PostgreSQL only, but the data source is
+H2", even in `MODE=PostgreSQL` (the driver still reports H2). In `@SpringBootTest` or slice tests
+that load the outbox auto-configuration, pick one:
+
+- set `codehunters.outbox.enabled=false` in the test profile when the test does not exercise the
+  outbox;
+- run the test against PostgreSQL with Testcontainers;
+- declare your own `OutboxRepositoryPort` test bean (for example an in-memory fake): the SDK backs
+  off its JDBC repository, and the check, when one exists.
 
 ## Properties
 

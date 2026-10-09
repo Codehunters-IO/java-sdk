@@ -44,6 +44,15 @@ skipped while an earlier row with the same `(origin, topic, message_key)` is `PE
 or `FAILED`. At startup the SDK reads the database product name and fails when it is not
 PostgreSQL; when the database cannot be reached at startup the check is skipped with a warning.
 
+The check reads the JDBC driver's product name (`PostgreSQL` from pgjdbc), not the server's: Amazon
+Redshift, CockroachDB or YugabyteDB through pgjdbc pass it but may fail at the first claim, which
+needs `FOR UPDATE ... SKIP LOCKED`, and a vendor driver that reports another name (EDB's
+`EnterpriseDB`) is rejected.
+
+Tests that run the outbox on an embedded H2 fail at startup. Set `codehunters.outbox.enabled=false`
+in the test profile, use a Testcontainers PostgreSQL, or declare an `OutboxRepositoryPort` test bean
+(the JDBC repository and its check back off). See [MIGRATION-9.0](../MIGRATION-9.0.md#tests-on-h2).
+
 ## DDL
 
 The SDK never runs DDL. Copy the reference files from the jar into your changelog and adapt the
