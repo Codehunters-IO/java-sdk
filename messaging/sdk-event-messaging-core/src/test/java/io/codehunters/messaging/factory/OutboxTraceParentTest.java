@@ -12,7 +12,9 @@ class OutboxTraceParentTest {
 
   private static final String ORIGIN = "ms-test";
   private static final String CURRENT_TRACE = "4bf92f3577b34da6a3ce929d0e0e4736";
-  private static final String CURRENT_TRACEPARENT = "00-" + CURRENT_TRACE + "-00f067aa0ba902b7-01";
+  private static final String CURRENT_SPAN = "00f067aa0ba902b7";
+  private static final String CURRENT_TRACEPARENT =
+      "00-" + CURRENT_TRACE + "-" + CURRENT_SPAN + "-01";
   private static final TraceIdSource TRACED =
       new TraceIdSource() {
         @Override
@@ -75,11 +77,61 @@ class OutboxTraceParentTest {
   }
 
   @Test
+  void should_leave_traceparent_null_when_explicit_trace_id_equals_current_span_id() {
+    OutboxMessage<EventMessage<String>> outbox =
+        new OutboxEventFactory(ORIGIN, TRACED)
+            .create("events", CURRENT_SPAN, "agg", "Created", EventTypes.EVENT, "p");
+
+    assertThat(outbox.getTraceparent()).isNull();
+  }
+
+  @Test
+  void should_leave_traceparent_null_when_current_traceparent_is_longer_than_55_characters() {
+    OutboxMessage<EventMessage<String>> outbox =
+        new OutboxEventFactory(ORIGIN, sourceWith(CURRENT_TRACEPARENT + "-extra"))
+            .create("events", null, "agg", "Created", EventTypes.EVENT, "p");
+
+    assertThat(outbox.getTraceparent()).isNull();
+  }
+
+  @Test
+  void should_leave_traceparent_null_when_current_traceparent_is_malformed() {
+    OutboxMessage<EventMessage<String>> outbox =
+        new OutboxEventFactory(ORIGIN, sourceWith("00-" + CURRENT_TRACE + "-not-a-span-01"))
+            .create("events", null, "agg", "Created", EventTypes.EVENT, "p");
+
+    assertThat(outbox.getTraceparent()).isNull();
+  }
+
+  @Test
+  void should_leave_traceparent_null_when_current_traceparent_has_version_ff() {
+    OutboxMessage<EventMessage<String>> outbox =
+        new OutboxEventFactory(ORIGIN, sourceWith("ff" + CURRENT_TRACEPARENT.substring(2)))
+            .create("events", null, "agg", "Created", EventTypes.EVENT, "p");
+
+    assertThat(outbox.getTraceparent()).isNull();
+  }
+
+  @Test
   void should_leave_traceparent_null_when_no_trace_is_active() {
     OutboxMessage<EventMessage<String>> outbox =
         new OutboxEventFactory(ORIGIN, new EventMessageFactory(ORIGIN))
             .create("events", null, "agg", "Created", EventTypes.EVENT, "p");
 
     assertThat(outbox.getTraceparent()).isNull();
+  }
+
+  private static TraceIdSource sourceWith(String traceparent) {
+    return new TraceIdSource() {
+      @Override
+      public Optional<String> currentTraceId() {
+        return Optional.of(CURRENT_TRACE);
+      }
+
+      @Override
+      public Optional<String> currentTraceParent() {
+        return Optional.of(traceparent);
+      }
+    };
   }
 }

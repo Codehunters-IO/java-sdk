@@ -126,6 +126,24 @@ class TracedMessagePublisherTest {
   }
 
   @Test
+  void should_publish_in_dispatching_trace_when_traceparent_version_is_ff() {
+    try (Tracer.SpanInScope ignored = tracer.withSpan(scheduler)) {
+      publisher.publish(message("ff-" + STORED_TRACE + "-" + STORED_SPAN + "-01"));
+    }
+
+    assertThat(delegate.contexts.get(0).traceId()).isEqualTo(scheduler.context().traceId());
+  }
+
+  @Test
+  void should_publish_in_dispatching_trace_when_traceparent_is_longer_than_55_characters() {
+    try (Tracer.SpanInScope ignored = tracer.withSpan(scheduler)) {
+      publisher.publish(message(STORED_TRACEPARENT + "-extra"));
+    }
+
+    assertThat(delegate.contexts.get(0).traceId()).isEqualTo(scheduler.context().traceId());
+  }
+
+  @Test
   void should_keep_unsampled_flag_when_stored_trace_was_not_sampled() {
     publisher.publish(message("00-" + STORED_TRACE + "-" + STORED_SPAN + "-00"));
 

@@ -173,6 +173,36 @@ class KafkaMessagePublisherAdapterTest {
   }
 
   @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_is_longer_than_55_characters() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    new KafkaMessagePublisherAdapter(kafkaTemplate, SEND_TIMEOUT, true)
+        .publish(traced(TRACEPARENT + "-extra"));
+
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.LEGACY_TRACEPARENT_HEADER))
+        .isNull();
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_is_malformed() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    adapter.publish(traced("00-not-a-trace-01"));
+
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_has_version_ff() {
+    givenSendReturns(CompletableFuture.completedFuture(null));
+
+    adapter.publish(traced("ff" + TRACEPARENT.substring(2)));
+
+    assertThat(sentRecord().headers().lastHeader(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
   void should_send_no_legacy_traceparent_header_when_switch_is_off() {
     givenSendReturns(CompletableFuture.completedFuture(null));
 

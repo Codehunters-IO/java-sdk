@@ -227,6 +227,29 @@ class RabbitMessagePublisherAdapterTest {
   }
 
   @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_is_longer_than_55_characters() {
+    new RabbitMessagePublisherAdapter(template, CONFIRM_TIMEOUT, true)
+        .publish(traced(TRACEPARENT + "-extra"));
+
+    assertThat(header(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+    assertThat(header(MessagePublisherPort.LEGACY_TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_is_malformed() {
+    adapter.publish(traced("00-not-a-trace-01"));
+
+    assertThat(header(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_has_version_ff() {
+    adapter.publish(traced("ff" + TRACEPARENT.substring(2)));
+
+    assertThat(header(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
   void should_send_no_legacy_traceparent_header_when_switch_is_off() {
     adapter.publish(traced(TRACEPARENT));
 

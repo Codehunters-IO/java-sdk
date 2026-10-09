@@ -197,6 +197,22 @@ class OutboxJdbcAdapterPostgresIT {
   }
 
   @Test
+  void should_store_null_traceparent_when_saved_value_is_longer_than_55_characters() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id).toBuilder().traceparent(TRACEPARENT + "-extra").build());
+
+    assertThat(rowOf(id).get("traceparent")).isNull();
+  }
+
+  @Test
+  void should_store_null_traceparent_when_saved_value_is_malformed() {
+    UUID id = UUID.randomUUID();
+    adapter.save(unsent(id).toBuilder().traceparent("00-not-a-trace-01").build());
+
+    assertThat(rowOf(id).get("traceparent")).isNull();
+  }
+
+  @Test
   void should_claim_null_traceparent_when_message_was_saved_without_one() {
     adapter.save(unsent(UUID.randomUUID()));
 
