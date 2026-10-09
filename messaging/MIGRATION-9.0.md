@@ -24,7 +24,9 @@ start with [MIGRATION-7.0.md](MIGRATION-7.0.md) (the `send_started_at` column); 
 7. If a consumer reads only `x-traceparent`, set
    `codehunters.outbox.publisher.legacy-traceparent-header=true` (see
    [Trace continuity](#trace-continuity)).
-8. Bump the dependencies (or the BOM) to 9.0.0.
+8. Make sure the application has a Micrometer tracer bridge, or events carry no trace (see
+   [Without a tracer bridge](#without-a-tracer-bridge)).
+9. Bump the dependencies (or the BOM) to 9.0.0.
 
 ## PostgreSQL only
 
@@ -75,12 +77,25 @@ Kafka records carried no `traceparent` at all. In 9.0:
 - The RabbitMQ and Kafka publishers send it unchanged as the `traceparent` header, so the consumer's
   span is a child of the span that wrote the row. They add `x-traceparent` only when
   `codehunters.outbox.publisher.legacy-traceparent-header=true` (default `false`).
+- Every step checks the value with `W3cTraceParent` (exactly 55 lowercase-hex characters, version
+  not `ff`, trace and span ids not all zeros). An invalid context is not stored by the factory, is
+  saved as `NULL` by the JDBC store (a hand-built row never fails the business transaction), is not
+  sent as a header and is not continued by `TracedMessagePublisher`. An explicit trace id passed to
+  `OutboxEventFactory` stores the context only when it equals the context's trace id.
 - With Micrometer Tracing and a `Tracer` bean, each publish runs with the stored context as the
   current one (`TracedMessagePublisher`): log lines written while publishing carry the request's
   trace id, and spans started there parent on it.
 
 The SDK-owned `outboxRabbitTemplate` and `outboxKafkaTemplate` keep Boot's observation off; the
 header comes from the adapter, not from the dispatching thread.
+
+### Without a tracer bridge
+
+The trace comes from `sdk-tracing`'s `TraceContextPort`. With a Micrometer tracer bridge
+(`micrometer-tracing-bridge-otel` or `-brave`) it reads the current span. Without one it falls
+back to the logging MDC, which `sdk-tracing` 3.0 no longer writes: unless your own code puts the
+trace there, events created without an explicit trace id get an empty envelope `traceId`, and rows
+store no `traceparent` and are published without the header. Add a tracer bridge to keep both.
 
 ## Tests on H2
 

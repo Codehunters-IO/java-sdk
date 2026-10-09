@@ -22,6 +22,10 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 - `io.codehunters.messaging.tracing.TracedMessagePublisher` and the `outboxTraceContextDecorator`
   bean (when a Micrometer `Tracer` bean exists): each publish runs with the stored context as the
   current one, so observations started there parent on the request instead of the scheduled run.
+- `io.codehunters.messaging.W3cTraceParent`: the one `traceparent` check the factory, the store,
+  the transports and `TracedMessagePublisher` share (exactly 55 lowercase-hex characters, version
+  not `ff`, trace and span ids not all zeros). `parse`, `isValid`, `validOrNull`, `sampled`,
+  `value`.
 
 ### Fixed
 - Outbox messages lost the request's trace: only the trace id reached the envelope, and the
@@ -30,6 +34,13 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 ### Behaviour changes
 - With Micrometer Tracing present, logs written while a row is published carry the trace id of the
   request that wrote it, not the scheduled dispatch's.
+- `OutboxEventFactory` stores no `traceparent` when the current context is not a valid
+  `W3cTraceParent`, and matches an explicit trace id with `equals` on the parsed trace id: a caller
+  trace id that only equals the span id no longer stores the context.
+- `TracedMessagePublisher` publishes a row whose stored context is version `ff` or longer than 55
+  characters in the current context instead of continuing it.
+- Without a Micrometer tracer bridge, the envelope `traceId` and the stored `traceparent` are empty:
+  `sdk-tracing` 3.0 no longer writes the trace into the MDC its fallback port reads.
 
 ## 8.0.0
 

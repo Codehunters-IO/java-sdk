@@ -21,6 +21,9 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 ### Behaviour changes
 - Saving and claiming reference `traceparent`: apply the upgrade script **before** deploying 9.0,
   or every save and claim fails.
+- `save` stores `NULL` for a `traceparent` that is not a valid `W3cTraceParent` (for example a
+  hand-built row with a value longer than the 55-character column), instead of failing the
+  business transaction.
 
 ### Changed
 - `OutboxJdbcAdapter` issues the PostgreSQL claim and purge itself. `OutboxAdapterSettings` is

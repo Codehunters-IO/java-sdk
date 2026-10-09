@@ -16,7 +16,8 @@ keys and store the request's trace context with each row. Migration guide:
 
 ### Behaviour changes
 - Every outbox record with a stored context carries a `traceparent` header, unchanged;
-  `x-traceparent` only when the switch is on.
+  `x-traceparent` only when the switch is on. A stored value that is not a valid `W3cTraceParent`
+  (malformed, version `ff`, longer than 55 characters) is not sent in either header.
 
 ## 8.0.0
 

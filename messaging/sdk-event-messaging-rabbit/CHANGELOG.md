@@ -19,6 +19,8 @@ keys and store the request's trace context with each row. Migration guide:
 - Every outbox message with a stored context carries it as `traceparent`, unchanged; the adapter
   adds `x-traceparent` only when the switch is on. `sdk-tracing` 3.0 no longer installs a Rabbit
   post-processor; the outbox is the only writer of these headers.
+- A stored value that is not a valid `W3cTraceParent` (malformed, version `ff`, longer than 55
+  characters) is not sent in either header.
 
 ## 8.0.0
 
