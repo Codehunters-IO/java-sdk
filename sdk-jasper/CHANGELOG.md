@@ -1,5 +1,21 @@
 # Changelog — sdk-jasper
 
+## 2.1.0
+
+- **Fix (security):** `ReportRequest` now looks for `URL`, `URI`, `File`, `Path`, stream and reader
+  values at any depth: inside nested collections, map keys and values, and object arrays. Before, the
+  check stopped one level down, so a `Map<String, List<URL>>` or a `List<Object[]>` holding a `File`
+  reached JasperReports, which could load a template resource from disk or the network. Cyclic
+  structures are visited once; a value nesting collections, maps or arrays more than 8 levels deep is
+  rejected with a message naming the parameter, never its value.
+- **Metrics:** the `report.render` timer gains a `template` tag (the template name). Its cardinality
+  is bounded by the templates the application ships. Dashboards or alerts that match the exact tag
+  set of `report.render` may need updating.
+- The auto-configuration declares the renderer in a single bean method, wrapped with metrics when
+  Micrometer and a single `MeterRegistry` are present; back-off on an application `ReportRenderer`
+  is unchanged.
+- README: a minimal JasperReports 7 JRXML template.
+
 ## 2.0.0
 
 Package reorganisation; behaviour and `codehunters.jasper.*` properties unchanged. See
