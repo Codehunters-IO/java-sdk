@@ -16,11 +16,10 @@ import org.springframework.util.ClassUtils;
 
 /**
  * Registers the geofence selected by {@code codehunters.geo.adapter}: {@code polygon} over the
- * application's single {@link GeoZoneSource}, {@code sql-server} over the configured procedure or
- * {@code postgis} over the configured zone table, both on the single (or primary) {@link
- * DataSource}. No adapter, an application-defined {@link GeoFenceValidator} or {@code
- * codehunters.geo.enabled=false} registers nothing. A selected adapter whose dependencies are
- * missing fails at startup.
+ * application's single {@link GeoZoneSource}, or {@code postgis} over the configured zone table on
+ * the single (or primary) {@link DataSource}. No adapter, an application-defined {@link
+ * GeoFenceValidator} or {@code codehunters.geo.enabled=false} registers nothing. A selected adapter
+ * whose dependencies are missing fails at startup.
  */
 @AutoConfiguration(
     afterName = "org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration")
@@ -38,8 +37,7 @@ public class GeoAutoConfiguration {
    *
    * @param properties the SDK configuration
    * @param zoneSources the application's zone source, used by {@code polygon}
-   * @param dataSources the application's data source, used by {@code sql-server} and {@code
-   *     postgis}
+   * @param dataSources the application's data source, used by {@code postgis}
    * @param resources where the application's classes are loaded from
    * @return the geofence
    * @throws IllegalStateException if the selected adapter's dependencies are missing
@@ -54,11 +52,6 @@ public class GeoAutoConfiguration {
       ResourceLoader resources) {
     return switch (properties.adapter()) {
       case POLYGON -> new PolygonGeoFence(zoneSource(zoneSources));
-      case SQL_SERVER ->
-          JdbcGeoFences.sqlServer(
-              dataSource("sql-server", dataSources, resources.getClassLoader()),
-              properties.sqlServer().procedure(),
-              properties.sqlServer().queryTimeout());
       case POSTGIS ->
           JdbcGeoFences.postgis(
               dataSource("postgis", dataSources, resources.getClassLoader()),

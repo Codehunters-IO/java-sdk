@@ -33,10 +33,7 @@ class FrameworkFreeCoreTest {
         .resideInAPackage("io.codehunters.geo")
         .should()
         .dependOnClassesThat()
-        .resideInAnyPackage(
-            "io.codehunters.geo.polygon..",
-            "io.codehunters.geo.sqlserver..",
-            "io.codehunters.geo.postgis..")
+        .resideInAnyPackage("io.codehunters.geo.polygon..", "io.codehunters.geo.postgis..")
         .check(CLASSES);
   }
 }

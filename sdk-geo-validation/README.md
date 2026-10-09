@@ -75,46 +75,6 @@ GeoZoneSource zones(ZoneRepository repository) {
 - Each ring keeps its bounding box, so points far from a zone are rejected without walking its
   edges.
 
-### `sql-server`: a stored procedure you own
-
-```yaml
-codehunters:
-  geo:
-    adapter: sql-server
-    sql-server:
-      procedure: geo.sp_fence_check   # name or schema.name
-      parameters:                     # defaults shown; names without "@"
-        scope: scope_ref
-        latitude: lat
-        longitude: lon
-        allowed: allowed
-        zone-id: zone_id
-        zone-type: zone_type          # optional outputs: leave blank to not pass them
-        zone-name: zone_name
-        zone-parent: zone_parent
-```
-
-The procedure receives the scope reference (`NVARCHAR(128)`), latitude and longitude (`FLOAT`), and
-sets the OUTPUT parameters:
-
-| Output | Type | Meaning |
-|---|---|---|
-| `allowed` | `BIT` | `1` inside a zone, `0` outside every zone, `NULL` when the scope has no zones |
-| `zone-id` | `NVARCHAR(128)` | the matched zone; `allowed = 1` without it is treated as denied |
-| `zone-type`, `zone-name`, `zone-parent` | `NVARCHAR(200)` | optional, reported as-is |
-
-- The statement runs `SET NOCOUNT ON`, so row counts from writes inside the procedure don't reach
-  the driver before the result row.
-- The procedure and parameter names are written into the statement, so they are validated as
-  identifiers at startup and the procedure name is bracket-quoted (`[schema].[name]`); values are
-  always bound.
-- The call runs on a template of its own with a query timeout (`query-timeout`, default 2 s,
-  rounded up to whole seconds). A slow procedure fails the check instead of holding the request.
-- Needs `spring-jdbc` and exactly one `DataSource` bean (or a primary one). Missing pieces fail at
-  startup with a message naming the property.
-- Other databases: implement `GeoFenceValidator` yourself, or load the zones into a
-  `GeoZoneSource`. PostgreSQL with PostGIS has its own adapter, below.
-
 ### `postgis`: a zone table you own
 
 ```yaml
@@ -186,13 +146,11 @@ CREATE INDEX idx_zones_geog ON geo.zones USING GIST ((geom::geography));
 | Property | Default | |
 |---|---|---|
 | `codehunters.geo.enabled` | `true` | `false` registers nothing |
-| `codehunters.geo.adapter` | — | `polygon`, `sql-server` or `postgis`; unset registers nothing |
-| `codehunters.geo.sql-server.procedure` | — | required with `sql-server` |
-| `codehunters.geo.sql-server.parameters.*` | see above | parameter names |
-| `codehunters.geo.sql-server.query-timeout` | `2s` | longest the procedure may run; positive |
+| `codehunters.geo.adapter` | — | `polygon` or `postgis`; unset registers nothing |
 | `codehunters.geo.postgis.table` | — | required with `postgis` |
 | `codehunters.geo.postgis.columns.*` | see above | column names |
 | `codehunters.geo.postgis.query-timeout` | `2s` | per statement, not the connection wait; positive |
 
-The 0.x key `geo.validation.enabled` is honoured as `codehunters.geo.enabled` until 2.0, with a
-warning. Upgrading from 0.2.0: see [MIGRATION-1.0.md](MIGRATION-1.0.md).
+Only PostgreSQL (with PostGIS) is supported as a database. For another store, implement
+`GeoFenceValidator` yourself or load the zones into a `GeoZoneSource`. Upgrading from 1.x: see
+[MIGRATION-2.0.md](MIGRATION-2.0.md).
