@@ -10,8 +10,8 @@ import org.slf4j.MDC;
 /**
  * {@link TraceContextPort} backed by the logging MDC. The fallback used when the application has no
  * Micrometer {@code Tracer}: it reports whatever other code put under the {@code traceId} / {@code
- * spanId} keys, and never starts or propagates a trace itself. This SDK no longer writes those keys:
- * without a tracer bridge they are empty unless the application fills them.
+ * spanId} keys, and never starts or propagates a trace itself. This SDK no longer writes those
+ * keys: without a tracer bridge they are empty unless the application fills them.
  */
 public class MdcTraceContextAdapter implements TraceContextPort {
 
