@@ -19,6 +19,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -50,16 +52,29 @@ public class EventMessagingJdbcAutoConfiguration {
   public EventMessagingJdbcAutoConfiguration() {}
 
   /**
-   * Provides the dedicated JSON mapper used to serialize outbox payloads. It is not a default
-   * candidate, so injecting a {@link JsonMapper} by type never sees it and Boot's or the
-   * application's mapper stays the only match; the repository asks for it by qualifier.
+   * Provides the dedicated JSON mapper used to serialize outbox payloads. It starts from the
+   * application's {@link JsonMapper.Builder} when there is one (Boot's, with every {@code
+   * JsonMapperBuilderCustomizer} applied), so registered modules, mixins and naming strategies
+   * reach the stored payloads, and from a plain builder otherwise. Two settings are forced because
+   * they shape the wire format consumers parse: no indentation and dates as ISO-8601 strings. The
+   * builder is built and rebuilt before those changes, so a singleton application builder is never
+   * modified. It is not a default candidate, so injecting a {@link JsonMapper} by type never sees
+   * it and Boot's or the application's mapper stays the only match; the repository asks for it by
+   * qualifier.
    *
+   * @param builders the application's JSON mapper builder, if any
    * @return a {@link JsonMapper}
    */
   @Bean(name = "outboxJsonMapper", defaultCandidate = false)
   @ConditionalOnMissingBean(name = "outboxJsonMapper")
-  public JsonMapper outboxJsonMapper() {
-    return JsonMapper.builder().build();
+  public JsonMapper outboxJsonMapper(ObjectProvider<JsonMapper.Builder> builders) {
+    return builders
+        .getIfAvailable(JsonMapper::builder)
+        .build()
+        .rebuild()
+        .disable(SerializationFeature.INDENT_OUTPUT)
+        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+        .build();
   }
 
   /**
