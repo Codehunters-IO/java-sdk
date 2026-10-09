@@ -9,6 +9,8 @@ implementation(platform("io.codehunters:sdk-bom:<version>"))
 implementation("io.codehunters:sdk-barcode")
 ```
 
+Since 2.1.0 it brings `sdk-commons` (JDK-only) for `ClientInputException`; see [Errors](#errors).
+
 ## Formats
 
 | `BarcodeFormat` | Kind | Content |
@@ -22,8 +24,9 @@ implementation("io.codehunters:sdk-barcode")
 | `UPC_A` | Linear | 11 digits, or 12 with a valid check digit |
 | `ITF` | Linear | An even number of digits, 2 to 80 |
 
-`BarcodeRequest` checks these rules when it is built and throws `IllegalArgumentException`. Whether
-2D content fits the symbol is known only when encoding, so `render` throws then. Error messages and
+`BarcodeRequest` checks these rules when it is built and throws `BarcodeRejectedException` (code
+`BARCODE_CONTENT_REJECTED`). Whether 2D content fits the symbol is known only when encoding, so
+`render` throws then. Error messages and
 `toString()` never contain the content, which is often a ticket, a token or personal data.
 
 What each 2D symbol holds depends on the kind of content. The largest values ZXing 3.5.4 encodes:
@@ -86,8 +89,9 @@ found.map(DecodedBarcode::content);
 - **Large images are subsampled** to about 2048 x 2048 (4 megapixels) while they are decoded, which
   bounds memory and search time. A barcode too small to survive that, in a large photo, is not found:
   crop the image first.
-- `IllegalArgumentException` for an image above a limit, an unsupported format, or a file whose
-  header or pixels cannot be decoded. The stream is read, not closed.
+- `BarcodeRejectedException` (code `BARCODE_IMAGE_REJECTED`) for an image above a limit, an
+  unsupported format, or a file whose header or pixels cannot be decoded. The stream is read, not
+  closed.
 - **Concurrency.** Each call holds its decode memory (up to `maxDecodeBytes`) and a CPU until it
   returns. Bound the calls in flight, with a semaphore or the size of the pool that handles uploads,
   to bound the total.
@@ -98,6 +102,21 @@ found.map(DecodedBarcode::content);
   `123456789012`. Compare GTINs after left-padding to 13 digits.
 - `ITF` decodes every even length from 2 to 80 digits, the same range the renderer accepts.
 - `DecodedBarcode.toString()` hides the content.
+
+## Errors
+
+Everything the reader or renderer refuses because of what it was given throws
+`BarcodeRejectedException`, a `ClientInputException` from `sdk-commons` and therefore still an
+`IllegalArgumentException`. `sdk-web` 2.1.0 answers it with 400 and its code:
+
+| `code()` | Constant | When |
+|---|---|---|
+| `BARCODE_IMAGE_REJECTED` | `BarcodeRejectedException.IMAGE_REJECTED` | `BarcodeReader.read`: unsupported format, above `maxDecodePixels` or `maxDecodeBytes`, unreadable header or pixels, a failing stream |
+| `BARCODE_CONTENT_REJECTED` | `BarcodeRejectedException.CONTENT_REJECTED` | `BarcodeRequest`: content missing or breaking its format's rules, size below 1 pixel, margin out of range; `BarcodeRenderer`: content that does not fit the symbol, a requested or rendered size above the limits |
+
+Messages state the rule that was broken and never contain the content, so they are safe as a 400
+detail. Missing (`null`) arguments, such as a `null` format or stream, are programming errors and
+stay plain `IllegalArgumentException`s, as do invalid `BarcodeLimits`.
 
 ## Limits
 

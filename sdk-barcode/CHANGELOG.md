@@ -1,5 +1,16 @@
 # Changelog — sdk-barcode
 
+## 2.1.0
+
+### Added
+- `BarcodeRejectedException`, a `ClientInputException` from `sdk-commons` (still an
+  `IllegalArgumentException`), replaces the bare `IllegalArgumentException` for what a client can
+  get wrong: `BARCODE_IMAGE_REJECTED` for images `BarcodeReader` refuses,
+  `BARCODE_CONTENT_REJECTED` for `BarcodeRequest`s that cannot be rendered. Messages are unchanged.
+  `sdk-web` 2.1.0 answers it with 400 and the code. Missing arguments stay plain
+  `IllegalArgumentException`s.
+- `sdk-commons` 3.0.0 is an `api` dependency.
+
 ## 2.0.0
 
 Package reorganisation; behaviour and `codehunters.barcode.*` properties unchanged. See
