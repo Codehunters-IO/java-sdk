@@ -3,7 +3,7 @@
 Request authentication for Spring Boot 4 servlet applications behind Keycloak.
 
 ```kotlin
-implementation("io.codehunters:sdk-user-security:4.1.0")
+implementation("io.codehunters:sdk-user-security:5.0.0")
 ```
 
 ## Trust model
@@ -121,6 +121,11 @@ replaces both SDK chains; wire `GatewayHeadersFilter` after `BearerTokenAuthenti
 yourself if you still want the header checks, passing your `AuthenticationEntryPoint` to its
 constructor so its 401 matches the others.
 
+## Migrating from 4.x
+
+5.0 no longer reads the `keycloak.security.*` keys; use `codehunters.security.*`. See
+[MIGRATION-5.0.md](MIGRATION-5.0.md).
+
 ## Migrating from 3.x
 
 4.0 moves configuration and Spring Security plumbing out of `io.codehunters.security` into
@@ -132,7 +137,7 @@ constructor so its 401 matches the others.
 | 2.x | 3.0 |
 |---|---|
 | package `io.codehunters.sdk.security` | `io.codehunters.security` |
-| `keycloak.security.*` | `codehunters.security.*` (old keys honoured until 5.0, with a warning) |
+| `keycloak.security.*` | `codehunters.security.*` (old keys are not read since 5.0) |
 | `keycloak.security.client-id` / `client-secret` | `codehunters.security.introspection.client-id` / `client-secret` |
 | `keycloak.security.cache-ttl-seconds: 30` | `codehunters.security.introspection.cache-ttl: 30s` |
 | `keycloak.security.fail-open` (default `true`) | `codehunters.security.introspection.fail-open` (default `false`) |

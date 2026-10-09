@@ -2,8 +2,8 @@
 
 4.0.0 splits the 14 classes of `io.codehunters.security` by concern. What controllers and services
 use stays in `io.codehunters.security`; configuration and the Spring Security plumbing move to
-sub-packages. Only imports change: class names, properties (`codehunters.security.*`), the legacy
-`keycloak.security.*` aliases and behaviour are those of 3.1.0.
+sub-packages. Only imports change: class names, properties (`codehunters.security.*`) and behaviour are those of
+3.1.0.
 
 ## Unchanged: `io.codehunters.security`
 
@@ -16,7 +16,6 @@ in 3.x, now public).
 |---|---|
 | `io.codehunters.security.KeycloakSecurityAutoConfiguration` | `io.codehunters.security.config.KeycloakSecurityAutoConfiguration` |
 | `io.codehunters.security.KeycloakSecurityProperties` | `io.codehunters.security.config.KeycloakSecurityProperties` |
-| `io.codehunters.security.KeycloakSecurityLegacyProperties` | `io.codehunters.security.config.KeycloakSecurityLegacyProperties` |
 | `io.codehunters.security.KeycloakJwtAuthenticationConverter` | `io.codehunters.security.jwt.KeycloakJwtAuthenticationConverter` |
 | `io.codehunters.security.SessionIntrospector` | `io.codehunters.security.session.SessionIntrospector` |
 | `io.codehunters.security.GatewayHeadersFilter` | `io.codehunters.security.gateway.GatewayHeadersFilter` |
@@ -36,8 +35,6 @@ can reach it.
 3. **Names in strings.** `@AutoConfigureAfter(name = ...)`, `excludeName` and
    `spring.autoconfigure.exclude` entries naming `KeycloakSecurityAutoConfiguration` need the
    `config` package.
-
-The `keycloak.security.*` keys are now honoured until 5.0.0 (was 4.0.0).
 
 ## Logging
 
