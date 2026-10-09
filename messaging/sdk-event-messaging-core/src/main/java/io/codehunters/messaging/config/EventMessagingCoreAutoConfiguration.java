@@ -21,6 +21,7 @@ import java.lang.management.ManagementFactory;
 import java.time.Clock;
 import java.util.Optional;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -33,8 +34,9 @@ import org.springframework.context.annotation.Configuration;
 
 /**
  * Spring Boot auto-configuration for the transport-neutral part of the transactional-outbox SDK.
- * Binds {@link EventMessagingProperties} and wires the UTC clock, the message factories and the
- * dispatch use case. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
+ * Binds {@link EventMessagingProperties} and wires the private UTC {@code outboxClock}, the message
+ * factories and the dispatch use case. Active when {@code codehunters.outbox.enabled} is {@code
+ * true} (the default).
  *
  * <p>The use case needs an {@link OutboxDispatchStore} and a {@link MessagePublisherPort}, which
  * come from {@code sdk-event-messaging-jdbc} and a transport artifact ({@code
@@ -67,17 +69,21 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(EventMessagingProperties.class)
 public class EventMessagingCoreAutoConfiguration {
 
+  private static final String OUTBOX_CLOCK = "outboxClock";
+
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public EventMessagingCoreAutoConfiguration() {}
 
   /**
-   * Provides the UTC clock used for outbox timestamps, backoff and purge cut-offs. An
-   * application-defined {@link Clock} bean takes precedence.
+   * Provides the SDK's private UTC clock, used for outbox timestamps, backoff, claims and purge
+   * cut-offs. It is not a default candidate, so an application {@link Clock} bean is neither
+   * replaced by it nor used by the SDK; every SDK bean asks for it by qualifier. An application
+   * bean named {@code outboxClock} replaces it, for example to fix the time in tests.
    *
    * @return the system UTC clock
    */
-  @Bean
-  @ConditionalOnMissingBean(Clock.class)
+  @Bean(name = OUTBOX_CLOCK, defaultCandidate = false)
+  @ConditionalOnMissingBean(name = OUTBOX_CLOCK)
   public Clock outboxClock() {
     return Clock.systemUTC();
   }
@@ -95,7 +101,7 @@ public class EventMessagingCoreAutoConfiguration {
   public EventMessageFactory eventMessageFactory(
       @Value("${spring.application.name:unknown}") String origin,
       ObjectProvider<TraceIdSource> traceIdSource,
-      Clock clock) {
+      @Qualifier(OUTBOX_CLOCK) Clock clock) {
     return new EventMessageFactory(
         origin, traceIdSource.getIfAvailable(TraceIdSource::none), clock);
   }
@@ -120,7 +126,7 @@ public class EventMessagingCoreAutoConfiguration {
    * @param decorators the decorators applied to the publisher, in bean order
    * @param properties the messaging configuration
    * @param applicationName the originating application name (used as instance prefix)
-   * @param clock the outbox clock
+   * @param clock the SDK's private {@code outboxClock}
    * @return a {@link SendOutboxMessagesPort}
    */
   @Bean
@@ -132,7 +138,7 @@ public class EventMessagingCoreAutoConfiguration {
       ObjectProvider<MessagePublisherDecorator> decorators,
       EventMessagingProperties properties,
       @Value("${spring.application.name:unknown}") String applicationName,
-      Clock clock) {
+      @Qualifier(OUTBOX_CLOCK) Clock clock) {
     return new SendOutboxMessagesUseCase(
         outboxDispatchStore,
         decorate(messagePublisherPort, decorators),

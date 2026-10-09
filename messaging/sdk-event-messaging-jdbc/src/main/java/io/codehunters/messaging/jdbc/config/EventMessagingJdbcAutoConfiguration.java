@@ -3,16 +3,12 @@ package io.codehunters.messaging.jdbc.config;
 import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
-import io.codehunters.messaging.config.EventMessagingProperties;
 import io.codehunters.messaging.jdbc.OutboxAdapterSettings;
 import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
-import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
-import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeSettings;
 import java.time.Clock;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
-import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -20,23 +16,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Spring Boot auto-configuration for the PostgreSQL outbox store. Wires the dedicated JSON mapper,
- * the JDBC outbox store, the ShedLock provider and the purge scheduler. Active when {@code
- * codehunters.outbox.enabled} is {@code true} (the default). Scheduling ({@code @EnableScheduling},
- * {@code @EnableSchedulerLock}) and the purge scheduler are registered only while {@code
- * codehunters.outbox.scheduling.enabled} is {@code true} (the default), so an application that runs
- * dispatch and purge itself, or in another process, can turn them off.
+ * the JDBC outbox store and the ShedLock provider. Active when {@code codehunters.outbox.enabled}
+ * is {@code true} (the default).
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the repository is visible to the
  * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration. The dedicated
  * {@code outboxJsonMapper} is not a default candidate, so it never displaces nor competes with the
- * application's {@link JsonMapper}. The dispatch scheduler, which needs the use case, lives in
+ * application's {@link JsonMapper}. The dispatch and purge tasks, which need the use case, live in
  * {@link OutboxDispatchSchedulerAutoConfiguration}, and the FAILED-row gauge, which needs the
  * store, in {@link OutboxMetricsAutoConfiguration}.
  */
@@ -78,7 +69,7 @@ public class EventMessagingJdbcAutoConfiguration {
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the dedicated JSON mapper for outbox payloads
-   * @param clock the outbox clock
+   * @param clock the SDK's private {@code outboxClock}
    * @param origin the originating application name
    * @return the {@link OutboxJdbcAdapter}
    */
@@ -88,35 +79,11 @@ public class EventMessagingJdbcAutoConfiguration {
   public OutboxJdbcAdapter outboxJdbcAdapter(
       DataSource dataSource,
       @Qualifier("outboxJsonMapper") JsonMapper outboxJsonMapper,
-      Clock clock,
+      @Qualifier("outboxClock") Clock clock,
       @Value("${spring.application.name:unknown}") String origin) {
     OutboxDatabaseCheck.requirePostgres(dataSource);
     return new OutboxJdbcAdapter(
         dataSource, outboxJsonMapper, new OutboxAdapterSettings(origin, clock));
-  }
-
-  /**
-   * Provides the scheduled job that deletes PUBLISHED rows older than {@code
-   * codehunters.outbox.purge.retention}.
-   *
-   * @param outboxDispatchStore the outbox store
-   * @param properties the messaging configuration
-   * @param clock the outbox clock
-   * @return an {@link OutboxPurgeScheduler}
-   */
-  @Bean
-  @ConditionalOnMissingBean(OutboxPurgeScheduler.class)
-  @ConditionalOnBean(OutboxDispatchStore.class)
-  @ConditionalOnProperty(
-      prefix = "codehunters.outbox.scheduling",
-      name = "enabled",
-      havingValue = "true",
-      matchIfMissing = true)
-  public OutboxPurgeScheduler outboxPurgeScheduler(
-      OutboxDispatchStore outboxDispatchStore, EventMessagingProperties properties, Clock clock) {
-    EventMessagingProperties.Purge purge = properties.purge();
-    return new OutboxPurgeScheduler(
-        outboxDispatchStore, new OutboxPurgeSettings(purge.retention(), purge.batchSize(), clock));
   }
 
   /**
@@ -135,18 +102,4 @@ public class EventMessagingJdbcAutoConfiguration {
             .usingDbTime()
             .build());
   }
-
-  /**
-   * Turns on Spring scheduling and ShedLock for the dispatch and purge schedulers. Skipped when
-   * {@code codehunters.outbox.scheduling.enabled} is {@code false}.
-   */
-  @Configuration(proxyBeanMethods = false)
-  @ConditionalOnProperty(
-      prefix = "codehunters.outbox.scheduling",
-      name = "enabled",
-      havingValue = "true",
-      matchIfMissing = true)
-  @EnableScheduling
-  @EnableSchedulerLock(defaultLockAtMostFor = "60s")
-  static class OutboxSchedulingConfiguration {}
 }

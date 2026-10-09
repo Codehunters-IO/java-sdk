@@ -1,16 +1,15 @@
 package io.codehunters.messaging.jdbc.scheduler;
 
 import io.codehunters.messaging.SendOutboxMessagesPort;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.scheduling.annotation.Scheduled;
 
 /**
- * Inbound scheduler that periodically triggers outbox dispatch. Coordinated across instances by
- * ShedLock so only one node runs at a time.
+ * One poll of the outbox dispatch, run every {@code codehunters.outbox.task.fixed-delay} by {@link
+ * OutboxSchedulingLifecycle} under the {@code task.lock-name} ShedLock lock, so only one node polls
+ * at a time.
  */
-public class OutboxScheduler {
+public class OutboxScheduler implements Runnable {
 
   private static final Logger log = LoggerFactory.getLogger(OutboxScheduler.class);
 
@@ -26,12 +25,8 @@ public class OutboxScheduler {
   }
 
   /** Triggers one dispatch cycle, swallowing exceptions so the scheduler keeps running. */
-  @Scheduled(fixedDelayString = "${codehunters.outbox.task.fixed-delay:5000}")
-  @SchedulerLock(
-      name = "${codehunters.outbox.task.lock-name:outbox-${spring.application.name:unknown}}",
-      lockAtMostFor = "${codehunters.outbox.task.lock-at-most:300000}",
-      lockAtLeastFor = "${codehunters.outbox.task.lock-at-least:10000}")
-  public void processOutboxMessages() {
+  @Override
+  public void run() {
     try {
       log.debug("[START] - outbox scheduler triggered");
       sendOutboxMessagesPort.execute();

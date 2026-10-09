@@ -176,13 +176,14 @@ public record EventMessagingProperties(
    *     it must exceed half of {@code claim.ttl} plus the transport timeout
    * @param lockAtLeast the minimum time a node holds the dispatch lock after a run; {@code 0} (the
    *     default) lets the next poll, on any node, start as soon as the previous run ends
-   * @param lockName the ShedLock lock name; defaults to the current application name
+   * @param lockName the ShedLock lock name of the dispatch task; unset (the default) uses {@code
+   *     outbox-} followed by {@code spring.application.name}
    */
   public record Task(
       @DefaultValue("5s") Duration fixedDelay,
       @DefaultValue("5m") Duration lockAtMost,
       @DefaultValue("0s") Duration lockAtLeast,
-      @DefaultValue("outbox-${spring.application.name:unknown}") String lockName) {
+      String lockName) {
 
     /** Validates the delay and the lock window. */
     public Task {
@@ -285,7 +286,8 @@ public record EventMessagingProperties(
    * @param batchSize the maximum number of rows deleted per purge statement
    * @param fixedDelay the delay between the end of one purge run and the start of the next
    * @param initialDelay the delay before the first purge run
-   * @param lockName the ShedLock lock name of the purge job; defaults to the application name
+   * @param lockName the ShedLock lock name of the purge job; unset (the default) uses {@code
+   *     outbox-purge-} followed by {@code spring.application.name}
    * @param lockAtMost the maximum time a node may hold the purge lock
    * @param lockAtLeast the minimum time a node holds the purge lock
    */
@@ -294,7 +296,7 @@ public record EventMessagingProperties(
       @DefaultValue("500") int batchSize,
       @DefaultValue("1h") Duration fixedDelay,
       @DefaultValue("1m") Duration initialDelay,
-      @DefaultValue("outbox-purge-${spring.application.name:unknown}") String lockName,
+      String lockName,
       @DefaultValue("10m") Duration lockAtMost,
       @DefaultValue("30s") Duration lockAtLeast) {
 

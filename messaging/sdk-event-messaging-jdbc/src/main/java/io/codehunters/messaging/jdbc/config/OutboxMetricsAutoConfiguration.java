@@ -5,6 +5,7 @@ import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -40,7 +41,7 @@ public class OutboxMetricsAutoConfiguration {
    *
    * @param outboxDispatchStore the outbox store
    * @param origin the originating application name
-   * @param clock the outbox clock, which ages the cached count
+   * @param clock the SDK's private {@code outboxClock}, which ages the cached count
    * @return an {@link OutboxFailedGauge}
    */
   @Bean
@@ -49,7 +50,7 @@ public class OutboxMetricsAutoConfiguration {
   public OutboxFailedGauge outboxFailedGauge(
       OutboxDispatchStore outboxDispatchStore,
       @Value("${spring.application.name:unknown}") String origin,
-      Clock clock) {
+      @Qualifier("outboxClock") Clock clock) {
     return new OutboxFailedGauge(outboxDispatchStore, origin, clock);
   }
 }
