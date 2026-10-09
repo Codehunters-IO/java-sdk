@@ -70,10 +70,19 @@ final class TotpUri {
     if (value.isBlank()) {
       throw new IllegalArgumentException(name + " must not be blank");
     }
-    if (value.chars().anyMatch(c -> c == ':' || Character.isISOControl(c))) {
-      throw new IllegalArgumentException(name + " must not contain ':' or control characters");
+    if (value.codePoints().anyMatch(TotpUri::isForbidden)) {
+      throw new IllegalArgumentException(
+          name + " must not contain ':', control or format characters");
     }
     return value;
+  }
+
+  // Format characters (bidi overrides, zero-width spaces) are invisible and could make an
+  // authenticator app show a different label than the one encoded.
+  private static boolean isForbidden(int codePoint) {
+    return codePoint == ':'
+        || Character.isISOControl(codePoint)
+        || Character.getType(codePoint) == Character.FORMAT;
   }
 
   private static String encode(String value) {
