@@ -23,3 +23,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0017](0017-publish-on-release-tags.md) | Publish packages only from published GitHub releases | accepted |
 | [0018](0018-charge-attempts-only-for-started-sends.md) | Charge reclaim attempts only for rows whose send had started | accepted |
 | [0019](0019-postgis-geofence-adapter.md) | PostGIS geofence adapter with geodesic coverage | accepted |
+| [0020](0020-package-by-capability.md) | Package the SDKs by capability, not by architectural layer | accepted |
