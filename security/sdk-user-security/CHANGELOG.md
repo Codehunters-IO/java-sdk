@@ -9,6 +9,8 @@
   IP, geolocation and User-Agent into security events and access logs, and
   `@PreAuthorize("authentication.name == #id")` never matched.
 - `KeycloakPrincipal.toString()` prints the user id only.
+- Serialized with Jackson, `KeycloakPrincipal` keeps the same fields as before plus `name`, which
+  equals `userId`. `gatewayContext()` is not a bean property, so it adds nothing to the JSON.
 - The 401 for gateway headers that disagree with the token goes through the application's
   `AuthenticationEntryPoint`, so with `sdk-web` it carries `code`, `instance` and `traceId` like the
   other 401s. Without an entry point it is a problem detail with `code: UNAUTHORIZED` and
