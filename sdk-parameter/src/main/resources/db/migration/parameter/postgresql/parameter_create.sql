@@ -1,6 +1,8 @@
 -- Reference DDL for the parameters table, PostgreSQL.
 -- Copy it into the application's own migrations; the SDK never runs it. The file name has no
 -- Flyway version prefix on purpose, so a classpath:db/migration scan ignores it.
+-- Requires PostgreSQL 13 or later for gen_random_uuid(); on 12 or earlier run
+-- CREATE EXTENSION IF NOT EXISTS pgcrypto; first.
 -- The SDK only reads the table: rows are written by the application or an admin tool.
 
 CREATE TABLE parameters (

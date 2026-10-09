@@ -191,7 +191,8 @@ factory, not its product. With `codehunters.audit.enabled=false` no check runs.
 
 PostgreSQL is the supported database. Create the table from the reference DDL shipped in the jar,
 `db/migration/audit/postgresql/audit_event_create.sql`, copied into your own migrations. The script
-has no Flyway version prefix, so the SDK never runs it.
+has no Flyway version prefix, so the SDK never runs it. It needs PostgreSQL 13 or later for
+`gen_random_uuid()`; on 12 or earlier run `CREATE EXTENSION IF NOT EXISTS pgcrypto;` first.
 
 ## Configuration
 

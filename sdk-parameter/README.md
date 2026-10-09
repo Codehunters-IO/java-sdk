@@ -15,7 +15,9 @@ PostgreSQL JDBC driver. PostgreSQL is the only supported database.
 
 The SDK reads the table and never creates or writes it. The reference DDL ships in the jar at
 `db/migration/parameter/postgresql/parameter_create.sql`; copy it into your own migrations (the
-file has no Flyway version prefix, so a `classpath:db/migration` scan ignores it):
+file has no Flyway version prefix, so a `classpath:db/migration` scan ignores it). It needs
+PostgreSQL 13 or later for `gen_random_uuid()`; on 12 or earlier run
+`CREATE EXTENSION IF NOT EXISTS pgcrypto;` first:
 
 ```sql
 CREATE TABLE parameters (
