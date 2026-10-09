@@ -12,8 +12,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -95,6 +97,16 @@ class OutboxFailedGaugeTest {
 
     @Override
     public int purgePublished(Instant cutoff, int batchSize) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requeue(Collection<UUID> ids) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requeueFailed(String key) {
       throw new UnsupportedOperationException();
     }
   }

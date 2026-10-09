@@ -6,6 +6,7 @@ import io.codehunters.messaging.OutboxMessage;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,6 +99,16 @@ final class FakeDispatchStore implements OutboxDispatchStore {
 
   @Override
   public long countFailed() {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int requeue(Collection<UUID> ids) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public int requeueFailed(String key) {
     throw new UnsupportedOperationException();
   }
 
