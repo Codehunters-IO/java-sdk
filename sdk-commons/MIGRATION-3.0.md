@@ -60,8 +60,10 @@ that declare their own `TotpGenerator` bean, or only use the helpers, need nothi
   step without that check. See *One-time use* in the [README](README.md#one-time-use-reject-replayed-codes).
 - `provisioningUri(secret, issuer, account)` builds the `otpauth://totp/` key URI for the QR code.
 
-## Legacy keys
+## Removed in 3.0
 
-The `vitxo.totp.*` keys, which 2.x said would be honoured until 3.0.0, are now honoured until
-sdk-commons 4.0.0. Move them to `codehunters.totp.*`; they still log a deprecation warning, even
-with TOTP disabled.
+- The pre-2.0 TOTP property aliases are no longer read: only `codehunters.totp.*` binds. A service
+  still configured with the old keys starts with the defaults above, silently; rename them to
+  `codehunters.totp.time-step`, `codehunters.totp.digits` and `codehunters.totp.algorithm`.
+- `sdk-commons` no longer brings `io.codehunters:sdk-support`. Nothing in the public API used it;
+  code that imported its internal classes declares it itself.

@@ -23,8 +23,10 @@
   RFC 3986 percent-encoding; issuer and account are validated and must not contain `:`, control
   characters or invisible format characters (bidi overrides, zero-width spaces).
 
-### Changed
-- The `vitxo.totp.*` aliases are honoured until 4.0.0 (was 3.0.0).
+### Removed
+- The pre-2.0 TOTP property aliases, their `EnvironmentPostProcessor` (`TotpLegacyProperties`) and
+  their deprecated configuration metadata: only `codehunters.totp.*` binds.
+- The runtime dependency on `sdk-support`: `sdk-commons` depends on the JDK only.
 
 ## 2.0.0
 
@@ -33,21 +35,18 @@
   package in the artifact starts with `io.codehunters.commons`. Only imports change; class names,
   properties and behaviour do not. See [MIGRATION-2.0.md](MIGRATION-2.0.md).
 
-### Changed
-- The `vitxo.totp.*` aliases are honoured until 3.0.0 (was 2.0.0).
-
 ## 1.1.0
 
 Absorbs `sdk-totp` ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)).
 
 - `io.codehunters.totp` (RFC 6238 TOTP) ships in this artifact, unchanged from `sdk-totp` 2.0.0,
-  with its `codehunters.totp.*` auto-configuration and the `vitxo.totp.*` aliases.
+  with its `codehunters.totp.*` auto-configuration.
 - Declares the Gradle capabilities `io.codehunters:sdk-totp` and `io.codehunters:sdk-utils`: Gradle
   refuses a graph that also holds either. Maven builds must exclude them. See
   [MIGRATION-1.1.md](MIGRATION-1.1.md).
 - New switch `codehunters.totp.enabled` (default `true`): a Boot application that only uses the
   helpers can leave the TOTP auto-configuration out.
-- New runtime dependency: `sdk-support`, for the TOTP property aliases. Spring Boot stays
+- New runtime dependency: `sdk-support`. Spring Boot stays
   `compileOnly`; the helpers in `io.codehunters.commons` still depend on the JDK only, and so does
   the TOTP core (ArchUnit).
 
@@ -83,8 +82,7 @@ First release as `sdk-totp`; 1.x was published as `sdk-utils`.
   so Gradle refuses a graph that holds both. The guard is Gradle-only: Maven resolves both jars and
   the same classes twice without an error, so Maven builds must exclude `sdk-utils`. The
   `io.codehunters.totp` package is unchanged.
-- Properties moved from `vitxo.totp.*` to `codehunters.totp.*`. The old keys are honoured, with a
-  deprecation warning, until 3.0.
+- Properties moved under `codehunters.totp.*`.
 - `TotpConfig` requires a time step that is a whole number of seconds, from one second to ten
   minutes (`TotpConfig.MAX_TIME_STEP`). 1.x accepted `1500ms` (silently truncated to 1 s), `500ms`
   (division by zero on first use) and any long step, which kept one code valid for the whole step.
@@ -112,9 +110,6 @@ First release as `sdk-totp`; 1.x was published as `sdk-utils`.
   lower-case secret containing `i`.
 - `verify` compares candidates in constant time and returns `false` for a `null` code instead of
   throwing `NullPointerException`.
-- Legacy `vitxo.totp.*` keys set as environment variables are honoured in both forms
-  (`VITXO_TOTP_TIME_STEP` and `VITXO_TOTP_TIMESTEP`). Only the documented keys (`time-step`,
-  `digits`, `algorithm`) are aliased.
 
 #### Added
 - `TotpSecret.fromHex(String)`, `TotpSecret.generate(TotpAlgorithm)`, `TotpSecret.MIN_KEY_LENGTH`

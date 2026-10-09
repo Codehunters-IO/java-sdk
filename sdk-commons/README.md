@@ -6,8 +6,7 @@ Small, framework-free helpers that the JDK does not provide, and RFC 6238 TOTP. 
 The helpers in `io.codehunters.commons.*` depend on the JDK only and have no auto-configuration: call
 the classes directly. The [TOTP](#totp--iocodehunterscommonstotp) core is JDK-only too; its optional
 Spring Boot auto-configuration (`io.codehunters.commons.totp.config`) activates only in a Boot
-application that sets `codehunters.totp.enabled=true`.
-The one runtime dependency is `sdk-support`, which carries the old `vitxo.totp.*` property aliases.
+application that sets `codehunters.totp.enabled=true`. The artifact has no runtime dependency.
 ArchUnit tests enforce these boundaries.
 
 Rewritten from the loose utilities of the old `codehuntersio-java-commons-support` repository;
@@ -165,9 +164,6 @@ test vectors). `toString()` never shows the key, and an invalid Base32 or hex in
 | `codehunters.totp.time-step` | `30s` | Whole seconds, from `1s` to `10m`. Anything else fails startup. |
 | `codehunters.totp.digits` | `six` | `six` or `eight`; `four` is deprecated (below RFC 4226). |
 | `codehunters.totp.algorithm` | `hmac-sha1` | `hmac-sha1`, `hmac-sha256` or `hmac-sha512`. Keep the algorithm secrets were enrolled with. |
-
-The 1.x keys under `vitxo.totp.*` are still read, with a deprecation warning, until sdk-commons
-4.0.0. A key set under `codehunters.totp.*` wins over the old one.
 
 Before 3.0.0 the default algorithm was HMAC-SHA512 and the auto-configuration was on by default:
 [MIGRATION-3.0.md](MIGRATION-3.0.md).

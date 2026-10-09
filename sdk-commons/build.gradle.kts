@@ -14,10 +14,8 @@ codehuntersPublishing {
     replaces("sdk-totp", "sdk-utils")
 }
 
-// The helpers depend on the JDK only. TOTP brings sdk-support at runtime, for its legacy property
-// aliases; Spring Boot stays compileOnly and its auto-configuration loads only in a Boot app.
+// The helpers depend on the JDK only. Spring Boot stays compileOnly: the TOTP auto-configuration
+// loads only in a Boot app.
 dependencies {
-    implementation(project(":sdk-support"))
-
     testImplementation(libs.archunit.junit5)
 }
