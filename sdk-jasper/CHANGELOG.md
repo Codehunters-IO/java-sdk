@@ -4,6 +4,12 @@
 
 ### Behaviour changes
 
+- The compiled-template cache is Caffeine instead of a hand-written least-recently-used map. Its size
+  bound (`cache-size`), one shared compilation per template for concurrent requests and failures never
+  being cached are unchanged; a full cache now evicts by Caffeine's frequency-and-recency policy
+  (W-TinyLFU) rather than strictly the least recently used template. `caffeine` is a new runtime
+  dependency, at the version Spring Boot manages.
+
 - Parameters holding a `URL`, `URI`, `File`, `Path`, stream or reader below the first level of a
   collection, map or array, which 2.0.0 let through, are now rejected.
 - A parameter whose collection, map or array contains itself is now rejected (2.0.0 accepted it, and
@@ -26,6 +32,11 @@
   names taken from requests cannot grow it; its cardinality is bounded by the templates the
   application ships. Dashboards or alerts that match the exact tag set of `report.render` may need
   updating.
+- **Metrics:** the template cache publishes Micrometer's standard cache meters (`cache.gets`,
+  `cache.puts`, `cache.evictions`, `cache.size`, ...) tagged `cache=codehunters.jasper.template.cache`
+  when Micrometer and a single `MeterRegistry` are present and `cache-size` is above 0. New
+  `TemplateCacheMetrics` binds them outside Spring. `JasperReportRenderer.templateCache()` exists for
+  it and is not API: its return type lives in an internal package.
 - The auto-configuration declares the renderer in a single bean method, wrapped with metrics when
   Micrometer and a single `MeterRegistry` are present; back-off on an application `ReportRenderer`
   is unchanged.
