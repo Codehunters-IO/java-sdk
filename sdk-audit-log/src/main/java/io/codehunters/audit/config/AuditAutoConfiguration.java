@@ -20,9 +20,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Spring Boot auto-configuration enabling the {@link Auditable} aspect. Registers a no-op {@link
- * AuditContextProvider} and the {@link AuditAspect} when an {@link AuditEventPublisherPort} bean is
- * present.
+ * Spring Boot auto-configuration enabling the {@link io.codehunters.audit.Auditable} aspect.
+ * Registers a no-op {@link AuditContextProvider} and the {@link AuditAspect} when an {@link
+ * AuditEventPublisherPort} bean is present.
  *
  * <p>The aspect is applied by Boot's AOP auto-configuration ({@code spring.aop.auto}, on by default
  * with AspectJ on the classpath); this auto-configuration does not enable proxying itself. With

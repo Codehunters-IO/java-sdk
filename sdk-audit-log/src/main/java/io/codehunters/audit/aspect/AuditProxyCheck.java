@@ -8,10 +8,11 @@ import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 
 /**
- * Startup check that the {@link AuditAspect} is actually applied. Without an AspectJ auto-proxy
- * creator ({@code spring.aop.auto=false}, an excluded {@code AopAutoConfiguration}, or a plain
- * Spring context) no {@link Auditable} method is intercepted and no event is ever written. That gap
- * is logged as a warning, or fails startup when {@code fail-on-error} is set.
+ * Startup check that the {@link io.codehunters.audit.aspect.AuditAspect} is actually applied.
+ * Without an AspectJ auto-proxy creator ({@code spring.aop.auto=false}, an excluded {@code
+ * AopAutoConfiguration}, or a plain Spring context) no {@link io.codehunters.audit.Auditable}
+ * method is intercepted and no event is ever written. That gap is logged as a warning, or fails
+ * startup when {@code fail-on-error} is set.
  */
 public final class AuditProxyCheck implements SmartInitializingSingleton {
 

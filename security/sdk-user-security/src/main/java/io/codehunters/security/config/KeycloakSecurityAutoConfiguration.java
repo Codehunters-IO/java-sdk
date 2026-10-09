@@ -137,7 +137,8 @@ public class KeycloakSecurityAutoConfiguration {
   }
 
   /**
-   * Converter from verified tokens to {@link KeycloakPrincipal} authentications.
+   * Converter from verified tokens to {@link io.codehunters.security.KeycloakPrincipal}
+   * authentications.
    *
    * @param properties the security configuration
    * @return the converter
@@ -319,7 +320,10 @@ public class KeycloakSecurityAutoConfiguration {
   @EnableMethodSecurity
   static class MethodSecurityConfiguration {}
 
-  /** Lets controllers receive the {@link KeycloakPrincipal} through {@link CurrentPrincipal}. */
+  /**
+   * Lets controllers receive the {@link io.codehunters.security.KeycloakPrincipal} through {@link
+   * CurrentPrincipal}.
+   */
   @Configuration(proxyBeanMethods = false)
   @ConditionalOnClass(WebMvcConfigurer.class)
   static class CurrentPrincipalConfiguration {
