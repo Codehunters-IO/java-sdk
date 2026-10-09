@@ -113,6 +113,20 @@ class LegacyTraceHeadersAutoConfigurationTest {
   }
 
   @Test
+  void should_register_nothing_when_boot_opentelemetry_tracing_is_absent() {
+    runner
+        .withClassLoader(new FilteredClassLoader(OpenTelemetryTracingAutoConfiguration.class))
+        .run(context -> assertThat(context).doesNotHaveBean(LegacyTraceHeadersPropagator.class));
+  }
+
+  @Test
+  void should_register_nothing_when_boot_registers_no_propagator_because_export_is_disabled() {
+    runner
+        .withPropertyValues("management.tracing.export.enabled=false")
+        .run(context -> assertThat(context).doesNotHaveBean(LegacyTraceHeadersPropagator.class));
+  }
+
+  @Test
   void should_extract_x_traceparent_through_boot_propagators_when_no_traceparent_is_sent() {
     withOpenTelemetry.run(
         context ->
