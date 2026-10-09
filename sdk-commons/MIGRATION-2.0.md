@@ -20,3 +20,17 @@ the jar starts with `io.codehunters.commons`. Only imports change: class names, 
    name too.
 
 The `vitxo.totp.*` keys are now honoured until sdk-commons 3.0.0 (was 2.0.0).
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.totp=DEBUG
+# after
+logging.level.io.codehunters.commons.totp=DEBUG
+```
+
+A level on `io.codehunters` keeps working.

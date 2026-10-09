@@ -24,3 +24,17 @@ package-private in 1.x and are not API in 2.0 either: they may change in any rel
 `io.codehunters.barcode.internal` package, which is not API.
 
 Only imports change; properties are unchanged. In the IDE, "organise imports" fixes the rest.
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.barcode.Symbol=DEBUG
+# after
+logging.level.io.codehunters.barcode.internal.render.Symbol=DEBUG
+```
+
+A level on `io.codehunters` keeps working.

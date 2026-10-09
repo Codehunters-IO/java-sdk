@@ -21,6 +21,13 @@ column), then this guide. From 5.x, start with [MIGRATION-6.0.md](MIGRATION-6.0.
    categories (`logging.level.io.codehunters.messaging...`).
 4. Optional: rename the old `outbox.*` keys. They are honoured until 9.0 (they were due to go in 8.0).
 
+## Stored error class names
+
+When a publish fails, the outbox `error` column holds the exception's class name. Rows written by
+8.0 carry `io.codehunters.messaging.MessagePublishException` instead of 7.x's
+`io.codehunters.messaging.application.port.MessagePublishException`. Queries, alerts or dashboards
+that match on the old string must accept both until the old rows are purged.
+
 ## sdk-event-messaging-core
 
 | 7.x | 8.0 |

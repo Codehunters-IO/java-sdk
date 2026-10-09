@@ -34,8 +34,8 @@ the 5.x dependency yourself.
 ## Properties
 
 Every key moves from `outbox.*` to `codehunters.outbox.*`. The old keys (in files and environment
-variables) are still honoured until 9.0 (7.0 and 8.0 kept them): each is copied to its new name when the new one is unset,
-with one deprecation warning at startup.
+variables) are still honoured until 9.0 (7.0 and 8.0 kept them): each is copied to its new name
+when the new one is unset, with one deprecation warning at startup.
 
 | 5.x | 6.0 |
 |---|---|

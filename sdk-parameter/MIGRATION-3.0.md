@@ -18,3 +18,17 @@ old packages below fixes every file.
 
 `io.codehunters.parameter.config` (`ParameterAutoConfiguration`, `ParameterProperties`) keeps its
 name.
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.parameter.infrastructure=DEBUG
+# after
+logging.level.io.codehunters.parameter.jdbc=DEBUG
+```
+
+A level on `io.codehunters` keeps working.

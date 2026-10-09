@@ -13,3 +13,17 @@ package below fixes every file.
 An application that lists entity packages explicitly (`@EntityScan`, `packagesToScan`) and named
 `io.codehunters.jpa.domain` there must name `io.codehunters.jpa.entity` instead; mapped
 superclasses are normally picked up through the entities that extend them.
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.jpa.domain=DEBUG
+# after
+logging.level.io.codehunters.jpa.entity=DEBUG
+```
+
+A level on `io.codehunters` keeps working.

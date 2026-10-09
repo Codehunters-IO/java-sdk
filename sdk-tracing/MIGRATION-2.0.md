@@ -25,3 +25,17 @@ change in any release.
 1. Bump `io.codehunters:sdk-tracing` (or the BOM) to 2.0.0.
 2. Recompile. Fix the imports the compiler reports; your IDE's "organise imports" resolves them from
    the table above.
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.tracing.TraceIdFilter=DEBUG
+# after
+logging.level.io.codehunters.tracing.servlet.TraceIdFilter=DEBUG
+```
+
+A level on `io.codehunters` keeps working.

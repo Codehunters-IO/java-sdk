@@ -38,3 +38,17 @@ can reach it.
    `config` package.
 
 The `keycloak.security.*` keys are now honoured until 5.0.0 (was 4.0.0).
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.security.SessionIntrospector=DEBUG
+# after
+logging.level.io.codehunters.security.session.SessionIntrospector=DEBUG
+```
+
+A level on `io.codehunters` keeps working.

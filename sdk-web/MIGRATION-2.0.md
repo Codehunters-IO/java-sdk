@@ -54,3 +54,17 @@ the legacy `vitxo.i18n.*` aliases and behaviour are those of 1.0.0.
    the new names too.
 
 The `vitxo.i18n.*` keys are now honoured until 3.0.0 (was 2.0.0).
+
+## Logging
+
+Logger categories follow the classes, so a level set on an old package or class name no longer
+applies. Rename it the same way as the imports, for example:
+
+```properties
+# before
+logging.level.io.codehunters.weberrors=DEBUG
+# after
+logging.level.io.codehunters.web.errors=DEBUG
+```
+
+A level on `io.codehunters` keeps working.
