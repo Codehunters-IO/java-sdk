@@ -36,8 +36,20 @@ Every library module follows one layout:
   module may place classes under it.
 - Every package has a `package-info.java`.
 
-`verifyPackageLayout`, added to `check` by the `codehunters.java-library` convention, enforces each
-rule from the sources.
+`verifyPackageLayout`, added to `check` by the `codehunters.java-library` convention, reads the
+sources and fails the build when:
+
+- a package segment is one of the layer names above;
+- a package has no `package-info.java`;
+- a package lies outside the module's declared root, under a more specific root another module
+  declares, or the module's root is also declared by another module;
+- a class in the root (API) package imports, statically imports or names by its fully qualified name
+  a type under a `config` package of the module (comments are ignored; string literals are not);
+- a package with an `internal` segment has a `package-info.java` that does not say "Not API".
+
+The rest is a convention checked in review: that `config` holds only wiring, properties, aliases
+and conditions, that only API lives in the root package, and that implementation consumers should
+not use goes in `internal` or says "not API" in its Javadoc.
 
 Packages moved outright, without deprecated copies in the old packages: no service would use them,
 annotations and records cannot be aliased, and each module with moved packages gets a new major
