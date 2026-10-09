@@ -7,8 +7,6 @@ import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
-import io.codehunters.messaging.jdbc.GenericOutboxDialect;
-import io.codehunters.messaging.jdbc.OutboxDialect;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
 import io.codehunters.messaging.jdbc.scheduler.OutboxScheduler;
@@ -22,8 +20,6 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.scheduling.config.TaskManagementConfigUtils;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -180,31 +176,6 @@ class EventMessagingJdbcAutoConfigurationTest {
   }
 
   @Test
-  void should_fail_startup_naming_property_when_claim_dialect_unknown() {
-    contextRunner
-        .withPropertyValues("codehunters.outbox.claim.dialect=oracle")
-        .withBean(DataSource.class, this::createDataSource)
-        .run(
-            context -> {
-              assertThat(context).hasFailed();
-              assertThat(context.getStartupFailure())
-                  .rootCause()
-                  .hasMessageContaining("codehunters.outbox.claim.dialect");
-            });
-  }
-
-  @Test
-  void should_resolve_generic_dialect_when_h2_and_dialect_auto() {
-    contextRunner
-        .withBean(DataSource.class, this::createDataSource)
-        .run(
-            context ->
-                assertThat(context)
-                    .getBean(OutboxDialect.class)
-                    .isInstanceOf(GenericOutboxDialect.class));
-  }
-
-  @Test
   void should_register_failed_gauge_when_meter_registry_present() {
     contextRunner
         .withBean(DataSource.class, this::createDataSource)
@@ -224,11 +195,8 @@ class EventMessagingJdbcAutoConfigurationTest {
             });
   }
 
+  // Wiring never opens a connection, so a mock stands in for the outbox database.
   private DataSource createDataSource() {
-    return new EmbeddedDatabaseBuilder()
-        .setType(EmbeddedDatabaseType.H2)
-        .addScript("db/test-schema.sql")
-        .generateUniqueName(true)
-        .build();
+    return mock(DataSource.class);
   }
 }

@@ -40,7 +40,7 @@ class OutboxClaimConcurrencyIT {
   void setUp() {
     dataSource = PostgresTestSupport.dataSource();
     PostgresTestSupport.truncate();
-    var settings = new OutboxAdapterSettings(ORIGIN, new PostgresOutboxDialect(), CLOCK);
+    var settings = new OutboxAdapterSettings(ORIGIN, CLOCK);
     adapter = new OutboxJdbcAdapter(dataSource, JsonMapper.builder().build(), settings);
   }
 

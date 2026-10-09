@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "8.0.0"
+version = "9.0.0"
 description = "RabbitMQ publisher for the transactional outbox."
 
 codehuntersPackages {
@@ -29,5 +29,4 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-rabbitmq")
-    testRuntimeOnly("com.h2database:h2")
 }

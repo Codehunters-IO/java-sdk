@@ -109,7 +109,6 @@ class EventMessagingCoreAutoConfigurationTest {
           assertThat(props.batchSize()).isEqualTo(50);
           assertThat(props.maxAttempts()).isEqualTo(5);
           assertThat(props.claim().ttlMs()).isEqualTo(300_000L);
-          assertThat(props.claim().dialect()).isEqualTo("auto");
           assertThat(props.backoff().baseDelayMs()).isEqualTo(30_000L);
           assertThat(props.backoff().maxDelayMs()).isEqualTo(3_600_000L);
           assertThat(props.publisher().type()).isNull();
@@ -179,8 +178,7 @@ class EventMessagingCoreAutoConfigurationTest {
             "codehunters.outbox.publisher.kafka.send-timeout=3s",
             "codehunters.outbox.publisher.rabbit.confirm-timeout=2s",
             "codehunters.outbox.purge.retention=3d",
-            "codehunters.outbox.purge.batch-size=100",
-            "codehunters.outbox.claim.dialect=postgresql")
+            "codehunters.outbox.purge.batch-size=100")
         .run(
             context -> {
               EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
@@ -190,7 +188,6 @@ class EventMessagingCoreAutoConfigurationTest {
                   .isEqualTo(Duration.ofSeconds(2));
               assertThat(props.purge().retention()).isEqualTo(Duration.ofDays(3));
               assertThat(props.purge().batchSize()).isEqualTo(100);
-              assertThat(props.claim().dialect()).isEqualTo("postgresql");
             });
   }
 

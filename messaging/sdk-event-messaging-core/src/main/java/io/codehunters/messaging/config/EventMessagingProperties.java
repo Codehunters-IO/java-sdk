@@ -15,7 +15,7 @@ import org.springframework.boot.convert.DurationStyle;
  * @param batchSize the number of messages dispatched per scheduler tick
  * @param maxAttempts the maximum number of publish attempts before marking a message FAILED
  * @param task the scheduler/ShedLock configuration
- * @param claim the claim-lifetime and claim-dialect configuration
+ * @param claim the claim-lifetime configuration
  * @param backoff the retry backoff configuration
  * @param publisher the broker publisher selection
  * @param purge the PUBLISHED-row retention configuration
@@ -183,10 +183,8 @@ public record EventMessagingProperties(
    * Claim configuration.
    *
    * @param ttlMs the time after which an in-flight claim is considered stale and reclaimable
-   * @param dialect the claim SQL dialect: {@code auto} (detected from the database), {@code
-   *     postgresql}, {@code sqlserver} or {@code generic}; unknown values fail startup
    */
-  public record Claim(@DefaultValue("300000") long ttlMs, @DefaultValue("auto") String dialect) {
+  public record Claim(@DefaultValue("300000") long ttlMs) {
 
     /** Validates the claim TTL. */
     public Claim {

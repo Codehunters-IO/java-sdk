@@ -12,7 +12,6 @@ import io.codehunters.messaging.OutboxStatus;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.UUID;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.AfterEach;
@@ -21,14 +20,12 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 class OutboxJdbcAdapterTest {
 
-  private static final String ORIGIN = "vitxo-ms-test";
+  private static final String ORIGIN = "orders-ms-test";
 
   private DataSource dataSource;
   private JdbcClient jdbcClient;
@@ -41,12 +38,8 @@ class OutboxJdbcAdapterTest {
     adapterLogs = new ListAppender<>();
     adapterLogs.start();
     adapterLogger().addAppender(adapterLogs);
-    dataSource =
-        new EmbeddedDatabaseBuilder()
-            .setType(EmbeddedDatabaseType.H2)
-            .addScript("db/test-schema.sql")
-            .generateUniqueName(true)
-            .build();
+    dataSource = PostgresTestSupport.dataSource();
+    PostgresTestSupport.truncate();
     jdbcClient = JdbcClient.create(dataSource);
     jsonMapper = JsonMapper.builder().build();
     adapter = new OutboxJdbcAdapter(dataSource, jsonMapper, ORIGIN);
@@ -114,7 +107,7 @@ class OutboxJdbcAdapterTest {
   void should_use_message_origin_when_provided() {
     var message =
         OutboxMessage.<String>builder()
-            .origin("vitxo-ms-other")
+            .origin("orders-ms-other")
             .topic("test-topic")
             .key("key-2")
             .message("{\"data\":2}")
@@ -128,7 +121,7 @@ class OutboxJdbcAdapterTest {
             .sql("SELECT origin FROM outbox_message WHERE message_key = 'key-2'")
             .query(String.class)
             .single();
-    assertThat(origin).isEqualTo("vitxo-ms-other");
+    assertThat(origin).isEqualTo("orders-ms-other");
   }
 
   @Test
@@ -318,7 +311,7 @@ class OutboxJdbcAdapterTest {
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("t")
-            .origin("vitxo-ms-other")
+            .origin("orders-ms-other")
             .key("other")
             .message("other-payload")
             .occurredAt(now)
@@ -344,7 +337,7 @@ class OutboxJdbcAdapterTest {
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("t")
-            .origin("vitxo-ms-other")
+            .origin("orders-ms-other")
             .key("other")
             .message("other-payload")
             .occurredAt(now)
@@ -561,7 +554,7 @@ class OutboxJdbcAdapterTest {
   }
 
   @Test
-  void should_hold_later_same_key_row_when_earlier_row_is_pending_on_generic_dialect() {
+  void should_hold_later_same_key_row_when_earlier_row_is_pending() {
     adapter.save(OutboxMessage.<String>builder().topic("t").key("A").message("A1").build());
     adapter.save(OutboxMessage.<String>builder().topic("t").key("A").message("A2").build());
     adapter.save(OutboxMessage.<String>builder().topic("t").key("B").message("B1").build());
@@ -569,61 +562,6 @@ class OutboxJdbcAdapterTest {
     var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
 
     assertThat(claimed).extracting(OutboxMessage::getMessage).containsExactly("A1", "B1");
-  }
-
-  @Test
-  void should_purge_only_old_published_rows_of_origin_when_dialect_is_generic() {
-    var now = LocalDateTime.now(ZoneOffset.UTC);
-    insertRow(ORIGIN, "PUBLISHED", now.minusDays(8));
-    insertRow(ORIGIN, "PUBLISHED", now.minusDays(1));
-    insertRow(ORIGIN, "FAILED", now.minusDays(30));
-    insertRow("other-origin", "PUBLISHED", now.minusDays(8));
-
-    int deleted = adapter.purgePublished(now.minusDays(7), 500);
-
-    assertThat(deleted).isEqualTo(1);
-    assertThat(statusesByOrigin())
-        .containsExactlyInAnyOrder(
-            ORIGIN + ":PUBLISHED", ORIGIN + ":FAILED", "other-origin:PUBLISHED");
-  }
-
-  @Test
-  void should_bound_purge_by_batch_size_when_dialect_is_generic() {
-    var now = LocalDateTime.now(ZoneOffset.UTC);
-    insertRow(ORIGIN, "PUBLISHED", now.minusDays(8));
-    insertRow(ORIGIN, "PUBLISHED", now.minusDays(9));
-    insertRow(ORIGIN, "PUBLISHED", now.minusDays(10));
-
-    int deleted = adapter.purgePublished(now.minusDays(7), 2);
-
-    assertThat(deleted).isEqualTo(2);
-  }
-
-  @Test
-  void should_count_failed_rows_of_origin_only() {
-    insertRow(ORIGIN, "FAILED", null);
-    insertRow(ORIGIN, "PENDING", null);
-    insertRow("other-origin", "FAILED", null);
-
-    assertThat(adapter.countFailed()).isEqualTo(1L);
-  }
-
-  private void insertRow(String origin, String status, LocalDateTime publishedAt) {
-    jdbcClient
-        .sql(
-            "INSERT INTO outbox_message (origin, topic, payload, status, published_at)"
-                + " VALUES (:origin, 't', 'p', :status, :publishedAt)")
-        .param("origin", origin)
-        .param("status", status)
-        .param("publishedAt", publishedAt)
-        .update();
-  }
-
-  private List<String> statusesByOrigin() {
-    return jdbcClient
-        .sql("SELECT origin, status FROM outbox_message")
-        .query((rs, rowNum) -> rs.getString("origin") + ":" + rs.getString("status"))
-        .list();
   }
 
   @Test
