@@ -69,6 +69,23 @@ class KeycloakSecurityProblemDetailsTest {
   }
 
   @Test
+  void should_answer_problem_detail_when_gateway_headers_disagree_with_token() {
+    runner.run(
+        context ->
+            mockMvc(context)
+                .perform(
+                    get("/api/me")
+                        .header("Authorization", "Bearer " + keycloak.token())
+                        .header("x-user-id", "someone-else"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", startsWith("Bearer")))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.status").value(401))
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.instance").value("/api/me")));
+  }
+
+  @Test
   void should_keep_plain_bearer_challenge_when_web_errors_is_absent() {
     new WebApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(KeycloakSecurityAutoConfiguration.class))

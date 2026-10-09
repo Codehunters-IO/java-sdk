@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,6 +21,7 @@ class KeycloakSecurityUtilsTest {
   private static final String LATITUDE = "40.4";
   private static final String LONGITUDE = "-3.7";
   private static final String IP = "10.0.0.1";
+  private static final String USER_AGENT = "agent/1.0";
   private static final String SESSION_ID = "sess-789";
 
   @AfterEach
@@ -265,6 +267,29 @@ class KeycloakSecurityUtilsTest {
   }
 
   @Test
+  void should_returnGatewayContext_when_authenticated() {
+    // Given
+    setAuthentication(USER_ID, USERNAME, List.of());
+
+    // When
+    var result = KeycloakSecurityUtils.getGatewayContext();
+
+    // Then
+    assertEquals(
+        Optional.of(new GatewayContext(COUNTRY, CITY, LATITUDE, LONGITUDE, IP, USER_AGENT)),
+        result);
+  }
+
+  @Test
+  void should_returnEmptyGatewayContext_when_noAuthentication() {
+    // When
+    var result = KeycloakSecurityUtils.getGatewayContext();
+
+    // Then
+    assertTrue(result.isEmpty());
+  }
+
+  @Test
   void should_returnEmptyRoles_when_noAuthentication() {
     // Given — no authentication set
 
@@ -279,7 +304,7 @@ class KeycloakSecurityUtilsTest {
       String userId, String username, List<SimpleGrantedAuthority> authorities) {
     var principal =
         new KeycloakPrincipal(
-            userId, username, COUNTRY, CITY, LATITUDE, LONGITUDE, IP, "agent/1.0", SESSION_ID);
+            userId, username, COUNTRY, CITY, LATITUDE, LONGITUDE, IP, USER_AGENT, SESSION_ID);
     var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
     SecurityContextHolder.getContext().setAuthentication(auth);
   }

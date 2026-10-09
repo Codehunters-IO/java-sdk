@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.codehunters.security.CurrentPrincipal;
 import io.codehunters.security.KeycloakPrincipal;
 import io.codehunters.security.KeycloakSecurityUtils;
+import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -24,6 +25,7 @@ import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
@@ -170,6 +172,21 @@ class KeycloakSecurityEndToEndTest {
     expect(bearer(get("/health"), "not-a-jwt"), status().isOk(), "up");
   }
 
+  @Test
+  void should_report_user_id_as_remote_user_when_token_is_valid() {
+    expect(bearer(get("/api/remote-user"), keycloak.token()), status().isOk(), "user-1");
+  }
+
+  @Test
+  void should_match_authentication_name_against_path_user_id() {
+    expect(bearer(get("/api/users/user-1"), keycloak.token()), status().isOk(), "user-1");
+  }
+
+  @Test
+  void should_forbid_another_users_path_when_authentication_name_differs() {
+    expect(bearer(get("/api/users/user-2"), keycloak.token()), status().isForbidden());
+  }
+
   private void expect(MockHttpServletRequestBuilder request, ResultMatcher status) {
     runner.run(context -> mockMvc(context).perform(request).andExpect(status));
   }
@@ -206,6 +223,17 @@ class KeycloakSecurityEndToEndTest {
     @PreAuthorize("hasRole('ADMIN')")
     String admin() {
       return "admin";
+    }
+
+    @GetMapping("/api/remote-user")
+    String remoteUser(HttpServletRequest request) {
+      return request.getRemoteUser();
+    }
+
+    @GetMapping("/api/users/{id}")
+    @PreAuthorize("authentication.name == #id")
+    String user(@PathVariable String id) {
+      return id;
     }
 
     @GetMapping("/public/ping")

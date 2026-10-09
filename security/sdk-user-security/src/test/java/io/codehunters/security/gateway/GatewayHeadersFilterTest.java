@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.codehunters.security.KeycloakPrincipal;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,10 +14,15 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 class GatewayHeadersFilterTest {
+
+  private static final JsonMapper JSON = JsonMapper.builder().build();
 
   private static final KeycloakPrincipal TOKEN_PRINCIPAL =
       new KeycloakPrincipal("user-1", "alice", null, null, null, null, null, null, "sid-1");
@@ -143,6 +149,56 @@ class GatewayHeadersFilterTest {
     assertThat(authentication.getAuthorities())
         .extracting(Object::toString)
         .containsExactly("ROLE_USER");
+  }
+
+  @Test
+  void should_answer_problem_detail_with_code_and_instance_when_rejecting_without_entry_point()
+      throws Exception {
+    authenticate("ROLE_USER");
+    request.addHeader("x-user-id", "someone-else");
+
+    filter.doFilter(request, response, chain);
+
+    JsonNode body = JSON.readTree(response.getContentAsString());
+    assertThat(body.get("type").asString()).isEqualTo("about:blank");
+    assertThat(body.get("title").asString()).isEqualTo("Unauthorized");
+    assertThat(body.get("status").asInt()).isEqualTo(401);
+    assertThat(body.get("detail").asString())
+        .isEqualTo("x-user-id does not match the token subject");
+    assertThat(body.get("instance").asString()).isEqualTo("/api/me");
+    assertThat(body.get("code").asString()).isEqualTo("UNAUTHORIZED");
+  }
+
+  @Test
+  void should_send_bearer_challenge_when_rejecting_without_entry_point()
+      throws ServletException, IOException {
+    request.addHeader("x-user-id", "user-1");
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getHeader("WWW-Authenticate")).isEqualTo("Bearer");
+  }
+
+  @Test
+  void should_delegate_rejection_to_entry_point_when_one_is_configured()
+      throws ServletException, IOException {
+    List<AuthenticationException> failures = new ArrayList<>();
+    var delegating =
+        new GatewayHeadersFilter(
+            (req, res, failure) -> {
+              failures.add(failure);
+              res.setStatus(401);
+            });
+    request.addHeader("x-user-id", "user-1");
+
+    delegating.doFilter(request, response, chain);
+
+    assertThat(failures)
+        .singleElement()
+        .extracting(Throwable::getMessage)
+        .isEqualTo("Identity headers require a bearer token");
+    assertThat(response.getStatus()).isEqualTo(401);
+    assertThat(chain.getRequest()).isNull();
   }
 
   private void authenticate(String... authorities) {
