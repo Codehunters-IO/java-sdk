@@ -9,6 +9,8 @@
   `codehunters.web.errors.*`, `codehunters.device.*` → `codehunters.web.device.*`,
   `codehunters.i18n.*` → `codehunters.web.i18n.*`. Keys below the prefix keep their names; the old
   prefixes are not read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+- The configuration metadata lists every renamed key with `level: error` and its replacement, so
+  IDEs and `spring-boot-properties-migrator` report keys still using the old prefixes.
 
 ### Removed
 - The pre-1.0 i18n property aliases, their `EnvironmentPostProcessor` and their deprecated

@@ -68,4 +68,7 @@ Environment variables follow the same rule: `CODEHUNTERS_DEVICE_TRUSTEDPROXIES` 
    repository, Helm values and environment variable as in the tables above.
 3. **Check.** Startup fails on invalid values but not on unknown keys. Look for the old prefixes
    (`grep -rnE 'codehunters\.(web-errors|device|i18n)|CODEHUNTERS_(WEBERRORS|DEVICE|I18N)_'`) before
-   deploying.
+   deploying. The jar's configuration metadata lists every old key as an error with its
+   replacement, so IDEs flag them in `application*.yml`, and adding
+   `org.springframework.boot:spring-boot-properties-migrator` (runtime only, remove it afterwards)
+   reports the old keys present in the environment at startup.

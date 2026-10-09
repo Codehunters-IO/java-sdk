@@ -1,0 +1,154 @@
+{
+  "properties": [
+    {
+      "name": "codehunters.web-errors.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.errors.enabled",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.web-errors.type-base-uri",
+      "type": "java.net.URI",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.errors.type-base-uri",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.web-errors.include-trace-id",
+      "type": "java.lang.Boolean",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.errors.include-trace-id",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.device.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.device.enabled",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.device.trusted-proxies",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.device.trusted-proxies",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.device.forwarding-header",
+      "type": "io.codehunters.web.device.ip.ForwardingHeader",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.device.forwarding-header",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.device.user-agent.max-length",
+      "type": "java.lang.Integer",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.device.user-agent.max-length",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.device.user-agent.cache-size",
+      "type": "java.lang.Integer",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.device.user-agent.cache-size",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.enabled",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.basename",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.basename",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.default-locale",
+      "type": "java.util.Locale",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.default-locale",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.supported-locales",
+      "type": "java.util.List<java.util.Locale>",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.supported-locales",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.header-name",
+      "type": "java.lang.String",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.header-name",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.encoding",
+      "type": "java.nio.charset.Charset",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.encoding",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    },
+    {
+      "name": "codehunters.i18n.fallback-to-system-locale",
+      "type": "java.lang.Boolean",
+      "description": "Renamed in sdk-web 3.0.0; ignored at runtime.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.web.i18n.fallback-to-system-locale",
+        "reason": "sdk-web 3.0.0 moved its properties under codehunters.web."
+      }
+    }
+  ]
+}
