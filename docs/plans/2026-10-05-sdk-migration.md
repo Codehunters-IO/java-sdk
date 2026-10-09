@@ -42,6 +42,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D19 | `sdk-geo-validation` 1.1.0 suma un adaptador PostGIS sobre una tabla o vista del servicio (nombres configurados y validados), con `ST_Covers` sobre `geography`: geodésico, cruza el antimeridiano, el borde es de la zona. Una sola consulta distingue `ZONE_NOT_FOUND` de `OUTSIDE_ZONE` (2026-10-09) | `docs/adr/0019-postgis-geofence-adapter.md` |
 | D20 | Los SDK no usan estructura hexagonal: se empaquetan por capacidad. El paquete raíz es la API, los subpaquetes se nombran por lo que hacen, `config` tiene la auto-configuración y `internal` lo que no es API; ningún paquete se reparte entre dos jars. Se mueven sin shims y cada módulo afectado sube de major, porque ningún servicio los consume todavía (2026-10-09) | `docs/adr/0020-package-by-capability.md` |
 | D21 | Bloque 1 de la evaluación de arquitectura (seguridad y datos personales): TOTP con valores por defecto compatibles con las apps de autenticación y auto-configuración opt-in (`sdk-commons` 3.0.0), nombre de la autenticación igual al user id y datos del gateway como no verificados (`sdk-user-security` 4.1.0), parámetros de ubicación rechazados a cualquier profundidad (`sdk-jasper` 2.1.0) y alias de listas copiados desde una sola fuente (`sdk-support` 1.0.1); BOM 3.0.0 (2026-10-09) | — |
+| D22 | Bloque 2 de la evaluación de arquitectura (fallos silenciosos y errores de cliente): `ClientInputException` en `sdk-commons` (subclase de `IllegalArgumentException` con `code` estable) que `sdk-web` 2.1.0 responde con 400; `sdk-jpa` y `sdk-barcode` 2.1.0 la usan; `sdk-audit-log` 4.1.0 reporta al arrancar `@Auditable` sin publisher o con expresiones inválidas y toma el actor servlet de Spring Security. `sdk-bom` 3.1.0 (la 3.0.0 no se publica sola) (2026-10-09) | — |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1529,7 +1530,26 @@ aplicación consumidora de prueba con 13 módulos) dejó hallazgos por bloques; 
 | `sdk-bom` | 2.0.0 | 3.0.0 | versiones nuevas |
 
 - Se trabajó en cuatro ramas paralelas, una por módulo, integradas en una sola.
-- `KeycloakPrincipal` serializado con Jackson suma la propiedad `name` (igual al user id); queda
-  fijado con un test.
+- `KeycloakPrincipal` serializado con Jackson queda igual que en 4.0.0: `getName()` lleva
+  `@JsonIgnore` y un test fija el ida y vuelta con deserialización estricta.
 - Bloques siguientes de la evaluación: fallos silenciosos (audit-log, contrato común de errores de
   cliente), reducción (tracing, authz, i18n) y experiencia de desarrollo (messaging, parameter).
+
+## Fase 26 — Bloque 2: fallas silenciosas y contrato de errores (rama `fix/security-pii-block`, sobre `master`)
+
+Decisión D22. Va en el mismo PR que el bloque 1 (#30), por pedido del usuario.
+
+| Módulo | Antes | Ahora | Cambio |
+|---|---|---|---|
+| `sdk-commons` | 2.0.0 | 3.0.0 | además del bloque 1: `ClientInputException` (`io.codehunters.commons.error`) |
+| `sdk-web` | 2.0.0 | 2.1.0 | `ClientInputException`, directa o en la cadena de causas, responde 400 con su `code` |
+| `sdk-jpa` | 2.0.0 | 2.1.0 | `InvalidSortException` (`INVALID_SORT`); `InvalidSearchException` con `INVALID_SEARCH` |
+| `sdk-barcode` | 2.0.0 | 2.1.0 | `BarcodeRejectedException` (`BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED`) |
+| `sdk-audit-log` | 4.0.0 | 4.1.0 | chequeo al arrancar de publisher y expresiones; WARN una vez por expresión que falla; actor servlet desde Spring Security; `codehunters.audit.enabled` |
+| `sdk-bom` | 2.0.0 | 3.1.0 | versiones nuevas; la 3.0.0 del bloque 1 no se publica sola |
+
+- Dos ramas paralelas (audit-log desde `master`; errores desde la rama del bloque 1), integradas en
+  la del PR #30.
+- Abierto: `SimpleEvaluationContext` para las expresiones de audit-log (rompería expresiones con
+  llamadas a métodos, va en una major); sin aviso cuando falta `aspectjweaver` y el aspecto no se
+  registra.

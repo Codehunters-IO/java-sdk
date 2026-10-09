@@ -7,7 +7,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 3.0.0 | [below](#sdk-bom-300) | — |
+| `sdk-bom` | 3.1.0 | [below](#sdk-bom-310) | — |
 | `sdk-user-security` | 4.1.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | [4.0](security/sdk-user-security/MIGRATION-4.0.md) |
 | `sdk-user-security-authz` | 4.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
 | `sdk-tracing` | 2.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | [2.0](sdk-tracing/MIGRATION-2.0.md) |
@@ -16,20 +16,37 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-event-messaging-rabbit` | 8.0.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) · [8.0](messaging/MIGRATION-8.0.md) |
 | `sdk-event-messaging-kafka` | 8.0.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) · [8.0](messaging/MIGRATION-8.0.md) |
 | `sdk-file-share` | 3.0.0 | [CHANGELOG](sdk-file-share/CHANGELOG.md) | [2.0](sdk-file-share/MIGRATION-2.0.md) · [3.0](sdk-file-share/MIGRATION-3.0.md) |
-| `sdk-audit-log` | 4.0.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) · [4.0](sdk-audit-log/MIGRATION-4.0.md) |
+| `sdk-audit-log` | 4.1.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) · [4.0](sdk-audit-log/MIGRATION-4.0.md) |
 | `sdk-measure-micrometer` | 4.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) · [4.0](sdk-measure-micrometer/MIGRATION-4.0.md) |
 | `sdk-parameter` | 3.0.0 | [CHANGELOG](sdk-parameter/CHANGELOG.md) | [2.0](sdk-parameter/MIGRATION-2.0.md) · [3.0](sdk-parameter/MIGRATION-3.0.md) |
 | `sdk-commons` | 3.0.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [1.1](sdk-commons/MIGRATION-1.1.md) · [2.0](sdk-commons/MIGRATION-2.0.md) · [3.0](sdk-commons/MIGRATION-3.0.md) · [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
-| `sdk-web` | 2.0.0 | [CHANGELOG](sdk-web/CHANGELOG.md) | [1.0](sdk-web/MIGRATION-1.0.md) · [2.0](sdk-web/MIGRATION-2.0.md) |
-| `sdk-barcode` | 2.0.0 | [CHANGELOG](sdk-barcode/CHANGELOG.md) | [2.0](sdk-barcode/MIGRATION-2.0.md) · [from commons-support](sdk-barcode/MIGRATION-from-commons-support.md) |
+| `sdk-web` | 2.1.0 | [CHANGELOG](sdk-web/CHANGELOG.md) | [1.0](sdk-web/MIGRATION-1.0.md) · [2.0](sdk-web/MIGRATION-2.0.md) |
+| `sdk-barcode` | 2.1.0 | [CHANGELOG](sdk-barcode/CHANGELOG.md) | [2.0](sdk-barcode/MIGRATION-2.0.md) · [from commons-support](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | 2.1.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [2.0](sdk-jasper/MIGRATION-2.0.md) · [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
-| `sdk-jpa` | 2.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [2.0](sdk-jpa/MIGRATION-2.0.md) · [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
+| `sdk-jpa` | 2.1.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [2.0](sdk-jpa/MIGRATION-2.0.md) · [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.1 | [CHANGELOG](platform/sdk-support/CHANGELOG.md); internal, no public API | — |
 | `sdk-geo-validation` | 1.1.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [1.0](sdk-geo-validation/MIGRATION-1.0.md) |
 
+## sdk-bom 3.1.0
+
+Block 2 of the architecture review (silent failures and client-input errors), on top of 3.0.0,
+which was never published on its own:
+
+- `sdk-commons` 3.0.0 also adds `ClientInputException`: an `IllegalArgumentException` with a stable
+  `code` whose message never echoes client values.
+- `sdk-web` 2.1.0: a `ClientInputException`, direct or in the cause chain, answers 400 with its code
+  instead of 500.
+- `sdk-jpa` 2.1.0: a sort outside the whitelist throws `InvalidSortException` (`INVALID_SORT`) and
+  `InvalidSearchException` carries `INVALID_SEARCH`.
+- `sdk-barcode` 2.1.0: rejected images and render requests throw `BarcodeRejectedException`
+  (`BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED`).
+- `sdk-audit-log` 4.1.0: `@Auditable` methods with no publisher, or with an unparseable expression,
+  are reported at startup (failing it with `fail-on-error=true`); expression failures warn once;
+  the servlet actor defaults to the Spring Security user; new `codehunters.audit.enabled`.
+
 ## sdk-bom 3.0.0
 
-Fixes from block 1 of the architecture review (security and personal data):
+Not published on its own; its changes ship in 3.1.0. Fixes from block 1 of the architecture review (security and personal data):
 
 - `sdk-commons` 3.0.0: TOTP defaults are HMAC-SHA1, 6 digits and 30 s, which authenticator apps
   expect; the TOTP auto-configuration is opt-in (`codehunters.totp.enabled`); `verifyStep` and
