@@ -44,6 +44,8 @@ class RabbitMessagePublisherAdapterTest {
   private static final UUID ID = UUID.fromString("0b9c6a3e-7d1f-4a51-9f0e-2a7c1d4e5f60");
   private static final Duration CONFIRM_TIMEOUT = Duration.ofMillis(1500);
   private static final int NO_ROUTE = 312;
+  private static final String TRACEPARENT =
+      "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
   private final RabbitOperations template = mock(RabbitOperations.class);
   private final RabbitOperations dedicated = mock(RabbitOperations.class);
@@ -201,6 +203,49 @@ class RabbitMessagePublisherAdapterTest {
     returnListener.handleReturn(
         NO_ROUTE, PII_SENTINEL, EXCHANGE, ROUTING_KEY, properties, new byte[0]);
     return null;
+  }
+
+  @Test
+  void should_send_stored_traceparent_header_when_message_has_one() {
+    adapter.publish(traced(TRACEPARENT));
+
+    assertThat(header(MessagePublisherPort.TRACEPARENT_HEADER)).isEqualTo(TRACEPARENT);
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_message_has_none() {
+    adapter.publish(message(ROUTING_KEY));
+
+    assertThat(header(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_traceparent_header_when_stored_traceparent_is_blank() {
+    adapter.publish(traced(" "));
+
+    assertThat(header(MessagePublisherPort.TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_no_legacy_traceparent_header_when_switch_is_off() {
+    adapter.publish(traced(TRACEPARENT));
+
+    assertThat(header(MessagePublisherPort.LEGACY_TRACEPARENT_HEADER)).isNull();
+  }
+
+  @Test
+  void should_send_legacy_traceparent_header_when_switch_is_on() {
+    new RabbitMessagePublisherAdapter(template, CONFIRM_TIMEOUT, true).publish(traced(TRACEPARENT));
+
+    assertThat(header(MessagePublisherPort.LEGACY_TRACEPARENT_HEADER)).isEqualTo(TRACEPARENT);
+  }
+
+  private String header(String name) {
+    return sentMessage(EXCHANGE, ROUTING_KEY).getMessageProperties().getHeader(name);
+  }
+
+  private static OutboxMessage<String> traced(String traceparent) {
+    return message(ROUTING_KEY).toBuilder().traceparent(traceparent).build();
   }
 
   private Message sentMessage(String exchange, String routingKey) {
