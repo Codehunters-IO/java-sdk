@@ -152,7 +152,8 @@ public class EventMessagingCoreAutoConfiguration {
             applicationName,
             resolveInstanceId(applicationName),
             properties.batchSize(),
-            properties.claim().ttl());
+            properties.claim().ttl(),
+            properties.claim().maxPerKey());
     RetryPolicy retry =
         new RetryPolicy(
             properties.maxAttempts(),

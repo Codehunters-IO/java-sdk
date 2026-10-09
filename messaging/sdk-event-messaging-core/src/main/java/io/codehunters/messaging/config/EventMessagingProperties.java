@@ -196,12 +196,16 @@ public record EventMessagingProperties(
    * Claim configuration.
    *
    * @param ttl the time after which an in-flight claim is considered stale and reclaimable
+   * @param maxPerKey the maximum number of rows of one {@code (topic, key)} a claim takes together,
+   *     in insertion order; they are published one after the other and, after the first one that is
+   *     not published, the rest are released. {@code 1} restores one row per key per claim
    */
-  public record Claim(@DefaultValue("5m") Duration ttl) {
+  public record Claim(@DefaultValue("5m") Duration ttl, @DefaultValue("10") int maxPerKey) {
 
-    /** Validates the claim TTL. */
+    /** Validates the claim TTL and the per-key batch. */
     public Claim {
       requirePositive(ttl, CLAIM_TTL_KEY);
+      requireAtLeastOne(maxPerKey, "claim.max-per-key");
     }
   }
 
@@ -311,13 +315,17 @@ public record EventMessagingProperties(
   }
 
   /**
-   * Scheduling switch of {@code sdk-event-messaging-jdbc}.
+   * Scheduling switches of {@code sdk-event-messaging-jdbc}.
    *
-   * @param enabled {@code true} (the default) registers the ShedLock-protected dispatch and purge
-   *     schedulers and enables Spring scheduling; {@code false} leaves dispatch and purge to the
-   *     application, for example when another process runs them
+   * @param enabled {@code true} (the default) runs the ShedLock-protected dispatch and purge tasks
+   *     on the SDK's own scheduler; {@code false} leaves dispatch and purge to the application, for
+   *     example when another process runs them
+   * @param dispatchOnCommit {@code true} (the default) also dispatches right after a transaction
+   *     that saved outbox messages commits, without waiting for the next poll; only while {@code
+   *     enabled} is {@code true}
    */
-  public record Scheduling(@DefaultValue("true") boolean enabled) {}
+  public record Scheduling(
+      @DefaultValue("true") boolean enabled, @DefaultValue("true") boolean dispatchOnCommit) {}
 
   // The hold bounds of one ShedLock lock.
   private record LockWindow(Duration atMost, Duration atLeast) {}

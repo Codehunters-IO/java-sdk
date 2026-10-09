@@ -1,6 +1,7 @@
 package io.codehunters.messaging.jdbc.config;
 
 import io.codehunters.messaging.OutboxDispatchStore;
+import io.codehunters.messaging.OutboxDispatchTrigger;
 import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.jdbc.OutboxAdapterSettings;
@@ -9,6 +10,7 @@ import java.time.Clock;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.provider.jdbctemplate.JdbcTemplateLockProvider;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -65,12 +67,15 @@ public class EventMessagingJdbcAutoConfiguration {
    * dispatcher's {@link OutboxDispatchStore}. Backs off when the application defines either. The
    * mapper is injected by qualifier so Boot's primary {@link JsonMapper} is never used for, nor
    * displaced by, outbox payloads. Startup fails when the data source reports a database other than
-   * PostgreSQL.
+   * PostgreSQL. Saves request a dispatch after commit through the {@code outboxDispatchTrigger} of
+   * {@link OutboxDispatchSchedulerAutoConfiguration} when it exists, and leave dispatch to the poll
+   * otherwise.
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the dedicated JSON mapper for outbox payloads
    * @param clock the SDK's private {@code outboxClock}
    * @param origin the originating application name
+   * @param dispatchTrigger the commit-time dispatch trigger, if any
    * @return the {@link OutboxJdbcAdapter}
    */
   @Bean
@@ -80,10 +85,12 @@ public class EventMessagingJdbcAutoConfiguration {
       DataSource dataSource,
       @Qualifier("outboxJsonMapper") JsonMapper outboxJsonMapper,
       @Qualifier("outboxClock") Clock clock,
-      @Value("${spring.application.name:unknown}") String origin) {
+      @Value("${spring.application.name:unknown}") String origin,
+      ObjectProvider<OutboxDispatchTrigger> dispatchTrigger) {
     OutboxDatabaseCheck.requirePostgres(dataSource);
+    OutboxDispatchTrigger trigger = dispatchTrigger.getIfAvailable(OutboxDispatchTrigger::none);
     return new OutboxJdbcAdapter(
-        dataSource, outboxJsonMapper, new OutboxAdapterSettings(origin, clock));
+        dataSource, outboxJsonMapper, new OutboxAdapterSettings(origin, clock, trigger));
   }
 
   /**

@@ -23,13 +23,16 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * PostgreSQL-backed {@link OutboxWriter} and {@link OutboxDispatchStore}. Claims a batch of
  * claimable rows with {@code FOR UPDATE SKIP LOCKED}, so concurrent dispatch workers receive
- * disjoint rows and a row is held back while an earlier row with the same {@code (origin, topic,
- * message_key)} is unresolved. Updates of a claimed row, including the send mark written before
- * each publish, are fenced by its claim marker, so a worker whose claim was taken over after the
- * TTL cannot overwrite the new owner's state. The {@code traceparent} captured with each message is
- * stored and returned by the claim, so the publisher can continue the trace that created the row. A
- * value that is not a valid {@link W3cTraceParent} is stored as null instead of failing the
- * business transaction.
+ * disjoint rows; up to {@link ClaimRequest#maxPerKey()} contiguous rows of one {@code (origin,
+ * topic, message_key)} are claimed together, in insertion order, and a row is held back while an
+ * earlier row of its key is unresolved outside the claim. A save asks the settings' {@link
+ * io.codehunters.messaging.OutboxDispatchTrigger} for a dispatch once the surrounding transaction
+ * commits, or right away without one. Updates of a claimed row, including the send mark written
+ * before each publish, are fenced by its claim marker, so a worker whose claim was taken over after
+ * the TTL cannot overwrite the new owner's state. The {@code traceparent} captured with each
+ * message is stored and returned by the claim, so the publisher can continue the trace that created
+ * the row. A value that is not a valid {@link W3cTraceParent} is stored as null instead of failing
+ * the business transaction.
  */
 public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
 
@@ -44,14 +47,20 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
       """;
 
   // Locks the candidate rows, skips rows locked by a concurrent claimer, marks them IN_FLIGHT and
-  // returns them in one statement. Only the candidate scan is locked; the per-key subquery is a
-  // plain snapshot read, so an earlier same-key row being claimed by another dispatcher still
-  // blocks later rows. A stale IN_FLIGHT row is charged an attempt only when send_started_at is
-  // set: only then may the previous dispatcher have published it before dying.
+  // returns them in one statement. A key's rows are claimed in seq order, up to :perKey of them:
+  // a candidate qualifies while no earlier row of its (origin, topic, message_key) is unresolved
+  // and unclaimable (FAILED, PENDING not yet due, IN_FLIGHT under a live claim) and fewer than
+  // :perKey earlier rows are unresolved. The claimability predicate stays in the locking scan, so
+  // PostgreSQL rechecks it on rows updated concurrently. Only that scan is locked; the per-key
+  // subqueries are plain snapshot reads. The admitted step then drops every candidate with an
+  // earlier unresolved row outside this claim, so a row skipped because another claimer holds it
+  // blocks its successors. Rows without a key are unordered. A stale IN_FLIGHT row is charged an
+  // attempt only when send_started_at is set: only then may the previous dispatcher have
+  // published it before dying.
   private static final String CLAIM_SQL =
       """
       WITH candidates AS (
-        SELECT o.id
+        SELECT o.id, o.seq, o.topic, o.message_key
         FROM outbox_message o
         WHERE o.origin = :origin
           AND ((o.status = 'PENDING' AND (o.next_attempt_at IS NULL OR o.next_attempt_at <= :now))
@@ -59,17 +68,36 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
           AND NOT EXISTS (
             SELECT 1 FROM outbox_message p
             WHERE p.origin = o.origin AND p.topic = o.topic AND p.message_key = o.message_key
-              AND p.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
-              AND p.seq < o.seq)
+              AND p.seq < o.seq
+              AND (p.status = 'FAILED'
+                OR (p.status = 'PENDING' AND p.next_attempt_at > :now)
+                OR (p.status = 'IN_FLIGHT'
+                  AND (p.claimed_at IS NULL OR p.claimed_at > :ttlBoundary))))
+          AND (SELECT COUNT(*) FROM (
+                SELECT 1 FROM outbox_message q
+                WHERE q.origin = o.origin AND q.topic = o.topic AND q.message_key = o.message_key
+                  AND q.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
+                  AND q.seq < o.seq
+                LIMIT :perKey) earlier) < :perKey
         ORDER BY o.seq
         LIMIT :limit
         FOR UPDATE OF o SKIP LOCKED
+      ),
+      admitted AS (
+        SELECT c.id
+        FROM candidates c
+        WHERE NOT EXISTS (
+          SELECT 1 FROM outbox_message p
+          WHERE p.origin = :origin AND p.topic = c.topic AND p.message_key = c.message_key
+            AND p.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
+            AND p.seq < c.seq
+            AND p.id NOT IN (SELECT id FROM candidates))
       )
       UPDATE outbox_message m
       SET attempts = CASE WHEN status = 'IN_FLIGHT' AND send_started_at IS NOT NULL THEN attempts + 1 ELSE attempts END,
           status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy, send_started_at = NULL
-      FROM candidates c
-      WHERE m.id = c.id
+      FROM admitted a
+      WHERE m.id = a.id
       RETURNING m.id, m.origin, m.routing_key, m.topic, m.message_key, m.payload, m.status,
           m.attempts, m.error, m.occurred_at, m.next_attempt_at, m.published_at, m.claimed_at,
           m.claimed_by, m.seq, m.send_started_at, m.traceparent
@@ -168,6 +196,19 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
         .param("traceparent", W3cTraceParent.validOrNull(outboxMessage.traceparent()))
         .update();
     log.debug("Saved outbox message id={} for topic {}", id, outboxMessage.topic());
+    requestDispatchAfterCommit();
+  }
+
+  // One synchronization per transaction, whatever the number of saves: they are equal per trigger.
+  private void requestDispatchAfterCommit() {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      settings.trigger().requestDispatch();
+      return;
+    }
+    var afterCommit = new DispatchAfterCommit(settings.trigger());
+    if (!TransactionSynchronizationManager.getSynchronizations().contains(afterCommit)) {
+      TransactionSynchronizationManager.registerSynchronization(afterCommit);
+    }
   }
 
   @Override
@@ -181,6 +222,7 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
             .param("now", OutboxRows.utc(now))
             .param("ttlBoundary", OutboxRows.utc(now.minus(request.claimTtl())))
             .param("limit", request.batchSize())
+            .param("perKey", request.maxPerKey())
             .param("claimedBy", claimMarker)
             .query(OutboxRows.MAPPER)
             .list();

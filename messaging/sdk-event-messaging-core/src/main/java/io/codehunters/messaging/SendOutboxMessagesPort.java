@@ -4,6 +4,10 @@ package io.codehunters.messaging;
 @FunctionalInterface
 public interface SendOutboxMessagesPort {
 
-  /** Dispatches one batch of pending outbox messages. */
-  void execute();
+  /**
+   * Dispatches one batch of pending outbox messages.
+   *
+   * @return {@code true} when the claim came back full, so more messages may be waiting
+   */
+  boolean execute();
 }

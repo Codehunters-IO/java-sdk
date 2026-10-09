@@ -3,11 +3,14 @@ package io.codehunters.messaging.dispatch;
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.OutboxStatus;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,6 +30,11 @@ import org.slf4j.LoggerFactory;
  * charges an attempt only to marked rows, and a message whose mark is refused (its claim was taken
  * over) is neither published nor updated. A mark that fails, for example on a transient database
  * error, skips only that message.
+ *
+ * <p>A claim may hold several rows of one {@code (topic, key)}, in insertion order. Once one of
+ * them is not published (failed, given up, refused or released), every later row of that key in the
+ * batch is released unsent, so a key is never delivered out of order; rows without a key are
+ * independent.
  */
 public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
 
@@ -55,13 +63,38 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   }
 
   @Override
-  public void execute() {
-    Instant claimStart = settings.clock().instant();
+  public boolean execute() {
+    Batch batch = new Batch(settings.clock().instant(), new HashSet<>());
     List<OutboxMessage<String>> claimed = store.claim(settings.claim());
     for (OutboxMessage<String> message : claimed) {
-      dispatch(message, claimStart).ifPresent(store::update);
+      dispatchInKeyOrder(message, batch);
     }
     log.debug("Outbox dispatch processed {} messages", claimed.size());
+    return claimed.size() >= settings.claim().batchSize();
+  }
+
+  private void dispatchInKeyOrder(OutboxMessage<String> message, Batch batch) {
+    Optional<OrderingKey> key = OrderingKey.of(message);
+    if (key.filter(batch.stoppedKeys()::contains).isPresent()) {
+      store.update(releaseBehindKey(message));
+      return;
+    }
+    Optional<OutboxMessage<String>> outcome = dispatch(message, batch.claimStart());
+    outcome.ifPresent(store::update);
+    if (outcome.filter(SendOutboxMessagesUseCase::isPublished).isEmpty()) {
+      key.ifPresent(batch.stoppedKeys()::add);
+    }
+  }
+
+  private static boolean isPublished(OutboxMessage<String> message) {
+    return message.status() == OutboxStatus.PUBLISHED;
+  }
+
+  private OutboxMessage<String> releaseBehindKey(OutboxMessage<String> message) {
+    log.debug(
+        "Releasing outbox message id={}: an earlier message of its key was not published",
+        message.id());
+    return message.released(settings.clock().instant());
   }
 
   // Returns the message's new state, or empty when the claim was lost and nothing may be written.
@@ -128,5 +161,16 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
     }
     Duration backoff = settings.retry().backoff(failed.attempts());
     return failed.retryAt(settings.clock().instant().plus(backoff));
+  }
+
+  // The claim start, for the publish budget, and the keys whose remaining rows are released.
+  private record Batch(Instant claimStart, Set<OrderingKey> stoppedKeys) {}
+
+  // Rows are ordered per (topic, key); rows without a key are not ordered.
+  private record OrderingKey(String topic, String key) {
+
+    static Optional<OrderingKey> of(OutboxMessage<String> message) {
+      return Optional.ofNullable(message.key()).map(key -> new OrderingKey(message.topic(), key));
+    }
   }
 }

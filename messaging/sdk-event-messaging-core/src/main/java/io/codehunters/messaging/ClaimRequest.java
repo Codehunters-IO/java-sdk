@@ -11,8 +11,12 @@ import java.util.Objects;
  *     marker from it
  * @param batchSize the maximum number of rows claimed; at least 1
  * @param claimTtl the time after which an in-flight claim is stale and reclaimable; positive
+ * @param maxPerKey the maximum number of rows of one {@code (topic, key)} claimed together, in
+ *     insertion order; at least 1. {@code 1} claims a key's next row only once every earlier row is
+ *     resolved
  */
-public record ClaimRequest(String origin, String claimedBy, int batchSize, Duration claimTtl) {
+public record ClaimRequest(
+    String origin, String claimedBy, int batchSize, Duration claimTtl, int maxPerKey) {
 
   /** Validates the request. */
   public ClaimRequest {
@@ -24,6 +28,9 @@ public record ClaimRequest(String origin, String claimedBy, int batchSize, Durat
     }
     if (claimTtl.isNegative() || claimTtl.isZero()) {
       throw new IllegalArgumentException("claimTtl must be positive");
+    }
+    if (maxPerKey < 1) {
+      throw new IllegalArgumentException("maxPerKey must be at least 1");
     }
   }
 }
