@@ -184,7 +184,8 @@ class KeycloakAuthzEndToEndTest {
         .run(
             context ->
                 mockMvc(context)
-                    .perform(get("/api/users/1").header(CUSTOM_HEADER, "Bearer " + keycloak.token()))
+                    .perform(
+                        get("/api/users/1").header(CUSTOM_HEADER, "Bearer " + keycloak.token()))
                     .andExpect(status().isForbidden()));
   }
 
@@ -229,7 +230,11 @@ class KeycloakAuthzEndToEndTest {
   }
 
   private static double failures(MeterRegistry registry, String stage) {
-    return registry.get("codehunters.authz.enforcer.failures").tag("stage", stage).counter().count();
+    return registry
+        .get("codehunters.authz.enforcer.failures")
+        .tag("stage", stage)
+        .counter()
+        .count();
   }
 
   private static BearerTokenResolver queryParameterResolver() {

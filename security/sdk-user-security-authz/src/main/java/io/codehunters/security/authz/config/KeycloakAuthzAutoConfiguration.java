@@ -3,11 +3,19 @@ package io.codehunters.security.authz.config;
 import io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter;
 import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
 import io.codehunters.security.config.KeycloakSecurityProperties;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Duration;
-import org.apache.http.client.HttpClient;
+import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClients;
 import org.keycloak.adapters.authorization.PolicyEnforcer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
@@ -17,8 +25,11 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 
@@ -29,11 +40,15 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
  * <p>The enforcer is placed right after Spring Security's {@link AuthorizationFilter}, through a
  * {@code Customizer<HttpSecurity>} bean that Spring Security applies to every {@link HttpSecurity}
  * it builds: the sdk-user-security chains and any chain the application defines. Requests are
- * therefore authenticated (or rejected with 401) before Keycloak is asked; requests without a
- * bearer token, authenticated by another chain, pass through untouched.
+ * therefore authenticated (or rejected with 401) before Keycloak is asked; requests another chain
+ * authenticated without a bearer token pass through untouched. The application's {@link
+ * BearerTokenResolver}, when it defines one, reads tokens the authentication no longer holds.
  *
  * <p>The enforcer is built on the first enforced request, so a service starts while Keycloak is
- * unreachable. Calls to Keycloak have connect and read timeouts and a bounded connection pool.
+ * unreachable; a failed build is retried after {@code retry-backoff}. Calls to Keycloak go through
+ * the {@code keycloakPolicyEnforcerHttpClient} bean: connect and read timeouts, a bounded
+ * connection pool, closed with the context. With Micrometer and a {@code MeterRegistry}, failures
+ * are counted as {@code codehunters.authz.enforcer.failures}.
  */
 @AutoConfiguration(after = KeycloakSecurityAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
@@ -43,6 +58,9 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 @EnableConfigurationProperties(KeycloakPolicyEnforcerProperties.class)
 public class KeycloakAuthzAutoConfiguration {
 
+  private static final Logger log = LoggerFactory.getLogger(KeycloakAuthzAutoConfiguration.class);
+  private static final String HTTP_CLIENT = "keycloakPolicyEnforcerHttpClient";
+
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public KeycloakAuthzAutoConfiguration() {}
 
@@ -51,14 +69,56 @@ public class KeycloakAuthzAutoConfiguration {
    *
    * @param security Keycloak URL and realm
    * @param properties the catalog and enforcement settings
+   * @param httpClient the client for calls to Keycloak
+   * @param tokenResolvers the application's bearer token resolver, if it defines one
+   * @param counters the failure counter, present when Micrometer is
    * @return the enforcer filter
    */
   @Bean
   @ConditionalOnMissingBean
   public KeycloakPolicyEnforcerFilter keycloakPolicyEnforcerFilter(
-      KeycloakSecurityProperties security, KeycloakPolicyEnforcerProperties properties) {
+      KeycloakSecurityProperties security,
+      KeycloakPolicyEnforcerProperties properties,
+      @Qualifier(HTTP_CLIENT) CloseableHttpClient httpClient,
+      ObjectProvider<BearerTokenResolver> tokenResolvers,
+      ObjectProvider<EnforcerFailureCounter> counters) {
+    EnforcerFailureCounter counter = counters.getIfAvailable(EnforcerFailureCounter::none);
+    var options =
+        KeycloakPolicyEnforcerFilter.Options.defaults()
+            .withTokenResolver(tokenResolvers.getIfUnique(DefaultBearerTokenResolver::new))
+            .withRetryBackoff(properties.retryBackoff())
+            .withFailureListener(e -> counter.increment(EnforcerFailureCounter.ENFORCER));
     return new KeycloakPolicyEnforcerFilter(
-        PolicyEnforcerConfigs.from(security, properties), httpClient(properties));
+        PolicyEnforcerConfigs.from(security, properties), httpClient, options);
+  }
+
+  /**
+   * The client for calls to Keycloak, closed with the context. Not a default candidate, so it never
+   * becomes the application's {@code HttpClient}.
+   *
+   * <p>Keycloak's enforcer only accepts an Apache HttpClient 4; its default one has no timeouts and
+   * two connections per route, too few for one authorization call per request.
+   *
+   * @param properties timeouts and connection bound
+   * @param counters the failure counter, present when Micrometer is
+   * @return the client
+   */
+  @Bean(name = HTTP_CLIENT, defaultCandidate = false, destroyMethod = "close")
+  public CloseableHttpClient keycloakPolicyEnforcerHttpClient(
+      KeycloakPolicyEnforcerProperties properties,
+      ObjectProvider<EnforcerFailureCounter> counters) {
+    var requestConfig =
+        RequestConfig.custom()
+            .setConnectTimeout(millis(properties.connectTimeout()))
+            .setConnectionRequestTimeout(millis(properties.connectTimeout()))
+            .setSocketTimeout(millis(properties.readTimeout()))
+            .build();
+    return HttpClients.custom()
+        .setDefaultRequestConfig(requestConfig)
+        .setMaxConnTotal(properties.maxConnections())
+        .setMaxConnPerRoute(properties.maxConnections())
+        .setRetryHandler(reportingFailures(counters.getIfAvailable(EnforcerFailureCounter::none)))
+        .build();
   }
 
   /**
@@ -88,23 +148,39 @@ public class KeycloakAuthzAutoConfiguration {
     return http -> http.addFilterAfter(filter, AuthorizationFilter.class);
   }
 
-  // Keycloak's enforcer only accepts an Apache HttpClient 4; its default one has no timeouts and
-  // two connections per route, too few for one authorization call per request.
-  private static HttpClient httpClient(KeycloakPolicyEnforcerProperties properties) {
-    var requestConfig =
-        RequestConfig.custom()
-            .setConnectTimeout(millis(properties.connectTimeout()))
-            .setConnectionRequestTimeout(millis(properties.connectTimeout()))
-            .setSocketTimeout(millis(properties.readTimeout()))
-            .build();
-    return HttpClients.custom()
-        .setDefaultRequestConfig(requestConfig)
-        .setMaxConnTotal(properties.maxConnections())
-        .setMaxConnPerRoute(properties.maxConnections())
-        .build();
+  // Keycloak's enforcer turns a failed authorization call into a denial (403) and logs it at debug
+  // only; the client is where such failures can still be seen.
+  private static HttpRequestRetryHandler reportingFailures(EnforcerFailureCounter counter) {
+    return (exception, executionCount, context) -> {
+      log.warn("Call to Keycloak failed: {}", exception.toString());
+      counter.increment(EnforcerFailureCounter.CALL);
+      return DefaultHttpRequestRetryHandler.INSTANCE.retryRequest(
+          exception, executionCount, context);
+    };
   }
 
   private static int millis(Duration duration) {
     return Math.toIntExact(duration.toMillis());
+  }
+
+  /** Counts enforcer failures with Micrometer when it is on the classpath. */
+  @Configuration(proxyBeanMethods = false)
+  @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
+  static class EnforcerMetricsConfiguration {
+
+    @Bean
+    EnforcerFailureCounter keycloakPolicyEnforcerFailureCounter(
+        ObjectProvider<MeterRegistry> registries) {
+      return new EnforcerFailureCounter(
+          stage -> registries.ifAvailable(registry -> count(registry, stage)));
+    }
+
+    private static void count(MeterRegistry registry, String stage) {
+      Counter.builder(EnforcerFailureCounter.METER)
+          .description("Failures of the Keycloak policy enforcer")
+          .tag("stage", stage)
+          .register(registry)
+          .increment();
+    }
   }
 }

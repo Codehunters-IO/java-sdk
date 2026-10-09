@@ -1,6 +1,8 @@
 package io.codehunters.security.authz.servlet;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.InstanceOfAssertFactories.THROWABLE;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -18,7 +20,9 @@ import org.junit.jupiter.api.Test;
 import org.keycloak.AuthorizationContext;
 import org.keycloak.adapters.authorization.PolicyEnforcer;
 import org.keycloak.adapters.authorization.spi.HttpRequest;
+import org.keycloak.adapters.authorization.spi.HttpResponse;
 import org.mockito.ArgumentCaptor;
+import org.mockito.invocation.InvocationOnMock;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
@@ -225,7 +229,7 @@ class KeycloakPolicyEnforcerFilterTest {
 
     filter.doFilter(request, response, chain);
 
-    assertThat(failures).singleElement().hasMessageContaining("Keycloak unreachable");
+    assertThat(failures).singleElement(THROWABLE).hasMessageContaining("Keycloak unreachable");
   }
 
   @Test
@@ -239,7 +243,77 @@ class KeycloakPolicyEnforcerFilterTest {
 
     assertThat(response.getStatus()).isEqualTo(503);
     assertThat(chain.getRequest()).isNull();
-    assertThat(failures).singleElement().hasMessageContaining("lookup failed");
+    assertThat(failures).singleElement(THROWABLE).hasMessageContaining("lookup failed");
+  }
+
+  @Test
+  void should_give_keycloak_the_token_sdk_authentication_still_holds() throws Exception {
+    HttpRequest seen = enforceGranted(sdkAuthenticationHolding(jwt()));
+
+    assertThat(seen.getPrincipal().getRawToken()).isEqualTo(JWT_TOKEN);
+  }
+
+  @Test
+  void should_show_keycloak_other_headers_unchanged() throws Exception {
+    request.addHeader("X-Tenant", "acme");
+
+    HttpRequest seen = enforceGranted(jwtAuthentication());
+
+    assertThat(seen.getHeader("X-Tenant")).isEqualTo("acme");
+    assertThat(seen.getHeaders("X-Tenant")).containsExactly("acme");
+  }
+
+  @Test
+  void should_keep_keycloaks_answer_when_enforcer_fails_after_answering() throws Exception {
+    PolicyEnforcer enforcer = mock(PolicyEnforcer.class);
+    when(enforcer.enforce(any(), any())).thenAnswer(KeycloakPolicyEnforcerFilterTest::denyThenFail);
+    filter.buildWith(enforcer);
+    authenticate(jwtAuthentication());
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+  }
+
+  @Test
+  void should_wait_for_the_first_build_and_reuse_its_enforcer() throws Exception {
+    filter.buildWith(enforcerAnswering(true));
+    filter.holdNextBuild();
+    var building = CompletableFuture.runAsync(this::filterAuthenticatedRequest);
+    filter.awaitHeldBuild();
+    Thread waiting = Threads.start(this::filterAuthenticatedRequest);
+    Threads.awaitBlocked(waiting);
+
+    filter.releaseBuild();
+    building.join();
+    waiting.join();
+
+    assertThat(filter.attempts()).isEqualTo(1);
+  }
+
+  @Test
+  void should_answer_503_to_requests_that_waited_for_a_failed_first_build() throws Exception {
+    filter.holdNextBuild();
+    var building = CompletableFuture.runAsync(this::filterAuthenticatedRequest);
+    filter.awaitHeldBuild();
+    Thread waiting = Threads.start(this::filterAuthenticatedRequest);
+    Threads.awaitBlocked(waiting);
+
+    filter.releaseBuild();
+    building.join();
+    waiting.join();
+
+    assertThat(filter.attempts()).isEqualTo(1);
+  }
+
+  @Test
+  void should_reject_options_without_a_positive_retry_backoff() {
+    var defaults = KeycloakPolicyEnforcerFilter.Options.defaults();
+
+    assertThatThrownBy(() -> defaults.withRetryBackoff(Duration.ZERO))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> defaults.withRetryBackoff(null))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   private HttpRequest enforceGranted(Authentication authentication) throws Exception {
@@ -257,7 +331,10 @@ class KeycloakPolicyEnforcerFilterTest {
   private void filterAuthenticatedRequest() {
     try {
       SecurityContextHolder.getContext().setAuthentication(jwtAuthentication());
-      filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+      filter.doFilter(
+          new MockHttpServletRequest("GET", "/api/users/1"),
+          new MockHttpServletResponse(),
+          new MockFilterChain());
     } catch (Exception e) {
       throw new IllegalStateException(e);
     } finally {
@@ -273,10 +350,28 @@ class KeycloakPolicyEnforcerFilterTest {
     return enforcer;
   }
 
+  private static Object denyThenFail(InvocationOnMock invocation) {
+    invocation.<HttpResponse>getArgument(1).sendError(403);
+    throw new IllegalStateException("failed after answering");
+  }
+
   private static Authentication jwtAuthentication() {
-    Jwt jwt =
-        Jwt.withTokenValue(JWT_TOKEN).header("alg", "none").claims(c -> c.putAll(claims())).build();
-    return new JwtAuthenticationToken(jwt, AuthorityUtils.NO_AUTHORITIES);
+    return new JwtAuthenticationToken(jwt(), AuthorityUtils.NO_AUTHORITIES);
+  }
+
+  private static Jwt jwt() {
+    return Jwt.withTokenValue(JWT_TOKEN)
+        .header("alg", "none")
+        .claims(c -> c.putAll(claims()))
+        .build();
+  }
+
+  private static Authentication sdkAuthenticationHolding(Jwt jwt) {
+    return UsernamePasswordAuthenticationToken.authenticated(sdkPrincipal(), jwt, List.of());
+  }
+
+  private static KeycloakPrincipal sdkPrincipal() {
+    return new KeycloakPrincipal("user-1", "alice", null, null, null, null, null, null, null);
   }
 
   private static Map<String, Object> claims() {
@@ -286,9 +381,7 @@ class KeycloakPolicyEnforcerFilterTest {
   // sdk-user-security's chain authenticates a KeycloakPrincipal; Spring Security erases the token
   // it kept as credentials once authentication succeeds.
   private static Authentication sdkAuthenticationWithErasedCredentials() {
-    var principal =
-        new KeycloakPrincipal("user-1", "alice", null, null, null, null, null, null, null);
-    return UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of());
+    return UsernamePasswordAuthenticationToken.authenticated(sdkPrincipal(), null, List.of());
   }
 
   private static Authentication basicAuthentication() {

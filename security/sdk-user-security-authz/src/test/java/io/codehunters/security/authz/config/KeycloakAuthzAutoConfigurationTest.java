@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter;
 import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
-import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
@@ -133,10 +133,11 @@ class KeycloakAuthzAutoConfigurationTest {
   @Test
   void should_keep_keycloak_http_client_out_of_injection_by_type() {
     enabled.run(
-        context -> {
-          assertThat(context).hasBean(HTTP_CLIENT);
-          assertThat(context.getBeanProvider(HttpClient.class).getIfAvailable()).isNull();
-        });
+        context ->
+            assertThat(context.getBeanFactory().getBeanDefinition(HTTP_CLIENT))
+                .isInstanceOfSatisfying(
+                    AbstractBeanDefinition.class,
+                    definition -> assertThat(definition.isDefaultCandidate()).isFalse()));
   }
 
   @Test

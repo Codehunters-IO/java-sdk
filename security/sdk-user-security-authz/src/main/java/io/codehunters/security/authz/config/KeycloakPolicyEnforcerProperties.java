@@ -24,6 +24,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param connectTimeout connect timeout of calls to Keycloak
  * @param readTimeout read timeout of calls to Keycloak
  * @param maxConnections upper bound of concurrent connections to Keycloak
+ * @param retryBackoff how long requests answer 503 after the enforcer failed to build, before one
+ *     of them tries again
  */
 @ConfigurationProperties("codehunters.security.authz")
 public record KeycloakPolicyEnforcerProperties(
@@ -38,7 +40,8 @@ public record KeycloakPolicyEnforcerProperties(
     @DefaultValue List<PathMapping> paths,
     @DefaultValue("2s") Duration connectTimeout,
     @DefaultValue("3s") Duration readTimeout,
-    @DefaultValue("50") int maxConnections) {
+    @DefaultValue("50") int maxConnections,
+    @DefaultValue("10s") Duration retryBackoff) {
 
   private static final String PREFIX = "codehunters.security.authz.";
 
@@ -51,6 +54,7 @@ public record KeycloakPolicyEnforcerProperties(
     require(isPositive(connectTimeout), PREFIX + "connect-timeout must be positive");
     require(isPositive(readTimeout), PREFIX + "read-timeout must be positive");
     require(maxConnections > 0, PREFIX + "max-connections must be positive");
+    require(isPositive(retryBackoff), PREFIX + "retry-backoff must be positive");
   }
 
   @Override
