@@ -39,6 +39,9 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6.3.0
 
+      - name: Pull the integration-test images
+        run: .github/scripts/pull-test-images.sh
+
       # A draft only appears for a commit that builds.
       - name: Build and list release candidates
         run: |
