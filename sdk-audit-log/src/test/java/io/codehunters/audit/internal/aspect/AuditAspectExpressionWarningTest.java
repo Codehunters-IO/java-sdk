@@ -1,6 +1,7 @@
 package io.codehunters.audit.internal.aspect;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.codehunters.audit.Auditable;
 import java.time.Clock;
@@ -57,6 +58,22 @@ class AuditAspectExpressionWarningTest {
     assertThat(output).doesNotContain(SECRET);
   }
 
+  @Test
+  void should_not_warn_when_result_expression_fails_because_the_method_threw(
+      CapturedOutput output) {
+    assertThatThrownBy(() -> cards.decline("C-1")).isInstanceOf(IllegalStateException.class);
+
+    assertThat(output.getOut()).doesNotContain(WARNING);
+  }
+
+  @Test
+  void should_warn_separately_for_each_overload(CapturedOutput output) {
+    cards.refund(SECRET);
+    cards.refund(SECRET, 1);
+
+    assertThat(output.getOut()).contains("#refund(String)", "#refund(String, int)");
+  }
+
   private CardService proxied() {
     var factory = new AspectJProxyFactory(new CardService());
     factory.setProxyTargetClass(true);
@@ -75,6 +92,21 @@ class AuditAspectExpressionWarningTest {
         entityId = "#card.noSuchProperty",
         payload = {"last4=#card.substring(99)"})
     public void charge(String card) {
+      // audited only
+    }
+
+    @Auditable(entityType = "CARD", action = "DECLINE", entityId = "#result.id")
+    public Object decline(String card) {
+      throw new IllegalStateException("declined");
+    }
+
+    @Auditable(entityType = "CARD", action = "REFUND", entityId = "#card.noSuchProperty")
+    public void refund(String card) {
+      // audited only
+    }
+
+    @Auditable(entityType = "CARD", action = "REFUND", entityId = "#card.noSuchProperty")
+    public void refund(String card, int amount) {
       // audited only
     }
   }

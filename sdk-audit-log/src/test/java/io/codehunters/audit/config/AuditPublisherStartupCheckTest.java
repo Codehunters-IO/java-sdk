@@ -2,6 +2,7 @@ package io.codehunters.audit.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.audit.Auditable;
 import io.codehunters.audit.internal.aspect.InMemoryAuditEventPublisher;
 import io.codehunters.audit.internal.aspect.OrderService;
 import java.util.UUID;
@@ -14,11 +15,13 @@ import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 /**
  * Without an {@link io.codehunters.audit.AuditEventPublisherPort} the aspect is never registered,
- * so every {@code @Auditable} call would go unrecorded without a word. Startup reports why.
+ * so every {@code @Auditable} call would go unrecorded without a word. Startup reports why, and
+ * fails only when {@code codehunters.audit.startup-check.fail-fast} is set.
  */
 @ExtendWith(OutputCaptureExtension.class)
 class AuditPublisherStartupCheckTest {
@@ -26,7 +29,10 @@ class AuditPublisherStartupCheckTest {
   private static final String INACTIVE = "no AuditEventPublisherPort";
   private static final String AMBIGUOUS = "2 DataSource beans and none is marked @Primary";
   private static final String NO_DATA_SOURCE = "no DataSource bean";
-  private static final String MISSING_CLASSES = "is not on the classpath";
+  private static final String NOT_CONFIGURED =
+      "missing classes or auto-configuration excluded";
+  private static final String NO_WEAVER = "aspectjweaver";
+  private static final String FAIL_FAST = "codehunters.audit.startup-check.fail-fast=true";
   private static final String FAIL_ON_ERROR = "codehunters.audit.fail-on-error=true";
 
   private final ApplicationContextRunner runner =
@@ -54,10 +60,19 @@ class AuditPublisherStartupCheckTest {
   }
 
   @Test
-  void should_fail_startup_when_the_data_source_is_ambiguous_and_fail_on_error_is_set() {
+  void should_fail_startup_when_the_data_source_is_ambiguous_and_fail_fast_is_set() {
+    twoDataSources
+        .withPropertyValues(FAIL_FAST)
+        .run(context -> assertThat(context).getFailure().hasMessageContaining(AMBIGUOUS));
+  }
+
+  @Test
+  void should_only_log_when_fail_on_error_is_set_without_fail_fast(CapturedOutput output) {
     twoDataSources
         .withPropertyValues(FAIL_ON_ERROR)
-        .run(context -> assertThat(context).getFailure().hasMessageContaining(AMBIGUOUS));
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains("ERROR", AMBIGUOUS);
   }
 
   @Test
@@ -69,20 +84,82 @@ class AuditPublisherStartupCheckTest {
   }
 
   @Test
-  void should_fail_startup_without_a_data_source_when_fail_on_error_is_set() {
+  void should_fail_startup_without_a_data_source_when_fail_fast_is_set() {
     audited
-        .withPropertyValues(FAIL_ON_ERROR)
+        .withPropertyValues(FAIL_FAST)
         .run(context -> assertThat(context).getFailure().hasMessageContaining(NO_DATA_SOURCE));
   }
 
   @Test
-  void should_name_the_missing_jdbc_classes_when_the_data_source_is_unique(CapturedOutput output) {
+  void should_name_the_unconfigured_jdbc_publisher_when_the_data_source_is_unique(
+      CapturedOutput output) {
     audited
         .withClassLoader(new FilteredClassLoader("org.springframework.jdbc"))
         .withBean("dataSource", DataSource.class, AuditPublisherStartupCheckTest::database)
         .run(context -> assertThat(context).hasNotFailed());
 
-    assertThat(output).contains(INACTIVE, MISSING_CLASSES);
+    assertThat(output).contains(INACTIVE, NOT_CONFIGURED);
+  }
+
+  @Test
+  void should_name_the_unconfigured_jdbc_publisher_when_its_auto_configuration_is_excluded(
+      CapturedOutput output) {
+    new ApplicationContextRunner()
+        .withConfiguration(
+            AutoConfigurations.of(AopAutoConfiguration.class, AuditAutoConfiguration.class))
+        .withBean("orderService", OrderService.class, OrderService::new)
+        .withBean("dataSource", DataSource.class, AuditPublisherStartupCheckTest::database)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains(INACTIVE, NOT_CONFIGURED);
+  }
+
+  @Test
+  void should_report_data_sources_registered_as_plain_singletons(CapturedOutput output) {
+    audited
+        .withInitializer(
+            context -> {
+              context.getBeanFactory().registerSingleton("firstDataSource", database());
+              context.getBeanFactory().registerSingleton("secondDataSource", database());
+            })
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains(INACTIVE, AMBIGUOUS);
+  }
+
+  @Test
+  void should_find_a_publisher_defined_in_a_parent_context(CapturedOutput output) {
+    try (var parent = new AnnotationConfigApplicationContext()) {
+      parent.registerBean(InMemoryAuditEventPublisher.class, InMemoryAuditEventPublisher::new);
+      parent.refresh();
+
+      audited
+          .withParent(parent)
+          .withPropertyValues(FAIL_FAST)
+          .run(context -> assertThat(context).hasNotFailed());
+    }
+
+    assertThat(output).doesNotContain(INACTIVE);
+  }
+
+  @Test
+  void should_ignore_auditable_declared_only_on_an_interface(CapturedOutput output) {
+    runner
+        .withBean("ledger", Ledger.class, InterfaceAuditedLedger::new)
+        .withPropertyValues(FAIL_FAST)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).doesNotContain(INACTIVE);
+  }
+
+  @Test
+  void should_report_audited_methods_when_aspectjweaver_is_absent(CapturedOutput output) {
+    audited
+        .withClassLoader(new FilteredClassLoader("org.aspectj.weaver"))
+        .withBean(InMemoryAuditEventPublisher.class, InMemoryAuditEventPublisher::new)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains("ERROR", NO_WEAVER, OrderService.class.getName());
   }
 
   @Test
@@ -103,7 +180,7 @@ class AuditPublisherStartupCheckTest {
     runner
         .withBean("firstDataSource", DataSource.class, AuditPublisherStartupCheckTest::database)
         .withBean("secondDataSource", DataSource.class, AuditPublisherStartupCheckTest::database)
-        .withPropertyValues(FAIL_ON_ERROR)
+        .withPropertyValues(FAIL_FAST)
         .run(context -> assertThat(context).hasNotFailed());
 
     assertThat(output).doesNotContain(INACTIVE);
@@ -113,7 +190,7 @@ class AuditPublisherStartupCheckTest {
   void should_stay_silent_when_the_application_defines_its_own_publisher(CapturedOutput output) {
     twoDataSources
         .withBean(InMemoryAuditEventPublisher.class, InMemoryAuditEventPublisher::new)
-        .withPropertyValues(FAIL_ON_ERROR)
+        .withPropertyValues(FAIL_FAST)
         .run(context -> assertThat(context).hasNotFailed());
 
     assertThat(output).doesNotContain(INACTIVE);
@@ -121,5 +198,21 @@ class AuditPublisherStartupCheckTest {
 
   private static DataSource database() {
     return new DriverManagerDataSource("jdbc:h2:mem:" + UUID.randomUUID());
+  }
+
+  /** Declares {@code @Auditable} on the interface, where the aspect does not see it. */
+  interface Ledger {
+
+    @Auditable(entityType = "LEDGER", action = "POST", entityId = "#id")
+    void post(String id);
+  }
+
+  /** Implements the audited interface method without repeating the annotation. */
+  static class InterfaceAuditedLedger implements Ledger {
+
+    @Override
+    public void post(String id) {
+      // not audited: the aspect only matches annotations on the class's own methods
+    }
   }
 }

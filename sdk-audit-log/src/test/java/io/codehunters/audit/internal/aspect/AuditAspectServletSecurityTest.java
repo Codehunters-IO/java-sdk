@@ -8,8 +8,10 @@ import java.time.ZoneOffset;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -17,10 +19,13 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
  * In a servlet application the authenticated user lives in the calling thread's {@link
- * SecurityContextHolder}; it is the actor when neither the annotation nor the provider names one.
+ * SecurityContextHolder}; it is the actor when neither the annotation nor the provider names one,
+ * and only while a request is bound to the thread: a pooled thread can inherit or leak a context.
  */
 class AuditAspectServletSecurityTest {
 
@@ -36,8 +41,15 @@ class AuditAspectServletSecurityTest {
   private final SecurityContextHolderStrategy strategy =
       SecurityContextHolder.getContextHolderStrategy();
 
+  @BeforeEach
+  void bindRequest() {
+    RequestContextHolder.setRequestAttributes(
+        new ServletRequestAttributes(new MockHttpServletRequest()));
+  }
+
   @AfterEach
   void clearThreadState() {
+    RequestContextHolder.resetRequestAttributes();
     SecurityContextHolder.setContextHolderStrategy(strategy);
     SecurityContextHolder.clearContext();
     ThreadBoundContextProvider.clear();
@@ -105,6 +117,16 @@ class AuditAspectServletSecurityTest {
 
   @Test
   void should_record_no_actor_when_the_thread_has_no_authentication() {
+    accounts.close("ACC-1");
+
+    assertThat(recorder.attached().getFirst().actorId()).isNull();
+  }
+
+  @Test
+  void should_record_no_actor_when_no_request_is_bound_to_the_thread() {
+    RequestContextHolder.resetRequestAttributes();
+    SecurityContextHolder.getContext().setAuthentication(ALICE);
+
     accounts.close("ACC-1");
 
     assertThat(recorder.attached().getFirst().actorId()).isNull();
