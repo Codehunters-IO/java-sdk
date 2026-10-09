@@ -34,8 +34,10 @@ the point is tested with `ST_Covers`, so:
 - a point on the border is inside, as with the polygon fence.
 
 One statement tells a scope without zones (`ZONE_NOT_FOUND`) from a point outside them
-(`OUTSIDE_ZONE`). When several zones cover the point, the lowest zone id wins, so the answer is
-deterministic. The query runs on a template of its own with a query timeout (default 2 s), like the
+(`OUTSIDE_ZONE`). When several zones cover the point, the lowest zone id in the column's own order
+wins (collation order for text, numeric order for numbers), so the answer is deterministic. The
+scope's zones are a CTE declared `NOT MATERIALIZED`: it is read twice, and a materialized CTE would
+hide the spatial index. The query runs on a template of its own with a query timeout (default 2 s), like the
 SQL Server adapter.
 
 ## Consequences
@@ -43,8 +45,10 @@ SQL Server adapter.
 - Services keep their zones where they author them; no function to deploy.
 - The polygon and PostGIS adapters can disagree near long edges: the polygon fence draws straight
   lines in degrees, PostGIS draws great circles. Zones meant for both should be small or densified.
-- A `geography` column with a GIST index lets PostGIS use the index for coverage. A `geometry`
-  column is cast on every row of the scope, so the index on the scope column is what keeps it fast.
-- A `geometry` column in another SRID fails the cast at query time; the README says to store SRID
-  4326.
+- A `geography` column with a GIST index lets PostGIS answer coverage from the index. A `geometry`
+  column needs a GIST index on the expression `(geom::geography)`; a plain geometry index is not
+  used. An integration test checks the plan of both.
+- A `geometry` in SRID 0 is read as 4326. Any other SRID, on a `geometry` or a `geography`, fails
+  on every request; the README says to store SRID 4326.
+- The scope column must be text: the scope reference is bound as text.
 - No Hibernate or JTS dependency: the adapter needs `spring-jdbc` and the PostgreSQL driver only.

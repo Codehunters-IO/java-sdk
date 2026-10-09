@@ -1477,3 +1477,10 @@ Decisión D19 ([ADR 0019](../adr/0019-postgis-geofence-adapter.md)).
   con una vista lenta.
 - Versiones: `sdk-geo-validation` 1.1.0, `sdk-bom` 1.5.0. Se corrigen de paso las versiones del BOM
   y de audit-log en el README y el CHANGELOG raíz, que habían quedado atrás.
+- Revisión: el CTE se leía dos veces y PostgreSQL lo materializaba, así que nunca usaba el índice
+  espacial (con 20 000 zonas en un scope, 283 ms contra 0,25 ms). Ahora es `NOT MATERIALIZED`, y un
+  IT con `EXPLAIN` sobre 5000 zonas analizadas exige el índice GIST de la columna `geography` y el
+  índice de expresión `(geom::geography)` de una `geometry`. Una zona con id en blanco ya no tapa a
+  otra que también cubre el punto. Se documentan la columna de scope de texto, el orden del id
+  según su tipo, SRID 0 como 4326, qué se valida al arrancar y que el timeout no cubre la espera de
+  conexión.

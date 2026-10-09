@@ -10,11 +10,13 @@ import java.util.regex.Pattern;
  * <p>Each row is one zone of one scope:
  *
  * <ul>
- *   <li>{@code scope}: the scope reference, compared with {@code ZoneRef.value()};
+ *   <li>{@code scope}: the scope reference, compared with {@code ZoneRef.value()}; a text column
+ *       ({@code varchar} or {@code text}), since the reference is bound as text;
  *   <li>{@code zone-id}: the zone's id, read as text; when several zones cover the point, the
- *       lowest id (in the column's own order) wins;
+ *       lowest id in the column's own order (collation for text, numeric for numbers) wins, and a
+ *       blank or null id never matches;
  *   <li>{@code geometry}: a {@code geography} or a {@code geometry} in SRID 4326 (polygon or
- *       multipolygon);
+ *       multipolygon); SRID 0 is read as 4326 and any other SRID fails every request;
  *   <li>optionally {@code zone-type}, {@code zone-name} and {@code zone-parent}, free text reported
  *       back as-is.
  * </ul>

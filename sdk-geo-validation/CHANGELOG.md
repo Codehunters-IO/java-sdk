@@ -8,7 +8,9 @@
   table or view (`codehunters.geo.postgis.table`, `.columns.*`), coverage tested on the geography
   with `ST_Covers` ([ADR 0019](../docs/adr/0019-postgis-geofence-adapter.md)). Edges are
   great-circle arcs, zones may cross the antimeridian, a border point is inside. One round trip
-  tells `ZONE_NOT_FOUND` from `OUTSIDE_ZONE`; the lowest zone id wins when several cover the point.
+  tells `ZONE_NOT_FOUND` from `OUTSIDE_ZONE`; the lowest zone id in the column's own order wins
+  when several cover the point, and the coverage test uses the spatial index (geography GIST, or
+  GIST on `geom::geography`).
 - `codehunters.geo.postgis.query-timeout` (default `2s`), on a template of its own.
 
 ## 1.0.0
