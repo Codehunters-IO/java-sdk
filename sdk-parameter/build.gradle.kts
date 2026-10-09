@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "4.0.0"
 description = "Typed read access to the shared parameters table over JDBC."
 
 codehuntersPackages {
@@ -23,6 +23,6 @@ dependencies {
     testImplementation(libs.archunit.junit5)
     testImplementation("com.h2database:h2")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
-    testImplementation("org.testcontainers:testcontainers-mssqlserver")
-    testImplementation("com.microsoft.sqlserver:mssql-jdbc")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    testRuntimeOnly("org.postgresql:postgresql")
 }

@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 class CachingParameterClientTest {
 
   private static final Duration TTL = Duration.ofMinutes(5);
-  private static final ParameterModule MODULE = ParameterModule.RAFFLES;
+  private static final ParameterModule MODULE = ParameterModule.of("ORDERS");
   private static final Parameter MAX = parameter("MAX", "100");
   private static final Parameter MIN = parameter("MIN", "1");
 
@@ -165,8 +165,8 @@ class CachingParameterClientTest {
   void should_treat_reordered_and_repeated_modules_as_the_same_query() {
     when(delegate.findByModules(any())).thenReturn(List.of());
 
-    cache.findByModules(List.of(ParameterModule.AUTH, MODULE));
-    cache.findByModules(List.of(MODULE, ParameterModule.AUTH, MODULE));
+    cache.findByModules(List.of(ParameterModule.of("AUTH"), MODULE));
+    cache.findByModules(List.of(MODULE, ParameterModule.of("AUTH"), MODULE));
 
     verify(delegate, times(1)).findByModules(any());
   }

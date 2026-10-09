@@ -53,9 +53,7 @@ final class ParameterRowMapper implements RowMapper<Parameter> {
   }
 
   private OffsetDateTime readTimestamp(ResultSet rs, String column) throws SQLException {
-    // JDBC 4.2 typed access: the SQL Server driver returns DATETIMEOFFSET as
-    // microsoft.sql.DateTimeOffset, whose toString() is not ISO-8601 and fails
-    // OffsetDateTime.parse. Requesting OffsetDateTime lets the driver convert it.
+    // JDBC 4.2 typed access: the driver converts TIMESTAMPTZ itself, with no string parsing.
     return rs.getObject(column, OffsetDateTime.class);
   }
 

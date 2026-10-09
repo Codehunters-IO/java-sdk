@@ -139,7 +139,7 @@ class ParameterTest {
   private Parameter build(String value, ParameterType type) {
     return new Parameter(
         UUID.randomUUID(),
-        ParameterModule.RAFFLES,
+        ParameterModule.of("ORDERS"),
         "TICKETS",
         "MAX",
         value,
