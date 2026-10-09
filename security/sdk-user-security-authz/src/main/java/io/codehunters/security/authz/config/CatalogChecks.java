@@ -1,5 +1,6 @@
 package io.codehunters.security.authz.config;
 
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.EnforcementMode;
 import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.PathMapping;
 import java.util.List;
 import org.springframework.http.server.PathContainer;
@@ -12,8 +13,10 @@ final class CatalogChecks {
   private CatalogChecks() {}
 
   /**
-   * Fails when a public path covers a catalogued one: anonymous requests are never enforced, so the
-   * catalogued path would be protected only for callers who happen to send a token.
+   * Fails when a public path covers a catalogued one that is enforced: anonymous requests are never
+   * enforced, so the catalogued path would be protected only for callers who happen to send a
+   * token. Public routes mapped as {@code DISABLED} (so that callers sending a token are not
+   * denied) are consistent and allowed.
    */
   static void requireNoPublicPathCovers(List<String> publicPaths, List<PathMapping> catalog) {
     publicPaths.forEach(publicPath -> requireNotCovering(publicPath, catalog));
@@ -22,6 +25,7 @@ final class CatalogChecks {
   private static void requireNotCovering(String publicPath, List<PathMapping> catalog) {
     PathPattern pattern = PathPatternParser.defaultInstance.parse(publicPath);
     catalog.stream()
+        .filter(mapping -> mapping.enforcementMode() != EnforcementMode.DISABLED)
         .map(PathMapping::path)
         .filter(path -> pattern.matches(PathContainer.parsePath(path)))
         .findFirst()
