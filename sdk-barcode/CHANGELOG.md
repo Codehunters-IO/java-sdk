@@ -1,5 +1,16 @@
 # Changelog — sdk-barcode
 
+## 2.0.0
+
+Package reorganisation; behaviour and `codehunters.barcode.*` properties unchanged. See
+[MIGRATION-2.0.md](MIGRATION-2.0.md).
+
+- The public API stays in `io.codehunters.barcode`; `config` is unchanged.
+- Rendering internals (content rules, symbol, PNG and SVG writers) moved to
+  `io.codehunters.barcode.render`, decoding internals (decode plan, luminance) to
+  `io.codehunters.barcode.read`. These packages are not API.
+- `BarcodeFormat.zxing()` and `ErrorCorrection.zxing()` are public for the render package; not API.
+
 ## 1.0.0
 
 First release.
