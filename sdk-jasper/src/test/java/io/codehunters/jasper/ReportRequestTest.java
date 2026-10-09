@@ -8,6 +8,7 @@ import java.io.File;
 import java.io.StringReader;
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -165,7 +166,12 @@ class ReportRequestTest {
         new StringReader(""),
         List.of(new File("/etc/hosts")),
         new Object[] {Path.of("/etc/hosts")},
-        Map.of("logo", URI.create("file:///etc/hosts")));
+        Map.of("logo", URI.create("file:///etc/hosts")),
+        Map.of("logos", List.of(URI.create("https://example.com/logo.png").toURL())),
+        List.<Object[]>of(new Object[] {new File("/etc/hosts")}),
+        Map.of(new File("/etc/hosts"), "logo"),
+        new Object[] {new Object[] {List.of(Map.of("logo", Path.of("/etc/hosts")))}},
+        cyclic(List.of(new StringReader(""))));
   }
 
   @ParameterizedTest
@@ -186,5 +192,54 @@ class ReportRequestTest {
         ReportRequest.of(TEMPLATE, ReportFormat.PDF).withParameters(Map.of("logo", new byte[1]));
 
     assertThat(request.parameters()).containsKey("logo");
+  }
+
+  @Test
+  void should_accept_a_cyclic_structure_of_strings() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("names", cyclic("sales/logo.png")));
+
+    assertThat(request.parameters()).containsKey("names");
+  }
+
+  @Test
+  void should_accept_strings_nested_eight_levels_deep() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("names", nested("sales/logo.png", 8)));
+
+    assertThat(request.parameters()).containsKey("names");
+  }
+
+  @Test
+  void should_reject_a_value_nested_more_than_eight_levels_deep_without_showing_it() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+                    .withParameters(Map.of("names", nested("secret-value", 9))))
+        .withMessage("parameter names nests collections, maps or arrays more than 8 levels deep")
+        .withMessageNotContaining("secret-value");
+  }
+
+  @Test
+  void should_accept_primitive_arrays_inside_a_collection() {
+    var request =
+        ReportRequest.of(TEMPLATE, ReportFormat.PDF)
+            .withParameters(Map.of("images", List.of(new byte[1], new int[] {1})));
+
+    assertThat(request.parameters()).containsKey("images");
+  }
+
+  private static List<Object> cyclic(Object element) {
+    var list = new ArrayList<Object>();
+    list.add(element);
+    list.add(list);
+    return list;
+  }
+
+  private static Object nested(Object innermost, int levels) {
+    return Stream.iterate(innermost, List::of).skip(levels).findFirst().orElseThrow();
   }
 }
