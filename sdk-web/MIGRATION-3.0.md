@@ -82,9 +82,16 @@ The i18n part no longer replaces Boot's beans; it adds the `X-Locale` header on 
 
 Bundles kept under `src/main/resources/i18n/` need `spring.messages.basename=i18n/messages` (no
 `classpath:` prefix; list several comma-separated) **and a base file**, `i18n/messages.properties`:
-Boot registers its message source only when the first base name has one. Without it the application has
-no message source and lookups find nothing. Set `spring.messages.fallback-to-system-locale=false` to
-keep 2.x's fallback to the base file. The SDK appends its own error bundle after yours.
+Boot registers its message source only when the first base name has one. Without it the SDK registers
+a `messageSource` holding only its error bundle, so your own keys find nothing. Set
+`spring.messages.fallback-to-system-locale=false` to keep 2.x's fallback to the base file. The SDK
+appends its own error bundle after yours, and logs a `WARN` at startup when that bundle does not
+resolve through the context (e.g. with a `messageSource` of your own that is not resource-based).
+
+**Supported locales.** With `supported-locales` set, the resolved locale is always one of them: an
+`Accept-Language` that matches none gives `spring.web.locale` if it is supported, else the first
+supported locale. 2.x and Spring's resolver could answer an unsupported locale (the client's, or the
+container's).
 
 **Default locale.** There is no SDK default locale any more. 2.x answered `es` when no header
 resolved; 3.0 answers `spring.web.locale`, else the servlet container's locale, which is the JVM
@@ -101,7 +108,9 @@ default when the request has no `Accept-Language`, as Boot does. Set `spring.web
   2.x ignored the property.
 
 **MDC filter.** `LocaleMdcFilter` is off by default. Set `codehunters.web.i18n.mdc.enabled=true` if
-log lines rely on the `locale` MDC key.
+log lines rely on the `locale` MDC key. The key is not carried to `@Async` threads unless the
+application propagates the MDC (Micrometer's `Slf4jThreadLocalAccessor` with a context-propagating
+task decorator).
 
 **Spring Security.** 401 and 403 problem details now follow `X-Locale`: `ProblemWriter` asks the
 `localeResolver` bean instead of reading `Accept-Language`.

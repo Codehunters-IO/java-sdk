@@ -12,10 +12,12 @@
   read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
 - The configuration metadata lists every renamed key with `level: error` and its replacement, so
   IDEs and `spring-boot-properties-migrator` report keys still using the old prefixes.
-- i18n builds on Spring Boot instead of replacing it: the SDK no longer registers a
+- i18n builds on Spring Boot instead of replacing it: the i18n part no longer registers a
   `messageSource`, so Boot's applies and `spring.messages.*` is honoured (2.x ignored it with a
   warning). The errors part appends its bundle to the application's message source, after the
-  application's bundles.
+  application's bundles. When the application has no bundle (Boot registers no message source), the
+  errors part registers a `messageSource` with only its own bundle (UTF-8, no fallback to the JVM
+  locale), backing off on any bean named `messageSource`.
 - `XLocaleAwareLocaleResolver` extends Spring's `AcceptHeaderLocaleResolver` semantics: its
   constructors are `(headerName)` and `(headerName, supportedLocales)`, the default locale comes
   from `setDefaultLocale` (`spring.web.locale`), and `Accept-Language` without `supported-locales`
@@ -32,7 +34,15 @@
   `FixedLocaleResolver`; 2.x ignored it with a warning.
 - Spring Security 401 and 403 problem details resolve their locale with the application's
   `localeResolver`, so they follow `X-Locale`; before they used `Accept-Language` only.
-- `LocaleMdcFilter` is registered only with `codehunters.web.i18n.mdc.enabled=true`.
+- `LocaleMdcFilter` is registered only with `codehunters.web.i18n.mdc.enabled=true`. Its `locale`
+  MDC key reaches `@Async` threads only when the application propagates the MDC (e.g. Micrometer's
+  `Slf4jThreadLocalAccessor`).
+- With `supported-locales` set, the resolved locale is always a supported one: an unmatched
+  `Accept-Language`, or an unsupported container locale, gives `spring.web.locale` if supported,
+  else the first supported locale, as the `X-Locale` path already did.
+- The SDK's error bundle ships an explicit English file (`client-input_en.properties`), so an
+  English request on a JVM whose default locale is Spanish no longer falls back to the Spanish
+  details when `spring.messages.fallback-to-system-locale` is on.
 
 ### Removed
 - The i18n `messageSource` and the properties that configured it: `codehunters.i18n.basename`,
@@ -58,6 +68,8 @@
 - `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
 - `codehunters.web.i18n.mdc.enabled` (default `false`).
 - `ProblemWriter.withLocaleResolver(LocaleResolver)`.
+- A startup `WARN` when the SDK's error bundle does not resolve through the application context
+  (probed with `error.INVALID_SORT`), e.g. with a `messageSource` that is not resource-based.
 
 ## 2.0.0
 

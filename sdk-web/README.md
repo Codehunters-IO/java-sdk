@@ -189,7 +189,11 @@ which starts with the method and parameter (`create.order.name`).
 Details are resolved through the application's `MessageSource`, Boot's one configured by
 `spring.messages.*` (see [i18n](#i18n--iocodehunterswebi18n)), in the request locale. The SDK appends
 its own bundle (`io/codehunters/web/errors/client-input*.properties`) to that message source, after
-the application's bundles, so an application key always wins:
+the application's bundles, so an application key always wins. An application without bundles gets
+no message source from Boot; the SDK then registers a `messageSource` holding only its bundle (UTF-8,
+no fallback to the JVM locale), so its details stay localized. It backs off when any bean named
+`messageSource` exists. At startup the SDK logs one `WARN` when `error.INVALID_SORT` does not resolve
+through the context, e.g. with an application `messageSource` that is not resource-based:
 
 | Error | Key | Arguments |
 |---|---|---|
@@ -442,7 +446,7 @@ and Boot's `FixedLocaleResolver` applies. Outside servlet applications it regist
 
 ### Messages
 
-The SDK registers no `MessageSource`. Boot's `MessageSourceAutoConfiguration` builds it from
+The i18n part registers no `MessageSource`. Boot's `MessageSourceAutoConfiguration` builds it from
 `spring.messages.*`: `messages*.properties` at the class path root by default, or the comma-separated
 `spring.messages.basename` list, UTF-8 by default. Boot registers it only when the first base name has
 a base file (`messages.properties`, or `i18n/messages.properties` for `spring.messages.basename=i18n/messages`).
@@ -455,7 +459,8 @@ spring:
 ```
 
 The [errors](#messages) part appends its bundle to that message source after the application's
-bundles; an application key with the same name wins.
+bundles; an application key with the same name wins. When Boot registers none, the errors part
+registers one with only its own bundle (see [Messages](#messages)).
 
 ### Locale resolution
 
@@ -478,8 +483,9 @@ With `codehunters.web.i18n.supported-locales` set, the request locale, the heade
 `Accept-Language` are matched against that list the way Spring's `AcceptHeaderLocaleResolver` does:
 an exact match wins, otherwise a supported locale with the same language and no country (`en-GB` →
 `en`). A header that matches nothing falls through to `Accept-Language`, and an `Accept-Language`
-that matches nothing gives `spring.web.locale` (or the container's locale). Without the list, any
-locale is accepted.
+that matches nothing (or its absence, when the container's locale is not supported) gives
+`spring.web.locale` if it is supported, else the first supported locale: the answer is always one of
+the list. Without the list, any locale is accepted.
 
 The [errors](#errors-outside-spring-mvc) part resolves 401 and 403 details with this resolver too.
 
@@ -487,9 +493,14 @@ The [errors](#errors-outside-spring-mvc) part resolves 401 and 403 details with 
 
 Off by default. With `codehunters.web.i18n.mdc.enabled=true`, `LocaleMdcFilter` puts the resolved
 language tag in the SLF4J MDC under `locale` for the duration of the request, on async and error
-dispatches too, and restores the previous value afterwards. It runs at `HIGHEST_PRECEDENCE + 10`,
-after the tracing filter. If the resolver throws, the filter logs a warning with the exception class
-only (its message may echo request headers) and the request continues without the MDC entry.
+dispatches too, and restores the previous value afterwards. It runs at `HIGHEST_PRECEDENCE + 10`.
+If the resolver throws, the filter logs a warning with the exception class only (its message may
+echo request headers) and the request continues without the MDC entry.
+
+The entry lives on the request thread only. `@Async` methods and other executors do not see it
+unless the application propagates the MDC, e.g. by registering Micrometer's
+`Slf4jThreadLocalAccessor` with the `ContextRegistry` and wrapping the executor with a
+context-propagating task decorator (`ContextPropagatingTaskDecorator`).
 
 ### Validation messages
 
