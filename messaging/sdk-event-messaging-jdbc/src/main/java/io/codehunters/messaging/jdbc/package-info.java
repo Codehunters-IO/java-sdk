@@ -1,2 +1,2 @@
-/** JDBC outbox store and the per-database claim dialects. */
+/** PostgreSQL outbox store. */
 package io.codehunters.messaging.jdbc;

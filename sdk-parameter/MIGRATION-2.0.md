@@ -1,6 +1,6 @@
 # Migrating sdk-parameter 1.x to 2.0
 
-1. **Modules.** `ParameterModule.RAFFLES` and the other constants still compile. Replace
+1. **Modules.** The module constants still compile (until 4.0, which removes them). Replace
    `ParameterModule.valueOf(s)` with `ParameterModule.of(s)`, `module.name()` with
    `module.code()`, and `switch` statements over the module with `if`/`equals` or a map.
    `toString()` still returns the code.

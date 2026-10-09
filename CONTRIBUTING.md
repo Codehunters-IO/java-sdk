@@ -86,10 +86,10 @@ A change is done when, on its branch:
 
 - Properties live under `codehunters.<sdk>.*` and bind to a validated `@ConfigurationProperties`
   record; invalid values fail at startup.
-- When a key is renamed, the old one keeps working until the next major version: declare it in the
-  module's `*LegacyProperties` (using `LegacyPropertyAliases` from `sdk-support`) and mark it
-  deprecated in `additional-spring-configuration-metadata.json`
-  ([ADR 0004](docs/adr/0004-single-codehunters-property-prefix.md)).
+- Renaming a key is a breaking change: ship it in a major version with the rename in the module's
+  `MIGRATION-<major>.0.md`. The SDK keeps no aliases for older keys
+  ([ADR 0021](docs/adr/0021-postgresql-only-and-codehunters-properties.md)).
+- PostgreSQL is the only supported database; new persistence code and reference DDL target it.
 
 ## Architecture decisions
 

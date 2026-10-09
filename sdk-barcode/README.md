@@ -107,7 +107,7 @@ found.map(DecodedBarcode::content);
 
 Everything the reader or renderer refuses because of what it was given throws
 `BarcodeRejectedException`, a `ClientInputException` from `sdk-commons` and therefore still an
-`IllegalArgumentException`. `sdk-web` 2.1.0 answers it with 400 and its code:
+`IllegalArgumentException`. `sdk-web` 3.0.0 answers it with 400 and its code:
 
 | `code()` | Constant | When |
 |---|---|---|

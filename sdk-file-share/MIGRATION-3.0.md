@@ -14,10 +14,8 @@ old packages below fixes every file.
 | `io.codehunters.fileshare.infrastructure.RestClientFileShareAdapter` | `io.codehunters.fileshare.http.RestClientFileShareAdapter` |
 | `io.codehunters.fileshare.infrastructure.PresignedUrlPolicy` | `io.codehunters.fileshare.http.PresignedUrlPolicy` |
 
-`io.codehunters.fileshare.config` (`FileShareAutoConfiguration`, `FileShareProperties`,
-`FileShareLegacyProperties`) keeps its name.
-
-The 1.x keys `vitxo.file-share.*` are now honoured until 4.0.0 (was 3.0.0).
+`io.codehunters.fileshare.config` (`FileShareAutoConfiguration`, `FileShareProperties`) keeps its
+name.
 
 ## Logging
 

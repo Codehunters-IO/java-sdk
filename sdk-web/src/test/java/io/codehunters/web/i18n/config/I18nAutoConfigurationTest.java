@@ -75,7 +75,7 @@ class I18nAutoConfigurationTest {
   @Test
   void should_back_off_entirely_when_disabled() {
     webRunner
-        .withPropertyValues("codehunters.i18n.enabled=false")
+        .withPropertyValues("codehunters.web.i18n.enabled=false")
         .run(
             context -> {
               assertThat(context).doesNotHaveBean(I18nProperties.class);
@@ -88,7 +88,7 @@ class I18nAutoConfigurationTest {
   void should_read_messages_from_configured_basenames() {
     plainRunner
         .withPropertyValues(
-            "codehunters.i18n.basename=classpath:i18n/messages,classpath:i18n/extra")
+            "codehunters.web.i18n.basename=classpath:i18n/messages,classpath:i18n/extra")
         .run(
             context -> {
               assertThat(context.getMessage("greeting", null, ENGLISH)).isEqualTo("Hello");
@@ -99,7 +99,7 @@ class I18nAutoConfigurationTest {
   @Test
   void should_use_default_locale_bundle_when_requested_locale_has_none() {
     plainRunner
-        .withPropertyValues("codehunters.i18n.default-locale=en")
+        .withPropertyValues("codehunters.web.i18n.default-locale=en")
         .run(
             context ->
                 assertThat(context.getMessage("greeting", null, Locale.of("fr")))
@@ -110,7 +110,8 @@ class I18nAutoConfigurationTest {
   void should_apply_locale_properties_to_the_resolver() {
     webRunner
         .withPropertyValues(
-            "codehunters.i18n.default-locale=en", "codehunters.i18n.supported-locales=en,es")
+            "codehunters.web.i18n.default-locale=en",
+            "codehunters.web.i18n.supported-locales=en,es")
         .run(
             context -> {
               var resolver = context.getBean(XLocaleAwareLocaleResolver.class);
@@ -145,7 +146,7 @@ class I18nAutoConfigurationTest {
         .withPropertyValues("spring.messages.basename=messages")
         .run(
             context ->
-                assertThat(output).contains("spring.messages.*").contains("codehunters.i18n"));
+                assertThat(output).contains("spring.messages.*").contains("codehunters.web.i18n"));
   }
 
   @Test
@@ -181,7 +182,7 @@ class I18nAutoConfigurationTest {
         .withPropertyValues("spring.web.locale=en")
         .run(
             context ->
-                assertThat(output).contains("spring.web.locale").contains("codehunters.i18n"));
+                assertThat(output).contains("spring.web.locale").contains("codehunters.web.i18n"));
   }
 
   @Test

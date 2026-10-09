@@ -10,7 +10,13 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
-/** An in-memory database with the test audit table, plus the events the tests write into it. */
+/**
+ * An in-memory database with the test audit table, plus the events the tests write into it.
+ *
+ * <p>Unit tests stay on H2 because the adapter's INSERT is portable SQL and H2 keeps them fast.
+ * {@code AuditEventJdbcAdapterPostgresIT} checks that this schema has the same columns as the
+ * PostgreSQL reference DDL, so the two cannot drift.
+ */
 final class H2AuditDatabase {
 
   static final AuditEvent SUCCESS = event("SUCCESS", true);

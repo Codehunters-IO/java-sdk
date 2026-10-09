@@ -31,16 +31,16 @@ import org.springframework.web.servlet.LocaleResolver;
  * source and the servlet locale resolver with its locale-to-MDC filter. Bean validation needs no
  * part of its own: Boot's validator resolves {@code {key}} messages through this message source.
  * Runs before Boot's message source and Web MVC auto-configurations, so the {@code
- * codehunters.i18n.*} settings take precedence: while this SDK provides the {@code messageSource}
- * bean, {@code spring.messages.*} is ignored. Set {@code codehunters.i18n.enabled=false} or declare
- * a bean named {@code messageSource} to use Boot's.
+ * codehunters.web.i18n.*} settings take precedence: while this SDK provides the {@code
+ * messageSource} bean, {@code spring.messages.*} is ignored. Set {@code
+ * codehunters.web.i18n.enabled=false} or declare a bean named {@code messageSource} to use Boot's.
  */
 @AutoConfiguration(
     beforeName = {
       "org.springframework.boot.autoconfigure.context.MessageSourceAutoConfiguration",
       "org.springframework.boot.webmvc.autoconfigure.WebMvcAutoConfiguration"
     })
-@ConditionalOnBooleanProperty(name = "codehunters.i18n.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "codehunters.web.i18n.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(I18nProperties.class)
 public class I18nAutoConfiguration {
 
@@ -75,7 +75,7 @@ public class I18nAutoConfiguration {
     private static void warnWhenBootMessagesAreConfigured(Environment environment) {
       if (environment.containsProperty("spring.messages.basename")) {
         LOG.warn(
-            "spring.messages.* is ignored: the message source is configured by codehunters.i18n.*");
+            "spring.messages.* is ignored: the message source is configured by codehunters.web.i18n.*");
       }
     }
   }
@@ -114,7 +114,7 @@ public class I18nAutoConfiguration {
           .forEach(
               key ->
                   LOG.warn(
-                      "{} is ignored: the locale is resolved by codehunters.i18n.* from request"
+                      "{} is ignored: the locale is resolved by codehunters.web.i18n.* from request"
                           + " headers",
                       key));
     }

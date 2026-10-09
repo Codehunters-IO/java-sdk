@@ -5,8 +5,8 @@ the shared configuration. It sends nothing on its own; add `sdk-event-messaging-
 transport.
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:8.0.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.0.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.0.0") // or -kafka
 ```
 
 Depend on `-core` alone only to build events without storing or sending them.
@@ -14,7 +14,7 @@ Depend on `-core` alone only to build events without storing or sending them.
 | Artifact | Provides |
 |---|---|
 | `sdk-event-messaging-core` | Model, factories, ports, `SendOutboxMessagesUseCase`, `codehunters.outbox.*` |
-| [`sdk-event-messaging-jdbc`](../sdk-event-messaging-jdbc/README.md) | Outbox table store, claim dialects, ShedLock schedulers, purge |
+| [`sdk-event-messaging-jdbc`](../sdk-event-messaging-jdbc/README.md) | PostgreSQL outbox store, ShedLock schedulers, purge |
 | [`sdk-event-messaging-rabbit`](../sdk-event-messaging-rabbit/README.md) | RabbitMQ publisher with confirms and mandatory returns |
 | [`sdk-event-messaging-kafka`](../sdk-event-messaging-kafka/README.md) | Kafka publisher with a dedicated idempotent producer |
 
@@ -57,7 +57,7 @@ keeps what the caller passed.
 |---|---|
 | Delivery | At-least-once. Consumers deduplicate on the `outbox-message-id` header |
 | Claim | Up to `batch-size` due `PENDING` rows, plus `IN_FLIGHT` rows whose claim is older than `claim.ttl-ms`, are marked `IN_FLIGHT` for this instance |
-| Stale reclaim | Counts as an attempt: the previous dispatcher may already have sent it |
+| Stale reclaim | Counts as an attempt when its send had started: the previous dispatcher may already have sent it |
 | Reclaim with `attempts ≥ max-attempts` | Marked `FAILED` with error `max-attempts-exceeded`, not sent again |
 | Time budget | Sending stops once half of `claim.ttl-ms` has passed since the claim; the rest of the batch goes back to `PENDING`, so no other instance reclaims rows still being sent |
 | Publish failure | `attempts + 1`, retried after `backoff.base-delay-ms x 2^(attempts - 1)`, capped at `backoff.max-delay-ms`; `FAILED` once `attempts` reaches `max-attempts` |
@@ -94,7 +94,6 @@ All keys are under `codehunters.outbox`. Invalid values fail startup with a mess
 | `batch-size` | `50` | ≥ 1 |
 | `max-attempts` | `5` | ≥ 1 |
 | `claim.ttl-ms` | `300000` | ≥ 1; must exceed the claim budget above |
-| `claim.dialect` | `auto` | See [`-jdbc`](../sdk-event-messaging-jdbc/README.md) |
 | `backoff.base-delay-ms` | `30000` | ≥ 1; doubled per attempt |
 | `backoff.max-delay-ms` | `3600000` | ≥ 1 |
 | `publisher.type` | unset | `rabbit` or `kafka`, case-insensitive; only needed with both transports present |
@@ -131,9 +130,15 @@ Every bean backs off when the application defines its own: `Clock` (UTC by defau
 | `io.codehunters.messaging.metrics` | `MeteredMessagePublisher` |
 | `io.codehunters.messaging.config` | Auto-configuration, `EventMessagingProperties`, transport condition |
 
+## Migrating from 8.x
+
+The outbox supports PostgreSQL only, `claim.dialect` is gone and the old `outbox.*` keys are
+ignored; see [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
 ## Migrating from 7.x
 
-Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md), then
+[MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 5.x
 

@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the device SDK, bound from the {@code codehunters.device} prefix. Invalid
+ * Configuration for the device SDK, bound from the {@code codehunters.web.device} prefix. Invalid
  * values fail at startup.
  *
  * @param enabled whether the SDK auto-configuration is active
@@ -19,7 +19,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     client could send it
  * @param userAgent {@code User-Agent} handling
  */
-@ConfigurationProperties(prefix = "codehunters.device")
+@ConfigurationProperties(prefix = "codehunters.web.device")
 public record DeviceProperties(
     @DefaultValue("true") boolean enabled,
     @DefaultValue List<String> trustedProxies,
@@ -31,7 +31,8 @@ public record DeviceProperties(
     try {
       TrustedProxies.of(trustedProxies);
     } catch (IllegalArgumentException e) {
-      throw new IllegalArgumentException("codehunters.device.trusted-proxies: " + e.getMessage());
+      throw new IllegalArgumentException(
+          "codehunters.web.device.trusted-proxies: " + e.getMessage());
     }
     trustedProxies = List.copyOf(trustedProxies);
   }
@@ -53,15 +54,15 @@ public record DeviceProperties(
     public UserAgent {
       if (maxLength < 16 || maxLength > 8192) {
         throw new IllegalArgumentException(
-            "codehunters.device.user-agent.max-length must be between 16 and 8192");
+            "codehunters.web.device.user-agent.max-length must be between 16 and 8192");
       }
       if (cacheSize < 0 || cacheSize > 100_000) {
         throw new IllegalArgumentException(
-            "codehunters.device.user-agent.cache-size must be between 0 and 100000");
+            "codehunters.web.device.user-agent.cache-size must be between 0 and 100000");
       }
       if ((long) maxLength * cacheSize > MAX_CACHED_CHARACTERS) {
         throw new IllegalArgumentException(
-            "codehunters.device.user-agent.max-length x cache-size must not exceed "
+            "codehunters.web.device.user-agent.max-length x cache-size must not exceed "
                 + MAX_CACHED_CHARACTERS
                 + " characters (64 MB of cached headers)");
       }

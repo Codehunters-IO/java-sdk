@@ -32,7 +32,7 @@ class OutboxMessageTest {
     var message =
         OutboxMessage.<String>builder()
             .id(id)
-            .origin("vitxo-ms-payment")
+            .origin("payment-ms")
             .routingKey("payment.RAFFLE")
             .topic("payment.results")
             .key("pay-123")
@@ -46,7 +46,7 @@ class OutboxMessageTest {
             .build();
 
     assertEquals(id, message.getId());
-    assertEquals("vitxo-ms-payment", message.getOrigin());
+    assertEquals("payment-ms", message.getOrigin());
     assertEquals("payment.RAFFLE", message.getRoutingKey());
     assertEquals(OutboxStatus.PUBLISHED, message.getStatus());
     assertEquals(2, message.getAttempts());
@@ -58,12 +58,12 @@ class OutboxMessageTest {
     var message =
         OutboxMessage.<String>builder()
             .topic("t")
-            .origin("vitxo-ms-payment")
+            .origin("payment-ms")
             .message("p")
             .occurredAt(LocalDateTime.now())
             .build();
 
-    assertEquals("vitxo-ms-payment", message.getOrigin());
+    assertEquals("payment-ms", message.getOrigin());
     assertNull(message.getRoutingKey());
   }
 }

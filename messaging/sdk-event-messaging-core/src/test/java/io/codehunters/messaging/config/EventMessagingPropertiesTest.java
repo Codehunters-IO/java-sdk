@@ -319,7 +319,7 @@ class EventMessagingPropertiesTest {
   }
 
   private static Claim claim(long ttlMs) {
-    return new Claim(ttlMs, "auto");
+    return new Claim(ttlMs);
   }
 
   private static Purge purge(Duration retention, int batchSize) {

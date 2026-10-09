@@ -1,5 +1,7 @@
 # Migrating sdk-event-messaging to 8.0
 
+> Going to 9.0? Apply this guide, then [MIGRATION-9.0.md](MIGRATION-9.0.md).
+
 8.0 reorganises the Java packages by capability instead of hexagonal layers. **Only imports change**:
 behaviour, beans, the `codehunters.outbox.*` properties, the DDL and the reference scripts under
 `db/migration/outbox/**` are unchanged. The four artifacts (`-core`, `-jdbc`, `-rabbit`, `-kafka`)
@@ -19,7 +21,6 @@ column), then this guide. From 5.x, start with [MIGRATION-6.0.md](MIGRATION-6.0.
 3. Update any class name written as a string: `@AutoConfiguration(after/before = ...)`,
    `@ImportAutoConfiguration`, `spring.autoconfigure.exclude`, `@ComponentScan` filters, logging
    categories (`logging.level.io.codehunters.messaging...`).
-4. Optional: rename the old `outbox.*` keys. They are honoured until 9.0 (they were due to go in 8.0).
 
 ## Stored error class names
 
@@ -46,7 +47,7 @@ that match on the old string must accept both until the old rows are purged.
 | `io.codehunters.messaging.domain.factory.TraceIdSource` | `io.codehunters.messaging.factory.TraceIdSource` |
 | `io.codehunters.messaging.application.usecase.SendOutboxMessagesUseCase` | `io.codehunters.messaging.dispatch.SendOutboxMessagesUseCase` |
 | `io.codehunters.messaging.infrastructure.metrics.MeteredMessagePublisher` | `io.codehunters.messaging.metrics.MeteredMessagePublisher` |
-| `io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration`, `EventMessagingProperties`, `ConditionalOnOutboxTransport`, `OutboxLegacyProperties` | unchanged |
+| `io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration`, `EventMessagingProperties`, `ConditionalOnOutboxTransport` | unchanged |
 
 ## sdk-event-messaging-jdbc
 
@@ -54,11 +55,7 @@ that match on the old string must accept both until the old rows are purged.
 |---|---|
 | `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.OutboxJdbcAdapter` | `io.codehunters.messaging.jdbc.OutboxJdbcAdapter` |
 | `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.OutboxAdapterSettings` | `io.codehunters.messaging.jdbc.OutboxAdapterSettings` |
-| `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.OutboxDialect` | `io.codehunters.messaging.jdbc.OutboxDialect` |
-| `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.OutboxDialectResolver` | `io.codehunters.messaging.jdbc.OutboxDialectResolver` |
-| `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.GenericOutboxDialect` | `io.codehunters.messaging.jdbc.GenericOutboxDialect` |
-| `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.PostgresOutboxDialect` | `io.codehunters.messaging.jdbc.PostgresOutboxDialect` |
-| `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.SqlServerOutboxDialect` | `io.codehunters.messaging.jdbc.SqlServerOutboxDialect` |
+| `io.codehunters.messaging.infrastructure.drivenadapters.jdbc.OutboxDialect` and its implementations | `io.codehunters.messaging.jdbc` (removed in 9.0, see [MIGRATION-9.0.md](MIGRATION-9.0.md)) |
 | `io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxScheduler` | `io.codehunters.messaging.jdbc.scheduler.OutboxScheduler` |
 | `io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxPurgeScheduler` | `io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler` |
 | `io.codehunters.messaging.infrastructure.entrypoint.scheduler.OutboxPurgeSettings` | `io.codehunters.messaging.jdbc.scheduler.OutboxPurgeSettings` |

@@ -1,6 +1,15 @@
 # Changelog — sdk-user-security
 
-## 4.1.0
+## 5.0.0
+
+Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
+[MIGRATION-5.0.md](MIGRATION-5.0.md).
+
+### Removed
+- The `keycloak.security.*` aliases. Only `codehunters.security.*` is read; an old key is ignored.
+- `KeycloakSecurityLegacyProperties`, its `spring.factories` entry and the deprecated
+  `keycloak.security.*` configuration metadata.
+- The dependency on `sdk-support`.
 
 ### Behaviour changes
 - `Authentication.getName()` and `HttpServletRequest.getRemoteUser()` return the user id instead of

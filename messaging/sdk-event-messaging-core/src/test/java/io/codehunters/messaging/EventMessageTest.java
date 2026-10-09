@@ -11,7 +11,7 @@ class EventMessageTest {
     var message =
         EventMessage.<String>builder()
             .header(
-                EventMessage.Header.builder().traceId("trace-123").origin("vitxo-ms-test").build())
+                EventMessage.Header.builder().traceId("trace-123").origin("orders-ms-test").build())
             .body(
                 EventMessage.Body.<String>builder()
                     .aggregate("order")
@@ -22,7 +22,7 @@ class EventMessageTest {
             .build();
 
     assertEquals("trace-123", message.getHeader().getTraceId());
-    assertEquals("vitxo-ms-test", message.getHeader().getOrigin());
+    assertEquals("orders-ms-test", message.getHeader().getOrigin());
     assertEquals("1.0.0", message.getHeader().getVersion());
     assertEquals("1.0.0", message.getHeader().getSchemaVersion());
     assertNotNull(message.getHeader().getTimestamp());

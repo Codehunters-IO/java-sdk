@@ -67,7 +67,7 @@ class WebErrorsAutoConfigurationTest {
   @Test
   void should_back_off_when_disabled() {
     runner
-        .withPropertyValues("codehunters.web-errors.enabled=false")
+        .withPropertyValues("codehunters.web.errors.enabled=false")
         .run(context -> assertThat(context).doesNotHaveBean(WebErrorsExceptionHandler.class));
   }
 
@@ -91,21 +91,21 @@ class WebErrorsAutoConfigurationTest {
   @Test
   void should_fail_startup_when_the_type_base_uri_is_relative() {
     runner
-        .withPropertyValues("codehunters.web-errors.type-base-uri=errors/")
+        .withPropertyValues("codehunters.web.errors.type-base-uri=errors/")
         .run(
             context ->
                 assertThat(context)
                     .getFailure()
                     .rootCause()
                     .hasMessage(
-                        "codehunters.web-errors.type-base-uri must be an absolute URI ending"
+                        "codehunters.web.errors.type-base-uri must be an absolute URI ending"
                             + " with '/'"));
   }
 
   @Test
   void should_fail_startup_when_the_type_base_uri_does_not_end_with_a_slash() {
     runner
-        .withPropertyValues("codehunters.web-errors.type-base-uri=https://errors.example.com")
+        .withPropertyValues("codehunters.web.errors.type-base-uri=https://errors.example.com")
         .run(context -> assertThat(context).hasFailed());
   }
 

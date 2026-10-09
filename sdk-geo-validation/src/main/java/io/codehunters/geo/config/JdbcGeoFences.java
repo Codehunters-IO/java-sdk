@@ -3,24 +3,17 @@ package io.codehunters.geo.config;
 import io.codehunters.geo.GeoFenceValidator;
 import io.codehunters.geo.postgis.PostgisGeoFence;
 import io.codehunters.geo.postgis.PostgisZoneTable;
-import io.codehunters.geo.sqlserver.SqlServerGeoFence;
-import io.codehunters.geo.sqlserver.SqlServerProcedure;
 import java.time.Duration;
 import javax.sql.DataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 
-/** Keeps spring-jdbc types out of the auto-configuration until a JDBC adapter is selected. */
+/** Keeps spring-jdbc types out of the auto-configuration until the PostGIS adapter is selected. */
 final class JdbcGeoFences {
 
   private static final long MILLIS_PER_SECOND = 1000L;
 
   private JdbcGeoFences() {}
-
-  static GeoFenceValidator sqlServer(
-      DataSource dataSource, SqlServerProcedure procedure, Duration queryTimeout) {
-    return new SqlServerGeoFence(client(dataSource, queryTimeout), procedure);
-  }
 
   static GeoFenceValidator postgis(
       DataSource dataSource, PostgisZoneTable table, Duration queryTimeout) {

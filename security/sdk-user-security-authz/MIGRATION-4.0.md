@@ -11,10 +11,8 @@ after the version bump resolves every reference.
 | `io.codehunters.security.authz.KeycloakAuthzFilter` | `io.codehunters.security.authz.servlet.KeycloakAuthzFilter` |
 | `io.codehunters.security.authz.KeycloakAuthzAutoConfiguration` | `io.codehunters.security.authz.config.KeycloakAuthzAutoConfiguration` |
 | `io.codehunters.security.authz.KeycloakPolicyEnforcerProperties` | `io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties` |
-| `io.codehunters.security.authz.KeycloakAuthzLegacyProperties` | `io.codehunters.security.authz.config.KeycloakAuthzLegacyProperties` |
 
 - An `exclude` or `afterName` that names the auto-configuration must use its new name.
 - Logger categories moved with the classes: `logging.level.io.codehunters.security.authz` still
   covers both, but a level set on a class name must use the new one, for example
   `logging.level.io.codehunters.security.authz.servlet.KeycloakAuthzFilter`.
-- The `keycloak.policy-enforcer.*` and `keycloak.*` aliases are honoured until 5.0.0 (was 4.0.0).

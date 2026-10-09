@@ -1,5 +1,25 @@
 # Changelog — sdk-event-messaging-jdbc
 
+## 9.0.0
+
+Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
+### Removed
+- Every database but PostgreSQL: the non-PostgreSQL claim dialect, its reference DDL (the top-level
+  `db/migration/outbox/outbox_message_create.sql` and its upgrade scripts) and its integration
+  tests.
+- The dialect selection: `OutboxDialect`, `OutboxDialectResolver`, `PostgresOutboxDialect`,
+  `GenericOutboxDialect`, the `OutboxDialect` bean and `codehunters.outbox.claim.dialect`.
+
+### Added
+- A startup check: the outbox data source must report PostgreSQL as its product, or startup fails
+  naming the detected product. An unreachable database is skipped with a warning.
+
+### Changed
+- `OutboxJdbcAdapter` issues the PostgreSQL claim and purge itself. `OutboxAdapterSettings` is
+  `(origin, clock)` and `defaults(origin)` no longer reads the database metadata.
+- The adapter tests run on PostgreSQL Testcontainers instead of H2.
+
 ## 8.0.0
 
 Migration guide: [MIGRATION-8.0.md](../MIGRATION-8.0.md).
@@ -17,7 +37,6 @@ Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
 
 ### Breaking
 - The claim reads and clears a new `send_started_at` column. Add it **before** the deploy:
-  `sqlserver/outbox_message_add_send_started_at.sql` or
   `postgresql/outbox_message_add_send_started_at.sql` for tables created by 6.x.
 
 ### Fixed
@@ -28,8 +47,6 @@ Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
 ### Added
 - `OutboxJdbcAdapter.markSendStarted`, fenced by the claim marker. Updates that end a claim clear
   the mark. It warns once when it runs inside a caller transaction: dispatch must run outside one.
-- Integration tests against the SQL Server reference DDL and the 7.0 upgrade scripts (SQL Server
-  2022 on x86-64, azure-sql-edge on ARM).
 
 ## 6.0.0
 
@@ -41,19 +58,15 @@ First release; the JDBC store, schedulers and DDL of `sdk-event-messaging` 5.1.5
 - Scheduler and lock keys move to `codehunters.outbox.task.*` and `codehunters.outbox.purge.*`
   (old `outbox.*` keys honoured until 7.0).
 - The claim orders by a `seq` column and blocks a row while an earlier row with the same
-  `(origin, topic, message_key)` is `PENDING`, `IN_FLIGHT` or `FAILED`. SQL Server tables created
-  before 6.0 need `sqlserver/outbox_message_add_seq.sql` **before** the deploy.
+  `(origin, topic, message_key)` is `PENDING`, `IN_FLIGHT` or `FAILED`. Tables created before 6.0
+  need the `seq` column **before** the deploy.
 - `task.lock-at-most` defaults to `300000` (was `60000`): the 5.x lock was shorter than a dispatch
   run (`claim.ttl-ms / 2` + one transport timeout, 155 s by default), so ShedLock could free it
   while a run was still publishing. A shorter configured value now fails startup.
-- `claim.dialect=auto` fails startup on databases other than PostgreSQL, SQL Server and H2 instead
-  of falling back to a non-atomic claim.
-- MySQL and MariaDB, unsupported, now fail startup with `auto` or `generic` instead of failing every
-  dispatch with error 1093 or a `FETCH FIRST` syntax error.
 
 ### Added
-- Claim dialects `postgresql` (`SKIP LOCKED`), `sqlserver` (`UPDLOCK, READPAST`) and `generic`,
-  selected by `codehunters.outbox.claim.dialect` (default `auto`).
+- Per-database claim dialects selected by `codehunters.outbox.claim.dialect` (default `auto`),
+  PostgreSQL using `SKIP LOCKED` (removed in 9.0, which supports PostgreSQL only).
 - Claim fencing: an update only applies while this instance still holds the claim.
 - Purge of `PUBLISHED` rows older than `purge.retention` (default `7d`), per origin, in batches,
   ShedLock-protected.

@@ -11,7 +11,7 @@ implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 ```
 
 Spring Data JPA, Hibernate, Jackson 3 and Spring Security are not brought in: the application
-already has the ones it uses. `sdk-commons` is (an `api` dependency since 2.1.0): the sort and
+already has the ones it uses. `sdk-commons` is (an `api` dependency since 3.0.0): the sort and
 search exceptions are its `ClientInputException`s.
 
 **Where it belongs.** Everything here is for the infrastructure layer. Entities extending
@@ -68,7 +68,7 @@ create table orders (
 );
 ```
 
-  On SQL Server use `uniqueidentifier` and `datetimeoffset(6)`.
+  PostgreSQL is the only supported database.
 
 ## Auditing
 
@@ -76,8 +76,7 @@ With JPA on the classpath and an `EntityManagerFactory` bean, the SDK enables Sp
 auditing:
 
 - **Time:** the application's `Clock` bean when there is exactly one, the UTC system clock
-  otherwise, cut to microseconds. PostgreSQL keeps exactly microseconds; SQL Server's `datetime2`
-  and `datetimeoffset` keep 100 ns, so the value round-trips on both.
+  otherwise, cut to microseconds. PostgreSQL keeps exactly microseconds, so the value round-trips.
 - **Author:** with Spring Security, the signed-in user's `Authentication.getName()`, which is the
   JWT `sub` for a resource server. Anonymous or unauthenticated callers, and work outside a request
   (schedulers, listeners), leave the author empty.
@@ -200,7 +199,7 @@ orders.findAll(SEARCH.allOf(List.of(
   is a `ClientInputException` from `sdk-commons`, and still an `IllegalArgumentException`.
   Whitelist and value-count errors are thrown when the specification is built; conversion and
   unsupported-operation errors when the query runs, where Spring wraps them in
-  `InvalidDataAccessApiUsageException`. `sdk-web` 2.1.0 finds it in the cause chain and answers
+  `InvalidDataAccessApiUsageException`. `sdk-web` 3.0.0 finds it in the cause chain and answers
   400 with the code; without `sdk-web`, look for it in the cause chain. An invalid whitelist
   (`SpecificationBuilder.of(...)`) is a programming error: a plain `IllegalArgumentException`.
 - **Indexes.** `LIKE` compares `lower(column)` with a leading `%`: no plain B-tree index helps.

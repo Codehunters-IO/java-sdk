@@ -1,6 +1,6 @@
 # 0018 — Charge reclaim attempts only for rows whose send had started
 
-- Status: accepted
+- Status: accepted (SQL Server parts superseded by 0021)
 - Date: 2026-10-08
 
 ## Context
@@ -60,3 +60,9 @@ Option 3.
   on x86-64 hosts (CI). ARM hosts, which have no SQL Server image, use azure-sql-edge 1.0.7:
   Microsoft retired Azure SQL Edge on 2025-09-30, so that image is final and may drift from the
   engines services run.
+
+## Later changes
+
+[ADR 0021](0021-postgresql-only-and-codehunters-properties.md) drops SQL Server in
+`sdk-event-messaging` 9.0.0: the SQL Server DDL and integration tests above are removed; the
+PostgreSQL behaviour is unchanged.

@@ -7,6 +7,7 @@ import io.codehunters.audit.AuditPersistenceException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import javax.sql.DataSource;
@@ -73,6 +74,21 @@ class AuditEventJdbcAdapterPostgresIT {
               assertThat(failure.sqlState()).contains(NOT_NULL_VIOLATION);
               assertThat(stackTraceOf(failure)).doesNotContain(ROW_VALUE);
             });
+  }
+
+  @Test
+  void should_keep_the_h2_test_schema_columns_when_compared_with_the_reference_ddl() {
+    assertThat(columnsOf(H2AuditDatabase.create()))
+        .containsExactlyInAnyOrderElementsOf(columnsOf(dataSource));
+  }
+
+  private static List<String> columnsOf(DataSource database) {
+    return JdbcClient.create(database)
+        .sql(
+            "SELECT LOWER(column_name) FROM information_schema.columns"
+                + " WHERE LOWER(table_name) = 'audit_event'")
+        .query(String.class)
+        .list();
   }
 
   private static String stackTraceOf(Throwable throwable) {

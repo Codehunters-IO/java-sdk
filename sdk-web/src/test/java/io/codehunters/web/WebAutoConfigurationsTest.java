@@ -72,7 +72,7 @@ class WebAutoConfigurationsTest {
   @Test
   void should_keep_device_and_i18n_when_web_errors_is_disabled() {
     contextRunner
-        .withPropertyValues("codehunters.web-errors.enabled=false")
+        .withPropertyValues("codehunters.web.errors.enabled=false")
         .run(
             context ->
                 assertThat(context)
@@ -84,7 +84,7 @@ class WebAutoConfigurationsTest {
   @Test
   void should_keep_web_errors_and_i18n_when_device_is_disabled() {
     contextRunner
-        .withPropertyValues("codehunters.device.enabled=false")
+        .withPropertyValues("codehunters.web.device.enabled=false")
         .run(
             context ->
                 assertThat(context)
@@ -96,7 +96,7 @@ class WebAutoConfigurationsTest {
   @Test
   void should_keep_web_errors_and_device_when_i18n_is_disabled() {
     contextRunner
-        .withPropertyValues("codehunters.i18n.enabled=false")
+        .withPropertyValues("codehunters.web.i18n.enabled=false")
         .run(
             context ->
                 assertThat(context)

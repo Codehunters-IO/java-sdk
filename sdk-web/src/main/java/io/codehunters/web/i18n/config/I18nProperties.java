@@ -9,8 +9,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the i18n SDK, bound from the {@code codehunters.i18n} prefix. Invalid values
- * fail at startup.
+ * Configuration for the i18n SDK, bound from the {@code codehunters.web.i18n} prefix. Invalid
+ * values fail at startup.
  *
  * @param enabled whether the SDK auto-configuration is active
  * @param basename resource bundle base names, in lookup order
@@ -21,7 +21,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param encoding the bundle encoding
  * @param fallbackToSystemLocale whether a missing bundle falls back to the JVM locale
  */
-@ConfigurationProperties(prefix = "codehunters.i18n")
+@ConfigurationProperties(prefix = "codehunters.web.i18n")
 public record I18nProperties(
     @DefaultValue("true") boolean enabled,
     @DefaultValue("classpath:i18n/messages") List<String> basename,
@@ -36,7 +36,7 @@ public record I18nProperties(
   /** Validates the configuration and copies the lists. */
   public I18nProperties {
     basename = requireBasenames(basename);
-    requireLanguage(defaultLocale, "codehunters.i18n.default-locale");
+    requireLanguage(defaultLocale, "codehunters.web.i18n.default-locale");
     supportedLocales = requireSupported(supportedLocales, defaultLocale);
     requireHeaderName(headerName);
     encoding = encoding != null ? encoding : StandardCharsets.UTF_8;
@@ -45,17 +45,17 @@ public record I18nProperties(
   private static List<String> requireBasenames(List<String> basename) {
     if (basename == null || basename.isEmpty() || basename.stream().anyMatch(String::isBlank)) {
       throw new IllegalArgumentException(
-          "codehunters.i18n.basename must list at least one non-blank base name");
+          "codehunters.web.i18n.basename must list at least one non-blank base name");
     }
     return List.copyOf(basename);
   }
 
   private static List<Locale> requireSupported(List<Locale> supported, Locale defaultLocale) {
     List<Locale> copy = supported == null ? List.of() : List.copyOf(supported);
-    copy.forEach(locale -> requireLanguage(locale, "codehunters.i18n.supported-locales"));
+    copy.forEach(locale -> requireLanguage(locale, "codehunters.web.i18n.supported-locales"));
     if (!copy.isEmpty() && !copy.contains(defaultLocale)) {
       throw new IllegalArgumentException(
-          "codehunters.i18n.supported-locales must include codehunters.i18n.default-locale");
+          "codehunters.web.i18n.supported-locales must include codehunters.web.i18n.default-locale");
     }
     return copy;
   }
@@ -69,7 +69,7 @@ public record I18nProperties(
   private static void requireHeaderName(String headerName) {
     if (headerName == null || !HTTP_TOKEN.matcher(headerName).matches()) {
       throw new IllegalArgumentException(
-          "codehunters.i18n.header-name must be an HTTP header name");
+          "codehunters.web.i18n.header-name must be an HTTP header name");
     }
   }
 }

@@ -20,12 +20,12 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * JDBC-backed {@link OutboxRepositoryPort}. Claims a batch of claimable rows through the
- * database-specific {@link OutboxDialect}, so concurrent dispatch workers receive disjoint rows and
- * a row is held back while an earlier row with the same {@code (origin, topic, message_key)} is
- * unresolved. Updates of a claimed row, including the send mark written before each publish, are
- * fenced by its claim marker, so a worker whose claim was taken over after the TTL cannot overwrite
- * the new owner's state.
+ * PostgreSQL-backed {@link OutboxRepositoryPort}. Claims a batch of claimable rows with {@code FOR
+ * UPDATE SKIP LOCKED}, so concurrent dispatch workers receive disjoint rows and a row is held back
+ * while an earlier row with the same {@code (origin, topic, message_key)} is unresolved. Updates of
+ * a claimed row, including the send mark written before each publish, are fenced by its claim
+ * marker, so a worker whose claim was taken over after the TTL cannot overwrite the new owner's
+ * state.
  */
 @Slf4j
 public class OutboxJdbcAdapter implements OutboxRepositoryPort {
@@ -38,13 +38,46 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
           :error, :occurredAt, :nextAttemptAt, :publishedAt, :claimedAt, :claimedBy)
       """;
 
-  private static final String SELECT_CLAIMED_SQL =
+  // Locks the candidate rows, skips rows locked by a concurrent claimer, marks them IN_FLIGHT and
+  // returns them in one statement. Only the candidate scan is locked; the per-key subquery is a
+  // plain snapshot read, so an earlier same-key row being claimed by another dispatcher still
+  // blocks later rows. A stale IN_FLIGHT row is charged an attempt only when send_started_at is
+  // set: only then may the previous dispatcher have published it before dying.
+  private static final String CLAIM_SQL =
       """
-      SELECT id, origin, routing_key, topic, message_key, payload, status, attempts,
-          error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by, seq,
-          send_started_at
-      FROM outbox_message
-      WHERE origin = :origin AND claimed_by = :claimedBy AND status = 'IN_FLIGHT'
+      WITH candidates AS (
+        SELECT o.id
+        FROM outbox_message o
+        WHERE o.origin = :origin
+          AND ((o.status = 'PENDING' AND (o.next_attempt_at IS NULL OR o.next_attempt_at <= :now))
+            OR (o.status = 'IN_FLIGHT' AND o.claimed_at <= :ttlBoundary))
+          AND NOT EXISTS (
+            SELECT 1 FROM outbox_message p
+            WHERE p.origin = o.origin AND p.topic = o.topic AND p.message_key = o.message_key
+              AND p.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
+              AND p.seq < o.seq)
+        ORDER BY o.seq
+        LIMIT :limit
+        FOR UPDATE OF o SKIP LOCKED
+      )
+      UPDATE outbox_message m
+      SET attempts = CASE WHEN status = 'IN_FLIGHT' AND send_started_at IS NOT NULL THEN attempts + 1 ELSE attempts END,
+          status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy, send_started_at = NULL
+      FROM candidates c
+      WHERE m.id = c.id
+      RETURNING m.id, m.origin, m.routing_key, m.topic, m.message_key, m.payload, m.status,
+          m.attempts, m.error, m.occurred_at, m.next_attempt_at, m.published_at, m.claimed_at,
+          m.claimed_by, m.seq, m.send_started_at
+      """;
+
+  private static final String PURGE_PUBLISHED_SQL =
+      """
+      DELETE FROM outbox_message
+      WHERE id IN (
+          SELECT id FROM outbox_message
+          WHERE origin = :origin AND status = 'PUBLISHED' AND published_at < :cutoff
+          ORDER BY published_at
+          LIMIT :limit)
       """;
 
   private static final String UPDATE_SQL =
@@ -105,7 +138,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   private final AtomicBoolean transactionalMarkWarned = new AtomicBoolean();
 
   /**
-   * Creates the adapter with the dialect auto-detected from {@code dataSource} and a UTC clock.
+   * Creates the adapter with a UTC system clock.
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the JSON mapper for outbox payloads
@@ -115,7 +148,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
       DataSource dataSource,
       @Qualifier("outboxJsonMapper") JsonMapper outboxJsonMapper,
       String origin) {
-    this(dataSource, outboxJsonMapper, OutboxAdapterSettings.defaults(dataSource, origin));
+    this(dataSource, outboxJsonMapper, OutboxAdapterSettings.defaults(origin));
   }
 
   /**
@@ -124,7 +157,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the JSON mapper for outbox payloads
-   * @param settings the origin, claim dialect and clock
+   * @param settings the origin and clock
    */
   public OutboxJdbcAdapter(
       DataSource dataSource,
@@ -165,18 +198,16 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
     log.debug("[START] - claim pending outbox messages for origin={}", origin);
     LocalDateTime now = LocalDateTime.now(settings.clock());
     String claimMarker = claimedBy + ":" + UUID.randomUUID();
-    var claim =
+    var claimed =
         jdbcClient
-            .sql(settings.dialect().claimSql())
+            .sql(CLAIM_SQL)
             .param("origin", origin)
             .param("now", now)
             .param("ttlBoundary", now.minus(claimTtl))
             .param("limit", batchSize)
-            .param("claimedBy", claimMarker);
-    var claimed =
-        settings.dialect().claimReturnsRows()
-            ? claim.query(ROW_MAPPER).list()
-            : selectClaimed(claim.update(), origin, claimMarker);
+            .param("claimedBy", claimMarker)
+            .query(ROW_MAPPER)
+            .list();
     log.debug("[END] - claimed {} outbox messages", claimed.size());
     return claimed.stream().sorted(BY_SEQ).toList();
   }
@@ -233,7 +264,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   public int purgePublished(LocalDateTime cutoff, int batchSize) {
     int deleted =
         jdbcClient
-            .sql(settings.dialect().purgePublishedSql())
+            .sql(PURGE_PUBLISHED_SQL)
             .param("origin", settings.origin())
             .param("cutoff", cutoff)
             .param("limit", batchSize)
@@ -249,18 +280,6 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
         .param("origin", settings.origin())
         .query(Long.class)
         .single();
-  }
-
-  private List<OutboxMessage<String>> selectClaimed(int updated, String origin, String marker) {
-    if (updated == 0) {
-      return List.of();
-    }
-    return jdbcClient
-        .sql(SELECT_CLAIMED_SQL)
-        .param("origin", origin)
-        .param("claimedBy", marker)
-        .query(ROW_MAPPER)
-        .list();
   }
 
   private static JdbcClient.StatementSpec bindUpdate(

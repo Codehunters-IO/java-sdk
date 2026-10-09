@@ -3,28 +3,32 @@ package io.codehunters.parameter;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
 import org.junit.jupiter.api.Test;
 
 class ParameterModuleTest {
 
   @Test
-  void should_expose_the_known_modules_as_constants() {
-    assertThat(ParameterModule.RAFFLES.code()).isEqualTo("RAFFLES");
-  }
-
-  @Test
-  void should_accept_a_module_the_sdk_does_not_know() {
+  void should_accept_any_module_code() {
     assertThat(ParameterModule.of("LOYALTY").code()).isEqualTo("LOYALTY");
   }
 
   @Test
-  void should_equal_the_constant_with_the_same_code() {
-    assertThat(ParameterModule.of("RAFFLES")).isEqualTo(ParameterModule.RAFFLES);
+  void should_equal_another_module_with_the_same_code() {
+    assertThat(ParameterModule.of("ORDERS")).isEqualTo(new ParameterModule("ORDERS"));
+  }
+
+  @Test
+  void should_ship_no_predefined_module_constants() {
+    assertThat(Arrays.stream(ParameterModule.class.getDeclaredFields()))
+        .noneMatch(ParameterModuleTest::isPublicConstant);
   }
 
   @Test
   void should_print_its_code() {
-    assertThat(ParameterModule.PAYMENT).hasToString("PAYMENT");
+    assertThat(ParameterModule.of("BILLING")).hasToString("BILLING");
   }
 
   @Test
@@ -38,13 +42,8 @@ class ParameterModuleTest {
   }
 
   @Test
-  void should_return_the_constant_instance_for_a_known_code() {
-    assertThat(ParameterModule.of("AUTH")).isSameAs(ParameterModule.AUTH);
-  }
-
-  @Test
-  void should_trim_the_code_before_matching_a_constant() {
-    assertThat(ParameterModule.of(" AUTH ")).isSameAs(ParameterModule.AUTH);
+  void should_trim_the_code_given_to_of() {
+    assertThat(ParameterModule.of(" AUTH ")).isEqualTo(ParameterModule.of("AUTH"));
   }
 
   @Test
@@ -54,6 +53,11 @@ class ParameterModuleTest {
 
   @Test
   void should_match_codes_case_sensitively() {
-    assertThat(ParameterModule.of("auth")).isNotEqualTo(ParameterModule.AUTH);
+    assertThat(ParameterModule.of("auth")).isNotEqualTo(ParameterModule.of("AUTH"));
+  }
+
+  private static boolean isPublicConstant(Field field) {
+    int modifiers = field.getModifiers();
+    return Modifier.isPublic(modifiers) && Modifier.isStatic(modifiers);
   }
 }

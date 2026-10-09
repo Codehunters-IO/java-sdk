@@ -5,8 +5,8 @@ dispatch semantics are described in
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
-implementation("io.codehunters:sdk-event-messaging-kafka:8.0.0")
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.0.0")
+implementation("io.codehunters:sdk-event-messaging-kafka:9.0.0")
 implementation("org.springframework.boot:spring-boot-starter-kafka")
 ```
 
@@ -78,9 +78,15 @@ or a `MessagePublisherPort` to replace the publisher.
 | `io.codehunters.messaging.kafka` | `KafkaMessagePublisherAdapter` |
 | `io.codehunters.messaging.kafka.config` | Auto-configuration |
 
+## Migrating from 8.x
+
+No changes of its own; the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
+[MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
 ## Migrating from 7.x
 
-Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md), then
+[MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 5.x
 

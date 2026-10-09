@@ -4,7 +4,7 @@ Keycloak Authorization Services policy enforcement point (PEP) for services that
 `sdk-user-security`.
 
 ```kotlin
-implementation("io.codehunters:sdk-user-security-authz:4.0.0")
+implementation("io.codehunters:sdk-user-security-authz:5.0.0")
 ```
 
 It brings `sdk-user-security` and `keycloak-authz-client`. Services that don't enforce Keycloak
@@ -60,6 +60,12 @@ codehunters:
               scopes: [CREATE]
 ```
 
+## Migrating from 4.x
+
+5.0 no longer reads the `keycloak.policy-enforcer.*`, `keycloak.host` and `keycloak.realm` keys; use
+`codehunters.security.authz.*` and `codehunters.security.url` / `realm`. See
+[MIGRATION-5.0.md](MIGRATION-5.0.md).
+
 ## Migrating from 3.x
 
 4.0 moves the filter to `io.codehunters.security.authz.servlet` and the auto-configuration and
@@ -71,8 +77,8 @@ packages also moved. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
 | 2.x | 3.0 |
 |---|---|
 | package `io.codehunters.sdk.security.authz` | `io.codehunters.security.authz` |
-| `keycloak.policy-enforcer.*` | `codehunters.security.authz.*` (old keys honoured until 5.0) |
-| `keycloak.host`, `keycloak.realm` | `codehunters.security.url`, `codehunters.security.realm` (`keycloak.security.url` wins when both are set) |
+| `keycloak.policy-enforcer.*` | `codehunters.security.authz.*` (old keys are not read since 5.0) |
+| `keycloak.host`, `keycloak.realm` | `codehunters.security.url`, `codehunters.security.realm` (old keys are not read since 5.0) |
 | `lazy-load-paths` | Removed (had no effect) |
 | `enforcement-mode` ignored | Honoured |
 | Unlisted method on a catalogued path passed through | Denied (403) |

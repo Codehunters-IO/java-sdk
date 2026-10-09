@@ -79,7 +79,7 @@ class TraceIdExtensionTest {
     MDC.put("traceId", MDC_TRACE_ID);
 
     runner
-        .withPropertyValues("codehunters.web-errors.include-trace-id=false")
+        .withPropertyValues("codehunters.web.errors.include-trace-id=false")
         .run(
             context ->
                 mvc(context)
@@ -105,7 +105,7 @@ class TraceIdExtensionTest {
     MDC.put("traceId", MDC_TRACE_ID);
 
     runner
-        .withPropertyValues("codehunters.web-errors.include-trace-id=false")
+        .withPropertyValues("codehunters.web.errors.include-trace-id=false")
         .run(context -> mvc(context).perform(get("/boom")));
 
     assertThat(output).contains("traceId=" + MDC_TRACE_ID);

@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "8.0.0"
+version = "9.0.0"
 description = "Transactional outbox domain, ports, dispatch use case and core auto-configuration."
 
 codehuntersPackages {
@@ -14,7 +14,6 @@ codehuntersPublishing {
 }
 
 dependencies {
-    implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("org.springframework:spring-context")

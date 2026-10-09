@@ -4,16 +4,17 @@ Servlet web toolkit for Spring MVC services, in three independent parts:
 
 | Part | Package | Properties | What it does |
 |---|---|---|---|
-| [Errors](#errors--iocodehuntersweberrors) | `io.codehunters.web.errors` | `codehunters.web-errors.*` | RFC 9457 problem details with stable codes |
-| [Device](#device--iocodehunterswebdevice) | `io.codehunters.web.device` | `codehunters.device.*` | Client IP behind trusted proxies, User-Agent, geo-IP port |
-| [i18n](#i18n--iocodehunterswebi18n) | `io.codehunters.web.i18n` | `codehunters.i18n.*` | `X-Locale` resolution, `MessageSource`, localized validation |
+| [Errors](#errors--iocodehuntersweberrors) | `io.codehunters.web.errors` | `codehunters.web.errors.*` | RFC 9457 problem details with stable codes |
+| [Device](#device--iocodehunterswebdevice) | `io.codehunters.web.device` | `codehunters.web.device.*` | Client IP behind trusted proxies, User-Agent, geo-IP port |
+| [i18n](#i18n--iocodehunterswebi18n) | `io.codehunters.web.i18n` | `codehunters.web.i18n.*` | `X-Locale` resolution, `MessageSource`, localized validation |
 
-Each part has its own auto-configuration and switch: set `codehunters.web-errors.enabled`,
-`codehunters.device.enabled` or `codehunters.i18n.enabled` to `false` to drop it. Until 1.0.0 the
-parts were three artifacts, `sdk-web-errors`, `sdk-device` and `sdk-i18n`
-([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)); properties did not change,
-and [MIGRATION-1.0.md](MIGRATION-1.0.md) covers the switch. In 2.0.0 the packages moved under
-`io.codehunters.web`: [MIGRATION-2.0.md](MIGRATION-2.0.md).
+Each part has its own auto-configuration and switch: set `codehunters.web.errors.enabled`,
+`codehunters.web.device.enabled` or `codehunters.web.i18n.enabled` to `false` to drop it. Until 1.0.0
+the parts were three artifacts, `sdk-web-errors`, `sdk-device` and `sdk-i18n`
+([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md));
+[MIGRATION-1.0.md](MIGRATION-1.0.md) covers the switch. In 2.0.0 the packages moved under
+`io.codehunters.web`: [MIGRATION-2.0.md](MIGRATION-2.0.md). In 3.0.0 the properties moved under
+`codehunters.web.*`: [MIGRATION-3.0.md](MIGRATION-3.0.md).
 
 ```kotlin
 implementation(platform("io.codehunters:sdk-bom:<version>"))
@@ -68,7 +69,7 @@ field then constraint:
 
 | Member | Source |
 |---|---|
-| `type` | `codehunters.web-errors.type-base-uri` + the code in kebab case; omitted (`about:blank`) without a base |
+| `type` | `codehunters.web.errors.type-base-uri` + the code in kebab case; omitted (`about:blank`) without a base |
 | `title` | the status reason phrase |
 | `detail` | the localized message (see [Messages](#messages)); the reason phrase when none is defined |
 | `instance` | the requested path, without the query string or path parameters (`;jsessionid=…`); path variables are echoed |
@@ -267,9 +268,9 @@ other servlet code.
 
 | Property | Default | Meaning |
 |---|---|---|
-| `codehunters.web-errors.enabled` | `true` | Turns the SDK off |
-| `codehunters.web-errors.type-base-uri` | — | Absolute base URI ending with `/` for `type`; startup fails otherwise |
-| `codehunters.web-errors.include-trace-id` | `true` | Adds the `traceId` member |
+| `codehunters.web.errors.enabled` | `true` | Turns the SDK off |
+| `codehunters.web.errors.type-base-uri` | — | Absolute base URI ending with `/` for `type`; startup fails otherwise |
+| `codehunters.web.errors.include-trace-id` | `true` | Adds the `traceId` member |
 
 ### Precedence and back-off
 
@@ -304,9 +305,10 @@ far as your own proxies wrote them ([ADR 0012](../docs/adr/0012-trusted-proxy-cl
 
 ```yaml
 codehunters:
-  device:
-    trusted-proxies: 10.0.0.0/8, 2001:db8::/32   # your load balancers / ingress
-    forwarding-header: x-forwarded-for            # or "forwarded" (RFC 7239)
+  web:
+    device:
+      trusted-proxies: 10.0.0.0/8, 2001:db8::/32   # your load balancers / ingress
+      forwarding-header: x-forwarded-for            # or "forwarded" (RFC 7239)
 ```
 
 - **No trusted proxies (the default):** the connection's remote address is the client. Forwarding
@@ -399,11 +401,11 @@ supported.
 
 | Property | Default | Notes |
 |---|---|---|
-| `codehunters.device.enabled` | `true` | |
-| `codehunters.device.trusted-proxies` | empty | Addresses or CIDR blocks; an invalid entry, a port or a `/0` block fails startup |
-| `codehunters.device.forwarding-header` | `x-forwarded-for` | Or `forwarded` |
-| `codehunters.device.user-agent.max-length` | `512` | 16 to 8192 |
-| `codehunters.device.user-agent.cache-size` | `1024` | 0 to 100000; 0 disables the cache; `max-length x cache-size` at most 33554432 |
+| `codehunters.web.device.enabled` | `true` | |
+| `codehunters.web.device.trusted-proxies` | empty | Addresses or CIDR blocks; an invalid entry, a port or a `/0` block fails startup |
+| `codehunters.web.device.forwarding-header` | `x-forwarded-for` | Or `forwarded` |
+| `codehunters.web.device.user-agent.max-length` | `512` | 16 to 8192 |
+| `codehunters.web.device.user-agent.cache-size` | `1024` | 0 to 100000; 0 disables the cache; `max-length x cache-size` at most 33554432 |
 
 Every bean (`ClientIpResolver`, `UserAgentParser`, `ClientContextResolver`) backs off when the
 application defines its own. `ClientContextResolver` is registered in servlet applications only.
@@ -437,14 +439,14 @@ the `messageSource` (see [Validation messages](#validation-messages)).
 
 While this SDK provides `messageSource`, Boot's `spring.messages.*` settings are ignored, and a
 warning is logged at startup if `spring.messages.basename` is set. Configure bundles under
-`codehunters.i18n.*` instead. To use Boot's message source, declare your own `messageSource` bean
-or set `codehunters.i18n.enabled=false`.
+`codehunters.web.i18n.*` instead. To use Boot's message source, declare your own `messageSource` bean
+or set `codehunters.web.i18n.enabled=false`.
 
 #### Precedence over `spring.web.locale*`
 
 While this SDK provides `localeResolver`, Boot's `spring.web.locale` and
 `spring.web.locale-resolver` have no effect; startup warns when either is set. Use
-`codehunters.i18n.default-locale` instead, or declare your own `localeResolver` bean.
+`codehunters.web.i18n.default-locale` instead, or declare your own `localeResolver` bean.
 
 ### Locale resolution
 
@@ -454,13 +456,13 @@ While this SDK provides `localeResolver`, Boot's `spring.web.locale` and
    form; blank, unparseable, or longer than 35 characters values are ignored.
 2. `Accept-Language`. Without `supported-locales`, the highest-weighted range that names a
    language; `*` and ranges of weight zero are skipped.
-3. `codehunters.i18n.default-locale`, also when `Accept-Language` is unparseable or names no usable
+3. `codehunters.web.i18n.default-locale`, also when `Accept-Language` is unparseable or names no usable
    language (never the container's root locale or the JVM locale).
 
 Unicode extensions (`en-US-u-ca-japanese`) are dropped from the custom header, so a client cannot
 switch calendars or numbering systems.
 
-With `codehunters.i18n.supported-locales` set, both headers are matched against that list the
+With `codehunters.web.i18n.supported-locales` set, both headers are matched against that list the
 same way Spring's `AcceptHeaderLocaleResolver` does: an exact match wins, otherwise a supported
 locale with the same language and no country (`en-GB` → `en`). A custom header that matches
 nothing falls through to `Accept-Language`, and an `Accept-Language` that matches nothing falls
@@ -495,21 +497,17 @@ order.id.required=The order id is required
 
 | Property | Default | Meaning |
 |---|---|---|
-| `codehunters.i18n.enabled` | `true` | Turn the whole auto-configuration off |
-| `codehunters.i18n.basename` | `classpath:i18n/messages` | Bundle base names, comma-separated, in lookup order |
-| `codehunters.i18n.default-locale` | `es` | Locale used when no header resolves, and the bundle fallback |
-| `codehunters.i18n.supported-locales` | empty (any) | Locales the application serves (`es,en-US`); must include the default locale |
-| `codehunters.i18n.header-name` | `X-Locale` | Header that overrides `Accept-Language` |
-| `codehunters.i18n.encoding` | `UTF-8` | Bundle encoding |
-| `codehunters.i18n.fallback-to-system-locale` | `false` | Fall back to the JVM locale when a bundle is missing |
+| `codehunters.web.i18n.enabled` | `true` | Turn the whole auto-configuration off |
+| `codehunters.web.i18n.basename` | `classpath:i18n/messages` | Bundle base names, comma-separated, in lookup order |
+| `codehunters.web.i18n.default-locale` | `es` | Locale used when no header resolves, and the bundle fallback |
+| `codehunters.web.i18n.supported-locales` | empty (any) | Locales the application serves (`es,en-US`); must include the default locale |
+| `codehunters.web.i18n.header-name` | `X-Locale` | Header that overrides `Accept-Language` |
+| `codehunters.web.i18n.encoding` | `UTF-8` | Bundle encoding |
+| `codehunters.web.i18n.fallback-to-system-locale` | `false` | Fall back to the JVM locale when a bundle is missing |
 
 Invalid values fail at startup: an empty or blank base name, a locale without a language, a
 default locale missing from a non-empty `supported-locales`, a header name that is not an HTTP
 token, or an unknown charset.
-
-The 0.x `vitxo.i18n.*` keys keep working until 3.0.0 under their new names; a key set under
-`codehunters.i18n.*` wins, and startup logs which old keys were found. See
-[MIGRATION-1.0.md](MIGRATION-1.0.md#from-sdk-i18n-0x).
 
 ### Known limits
 

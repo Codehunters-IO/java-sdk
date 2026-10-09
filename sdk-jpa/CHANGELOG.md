@@ -1,18 +1,23 @@
 # Changelog — sdk-jpa
 
-## 2.1.0
+## 3.0.0
+
+Unreleased 2.1.0 became 3.0.0: dropping SQL Server support is breaking. See
+[MIGRATION-3.0.md](MIGRATION-3.0.md).
+
+### Removed
+- SQL Server support. PostgreSQL is the only supported database; the README's SQL Server DDL notes
+  and the SQL Server precision note on `ClockDateTimeProvider` are gone.
 
 ### Added
 - `InvalidSortException` (code `INVALID_SORT`): `SortWhitelist.apply` throws it for a property
   outside the whitelist or the same one twice. It extends `sdk-commons`' `ClientInputException`, so
   it is still an `IllegalArgumentException`, as before.
 - `InvalidSearchException` is now a `ClientInputException` (code `INVALID_SEARCH`), still an
-  `IllegalArgumentException`. `sdk-web` 2.1.0 answers both with 400 and the code, also when Spring
+  `IllegalArgumentException`. `sdk-web` 3.0.0 answers both with 400 and the code, also when Spring
   wraps the search exception in `InvalidDataAccessApiUsageException` at query time.
-- `sdk-commons` 3.0.0 is an `api` dependency, so `sdk-commons` and `sdk-support` reach the
-  application's runtime classpath. Its TOTP auto-configuration stays off unless
-  `codehunters.totp.enabled=true`; a leftover `vitxo.totp.enabled` is not aliased and cannot turn it
-  on. Its `vitxo.totp.*` alias post-processor runs at startup and only logs when old keys are set.
+- `sdk-commons` is an `api` dependency, so it reaches the application's runtime classpath. Its
+  TOTP auto-configuration stays off unless `codehunters.totp.enabled=true`.
 
 ### Behaviour changes
 - A search value that cannot be converted now reads "a search value has the wrong format for this

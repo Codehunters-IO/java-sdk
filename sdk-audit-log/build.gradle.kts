@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "4.1.0"
+version = "5.0.0"
 description = "Declarative @Auditable audit trail with SpEL context and an async JDBC adapter."
 
 codehuntersPackages {
@@ -10,7 +10,6 @@ codehuntersPackages {
 }
 
 dependencies {
-    implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework:spring-context")
     implementation("org.springframework:spring-aop")
@@ -44,8 +43,6 @@ dependencies {
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-postgresql")
-    testImplementation("org.testcontainers:testcontainers-mssqlserver")
     testRuntimeOnly("com.h2database:h2")
     testRuntimeOnly("org.postgresql:postgresql")
-    testRuntimeOnly("com.microsoft.sqlserver:mssql-jdbc")
 }

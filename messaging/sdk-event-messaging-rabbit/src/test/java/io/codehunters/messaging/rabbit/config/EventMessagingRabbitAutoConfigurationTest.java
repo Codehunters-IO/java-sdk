@@ -25,8 +25,6 @@ import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
-import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 import org.springframework.kafka.core.ProducerFactory;
 
 class EventMessagingRabbitAutoConfigurationTest {
@@ -245,10 +243,8 @@ class EventMessagingRabbitAutoConfigurationTest {
     return producerFactory;
   }
 
+  // The outbox startup check reads the driver metadata, so the mock reports PostgreSQL.
   private DataSource createDataSource() {
-    return new EmbeddedDatabaseBuilder()
-        .setType(EmbeddedDatabaseType.H2)
-        .generateUniqueName(true)
-        .build();
+    return PostgresDataSource.create();
   }
 }

@@ -1,6 +1,8 @@
 -- Reference DDL for the audit_event table, PostgreSQL.
 -- Copy it into the application's own migrations; the SDK never runs it. The file name has no
 -- Flyway version prefix on purpose, so a classpath:db/migration scan ignores it.
+-- Requires PostgreSQL 13 or later for gen_random_uuid(); on 12 or earlier run
+-- CREATE EXTENSION IF NOT EXISTS pgcrypto; first.
 
 CREATE TABLE audit_event (
     id               UUID         NOT NULL DEFAULT gen_random_uuid(),

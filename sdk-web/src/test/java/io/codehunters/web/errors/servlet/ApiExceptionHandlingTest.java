@@ -71,7 +71,7 @@ class ApiExceptionHandlingTest {
   @Test
   void should_build_the_type_from_the_base_uri_when_one_is_configured() {
     runner
-        .withPropertyValues("codehunters.web-errors.type-base-uri=https://errors.example.com/")
+        .withPropertyValues("codehunters.web.errors.type-base-uri=https://errors.example.com/")
         .run(
             context ->
                 mvc(context)

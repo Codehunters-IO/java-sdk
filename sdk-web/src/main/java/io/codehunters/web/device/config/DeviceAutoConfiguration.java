@@ -20,10 +20,10 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Registers the {@link ClientIpResolver}, a {@link UserAgentParser} (uap-java when present, cached)
  * and, in servlet applications, the {@link ClientContextResolver}. Every bean backs off when the
- * application defines its own; {@code codehunters.device.enabled=false} disables the SDK.
+ * application defines its own; {@code codehunters.web.device.enabled=false} disables the SDK.
  */
 @AutoConfiguration
-@ConditionalOnBooleanProperty(name = "codehunters.device.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "codehunters.web.device.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(DeviceProperties.class)
 public class DeviceAutoConfiguration {
 

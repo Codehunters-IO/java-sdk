@@ -4,8 +4,6 @@ import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.config.EventMessagingProperties;
 import io.codehunters.messaging.jdbc.OutboxAdapterSettings;
-import io.codehunters.messaging.jdbc.OutboxDialect;
-import io.codehunters.messaging.jdbc.OutboxDialectResolver;
 import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
@@ -30,13 +28,12 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Spring Boot auto-configuration for the JDBC outbox store. Wires the dedicated JSON mapper, the
- * claim dialect, the JDBC outbox repository, the ShedLock provider, the purge scheduler and the
- * FAILED-row gauge. Active when {@code codehunters.outbox.enabled} is {@code true} (the default).
- * Scheduling ({@code @EnableScheduling}, {@code @EnableSchedulerLock}) and the purge scheduler are
- * registered only while {@code codehunters.outbox.scheduling.enabled} is {@code true} (the
- * default), so an application that runs dispatch and purge itself, or in another process, can turn
- * them off.
+ * Spring Boot auto-configuration for the PostgreSQL outbox store. Wires the dedicated JSON mapper,
+ * the JDBC outbox repository, the ShedLock provider, the purge scheduler and the FAILED-row gauge.
+ * Active when {@code codehunters.outbox.enabled} is {@code true} (the default). Scheduling
+ * ({@code @EnableScheduling}, {@code @EnableSchedulerLock}) and the purge scheduler are registered
+ * only while {@code codehunters.outbox.scheduling.enabled} is {@code true} (the default), so an
+ * application that runs dispatch and purge itself, or in another process, can turn them off.
  *
  * <p>Runs before {@link EventMessagingCoreAutoConfiguration} so the repository is visible to the
  * use case's {@code @ConditionalOnBean}, and after Boot's Jackson auto-configuration. The dedicated
@@ -74,28 +71,12 @@ public class EventMessagingJdbcAutoConfiguration {
   }
 
   /**
-   * Resolves the claim dialect from {@code codehunters.outbox.claim.dialect}. Startup fails when
-   * the value is unknown or {@code auto} meets an unsupported database. Skipped when the
-   * application supplies its own {@link OutboxRepositoryPort}.
-   *
-   * @param dataSource the outbox data source
-   * @param properties the messaging configuration
-   * @return the resolved {@link OutboxDialect}
-   */
-  @Bean
-  @ConditionalOnMissingBean({OutboxDialect.class, OutboxRepositoryPort.class})
-  @ConditionalOnBean(DataSource.class)
-  public OutboxDialect outboxDialect(DataSource dataSource, EventMessagingProperties properties) {
-    return OutboxDialectResolver.resolve(dataSource, properties.claim().dialect());
-  }
-
-  /**
    * Provides the JDBC-backed outbox repository. The mapper is injected by qualifier so Boot's
-   * primary {@link JsonMapper} is never used for, nor displaced by, outbox payloads.
+   * primary {@link JsonMapper} is never used for, nor displaced by, outbox payloads. Startup fails
+   * when the data source reports a database other than PostgreSQL.
    *
    * @param dataSource the target data source
    * @param outboxJsonMapper the dedicated JSON mapper for outbox payloads
-   * @param dialect the resolved claim dialect
    * @param clock the outbox clock
    * @param origin the originating application name
    * @return an {@link OutboxRepositoryPort}
@@ -106,11 +87,11 @@ public class EventMessagingJdbcAutoConfiguration {
   public OutboxRepositoryPort outboxRepositoryPort(
       DataSource dataSource,
       @Qualifier("outboxJsonMapper") JsonMapper outboxJsonMapper,
-      OutboxDialect dialect,
       Clock clock,
       @Value("${spring.application.name:unknown}") String origin) {
+    OutboxDatabaseCheck.requirePostgres(dataSource);
     return new OutboxJdbcAdapter(
-        dataSource, outboxJsonMapper, new OutboxAdapterSettings(origin, dialect, clock));
+        dataSource, outboxJsonMapper, new OutboxAdapterSettings(origin, clock));
   }
 
   /**

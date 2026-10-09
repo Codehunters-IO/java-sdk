@@ -34,7 +34,7 @@ which address is the client?
 
 Chosen option: **Option A**, because it is the only one where the recorded address cannot be chosen
 by the client. Only one header is read, the one the trusted proxies write
-(`codehunters.device.forwarding-header`, `X-Forwarded-For` by default): a proxy passes the other one
+(`codehunters.web.device.forwarding-header`, `X-Forwarded-For` by default): a proxy passes the other one
 through untouched. A hop that is not an IP literal (`unknown`, an obfuscated identifier, garbage)
 stops the walk, and only IP literals are parsed, so no host name is ever resolved.
 

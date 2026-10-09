@@ -5,8 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the audit SDK, bound from the {@code codehunters.audit} prefix. The 2.x {@code
- * vitxo.audit.*} keys are honoured until 5.0.0.
+ * Configuration for the audit SDK, bound from the {@code codehunters.audit} prefix.
  *
  * @param failOnError whether audit failures propagate to the audited call; when {@code true} the
  *     JDBC adapter publishes synchronously, on the caller's thread, and the event of a successful

@@ -11,15 +11,6 @@
       "type": "java.lang.Boolean",
       "defaultValue": false,
       "description": "Whether a failed startup check stops the application: @Auditable methods without a publisher or without aspectjweaver, or an @Auditable expression that cannot be parsed. When false, each problem is logged as an error. Independent of fail-on-error."
-    },
-    {
-      "name": "vitxo.audit.fail-on-error",
-      "type": "java.lang.Boolean",
-      "deprecation": {
-        "level": "warning",
-        "replacement": "codehunters.audit.fail-on-error",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
-      }
     }
   ]
 }

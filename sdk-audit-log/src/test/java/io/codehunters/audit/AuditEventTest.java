@@ -27,7 +27,7 @@ class AuditEventTest {
             Map.of("k", "v"),
             "SUCCESS",
             correlation,
-            "vitxo-ms-test",
+            "order-service",
             now);
 
     assertThat(event.entityType()).isEqualTo("Order");

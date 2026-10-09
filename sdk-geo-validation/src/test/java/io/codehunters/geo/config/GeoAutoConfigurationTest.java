@@ -11,8 +11,6 @@ import io.codehunters.geo.polygon.GeoZoneSource;
 import io.codehunters.geo.polygon.PolygonGeoFence;
 import io.codehunters.geo.postgis.PostgisGeoFence;
 import io.codehunters.geo.postgis.PostgisZoneTable;
-import io.codehunters.geo.sqlserver.SqlServerGeoFence;
-import io.codehunters.geo.sqlserver.SqlServerProcedure;
 import java.time.Duration;
 import java.util.List;
 import javax.sql.DataSource;
@@ -100,109 +98,6 @@ class GeoAutoConfigurationTest {
   }
 
   @Test
-  void should_register_the_sql_server_fence_when_adapter_is_sql_server_with_a_procedure() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server", "codehunters.geo.sql-server.procedure=geo.sp")
-        .run(
-            context ->
-                assertThat(context)
-                    .getBean(GeoFenceValidator.class)
-                    .isInstanceOf(SqlServerGeoFence.class));
-  }
-
-  @Test
-  void should_bind_the_parameter_names_when_they_are_configured() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server",
-            "codehunters.geo.sql-server.procedure=geo.sp",
-            "codehunters.geo.sql-server.parameters.scope=ref",
-            "codehunters.geo.sql-server.parameters.zone-parent=")
-        .run(
-            context ->
-                assertThat(context.getBean(GeoProperties.class).sqlServer().procedure())
-                    .isEqualTo(
-                        new SqlServerProcedure(
-                            "geo.sp",
-                            new SqlServerProcedure.Parameters(
-                                "ref",
-                                "lat",
-                                "lon",
-                                "allowed",
-                                "zone_id",
-                                "zone_type",
-                                "zone_name",
-                                ""))));
-  }
-
-  @Test
-  void should_fail_startup_when_adapter_is_sql_server_without_a_procedure() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues("codehunters.geo.adapter=sql-server")
-        .run(
-            context ->
-                assertThat(context)
-                    .getFailure()
-                    .rootCause()
-                    .hasMessage(
-                        "codehunters.geo.sql-server.procedure is required when"
-                            + " codehunters.geo.adapter=sql-server"));
-  }
-
-  @Test
-  void should_fail_startup_without_echoing_the_name_when_the_procedure_is_not_an_identifier() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server",
-            "codehunters.geo.sql-server.procedure=geo.sp; DROP TABLE zone")
-        .run(
-            context ->
-                assertThat(context)
-                    .getFailure()
-                    .rootCause()
-                    .hasMessage(
-                        "codehunters.geo.sql-server: The procedure name must be an identifier,"
-                            + " optionally schema-qualified"));
-  }
-
-  @Test
-  void should_fail_startup_when_adapter_is_sql_server_and_the_data_source_is_ambiguous() {
-    runner
-        .withUserConfiguration(TwoDataSources.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server", "codehunters.geo.sql-server.procedure=geo.sp")
-        .run(
-            context ->
-                assertThat(context)
-                    .getFailure()
-                    .rootCause()
-                    .hasMessage(
-                        "codehunters.geo.adapter=sql-server needs exactly one DataSource bean,"
-                            + " or a primary one"));
-  }
-
-  @Test
-  void should_fail_startup_when_adapter_is_sql_server_and_spring_jdbc_is_absent() {
-    runner
-        .withClassLoader(new FilteredClassLoader(JdbcClient.class))
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server", "codehunters.geo.sql-server.procedure=geo.sp")
-        .run(
-            context ->
-                assertThat(context)
-                    .getFailure()
-                    .rootCause()
-                    .hasMessage(
-                        "codehunters.geo.adapter=sql-server needs spring-jdbc on the classpath"));
-  }
-
-  @Test
   void should_keep_the_application_geofence_when_one_is_defined() {
     runner
         .withUserConfiguration(OwnFence.class, ZoneSource.class)
@@ -222,48 +117,6 @@ class GeoAutoConfigurationTest {
                 assertThat(context)
                     .doesNotHaveBean(GeoFenceValidator.class)
                     .doesNotHaveBean(GeoProperties.class));
-  }
-
-  @Test
-  void should_default_the_query_timeout_to_two_seconds() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server", "codehunters.geo.sql-server.procedure=geo.sp")
-        .run(
-            context ->
-                assertThat(context.getBean(GeoProperties.class).sqlServer().queryTimeout())
-                    .isEqualTo(Duration.ofSeconds(2)));
-  }
-
-  @Test
-  void should_bind_the_query_timeout_when_it_is_configured() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server",
-            "codehunters.geo.sql-server.procedure=geo.sp",
-            "codehunters.geo.sql-server.query-timeout=5s")
-        .run(
-            context ->
-                assertThat(context.getBean(GeoProperties.class).sqlServer().queryTimeout())
-                    .isEqualTo(Duration.ofSeconds(5)));
-  }
-
-  @Test
-  void should_fail_startup_when_the_query_timeout_is_not_positive() {
-    runner
-        .withUserConfiguration(OneDataSource.class)
-        .withPropertyValues(
-            "codehunters.geo.adapter=sql-server",
-            "codehunters.geo.sql-server.procedure=geo.sp",
-            "codehunters.geo.sql-server.query-timeout=0s")
-        .run(
-            context ->
-                assertThat(context)
-                    .getFailure()
-                    .rootCause()
-                    .hasMessage("codehunters.geo.sql-server.query-timeout must be positive"));
   }
 
   @Test
@@ -373,6 +226,20 @@ class GeoAutoConfigurationTest {
             context ->
                 assertThat(context.getBean(GeoProperties.class).postgis().queryTimeout())
                     .isEqualTo(Duration.ofSeconds(2)));
+  }
+
+  @Test
+  void should_bind_the_postgis_query_timeout_when_it_is_configured() {
+    runner
+        .withUserConfiguration(OneDataSource.class)
+        .withPropertyValues(
+            "codehunters.geo.adapter=postgis",
+            "codehunters.geo.postgis.table=geo.zones",
+            "codehunters.geo.postgis.query-timeout=5s")
+        .run(
+            context ->
+                assertThat(context.getBean(GeoProperties.class).postgis().queryTimeout())
+                    .isEqualTo(Duration.ofSeconds(5)));
   }
 
   @Test

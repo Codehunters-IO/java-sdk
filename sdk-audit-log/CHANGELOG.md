@@ -1,6 +1,20 @@
 # Changelog — sdk-audit-log
 
-## 4.1.0
+## 5.0.0
+
+4.1.0 was never released; its changes ship in 5.0.0.
+
+### Breaking
+- PostgreSQL is the only supported database: the reference DDL for any other database is
+  removed, with its integration tests and Testcontainers driver. See [MIGRATION-5.0.md](MIGRATION-5.0.md).
+- The 2.x `fail-on-error` property alias is removed, with its `EnvironmentPostProcessor`
+  (`AuditLegacyProperties`) and its deprecated configuration metadata: only `codehunters.audit.*`
+  binds.
+- With `sdk-web` on the classpath, use sdk-web 3.0.0: the client IP of audit events follows
+  `codehunters.web.device.*`.
+
+### Removed
+- The dependency on `sdk-support`.
 
 ### Added
 - Startup checks, run once every singleton exists. When a bean declares `@Auditable` methods but
@@ -47,9 +61,6 @@
   auto-configuration are not API.
 - The device context provider names sdk-web 2.0's `io.codehunters.web.device` classes.
 
-### Changed
-- The `vitxo.audit.fail-on-error` alias is honoured until 5.0.0 (was 4.0.0).
-
 ## 3.1.0
 
 ### Added
@@ -68,11 +79,7 @@
 ## 3.0.0
 
 ### Breaking
-- Properties move to `codehunters.audit.*`; `vitxo.audit.fail-on-error` is deprecated and honoured
-  until 4.0.0.
-- Old keys are read the way Boot binds them, so an environment variable may spell a dashed name
-  with or without underscores (`VITXO_AUDIT_FAIL_ON_ERROR` or `VITXO_AUDIT_FAILONERROR`). Only the documented old keys are aliased, and
-  startup lists old keys ignored because the new key is set.
+- Properties move to `codehunters.audit.*`.
 - `errorMessage` holds the exception class name instead of its message.
 - The JDBC publisher bean is `auditEventPublisher` (was `auditEventJdbcAdapter`).
   `AuditEventJdbcAdapter` is synchronous, without `@Async` or `@Transactional`.
@@ -85,8 +92,8 @@
 - Without `fail-on-error`, the success event of a transactional call is written after the
   transaction completes, in its own transaction, instead of inside it.
 - `auditTaskExecutor` and `auditJsonMapper` are not autowiring candidates.
-- The SQL Server reference script moved from `db/migration/V1__create_audit_event_table.sql` to
-  `db/migration/audit/sqlserver/audit_event_create.sql`; Flyway no longer runs it.
+- `db/migration/V1__create_audit_event_table.sql` is no longer shipped; Flyway no longer runs a
+  reference script.
 
 ### Added
 - `AsyncAuditEventPublisher` and `AuditEventRejectionListener`; the `audit.events.rejected`
@@ -137,7 +144,6 @@
   `Mono`.
 - An `Error` from the publisher replaced the method's own exception.
 - `#result` resolved to a parameter named `result` when the method threw.
-- On SQL Server, `event_created_at` was shifted by the JVM's UTC offset.
 - Durations used the wall clock; timestamps used the system default zone.
 - Every event re-parsed its SpEL expressions.
 - The executor did not carry the MDC to its workers and did not wait for queued events on

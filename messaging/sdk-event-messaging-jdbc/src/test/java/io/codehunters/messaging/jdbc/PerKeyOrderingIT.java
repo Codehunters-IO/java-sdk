@@ -34,7 +34,7 @@ class PerKeyOrderingIT {
   @BeforeEach
   void setUp() {
     PostgresTestSupport.truncate();
-    var settings = new OutboxAdapterSettings(ORIGIN, new PostgresOutboxDialect(), CLOCK);
+    var settings = new OutboxAdapterSettings(ORIGIN, CLOCK);
     adapter =
         new OutboxJdbcAdapter(
             PostgresTestSupport.dataSource(), JsonMapper.builder().build(), settings);

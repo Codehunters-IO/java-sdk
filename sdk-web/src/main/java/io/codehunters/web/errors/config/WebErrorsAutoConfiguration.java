@@ -32,7 +32,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * auto-configuration, so Boot's own problem-details handler ({@code
  * spring.mvc.problemdetails.enabled}) backs off. The SDK backs off in turn when the application
  * declares its own {@link ResponseEntityExceptionHandler} bean, or with {@code
- * codehunters.web-errors.enabled=false}.
+ * codehunters.web.errors.enabled=false}.
  *
  * <p>Also replaces Boot's error controller with {@link ProblemErrorController}, and, with Spring
  * Security, offers a {@link ProblemAuthenticationEntryPoint} and a {@link
@@ -46,7 +46,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
     afterName = "io.codehunters.tracing.config.TracingAutoConfiguration")
 @ConditionalOnWebApplication(type = Type.SERVLET)
 @ConditionalOnClass({ResponseEntityExceptionHandler.class, ProblemDetail.class})
-@ConditionalOnBooleanProperty(name = "codehunters.web-errors.enabled", matchIfMissing = true)
+@ConditionalOnBooleanProperty(name = "codehunters.web.errors.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(WebErrorsProperties.class)
 public class WebErrorsAutoConfiguration {
 

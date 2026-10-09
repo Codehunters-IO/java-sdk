@@ -1,4 +1,2 @@
-/**
- * Spring Boot auto-configuration, configuration properties and legacy aliases for user-security.
- */
+/** Spring Boot auto-configuration and configuration properties for user-security. */
 package io.codehunters.security.config;

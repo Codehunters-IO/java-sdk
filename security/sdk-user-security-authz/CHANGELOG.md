@@ -1,5 +1,18 @@
 # Changelog — sdk-user-security-authz
 
+## 5.0.0
+
+### Breaking
+- Requires `sdk-user-security` 5.0.0. See [MIGRATION-5.0.md](MIGRATION-5.0.md).
+
+### Removed
+- The `keycloak.policy-enforcer.*`, `keycloak.host` and `keycloak.realm` aliases. Only
+  `codehunters.security.authz.*` and `codehunters.security.url` / `realm` are read; an old key is
+  ignored.
+- `KeycloakAuthzLegacyProperties`, its `spring.factories` entry and the deprecated `keycloak.*`
+  configuration metadata.
+- The dependency on `sdk-support`.
+
 ## 4.0.0
 
 ### Breaking
@@ -7,7 +20,7 @@
   `io.codehunters.security.config` (it is an `api` dependency, so its new packages reach
   consumers). See [sdk-user-security MIGRATION-4.0.md](../sdk-user-security/MIGRATION-4.0.md).
 - The filter moved to `io.codehunters.security.authz.servlet`; the auto-configuration, the
-  properties and the legacy aliases moved to `io.codehunters.security.authz.config`. See
+  properties and the alias post-processor moved to `io.codehunters.security.authz.config`. See
   [MIGRATION-4.0.md](MIGRATION-4.0.md).
 
 ### Changed

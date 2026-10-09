@@ -8,31 +8,68 @@ implementation(platform("io.codehunters:sdk-bom:<version>"))
 implementation("io.codehunters:sdk-parameter")
 ```
 
-The application brings `spring-jdbc` (for example through `spring-boot-starter-jdbc`) and its
-JDBC driver.
+The application brings `spring-jdbc` (for example through `spring-boot-starter-jdbc`) and the
+PostgreSQL JDBC driver. PostgreSQL is the only supported database.
+
+## The table
+
+The SDK reads the table and never creates or writes it. The reference DDL ships in the jar at
+`db/migration/parameter/postgresql/parameter_create.sql`; copy it into your own migrations (the
+file has no Flyway version prefix, so a `classpath:db/migration` scan ignores it). It needs
+PostgreSQL 13 or later for `gen_random_uuid()`; on 12 or earlier run
+`CREATE EXTENSION IF NOT EXISTS pgcrypto;` first:
+
+```sql
+CREATE TABLE parameters (
+    id          UUID         NOT NULL DEFAULT gen_random_uuid(),
+    module      VARCHAR(64)  NOT NULL,
+    submodule   VARCHAR(64)  NOT NULL DEFAULT '',
+    name        VARCHAR(128) NOT NULL,
+    value       TEXT         NULL,
+    type        VARCHAR(16)  NOT NULL,
+    enabled     BOOLEAN      NOT NULL DEFAULT TRUE,
+    description VARCHAR(500) NULL,
+    created_by  UUID         NOT NULL,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_by  UUID         NULL,
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ  NULL,
+    CONSTRAINT pk_parameters PRIMARY KEY (id),
+    CONSTRAINT ck_parameters_type CHECK (type IN ('STRING', 'INTEGER', 'DECIMAL', 'BOOLEAN', 'JSON'))
+);
+
+CREATE UNIQUE INDEX ux_parameters_module_submodule_name
+    ON parameters (module, submodule, name)
+    WHERE deleted_at IS NULL;
+```
+
+- Rows with `enabled = false` or a `deleted_at` are never returned.
+- The empty submodule is `''`, not `NULL`: a `NULL` submodule never matches.
+- `type` holds a `ParameterType` name; another value maps to `null` (see Failures).
+- A different table name or schema is set with `codehunters.parameter.table-name`; the column
+  names are fixed.
 
 ## Usage
 
 `ParameterClient`, `Parameter`, `ParameterModule`, `ParameterType` and the exceptions are in
-`io.codehunters.parameter`. Upgrading from 2.x: see [MIGRATION-3.0.md](MIGRATION-3.0.md).
+`io.codehunters.parameter`. Upgrading from 3.x: see [MIGRATION-4.0.md](MIGRATION-4.0.md); from
+2.x: [MIGRATION-3.0.md](MIGRATION-3.0.md).
 
 ```java
 import io.codehunters.parameter.Parameter;
 import io.codehunters.parameter.ParameterModule;
 
-Optional<Parameter> max = parameters.lookup(ParameterModule.RAFFLES, "tickets", "MAX");
+ParameterModule orders = ParameterModule.of("ORDERS");
+
+Optional<Parameter> max = parameters.lookup(orders, "checkout", "MAX_ITEMS");
 int limit = max.map(Parameter::asInteger).orElse(100);
 
 Map<String, String> settings = parameters.asMap(ParameterModule.of("LOYALTY"), "rewards");
 ```
 
-- `ParameterModule` is a record. The constants (`GENERAL`, `AUTH`, `CONFIG_SERVER`, `FILE_SHARE`,
-  `MANAGEMENT`, `NOTIFICATIONS`, `PAYMENT`, `RAFFLES`) cover the modules known at release;
-  `ParameterModule.of(code)` reads any other. For a known code it returns the constant itself,
-  so `==` against a constant holds for rows read by the SDK; prefer `equals`, since an unknown
-  code is a new instance each time. Codes are trimmed and case-sensitive: `of("auth")` is not
-  `AUTH`. On a database whose collation ignores case, a query for `of("auth")` can return rows
-  whose module is `AUTH`.
+- `ParameterModule` is a record holding the module code. The SDK defines no codes: name yours
+  with `ParameterModule.of(code)`, ideally as constants of your application. Compare modules with
+  `equals`. Codes are trimmed and case-sensitive: `of("auth")` is not `of("AUTH")`.
 - Jackson writes a `ParameterModule` as `{"code":"AUTH"}`, not as the 1.x string `"AUTH"`.
 - A `null` element in the collections given to `findByModules` or `findByModuleAndSubmodules`
   throws `IllegalArgumentException`.
@@ -65,9 +102,9 @@ which may be a secret.
 | `codehunters.parameter.cache-ttl` | `0s` | How long answers are cached; `0s` disables the cache |
 
 An invalid table name or a negative TTL fails at startup. The table name is an unquoted
-identifier, so the database's rules for unquoted names apply: a reserved word such as `user`
-fails at query time, and Postgres folds the name to lower case (a table created with a quoted
-mixed-case name is not found).
+identifier, so PostgreSQL's rules for unquoted names apply: a reserved word such as `user` fails
+at query time, and the name is folded to lower case (a table created with a quoted mixed-case
+name is not found).
 
 With a positive `cache-ttl`, `CachingParameterClient` keeps each answer (absent parameters
 included) for that long, per method and arguments:
@@ -96,4 +133,5 @@ Database errors throw `ParameterAccessException` wrapping Spring's `DataAccessEx
 unknown `type` value in a row is logged and mapped to `null`; reading such a parameter with a
 typed accessor throws `ParameterTypeMismatchException`.
 
-Migrating from 1.x: see [MIGRATION-2.0.md](MIGRATION-2.0.md).
+Migrating from 3.x: see [MIGRATION-4.0.md](MIGRATION-4.0.md). From 1.x:
+[MIGRATION-2.0.md](MIGRATION-2.0.md).

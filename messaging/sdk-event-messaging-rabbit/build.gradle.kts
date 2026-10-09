@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "8.0.0"
+version = "9.0.0"
 description = "RabbitMQ publisher for the transactional outbox."
 
 codehuntersPackages {
@@ -17,6 +17,8 @@ dependencies {
     compileOnly("org.springframework:spring-context")
     compileOnly(libs.lombok)
     annotationProcessor(libs.lombok)
+    testCompileOnly(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 
     testImplementation(project(":sdk-event-messaging-jdbc"))
     testImplementation(project(":sdk-event-messaging-kafka"))
@@ -29,5 +31,4 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-rabbitmq")
-    testRuntimeOnly("com.h2database:h2")
 }

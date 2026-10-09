@@ -1,23 +1,23 @@
 # sdk-event-messaging-jdbc
 
-JDBC store for the transactional outbox: the `outbox_message` repository, claim dialects, and the
+PostgreSQL store for the transactional outbox: the `outbox_message` repository and the
 ShedLock-protected dispatch and purge schedulers. Model and dispatch semantics are described in
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:8.0.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.0.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.0.0") // or -kafka
 ```
 
 Brings `-core` and ShedLock (`shedlock-spring`, `shedlock-provider-jdbc-template`). The application
-supplies a `DataSource` (`spring-boot-starter-jdbc`) and Jackson 3 (`tools.jackson`).
+supplies a PostgreSQL `DataSource` (`spring-boot-starter-jdbc` and the PostgreSQL driver) and
+Jackson 3 (`tools.jackson`).
 
 ## What it registers
 
 | Bean | Condition | Notes |
 |---|---|---|
 | `outboxJsonMapper` | always | Serializes payloads; not a default candidate, so the application's `JsonMapper` stays the only by-type match |
-| `OutboxDialect` | `DataSource` bean | From `claim.dialect` |
 | `OutboxRepositoryPort` (`OutboxJdbcAdapter`) | `DataSource` bean | |
 | `LockProvider` (`JdbcTemplateLockProvider`, DB time) | `DataSource` bean | Table `shedlock` |
 | `OutboxScheduler` | `SendOutboxMessagesPort` bean (a transport is active) and `scheduling.enabled` | Dispatch every `task.fixed-delay` |
@@ -35,23 +35,23 @@ repository, `SendOutboxMessagesPort` and `LockProvider` stay. Call `SendOutboxMe
 from your own trigger, one instance at a time (ShedLock or equivalent), and purge `PUBLISHED` rows
 yourself or in the process that keeps scheduling on.
 
-## Dialects
+## Database
 
-| `claim.dialect` | Database | Claim |
-|---|---|---|
-| `auto` (default) | Read once from the JDBC metadata | PostgreSQL, Microsoft SQL Server and H2 are recognised; any other product fails startup |
-| `postgresql` | PostgreSQL | `FOR UPDATE SKIP LOCKED` |
-| `sqlserver` | SQL Server | `UPDLOCK, READPAST` with `OUTPUT` |
-| `generic` | Others (H2, tests) | Plain `UPDATE`; not atomic under concurrent dispatchers, rely on ShedLock |
+PostgreSQL only. The claim is one statement: it locks the candidate rows with `FOR UPDATE SKIP
+LOCKED`, so concurrent dispatchers receive disjoint rows, marks them `IN_FLIGHT` and returns them.
+A stale `IN_FLIGHT` reclaim counts as an attempt only when its send had started, and a row is
+skipped while an earlier row with the same `(origin, topic, message_key)` is `PENDING`, `IN_FLIGHT`
+or `FAILED`. At startup the SDK reads the database product name and fails when it is not
+PostgreSQL; when the database cannot be reached at startup the check is skipped with a warning.
 
-An unknown value, or `auto` with an unsupported or unreadable database, fails startup naming
-`codehunters.outbox.claim.dialect`. Every dialect counts a stale `IN_FLIGHT` reclaim as an attempt
-and skips a row while an earlier row with the same `(origin, topic, message_key)` is `PENDING`,
-`IN_FLIGHT` or `FAILED`.
+The check reads the JDBC driver's product name (`PostgreSQL` from pgjdbc), not the server's: Amazon
+Redshift, CockroachDB or YugabyteDB through pgjdbc pass it but may fail at the first claim, which
+needs `FOR UPDATE ... SKIP LOCKED`, and a vendor driver that reports another name (EDB's
+`EnterpriseDB`) is rejected.
 
-**MySQL and MariaDB are not supported.** The generic claim fails there at dispatch time (error 1093
-on the self-referencing update, then the `FETCH FIRST` syntax), so `auto` and `generic` read the
-product name and fail startup on either database instead of failing every dispatch.
+Tests that run the outbox on an embedded H2 fail at startup. Set `codehunters.outbox.enabled=false`
+in the test profile, use a Testcontainers PostgreSQL, or declare an `OutboxRepositoryPort` test bean
+(the JDBC repository and its check back off). See [MIGRATION-9.0](../MIGRATION-9.0.md#tests-on-h2).
 
 ## DDL
 
@@ -60,15 +60,8 @@ changeset author and id; including them from the jar would change checksums on e
 
 | File | Use |
 |---|---|
-| `db/migration/outbox/postgresql/outbox_message_create.sql` | PostgreSQL: `outbox_message` with `seq`, indexes, `shedlock` |
-| `db/migration/outbox/outbox_message_create.sql` | SQL Server: same, for new installs |
-| `db/migration/outbox/sqlserver/outbox_message_add_seq.sql` | SQL Server tables created before 6.0 |
-| `db/migration/outbox/sqlserver/outbox_message_add_send_started_at.sql` | SQL Server tables created by 6.x (or after `add_seq`) |
-| `db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql` | PostgreSQL tables created by 6.x |
-
-**SQL Server:** apply `outbox_message_add_seq.sql` **before** deploying 6.0. The claim orders by
-`seq`; without the column every dispatch fails. Existing rows get `seq` in physical order, so drain
-the outbox first if the order of queued rows matters.
+| `db/migration/outbox/postgresql/outbox_message_create.sql` | `outbox_message` with `seq`, indexes, `shedlock` |
+| `db/migration/outbox/postgresql/outbox_message_add_send_started_at.sql` | Tables created by 6.x |
 
 **7.0:** apply `outbox_message_add_send_started_at.sql` **before** deploying 7.0. The claim reads and
 clears `send_started_at`, the mark written before each publish; without it every claim fails. The
@@ -85,7 +78,6 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 
 | Key | Default | Notes |
 |---|---|---|
-| `claim.dialect` | `auto` | `auto`, `postgresql`, `sqlserver`, `generic` |
 | `scheduling.enabled` | `true` | `false` drops the dispatch and purge schedulers and `@EnableScheduling` / `@EnableSchedulerLock` |
 | `task.fixed-delay` | `5000` | ms between dispatch ticks |
 | `task.lock-name` | `outbox-${spring.application.name}` | ShedLock name |
@@ -106,26 +98,31 @@ are never touched.
 
 | Situation | Result |
 |---|---|
-| Unsupported database with `auto`, MySQL/MariaDB with `auto` or `generic`, unknown dialect | Startup fails |
 | Dispatch or purge throws | Logged with the exception class only; the next tick runs normally |
-| Instance dies with a claimed batch | Rows are reclaimed after `claim.ttl-ms`, counting one attempt |
+| Instance dies with a claimed batch | Rows are reclaimed after `claim.ttl-ms`; only rows whose send had started count one attempt |
 | `outbox_message` lacks `seq` | Every claim fails until the DDL is applied |
 
 ## Packages
 
 | Package | Contents |
 |---|---|
-| `io.codehunters.messaging.jdbc` | `OutboxJdbcAdapter`, `OutboxDialect` and its implementations |
+| `io.codehunters.messaging.jdbc` | `OutboxJdbcAdapter`, `OutboxAdapterSettings` |
 | `io.codehunters.messaging.jdbc.scheduler` | Dispatch and purge schedulers |
 | `io.codehunters.messaging.jdbc.metrics` | `OutboxFailedGauge` |
 | `io.codehunters.messaging.jdbc.config` | Auto-configuration |
 
+## Migrating from 8.x
+
+The store supports PostgreSQL only, `claim.dialect` and the dialect classes are gone, and the old
+`outbox.*` keys are ignored; see [MIGRATION-9.0.md](../MIGRATION-9.0.md).
+
 ## Migrating from 7.x
 
-Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md), then
+[MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 5.x
 
 Replace `sdk-event-messaging` with this artifact plus a transport, rename `outbox.task.*` /
-`outbox.purge.*` / `outbox.claim.*` to `codehunters.outbox.*`, and apply the DDL above. Details in
+`outbox.purge.*` / `outbox.claim.ttl-ms` to `codehunters.outbox.*`, and apply the DDL above. Details in
 [MIGRATION-6.0.md](../MIGRATION-6.0.md).

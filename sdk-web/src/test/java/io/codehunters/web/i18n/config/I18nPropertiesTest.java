@@ -32,7 +32,9 @@ class I18nPropertiesTest {
   @Test
   void should_bind_several_basenames_when_given_as_a_comma_separated_list() {
     I18nProperties properties =
-        bind(Map.of("codehunters.i18n.basename", "classpath:i18n/messages,classpath:i18n/errors"));
+        bind(
+            Map.of(
+                "codehunters.web.i18n.basename", "classpath:i18n/messages,classpath:i18n/errors"));
 
     assertThat(properties.basename())
         .containsExactly("classpath:i18n/messages", "classpath:i18n/errors");
@@ -41,7 +43,7 @@ class I18nPropertiesTest {
   @Test
   void should_bind_supported_locales_when_written_as_language_tags_or_java_locales() {
     I18nProperties properties =
-        bind(Map.of("codehunters.i18n.supported-locales", "es,en-US,pt_BR"));
+        bind(Map.of("codehunters.web.i18n.supported-locales", "es,en-US,pt_BR"));
 
     assertThat(properties.supportedLocales())
         .containsExactly(SPANISH, Locale.of("en", "US"), Locale.of("pt", "BR"));
@@ -49,24 +51,24 @@ class I18nPropertiesTest {
 
   @Test
   void should_reject_supported_locales_when_they_do_not_include_the_default_locale() {
-    assertThatThrownBy(() -> bind(Map.of("codehunters.i18n.supported-locales", "en,pt")))
+    assertThatThrownBy(() -> bind(Map.of("codehunters.web.i18n.supported-locales", "en,pt")))
         .isInstanceOf(BindException.class)
         .rootCause()
-        .hasMessageContaining("codehunters.i18n.supported-locales")
-        .hasMessageContaining("codehunters.i18n.default-locale");
+        .hasMessageContaining("codehunters.web.i18n.supported-locales")
+        .hasMessageContaining("codehunters.web.i18n.default-locale");
   }
 
   @Test
   void should_reject_header_name_when_it_is_not_an_http_token() {
-    assertThatThrownBy(() -> bind(Map.of("codehunters.i18n.header-name", "X Locale")))
+    assertThatThrownBy(() -> bind(Map.of("codehunters.web.i18n.header-name", "X Locale")))
         .isInstanceOf(BindException.class)
         .rootCause()
-        .hasMessageContaining("codehunters.i18n.header-name");
+        .hasMessageContaining("codehunters.web.i18n.header-name");
   }
 
   @Test
   void should_reject_encoding_when_charset_is_unknown() {
-    assertThatThrownBy(() -> bind(Map.of("codehunters.i18n.encoding", "no-such-charset")))
+    assertThatThrownBy(() -> bind(Map.of("codehunters.web.i18n.encoding", "no-such-charset")))
         .isInstanceOf(BindException.class);
   }
 
@@ -75,7 +77,7 @@ class I18nPropertiesTest {
     assertThatThrownBy(
             () -> new I18nProperties(true, List.of(), SPANISH, List.of(), "X-Locale", null, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.i18n.basename");
+        .hasMessageContaining("codehunters.web.i18n.basename");
   }
 
   @Test
@@ -85,7 +87,7 @@ class I18nPropertiesTest {
                 new I18nProperties(
                     true, List.of("classpath:a", " "), SPANISH, List.of(), "X-Locale", null, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.i18n.basename");
+        .hasMessageContaining("codehunters.web.i18n.basename");
   }
 
   @Test
@@ -95,7 +97,7 @@ class I18nPropertiesTest {
                 new I18nProperties(
                     true, List.of("classpath:a"), Locale.ROOT, List.of(), "X-Locale", null, false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.i18n.default-locale");
+        .hasMessageContaining("codehunters.web.i18n.default-locale");
   }
 
   @Test
@@ -111,7 +113,7 @@ class I18nPropertiesTest {
                     null,
                     false))
         .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.i18n.supported-locales");
+        .hasMessageContaining("codehunters.web.i18n.supported-locales");
   }
 
   @Test
@@ -136,6 +138,6 @@ class I18nPropertiesTest {
 
   private static I18nProperties bind(Map<String, String> values) {
     return new Binder(new MapConfigurationPropertySource(values))
-        .bindOrCreate("codehunters.i18n", I18nProperties.class);
+        .bindOrCreate("codehunters.web.i18n", I18nProperties.class);
   }
 }

@@ -1,5 +1,23 @@
 # Changelog — sdk-parameter
 
+## 4.0.0
+
+PostgreSQL only. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
+
+### Breaking
+- `ParameterModule` defines no constants: `GENERAL`, `AUTH`, `CONFIG_SERVER`, `FILE_SHARE`,
+  `MANAGEMENT`, `NOTIFICATIONS`, `PAYMENT` and `RAFFLES` are gone. `ParameterModule.of(code)`
+  takes any code and always returns a new instance, so compare modules with `equals`.
+
+### Added
+- Reference PostgreSQL DDL for the parameters table, in the jar at
+  `db/migration/parameter/postgresql/parameter_create.sql` and in the README.
+
+### Removed
+- SQL Server support: its integration test, the Testcontainers SQL Server and driver test
+  dependencies, and the SQL Server notes in `ParameterRowMapper`. PostgreSQL is the only supported
+  database.
+
 ## 3.0.0
 
 ### Breaking

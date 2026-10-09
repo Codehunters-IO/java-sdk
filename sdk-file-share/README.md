@@ -57,8 +57,6 @@ any user info are hidden. Do not log `uploadUrl()` or
 | `codehunters.file-share.auth.principal` | `codehunters-file-share` | Name the token is cached under |
 | `codehunters.file-share.auth.allow-insecure-http` | `false` | Allows sending the token to an `http` base URL (for example inside a mesh that adds mTLS) |
 
-The 1.x keys `vitxo.file-share.*` still work until 4.0.0 and log a deprecation warning.
-
 ### Authentication
 
 ```yaml
@@ -109,7 +107,6 @@ in your own interceptor.
 - File name and content type checks reject ASCII control characters and path separators only.
   Unicode format characters (for example bidi overrides), line separators and look-alike slashes
   pass; the service must not trust the name for paths or headers.
-- The `vitxo.file-share.*` aliases are applied once, after the configuration files load. Keys
-  added later through `@PropertySource` are not aliased; use the new names there.
 
-Upgrading from 1.x: see [MIGRATION-2.0.md](MIGRATION-2.0.md).
+Upgrading from 1.x: see [MIGRATION-2.0.md](MIGRATION-2.0.md), [MIGRATION-3.0.md](MIGRATION-3.0.md)
+and [MIGRATION-4.0.md](MIGRATION-4.0.md).
