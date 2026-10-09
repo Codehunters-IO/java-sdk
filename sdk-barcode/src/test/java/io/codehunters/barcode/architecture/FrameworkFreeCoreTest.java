@@ -21,7 +21,8 @@ class FrameworkFreeCoreTest {
         .resideInAnyPackage(
             "io.codehunters.barcode",
             "io.codehunters.barcode.render",
-            "io.codehunters.barcode.read")
+            "io.codehunters.barcode.read",
+            "io.codehunters.barcode.internal")
         .should()
         .onlyDependOnClassesThat()
         .resideInAnyPackage(
@@ -30,7 +31,8 @@ class FrameworkFreeCoreTest {
             "com.google.zxing..",
             "io.codehunters.barcode",
             "io.codehunters.barcode.render",
-            "io.codehunters.barcode.read")
+            "io.codehunters.barcode.read",
+            "io.codehunters.barcode.internal")
         .check(CLASSES);
   }
 }

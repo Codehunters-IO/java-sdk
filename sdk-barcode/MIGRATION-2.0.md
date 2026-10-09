@@ -20,7 +20,7 @@ package-private in 1.x and are not API in 2.0 either: they may change in any rel
 | `io.codehunters.barcode.DecodePlan` | `io.codehunters.barcode.read.DecodePlan` |
 | `io.codehunters.barcode.Luminance` | `io.codehunters.barcode.read.Luminance` |
 
-`BarcodeFormat.zxing()` and `ErrorCorrection.zxing()` are now public so the render package can read
-them. They return ZXing types, which are not on your compile classpath; do not call them.
+`BarcodeFormat` and `ErrorCorrection` no longer carry ZXing types: the mapping lives in the internal
+`io.codehunters.barcode.internal` package, which is not API.
 
 Only imports change; properties are unchanged. In the IDE, "organise imports" fixes the rest.

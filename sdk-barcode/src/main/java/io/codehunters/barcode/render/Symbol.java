@@ -7,6 +7,7 @@ import com.google.zxing.common.BitMatrix;
 import com.google.zxing.pdf417.encoder.Dimensions;
 import io.codehunters.barcode.BarcodeFormat;
 import io.codehunters.barcode.BarcodeRequest;
+import io.codehunters.barcode.internal.ZxingMapping;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -37,7 +38,8 @@ public final class Symbol {
     BarcodeFormat format = request.format();
     try {
       BitMatrix modules =
-          new MultiFormatWriter().encode(request.content(), format.zxing(), 0, 0, hints(request));
+          new MultiFormatWriter()
+              .encode(request.content(), ZxingMapping.toZxing(format), 0, 0, hints(request));
       return new Symbol(modules, request.margin(), !format.isTwoDimensional());
     } catch (WriterException | IllegalArgumentException e) {
       // ZXing messages may quote the content; the cause is dropped on purpose.
@@ -89,7 +91,9 @@ public final class Symbol {
     hints.put(EncodeHintType.MARGIN, 0);
     hints.put(EncodeHintType.CHARACTER_SET, StandardCharsets.UTF_8.name());
     switch (request.format()) {
-      case QR_CODE -> hints.put(EncodeHintType.ERROR_CORRECTION, request.errorCorrection().zxing());
+      case QR_CODE ->
+          hints.put(
+              EncodeHintType.ERROR_CORRECTION, ZxingMapping.toZxing(request.errorCorrection()));
       case DATA_MATRIX -> hints.put(EncodeHintType.DATA_MATRIX_COMPACT, Boolean.TRUE);
       case PDF_417 -> hints.put(EncodeHintType.PDF417_DIMENSIONS, PDF417_DIMENSIONS);
       default -> {}
