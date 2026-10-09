@@ -5,6 +5,7 @@ import com.rabbitmq.client.ShutdownSignalException;
 import io.codehunters.messaging.MessagePublishException;
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.W3cTraceParent;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +31,10 @@ import org.springframework.amqp.rabbit.core.RabbitOperations;
  * MessagePublisherPort#OUTBOX_ID_HEADER} header to the outbox row id; consumers MUST dedupe on it.
  * It also sets the {@value MessagePublisherPort#TRACEPARENT_HEADER} header to the trace context
  * stored with the row, so the consumer continues the trace of the work that created it rather than
- * the dispatcher's; {@value MessagePublisherPort#LEGACY_TRACEPARENT_HEADER} only when asked to. The
- * dispatcher publishes a claimed batch sequentially, so deployments MUST keep {@code batchSize ×
- * confirmTimeout < claim.ttlMs}.
+ * the dispatcher's; {@value MessagePublisherPort#LEGACY_TRACEPARENT_HEADER} only when asked to. A
+ * stored value that is not a valid {@link W3cTraceParent} is not sent. The dispatcher publishes a
+ * claimed batch sequentially, so deployments MUST keep {@code batchSize × confirmTimeout <
+ * claim.ttlMs}.
  */
 @Slf4j
 public class RabbitMessagePublisherAdapter implements MessagePublisherPort {
@@ -106,9 +108,9 @@ public class RabbitMessagePublisherAdapter implements MessagePublisherPort {
   }
 
   // The stored context is sent as it is: the consumer's span then parents on the span that created
-  // the row, not on the scheduled dispatch that happens to publish it.
+  // the row, not on the scheduled dispatch that happens to publish it. An invalid one is not sent.
   private void setTraceHeaders(MessageProperties properties, String traceparent) {
-    if (traceparent == null || traceparent.isBlank()) {
+    if (!W3cTraceParent.isValid(traceparent)) {
       return;
     }
     properties.setHeader(TRACEPARENT_HEADER, traceparent);

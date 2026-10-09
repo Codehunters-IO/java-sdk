@@ -3,6 +3,7 @@ package io.codehunters.messaging.kafka;
 import io.codehunters.messaging.MessagePublishException;
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.W3cTraceParent;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
@@ -23,7 +24,8 @@ import org.springframework.kafka.core.KafkaTemplate;
  * header. It also carries the {@value MessagePublisherPort#TRACEPARENT_HEADER} header with the
  * trace context stored with the row, so the consumer continues the trace of the work that created
  * it rather than the dispatcher's; {@value MessagePublisherPort#LEGACY_TRACEPARENT_HEADER} only
- * when asked to. The outbox template does not enable Boot's observation, so nothing else writes it.
+ * when asked to. A stored value that is not a valid {@link W3cTraceParent} is not sent. The outbox
+ * template does not enable Boot's observation, so nothing else writes it.
  *
  * <p>Every send, including any wait inside {@link KafkaTemplate#send} for metadata or buffer space,
  * blocks for at most {@code sendTimeout}. The dispatcher publishes a claimed batch sequentially, so
@@ -105,9 +107,9 @@ public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
   }
 
   // The stored context is sent as it is: the consumer's span then parents on the span that created
-  // the row, not on the scheduled dispatch that happens to publish it.
+  // the row, not on the scheduled dispatch that happens to publish it. An invalid one is not sent.
   private void addTraceHeaders(ProducerRecord<String, String> record, String traceparent) {
-    if (traceparent == null || traceparent.isBlank()) {
+    if (!W3cTraceParent.isValid(traceparent)) {
       return;
     }
     record.headers().add(TRACEPARENT_HEADER, utf8(traceparent));

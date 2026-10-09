@@ -3,6 +3,7 @@ package io.codehunters.messaging.jdbc;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.OutboxStatus;
+import io.codehunters.messaging.W3cTraceParent;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -26,7 +27,8 @@ import tools.jackson.databind.json.JsonMapper;
  * a claimed row, including the send mark written before each publish, are fenced by its claim
  * marker, so a worker whose claim was taken over after the TTL cannot overwrite the new owner's
  * state. The {@code traceparent} captured with each message is stored and returned by the claim, so
- * the publisher can continue the trace that created the row.
+ * the publisher can continue the trace that created the row. A value that is not a valid {@link
+ * W3cTraceParent} is stored as null instead of failing the business transaction.
  */
 @Slf4j
 public class OutboxJdbcAdapter implements OutboxRepositoryPort {
@@ -191,7 +193,7 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
         .param("publishedAt", null)
         .param("claimedAt", null)
         .param("claimedBy", null)
-        .param("traceparent", outboxMessage.getTraceparent())
+        .param("traceparent", W3cTraceParent.validOrNull(outboxMessage.getTraceparent()))
         .update();
     log.debug("[END] - saved outbox message with id: {}", id);
   }

@@ -2,12 +2,14 @@ package io.codehunters.messaging.factory;
 
 import io.codehunters.messaging.EventMessage;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.W3cTraceParent;
 
 /**
  * Wraps an {@link EventMessage} into an {@link OutboxMessage} ready to persist, stamping the
  * configured origin, topic and key, and the current W3C {@code traceparent} from the event-message
- * factory's {@link TraceIdSource} when it belongs to the trace the event names. Build messages on
- * the thread that does the work, so the stored context is that work's.
+ * factory's {@link TraceIdSource} when it is a valid {@link W3cTraceParent} and its trace id is the
+ * one the event names. Build messages on the thread that does the work, so the stored context is
+ * that work's.
  */
 public class OutboxEventFactory {
 
@@ -130,7 +132,7 @@ public class OutboxEventFactory {
   }
 
   // An explicit trace id that is not the current trace gets no context: the broker header must
-  // name the same trace as the envelope.
+  // name the same trace as the envelope. An invalid current context is not stored either.
   private String traceParentOf(String traceId) {
     if (traceId == null) {
       return null;
@@ -138,7 +140,9 @@ public class OutboxEventFactory {
     return eventMessageFactory
         .traceIdSource()
         .currentTraceParent()
-        .filter(traceparent -> traceparent.contains("-" + traceId + "-"))
+        .flatMap(W3cTraceParent::parse)
+        .filter(traceparent -> traceparent.traceId().equals(traceId))
+        .map(W3cTraceParent::value)
         .orElse(null);
   }
 }

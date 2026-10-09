@@ -2,11 +2,11 @@ package io.codehunters.messaging.tracing;
 
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.W3cTraceParent;
 import io.micrometer.tracing.CurrentTraceContext;
 import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import java.util.Optional;
-import java.util.regex.Pattern;
 
 /**
  * {@link MessagePublisherPort} decorator that publishes each outbox message with the trace context
@@ -15,15 +15,10 @@ import java.util.regex.Pattern;
  * observation started inside it (for example a template observation) becomes a child of the stored
  * span. The dispatcher's context is restored afterwards, also when the publish fails.
  *
- * <p>A message without a stored context, or with one that is not a valid W3C {@code traceparent},
- * is published in the current context. Publishes without an outbox message are delegated as they
- * are.
+ * <p>A message without a stored context, or with one that is not a valid {@link W3cTraceParent}, is
+ * published in the current context. Publishes without an outbox message are delegated as they are.
  */
 public final class TracedMessagePublisher implements MessagePublisherPort {
-
-  private static final Pattern TRACEPARENT =
-      Pattern.compile("[0-9a-f]{2}-([0-9a-f]{32})-([0-9a-f]{16})-([0-9a-f]{2})");
-  private static final Pattern ALL_ZEROS = Pattern.compile("0+");
 
   private final MessagePublisherPort delegate;
   private final Tracer tracer;
@@ -62,20 +57,15 @@ public final class TracedMessagePublisher implements MessagePublisherPort {
   }
 
   private Optional<TraceContext> storedContext(String traceparent) {
-    var fields = traceparent == null ? null : TRACEPARENT.matcher(traceparent);
-    if (fields == null || !fields.matches() || isAllZeros(fields.group(1), fields.group(2))) {
-      return Optional.empty();
-    }
-    return Optional.of(
-        tracer
-            .traceContextBuilder()
-            .traceId(fields.group(1))
-            .spanId(fields.group(2))
-            .sampled((Integer.parseInt(fields.group(3), 16) & 1) == 1)
-            .build());
+    return W3cTraceParent.parse(traceparent).map(this::traceContextOf);
   }
 
-  private static boolean isAllZeros(String traceId, String spanId) {
-    return ALL_ZEROS.matcher(traceId).matches() || ALL_ZEROS.matcher(spanId).matches();
+  private TraceContext traceContextOf(W3cTraceParent stored) {
+    return tracer
+        .traceContextBuilder()
+        .traceId(stored.traceId())
+        .spanId(stored.spanId())
+        .sampled(stored.sampled())
+        .build();
   }
 }
