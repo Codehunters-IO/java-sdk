@@ -7,6 +7,33 @@
   (`FileShareLegacyProperties`) and their deprecated configuration metadata: only
   `codehunters.file-share.*` binds. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
 
+- `FileShareClient` has a new abstract method, `upload(PresignedUploadTicket, InputStream, long)`:
+  your own implementations must add it.
+- `RestClientFileShareAdapter` is no longer public, nor is its `withContentClient`; build the
+  client with `new RestFileShareClients(api, content, upload).client(policy, limits)`.
+  `RestClientFileShareAdapter.MAX_DOWNLOAD_SIZE_LIMIT` moves to `TransferLimits`.
+- `FileShareProperties` gains two components (`uploadIdleTimeout`, `maxUploadSize`): code calling
+  its constructor changes.
+
+### Changed
+- Client credentials go through Spring Security's `OAuth2ClientHttpRequestInterceptor` instead of
+  a hand-written interceptor, with the application's `OAuth2AuthorizedClientManager` when it has
+  one that works outside an HTTP request, and the SDK's own otherwise.
+
+### Added
+- `FileShareClient.upload(ticket, content, contentLength)`: the signed `PUT` with the ticket's
+  required headers and a fixed `Content-Length`, through a new `fileShareUploadRestClient` without
+  the service token, application interceptors or redirects. Capped by
+  `codehunters.file-share.max-upload-size` (default `5GB`); `upload-idle-timeout` (default `30s`).
+- `PresignedUploadTicket.requiredHeaders()`.
+- `io.codehunters.fileshare.testing.InMemoryFileShareClient`, an in-memory `FileShareClient` for
+  tests (test-only, never auto-configured).
+- `RestFileShareClients` (bean `fileShareRestClients`) and `TransferLimits` in
+  `io.codehunters.fileshare.http`.
+
+### Behaviour changes
+- A 403 from file-share no longer drops the cached token; a 401 still does.
+
 ### Removed
 - The dependency on `sdk-support`.
 
