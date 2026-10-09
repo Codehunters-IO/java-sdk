@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.0.0"
+version = "2.1.0"
 description = "JPA building blocks: audited UUIDv7 entities, page responses, JSON converters, safe search specifications."
 
 codehuntersPackages {
@@ -10,6 +10,8 @@ codehuntersPackages {
 }
 
 dependencies {
+    // InvalidSortException and InvalidSearchException are ClientInputExceptions: part of the API.
+    api(project(":sdk-commons"))
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("jakarta.persistence:jakarta.persistence-api")
     compileOnly("org.hibernate.orm:hibernate-core")
