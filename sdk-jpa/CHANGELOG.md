@@ -1,5 +1,12 @@
 # Changelog — sdk-jpa
 
+## 2.0.0
+
+### Breaking
+- `BaseEntity` and `AuditableEntity` move from `io.codehunters.jpa.domain` to
+  `io.codehunters.jpa.entity`. Only imports change; columns, properties and beans are unchanged.
+  See [MIGRATION-2.0.md](MIGRATION-2.0.md).
+
 ## 1.0.0
 
 First release ([ADR 0013](../docs/adr/0013-jpa-building-blocks.md)).
