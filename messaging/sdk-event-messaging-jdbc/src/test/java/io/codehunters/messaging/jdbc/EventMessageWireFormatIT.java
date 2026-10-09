@@ -13,6 +13,7 @@ import java.time.ZoneOffset;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.support.StaticListableBeanFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -34,7 +35,9 @@ class EventMessageWireFormatIT {
           .traceId("4bf92f3577b34da6a3ce929d0e0e4736");
 
   private final JsonMapper outboxJsonMapper =
-      new EventMessagingJdbcAutoConfiguration().outboxJsonMapper();
+      new EventMessagingJdbcAutoConfiguration()
+          .outboxJsonMapper(
+              new StaticListableBeanFactory().getBeanProvider(JsonMapper.Builder.class));
   private final OutboxEventFactory factory =
       new OutboxEventFactory(
           new EventMessageFactory(ORIGIN, TraceIdSource.none(), Clock.fixed(NOW, ZoneOffset.UTC)));
