@@ -22,7 +22,15 @@ final class ErrorResponses {
 
   static FileShareException toException(ClientHttpResponse response) throws IOException {
     int status = response.getStatusCode().value();
-    String message = "file-share error status=" + status + " body=" + readBody(response);
+    return byStatus("file-share error status=" + status + " body=" + readBody(response), status);
+  }
+
+  // Object-storage error bodies can echo the signed request, so they are never read.
+  static FileShareException uploadRejected(int status) {
+    return byStatus("object storage rejected the upload status=" + status, status);
+  }
+
+  private static FileShareException byStatus(String message, int status) {
     return switch (status) {
       case 404 -> new FileShareNotFoundException(message, status);
       case 401, 403 -> new FileShareUnauthorizedException(message, status);

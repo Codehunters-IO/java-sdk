@@ -3,6 +3,7 @@ package io.codehunters.fileshare;
 import io.codehunters.fileshare.model.FileRef;
 import io.codehunters.fileshare.model.PresignedDownloadTicket;
 import io.codehunters.fileshare.model.PresignedUploadTicket;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.UUID;
 
@@ -24,6 +25,23 @@ public interface FileShareClient {
    * @return a ticket holding the created {@link FileRef} and the presigned upload URL
    */
   PresignedUploadTicket requestUpload(UploadRequest request);
+
+  /**
+   * Sends the content of a file to the presigned URL of its upload ticket: a {@code PUT} with the
+   * ticket's {@link PresignedUploadTicket#requiredHeaders() required headers} and exactly {@code
+   * contentLength} bytes. The request never carries the service token and never follows a redirect.
+   * {@code content} is neither closed nor read past {@code contentLength} bytes.
+   *
+   * @param ticket the ticket returned by {@link #requestUpload(UploadRequest)}
+   * @param content the bytes to send
+   * @param contentLength how many bytes to send; the size declared in the upload request
+   * @throws IllegalArgumentException if {@code contentLength} is negative or above {@code
+   *     codehunters.file-share.max-upload-size}, or {@code content} ends before it
+   * @throws java.io.UncheckedIOException if reading {@code content} fails
+   * @throws io.codehunters.fileshare.FileShareUnauthorizedException if object storage rejects the
+   *     signature, typically because the ticket expired
+   */
+  void upload(PresignedUploadTicket ticket, InputStream content, long contentLength);
 
   /**
    * Requests a presigned URL to download an existing, completed file.
