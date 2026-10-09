@@ -9,8 +9,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import org.springframework.boot.convert.DurationStyle;
 
 /**
- * Configuration for the event-messaging SDK, bound from the {@code codehunters.outbox} prefix. The
- * pre-6.0 {@code outbox.*} keys are still honoured through {@link OutboxLegacyProperties}.
+ * Configuration for the event-messaging SDK, bound from the {@code codehunters.outbox} prefix.
  *
  * @param enabled whether the outbox SDK is active
  * @param batchSize the number of messages dispatched per scheduler tick

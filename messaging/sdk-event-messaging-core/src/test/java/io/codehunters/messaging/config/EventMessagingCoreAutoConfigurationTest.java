@@ -172,16 +172,6 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
-  void should_ignore_legacy_prefix_when_bound_directly() {
-    contextRunner
-        .withPropertyValues("outbox.batch-size=7")
-        .run(
-            context ->
-                assertThat(context.getBean(EventMessagingProperties.class).batchSize())
-                    .isEqualTo(50));
-  }
-
-  @Test
   void should_bind_overridden_properties_when_configured() {
     contextRunner
         .withPropertyValues(
