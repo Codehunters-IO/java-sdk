@@ -1,6 +1,12 @@
 {
   "properties": [
     {
+      "name": "codehunters.audit.enabled",
+      "type": "java.lang.Boolean",
+      "defaultValue": true,
+      "description": "Whether the audit SDK is active. When false, no aspect, publisher, context provider or startup check is registered, and @Auditable methods are not audited."
+    },
+    {
       "name": "vitxo.audit.fail-on-error",
       "type": "java.lang.Boolean",
       "deprecation": {

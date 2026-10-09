@@ -20,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
@@ -58,6 +59,7 @@ import tools.jackson.databind.json.JsonMapper;
       "tools.jackson.databind.json.JsonMapper"
     })
 @ConditionalOnSingleCandidate(DataSource.class)
+@ConditionalOnBooleanProperty(name = AuditAutoConfiguration.ENABLED, matchIfMissing = true)
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditJdbcAutoConfiguration {
 
