@@ -1,5 +1,19 @@
 # Changelog — sdk-event-messaging-core
 
+## 8.0.0
+
+Migration guide: [MIGRATION-8.0.md](../MIGRATION-8.0.md).
+
+### Breaking
+- Packages reorganised by capability: the model, ports, `MessagePublishException` and
+  `MessagePublisherDecorator` move to `io.codehunters.messaging`; factories to
+  `io.codehunters.messaging.factory`; `SendOutboxMessagesUseCase` to
+  `io.codehunters.messaging.dispatch`; `MeteredMessagePublisher` to
+  `io.codehunters.messaging.metrics`. Only imports change.
+
+### Changed
+- The old `outbox.*` keys are honoured until 9.0 (were due to go in 8.0).
+
 ## 7.0.0
 
 Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).

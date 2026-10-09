@@ -5,8 +5,8 @@ dispatch semantics are described in
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:6.0.0")
-implementation("io.codehunters:sdk-event-messaging-kafka:6.0.0")
+implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
+implementation("io.codehunters:sdk-event-messaging-kafka:8.0.0")
 implementation("org.springframework.boot:spring-boot-starter-kafka")
 ```
 
@@ -70,6 +70,17 @@ and the timeouts above.
 
 Define beans named `outboxKafkaProducerFactory` or `outboxKafkaTemplate` to replace the producer,
 or a `MessagePublisherPort` to replace the publisher.
+
+## Packages
+
+| Package | Contents |
+|---|---|
+| `io.codehunters.messaging.kafka` | `KafkaMessagePublisherAdapter` |
+| `io.codehunters.messaging.kafka.config` | Auto-configuration |
+
+## Migrating from 7.x
+
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
 
 ## Migrating from 5.x
 

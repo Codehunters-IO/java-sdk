@@ -5,8 +5,8 @@ Model and dispatch semantics are described in
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:6.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:6.0.0")
+implementation("io.codehunters:sdk-event-messaging-jdbc:8.0.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:8.0.0")
 implementation("org.springframework.boot:spring-boot-starter-amqp")
 ```
 
@@ -72,6 +72,17 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 
 Define a bean named `outboxRabbitTemplate` to replace the template (it must keep `mandatory=true`
 and a confirms-enabled factory), or a `MessagePublisherPort` to replace the publisher.
+
+## Packages
+
+| Package | Contents |
+|---|---|
+| `io.codehunters.messaging.rabbit` | `RabbitMessagePublisherAdapter` |
+| `io.codehunters.messaging.rabbit.config` | Auto-configuration |
+
+## Migrating from 7.x
+
+Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md).
 
 ## Migrating from 5.x
 

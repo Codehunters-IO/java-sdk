@@ -1,5 +1,7 @@
 # Migrating sdk-event-messaging to 7.0
 
+> Going to 8.0? Apply this guide, then [MIGRATION-8.0.md](MIGRATION-8.0.md).
+
 7.0 charges a reclaim attempt only to rows whose send had started
 ([ADR 0018](../docs/adr/0018-charge-attempts-only-for-started-sends.md)). The four artifacts
 (`-core`, `-jdbc`, `-rabbit`, `-kafka`) move to 7.0.0 together; import `io.codehunters:sdk-bom:1.3.0`
@@ -14,7 +16,7 @@ broker settings, the `seq` column), then this guide. You can go straight from 5.
 2. Bump the dependency (or the BOM) to 7.0.0.
 3. If you implement `OutboxRepositoryPort` yourself, add `markSendStarted` (see
    [Custom repositories](#custom-repositories)).
-4. Optional: rename the old `outbox.*` keys. They are honoured until 8.0 (they were due to go in 7.0).
+4. Optional: rename the old `outbox.*` keys. They are honoured until 9.0 (they were due to go in 7.0).
 
 ## What changes
 

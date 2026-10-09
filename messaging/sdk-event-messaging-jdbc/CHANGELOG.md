@@ -1,5 +1,16 @@
 # Changelog — sdk-event-messaging-jdbc
 
+## 8.0.0
+
+Migration guide: [MIGRATION-8.0.md](../MIGRATION-8.0.md).
+
+### Breaking
+- Packages reorganised by capability: the store and dialects move to
+  `io.codehunters.messaging.jdbc`, the schedulers to `io.codehunters.messaging.jdbc.scheduler`,
+  `OutboxFailedGauge` to `io.codehunters.messaging.jdbc.metrics` and the auto-configurations to
+  `io.codehunters.messaging.jdbc.config`. Only imports change; the `db/migration/outbox/**`
+  scripts keep their paths.
+
 ## 7.0.0
 
 Migration guide: [MIGRATION-7.0.md](../MIGRATION-7.0.md).
