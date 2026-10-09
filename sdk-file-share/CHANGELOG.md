@@ -1,5 +1,16 @@
 # Changelog — sdk-file-share
 
+## 3.0.0
+
+### Breaking
+- Packages reorganised by purpose instead of by layer; only imports change, properties and beans
+  are unchanged. API (`FileShareClient`, `UploadRequest`, `FileShareRequestInterceptor`, exceptions)
+  is in `io.codehunters.fileshare`, value types in `io.codehunters.fileshare.model`, the REST
+  client in `io.codehunters.fileshare.http`. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+
+### Changed
+- The `vitxo.file-share.*` aliases are honoured until 4.0.0 (was 3.0.0).
+
 ## 2.0.0
 
 ### Breaking
