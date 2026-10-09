@@ -76,6 +76,7 @@ rejects a token without `sub` as an invalid bearer token (401).
 | `codehunters.security.jwk-set-uri` | `<url>/realms/<realm>/protocol/openid-connect/certs` | |
 | `codehunters.security.audiences` | — | **Required**: accepted `aud` values, normally this service's client id |
 | `codehunters.security.allow-any-audience` | `false` | `true` accepts tokens issued to any client of the realm; avoid in shared realms |
+| `codehunters.security.require-access-token-type` | `true` | Accept only tokens with `typ` = `Bearer` (Keycloak access tokens); ID and refresh tokens of the realm are rejected |
 | `codehunters.security.role-clients` | `[]` | Clients whose `resource_access` roles are granted |
 | `codehunters.security.public-paths` | `[]` | Anonymous allowed; a token, when sent, must be valid |
 | `codehunters.security.excluded-paths` | `[]` | No security at all (health probes) |

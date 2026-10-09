@@ -41,6 +41,19 @@ so the validated token survives credential erasure. The principal is still the
 | `(UsernamePasswordAuthenticationToken) authentication` | `(KeycloakAuthenticationToken) authentication` |
 | `authentication.getCredentials()` held the `Jwt` until erased | `((KeycloakAuthenticationToken) authentication).getToken()`, always |
 
+Only Keycloak access tokens (`typ` = `Bearer`) are accepted. A client that sent an ID token whose
+audience matched now gets 401; send the access token, or set
+`codehunters.security.require-access-token-type=false`.
+
+`KeycloakAuthenticationToken` marks itself authenticated: build it only from a `Jwt` a `JwtDecoder`
+verified, normally through `KeycloakJwtAuthenticationConverter`. Keycloak's policy enforcer trusts
+the permissions such a token carries.
+
+The SDK's filter chains are stateless. An application that stores the security context in a JSON
+Spring Session on its own chain must register Jackson mixins for `KeycloakAuthenticationToken` and
+`KeycloakPrincipal`, which Spring Security's allowlist does not cover; 4.x had the same requirement
+for `KeycloakPrincipal`.
+
 ## Steps
 
 1. Bump `sdk-user-security` to 5.0.0 (with the policy enforcer, `sdk-user-security-authz` 5.0.0

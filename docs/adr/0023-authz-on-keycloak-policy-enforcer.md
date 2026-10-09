@@ -21,21 +21,26 @@ and a path cache.
   every request during an outage) is added to the Spring Security chain right after
   `AuthorizationFilter` through a `Customizer<HttpSecurity>` bean.
 - Enforcement fails closed. Every authenticated request (request, forward and include dispatches) is
-  enforced unless its path is listed in `codehunters.security.authz.skip-paths`; error dispatches
-  pass through.
+  enforced unless the path the client requested is listed in `codehunters.security.authz.skip-paths`
+  (forwards and includes are always enforced); error dispatches pass through.
 - Keycloak only ever gets the token Spring Security validated, read from the authentication
   (`AbstractOAuth2TokenAuthenticationToken`; sdk-user-security's converter returns a
   `KeycloakAuthenticationToken` of that type so the token survives credential erasure). The request
   is never read again: Keycloak grants from a requesting party token's `authorization.permissions`
   without checking its signature, so a header Spring Security ignored (a forged RPT next to a token
   read from another header, for example) must never reach it. A request authenticated without a
-  validated token, or with a token outside the bearer charset, is denied (403).
+  validated token, with a token outside the bearer charset or with a token that is not a JWT, is
+  denied (403). A token carrying permissions must name the resource server in its audience, as the
+  realm's requesting party tokens do. sdk-user-security accepts only access tokens (`typ` = `Bearer`)
+  by default.
 - Keycloak matches paths on the path as Spring MVC matches it (`RequestPath`, decoded per segment).
   An enforced path holding an encoded `/`, `\`, `.`, `%` or a `;` is denied (403), since its decoded
-  form could route to a handler its Keycloak pattern does not cover. A denial Keycloak did not answer
+  form could route to a handler its Keycloak pattern does not cover; an encoded `*`, `{`, `}` or `?`
+  is denied too, as Keycloak's matcher would read it as a pattern character. A denial Keycloak did not answer
   itself answers 403.
-- Anonymous requests are never enforced, so startup fails when a `public-paths` entry covers a
-  catalogued path that is not `DISABLED`.
+- Anonymous and skipped requests are never enforced, so startup fails when a `public-paths`,
+  `excluded-paths` or `skip-paths` entry overlaps a catalogued path that is not `DISABLED`, in
+  either direction. The check is conservative: a variable segment matches any segment.
 - The first build waits a bounded time (5s) on a lock, then answers 503. A failed enforcer build
   answers 503 for `codehunters.security.authz.retry-backoff` (default 10s); after the window one
   request rebuilds while the others keep getting 503, and a slow rebuild is never duplicated. Enforcer and Keycloak

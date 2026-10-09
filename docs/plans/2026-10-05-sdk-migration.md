@@ -1636,3 +1636,15 @@ Segunda revisión de seguridad de authz (mismo PR):
   (`RequestPath`), y 403 ante `%2F`, `%5C`, `%2E`, `%25` o `;`. Tokens fuera del charset bearer y
   denegaciones sin respuesta dan 403. Primer build con `ReentrantLock.tryLock` (5 s, luego 503) y un
   rebuild a la vez. Arranque falla si un `public-paths` cubre un path catalogado no `DISABLED`.
+
+Revisión final de seguridad de authz (mismo PR), sin hallazgos altos:
+
+- El chequeo de solapamiento compara en los dos sentidos, segmento por segmento (una variable
+  acepta cualquier segmento), y cubre `public-paths`, `excluded-paths` y `skip-paths`.
+- Tokens que no son JWT responden 403 (antes 503); un token con claim `authorization` debe tener
+  `resource` en su audiencia. `skip-paths` solo aplica al request del cliente: forward e include
+  siempre se aplican. También se rechazan `%2A`, `%7B`, `%7D` y `%3F`.
+- `sdk-user-security`: solo tokens de acceso (`typ` = `Bearer`, propiedad
+  `codehunters.security.require-access-token-type`); `KeycloakAuthenticationToken` documenta que
+  requiere un `Jwt` validado; MIGRATION-5.0 avisa de los mixins de Jackson para Spring Session en
+  JSON.

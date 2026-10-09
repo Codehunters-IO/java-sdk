@@ -21,7 +21,8 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
   is added by a `Customizer<HttpSecurity>` bean, which Spring Security applies to each
   `HttpSecurity` it builds.
 - **Which requests.** Every authenticated request is enforced (request, forward and include
-  dispatches), unless its path is listed in `skip-paths`. The decision fails closed:
+  dispatches), unless the path the client requested is listed in `skip-paths`; forwards and
+  includes are enforced even from a skipped path. The decision fails closed:
   - Keycloak only ever gets the token Spring Security validated, read from the authentication
     (sdk-user-security's `KeycloakAuthenticationToken` or Spring Security's own token
     authentications), wherever the token arrived (an application `BearerTokenResolver` reading a
@@ -32,6 +33,11 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
     denied (403). List the paths those chains serve, such as actuator endpoints, in `skip-paths`.
   - A token outside the bearer charset is denied, and so is a denial Keycloak did not answer
     itself.
+  - A token that is not a JWT (an opaque token from introspection, for example) is denied (403):
+    Keycloak's enforcer parses every token it is given as a JWT. A warning is logged once.
+  - A token carrying permissions (an `authorization` claim) is denied unless its audience names
+    this resource server (`resource`), as the realm's requesting party tokens do: another client's
+    token cannot bring this resource server's permissions with it.
 - **Authentication first.** A protected path without a valid token answers 401 from Spring
   Security; Keycloak is not asked. Requests Spring Security lets through unauthenticated (public
   and excluded paths) are not enforced. An authenticated request is enforced on every path,
@@ -49,7 +55,8 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
   suffix. Ant's `**` is rejected at startup. They are matched against the path as Spring MVC
   matches it, decoded segment by segment: `/api/%6Frders/1` is enforced as `/api/orders/1`. A path
   holding an encoded `/`, `\`, `.` or `%`, or a `;` (encoded or not), could route somewhere its
-  decoded form does not match, so an enforced request to it is denied (403). The default Spring
+  decoded form does not match, and an encoded `*`, `{`, `}` or `?` would turn into a pattern
+  character for Keycloak's matcher, so an enforced request to it is denied (403). The default Spring
   Security firewall already rejects most of these.
 - **Keycloak unreachable.** The enforcer is built on the first enforced request, so the service
   starts without Keycloak; requests arriving meanwhile wait for it up to 5 seconds, then answer
@@ -63,9 +70,12 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
   its requests are denied.
 - Error dispatches (`/error`) are not enforced a second time; forward and include dispatches are,
   so a public handler forwarding to a protected one cannot bypass the catalog.
-- **Anonymous requests are never enforced.** Startup therefore fails when a `public-paths` entry
-  covers a catalogued path that is not `DISABLED`: that path would be protected only for callers
-  who happen to send a token.
+- **Paths the enforcer never sees.** Anonymous requests (`public-paths`, `excluded-paths`) and
+  skipped ones (`skip-paths`) are never enforced, so startup fails when one of these patterns
+  overlaps a catalogued path that is not `DISABLED`, in either direction: `/api/orders/export` in
+  `public-paths` overlaps a catalogued `/api/orders/{id}` as much as `/api/**` does. The check is
+  conservative (a variable segment matches any segment, whatever its constraint); map public
+  routes as `DISABLED` in the catalog (see Public routes) or keep the lists apart.
 
 ## Latency
 
@@ -112,7 +122,7 @@ Keycloak's URL and realm come from `codehunters.security.url` and `codehunters.s
 | `codehunters.security.authz.read-timeout` | `3s` | |
 | `codehunters.security.authz.max-connections` | `50` | Concurrent connections to Keycloak |
 | `codehunters.security.authz.retry-backoff` | `10s` | 503 without retrying after a failed enforcer build |
-| `codehunters.security.authz.skip-paths` | `[]` | Spring path patterns never enforced, whatever authenticated the request (actuator behind basic auth, for example) |
+| `codehunters.security.authz.skip-paths` | `[]` | Spring path patterns never enforced on the client's request, whatever authenticated it (actuator behind basic auth, for example); may not overlap an enforced catalogued path |
 | `codehunters.security.authz.paths[].path` | — | Keycloak pattern; must start with `/` |
 | `codehunters.security.authz.paths[].name` | — | Keycloak resource name; required |
 | `codehunters.security.authz.paths[].enforcement-mode` | `ENFORCING` | `DISABLED` skips the path |

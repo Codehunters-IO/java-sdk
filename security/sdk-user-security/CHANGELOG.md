@@ -12,6 +12,7 @@ Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
 - The dependency on `sdk-support`.
 
 ### Added
+- `codehunters.security.require-access-token-type` (default `true`).
 - `io.codehunters.security.KeycloakAuthenticationToken`, the authentication of a verified Keycloak
   token: an `AbstractOAuth2TokenAuthenticationToken<Jwt>` whose principal is the `KeycloakPrincipal`.
 
@@ -30,6 +31,10 @@ Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
   rejected as an invalid bearer token (401).
 - The gateway-header 401 body and headers change (see Fixed).
 - The JSON form of `KeycloakPrincipal` is unchanged from 4.0.0.
+- Only access tokens are accepted: a token whose `typ` claim is not `Bearer` (an ID or refresh token
+  of the realm whose audience is accepted) answers 401. Set
+  `codehunters.security.require-access-token-type=false` to turn the check off.
+- `KeycloakAuthenticationToken` must be built from a validated `Jwt` only; its javadoc says so.
 
 ### Fixed
 - `Authentication.getName()`, `HttpServletRequest.getRemoteUser()` and `authentication.name` in

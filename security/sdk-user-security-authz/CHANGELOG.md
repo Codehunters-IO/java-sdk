@@ -54,6 +54,13 @@
 - Paths are matched as Spring MVC matches them, decoded segment by segment; a path with an encoded
   `/`, `\`, `.`, `%` or a `;` is denied (403) when enforced. Tokens outside the bearer charset and
   denials Keycloak did not answer itself answer 403.
+- Paths with an encoded `*`, `{`, `}` or `?` are denied (403) when enforced; skip paths apply only
+  to the client's request, so forwards and includes are always enforced.
+- Tokens that are not JWTs are denied (403) instead of failing inside Keycloak's enforcer (503), with
+  one warning logged; a token with an `authorization` claim must name `resource` in its audience.
+- Startup fails when a `public-paths`, `excluded-paths` or `skip-paths` entry overlaps a catalogued
+  path that is not `DISABLED`, in either direction (a public `/api/orders/export` overlaps a
+  catalogued `/api/orders/{id}`).
 - Requests waiting for the first enforcer build answer 503 after 5 seconds; a rebuild is never
   duplicated, however long it takes.
 - Unauthenticated requests are answered by Spring Security (401 on protected paths) before

@@ -50,7 +50,8 @@ through `keycloak.policy-enforcer.enabled` is now off.
 | Requests with a `Bearer` header were enforced; other requests passed | Every authenticated request is enforced (request, forward and include dispatches) unless its path is in `skip-paths`. Only the token Spring Security validated reaches Keycloak, read from the authentication; requests authenticated without one (basic auth, a custom principal) are denied (403) |
 | Keycloak unreachable answered 503 | 503 while the enforcer cannot be built, for `retry-backoff` after each failed build; once built, an enforcer failure answers 503, a failed authorization call is a denial (403), logged at `WARN` and counted as `codehunters.authz.enforcer.failures` |
 | Patterns matched the request URI | Keycloak patterns match the path as Spring MVC matches it, decoded per segment; an encoded `/`, `\`, `.`, `%` or a `;` in an enforced path is denied (403) |
-| Public paths and the catalog were independent | Startup fails when a `public-paths` entry covers a catalogued path that is not `DISABLED` |
+| Public paths and the catalog were independent | Startup fails when a `public-paths`, `excluded-paths` or `skip-paths` entry overlaps a catalogued path that is not `DISABLED`, in either direction |
+| Any bearer token was sent to Keycloak | Tokens that are not JWTs are denied (403); a token with an `authorization` claim must name `resource` in its audience |
 | Keycloak answering 400 (unknown resource or scope) was logged as an error | Denied (403); the enforcer logs at debug under `org.keycloak.adapters.authorization` |
 | One authorization call per enforced request | Same: Keycloak's enforcer has no decision cache. Resolved paths are cached (`path-cache.*`); see the README's Latency section |
 
