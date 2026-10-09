@@ -12,21 +12,27 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.auditing.DateTimeProvider;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
+@ExtendWith(OutputCaptureExtension.class)
 class JpaAuditingAutoConfigurationTest {
 
   private static final Instant NOW = Instant.parse("2026-10-07T10:15:30Z");
+  private static final String ACTIVE_LOG = "SDK JPA auditing is on";
 
-  private final ApplicationContextRunner runner = JpaFixtures.h2();
+  private final ApplicationContextRunner runner =
+      JpaFixtures.h2().withPropertyValues("codehunters.jpa.auditing.enabled=true");
 
   @Configuration(proxyBeanMethods = false)
   static class SystemAuditor {
@@ -100,6 +106,24 @@ class JpaAuditingAutoConfigurationTest {
               assertThat(context).hasNotFailed();
               assertThat(context).doesNotHaveBean(ClockDateTimeProvider.class);
             });
+  }
+
+  @Test
+  void should_not_audit_when_the_property_is_missing(CapturedOutput output) {
+    JpaFixtures.h2()
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean("jpaAuditingHandler");
+              assertThat(context).doesNotHaveBean(AuditorAware.class);
+              assertThat(savedOrder(context).createdAt()).isEmpty();
+            });
+    assertThat(output).doesNotContain(ACTIVE_LOG);
+  }
+
+  @Test
+  void should_log_once_at_startup_when_auditing_is_on(CapturedOutput output) {
+    runner.run(context -> assertThat(context).hasNotFailed());
+    assertThat(output.getAll().split(ACTIVE_LOG, -1)).hasSize(2);
   }
 
   @Test
