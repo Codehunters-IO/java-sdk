@@ -23,7 +23,6 @@ dependencies {
         api(project(":sdk-jpa"))
         api(project(":sdk-measure-micrometer"))
         api(project(":sdk-parameter"))
-        api(project(":sdk-support"))
         api(project(":sdk-tracing"))
         api(project(":sdk-user-security"))
         api(project(":sdk-user-security-authz"))

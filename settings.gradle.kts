@@ -26,7 +26,6 @@ include("sdk-web")
 include("sdk-barcode")
 include("sdk-jasper")
 include("sdk-jpa")
-include("sdk-support")
 include("sdk-bom")
 
 // Module families live in grouped directories; project and artifact names stay `sdk-*`.
@@ -36,5 +35,4 @@ project(":sdk-event-messaging-rabbit").projectDir = file("messaging/sdk-event-me
 project(":sdk-event-messaging-kafka").projectDir = file("messaging/sdk-event-messaging-kafka")
 project(":sdk-user-security").projectDir = file("security/sdk-user-security")
 project(":sdk-user-security-authz").projectDir = file("security/sdk-user-security-authz")
-project(":sdk-support").projectDir = file("platform/sdk-support")
 project(":sdk-bom").projectDir = file("platform/sdk-bom")
