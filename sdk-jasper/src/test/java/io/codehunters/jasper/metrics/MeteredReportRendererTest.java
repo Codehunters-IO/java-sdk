@@ -81,6 +81,23 @@ class MeteredReportRendererTest {
   }
 
   @Test
+  void should_tag_the_timer_with_the_template_name() {
+    var renderer = new MeteredReportRenderer(succeeding(), registry);
+
+    renderer.toBytes(REQUEST);
+
+    assertThat(
+            registry
+                .get("report.render")
+                .tag("template", "orders.jrxml")
+                .tag("format", "pdf")
+                .tag("outcome", "SUCCESS")
+                .timer()
+                .count())
+        .isEqualTo(1);
+  }
+
+  @Test
   void should_reject_missing_collaborators() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new MeteredReportRenderer(null, registry))
