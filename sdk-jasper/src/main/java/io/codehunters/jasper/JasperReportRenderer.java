@@ -82,6 +82,16 @@ public final class JasperReportRenderer implements ReportRenderer {
     }
   }
 
+  /**
+   * Returns the cache of compiled templates. Not API: it exists so the SDK's {@code
+   * TemplateCacheMetrics} can publish the cache, and its type may change in any release.
+   *
+   * @return the template cache
+   */
+  public TemplateCache<JasperReport> templateCache() {
+    return templates;
+  }
+
   /** Deletes the renderer's swap folder; renders after this create a new one. */
   @Override
   public void close() {
