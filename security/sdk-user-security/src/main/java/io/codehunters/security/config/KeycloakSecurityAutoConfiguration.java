@@ -255,7 +255,9 @@ public class KeycloakSecurityAutoConfiguration {
                 server.jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(converter));
                 respondWith(server, entryPoints.getIfUnique(), deniedHandlers.getIfUnique());
               })
-          .addFilterAfter(new GatewayHeadersFilter(), BearerTokenAuthenticationFilter.class)
+          .addFilterAfter(
+              new GatewayHeadersFilter(entryPoints.getIfUnique()),
+              BearerTokenAuthenticationFilter.class)
           .build();
     }
 
