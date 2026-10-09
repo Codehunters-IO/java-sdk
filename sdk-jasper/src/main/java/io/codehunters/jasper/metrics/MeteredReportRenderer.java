@@ -5,18 +5,23 @@ import io.codehunters.jasper.ReportRequest;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import java.io.OutputStream;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * Times every render in the {@code report.render} timer, tagged with {@code template} (the template
- * name), {@code format} ({@code pdf}, {@code xlsx}, {@code csv}) and {@code outcome} ({@code
- * SUCCESS} or {@code ERROR}). Template names are validated classpath names the application ships,
- * so the tag's cardinality is bounded by its templates. Failures are rethrown unchanged.
+ * Times every render in the {@code report.render} timer, tagged with {@code template}, {@code
+ * format} ({@code pdf}, {@code xlsx}, {@code csv}) and {@code outcome} ({@code SUCCESS} or {@code
+ * ERROR}). The {@code template} tag holds the template name once that template has rendered
+ * successfully, and {@code unknown} for failures of templates that never did: a name taken from a
+ * request that matches no template cannot add a new tag value, so the tag is bounded by the
+ * templates the application ships. Failures are rethrown unchanged.
  */
 public final class MeteredReportRenderer implements ReportRenderer {
 
   private final ReportRenderer delegate;
   private final MeterRegistry registry;
+  private final Set<String> rendered = ConcurrentHashMap.newKeySet();
 
   /**
    * Wraps a renderer.
@@ -62,6 +67,7 @@ public final class MeteredReportRenderer implements ReportRenderer {
     try {
       T result = render.get();
       outcome = "SUCCESS";
+      rendered.add(request.template());
       return result;
     } finally {
       sample.stop(timer(request, outcome));
@@ -71,9 +77,13 @@ public final class MeteredReportRenderer implements ReportRenderer {
   private Timer timer(ReportRequest request, String outcome) {
     return Timer.builder("report.render")
         .description("Time to fill and export a report")
-        .tag("template", request.template())
+        .tag("template", templateTag(request.template()))
         .tag("format", request.format().extension())
         .tag("outcome", outcome)
         .register(registry);
+  }
+
+  private String templateTag(String template) {
+    return rendered.contains(template) ? template : "unknown";
   }
 }
