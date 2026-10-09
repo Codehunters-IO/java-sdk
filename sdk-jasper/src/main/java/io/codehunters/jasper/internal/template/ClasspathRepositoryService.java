@@ -1,4 +1,4 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
 import io.codehunters.jasper.ReportRequest;
 import io.codehunters.jasper.ReportSettings;
@@ -35,7 +35,9 @@ final class ClasspathRepositoryService extends DefaultRepositoryService {
       return null;
     }
     InputStream beside = besideUser(context, uri);
-    return beside != null ? beside : loader.getResourceAsStream(settings.resolve(uri));
+    return beside != null
+        ? beside
+        : loader.getResourceAsStream(TemplateNames.location(settings, uri));
   }
 
   // The context location is the name of the template or subreport the resource is used from.
@@ -46,7 +48,8 @@ final class ClasspathRepositoryService extends DefaultRepositoryService {
     if (slash < 1 || !TemplateNames.isResource(location)) {
       return null;
     }
-    return loader.getResourceAsStream(settings.resolve(location.substring(0, slash + 1) + uri));
+    return loader.getResourceAsStream(
+        TemplateNames.location(settings, location.substring(0, slash + 1) + uri));
   }
 
   @Override

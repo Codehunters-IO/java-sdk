@@ -1,4 +1,4 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
 import io.codehunters.jasper.ReportException;
 import io.codehunters.jasper.ReportSettings;
@@ -24,7 +24,7 @@ public final class TemplateLoader {
   }
 
   public JasperReport load(String name) {
-    try (InputStream in = loader.getResourceAsStream(settings.resolve(name))) {
+    try (InputStream in = loader.getResourceAsStream(TemplateNames.location(settings, name))) {
       if (in == null) {
         throw new ReportException(
             "template " + name + " was not found under " + settings.templateBase());

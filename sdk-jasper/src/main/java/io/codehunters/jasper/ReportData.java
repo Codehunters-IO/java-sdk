@@ -1,6 +1,6 @@
 package io.codehunters.jasper;
 
-import io.codehunters.jasper.fill.BeanRows;
+import io.codehunters.jasper.internal.fill.BeanRows;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;

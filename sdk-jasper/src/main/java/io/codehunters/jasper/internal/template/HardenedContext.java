@@ -1,4 +1,4 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
 import io.codehunters.jasper.ReportSettings;
 import java.util.List;

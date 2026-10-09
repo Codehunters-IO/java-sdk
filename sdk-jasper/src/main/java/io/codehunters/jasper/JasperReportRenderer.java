@@ -1,12 +1,12 @@
 package io.codehunters.jasper;
 
-import io.codehunters.jasper.export.CappedOutputStream;
-import io.codehunters.jasper.export.Exports;
-import io.codehunters.jasper.fill.Swap;
-import io.codehunters.jasper.fill.SwapFolder;
-import io.codehunters.jasper.template.HardenedContext;
-import io.codehunters.jasper.template.TemplateCache;
-import io.codehunters.jasper.template.TemplateLoader;
+import io.codehunters.jasper.internal.export.CappedOutputStream;
+import io.codehunters.jasper.internal.export.Exports;
+import io.codehunters.jasper.internal.fill.Swap;
+import io.codehunters.jasper.internal.fill.SwapFolder;
+import io.codehunters.jasper.internal.template.HardenedContext;
+import io.codehunters.jasper.internal.template.TemplateCache;
+import io.codehunters.jasper.internal.template.TemplateLoader;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashMap;

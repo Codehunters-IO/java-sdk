@@ -1,4 +1,4 @@
-package io.codehunters.jasper.export;
+package io.codehunters.jasper.internal.export;
 
 import io.codehunters.jasper.ReportException;
 import java.io.ByteArrayOutputStream;

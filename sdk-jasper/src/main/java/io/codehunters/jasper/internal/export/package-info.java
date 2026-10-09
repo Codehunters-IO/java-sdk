@@ -3,4 +3,4 @@
  *
  * <p>Not API; may change in any release.
  */
-package io.codehunters.jasper.export;
+package io.codehunters.jasper.internal.export;

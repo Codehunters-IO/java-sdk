@@ -4,4 +4,4 @@
  *
  * <p>Not API; may change in any release.
  */
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;

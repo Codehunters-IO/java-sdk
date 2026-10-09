@@ -1,7 +1,9 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.jasper.ReportSettings;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
@@ -60,5 +62,11 @@ class TemplateNamesTest {
   @org.junit.jupiter.api.Test
   void should_reject_a_name_longer_than_255_characters() {
     assertThat(TemplateNames.isTemplate("a".repeat(250) + ".jrxml")).isFalse();
+  }
+
+  @Test
+  void should_locate_a_template_under_the_base_when_settings_are_default() {
+    assertThat(TemplateNames.location(ReportSettings.DEFAULT, "sales/q1.jasper"))
+        .isEqualTo("reports/sales/q1.jasper");
   }
 }

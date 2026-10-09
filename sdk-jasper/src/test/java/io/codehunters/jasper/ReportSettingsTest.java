@@ -46,12 +46,6 @@ class ReportSettingsTest {
         .withMessage("fill limits must not be null");
   }
 
-  @Test
-  void should_resolve_a_template_under_the_base() {
-    assertThat(ReportSettings.DEFAULT.resolve("sales/q1.jasper"))
-        .isEqualTo("reports/sales/q1.jasper");
-  }
-
   @ParameterizedTest
   @ValueSource(strings = {"", "/reports", "../reports", "classpath:reports", "reports/"})
   void should_reject_a_base_that_is_not_a_relative_classpath_folder(String base) {

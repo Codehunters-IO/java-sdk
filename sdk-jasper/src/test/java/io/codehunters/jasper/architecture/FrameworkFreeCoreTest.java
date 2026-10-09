@@ -16,9 +16,9 @@ class FrameworkFreeCoreTest {
 
   private static final String[] CORE = {
     "io.codehunters.jasper",
-    "io.codehunters.jasper.template",
-    "io.codehunters.jasper.fill",
-    "io.codehunters.jasper.export"
+    "io.codehunters.jasper.internal.template",
+    "io.codehunters.jasper.internal.fill",
+    "io.codehunters.jasper.internal.export"
   };
 
   @Test
@@ -32,9 +32,9 @@ class FrameworkFreeCoreTest {
             "java..",
             "net.sf.jasperreports..",
             "io.codehunters.jasper",
-            "io.codehunters.jasper.template",
-            "io.codehunters.jasper.fill",
-            "io.codehunters.jasper.export")
+            "io.codehunters.jasper.internal.template",
+            "io.codehunters.jasper.internal.fill",
+            "io.codehunters.jasper.internal.export")
         .check(CLASSES);
   }
 

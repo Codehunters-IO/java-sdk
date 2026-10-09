@@ -1,4 +1,4 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

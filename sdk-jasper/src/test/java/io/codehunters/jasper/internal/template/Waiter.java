@@ -1,4 +1,4 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;

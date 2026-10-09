@@ -1,5 +1,6 @@
-package io.codehunters.jasper.template;
+package io.codehunters.jasper.internal.template;
 
+import io.codehunters.jasper.ReportSettings;
 import java.util.regex.Pattern;
 
 /**
@@ -22,6 +23,17 @@ public final class TemplateNames {
 
   public static boolean isResource(String name) {
     return name != null && name.length() <= MAX_LENGTH && PATH.matcher(name).matches();
+  }
+
+  /**
+   * Where a template or resource sits on the classpath.
+   *
+   * @param settings supplies the template base folder
+   * @param name a name relative to that folder
+   * @return the classpath location
+   */
+  static String location(ReportSettings settings, String name) {
+    return settings.templateBase() + "/" + name;
   }
 
   public static boolean isTemplate(String name) {
