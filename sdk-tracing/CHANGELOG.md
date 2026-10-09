@@ -1,5 +1,14 @@
 # Changelog — sdk-tracing
 
+## 2.0.0
+
+### Breaking
+- Packages reorganised by capability: `TraceIdFilter` → `io.codehunters.tracing.servlet`,
+  `MdcTaskDecorator` and `MdcTraceContextAdapter` → `io.codehunters.tracing.mdc`, the RabbitMQ
+  components → `io.codehunters.tracing.amqp`. `TraceContextPort`, `TraceParent`, `TraceHeaders` and
+  the auto-configurations keep their packages. Only imports change; see
+  [MIGRATION-2.0.md](MIGRATION-2.0.md).
+
 ## 1.0.0
 
 ### Breaking
