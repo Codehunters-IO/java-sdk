@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "1.1.0"
 description = "Geofencing: decides whether a point falls inside the zones of a caller-defined scope."
 
 dependencies {
