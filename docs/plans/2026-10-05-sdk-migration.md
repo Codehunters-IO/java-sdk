@@ -44,6 +44,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D21 | Bloque 1 de la evaluación de arquitectura (seguridad y datos personales): TOTP con valores por defecto compatibles con las apps de autenticación y auto-configuración opt-in (`sdk-commons` 3.0.0), nombre de la autenticación igual al user id y datos del gateway como no verificados (`sdk-user-security` 4.1.0), parámetros de ubicación rechazados a cualquier profundidad (`sdk-jasper` 2.1.0) y alias de listas copiados desde una sola fuente (`sdk-support` 1.0.1); BOM 3.0.0 (2026-10-09) | — |
 | D22 | Bloque 2 de la evaluación de arquitectura (fallos silenciosos y errores de cliente): `ClientInputException` en `sdk-commons` (subclase de `IllegalArgumentException` con `code` estable) que `sdk-web` 2.1.0 responde con 400; `sdk-jpa` y `sdk-barcode` 2.1.0 la usan; `sdk-audit-log` 4.1.0 reporta al arrancar `@Auditable` sin publisher o con expresiones inválidas y toma el actor servlet de Spring Security. `sdk-bom` 3.1.0 (la 3.0.0 no se publica sola) (2026-10-09) | — |
 | D23 | Solo PostgreSQL y solo propiedades `codehunters.*`: se eliminan las implementaciones de SQL Server, todos los alias de prefijos anteriores, `sdk-support` y toda mención a la línea de producto de origen; `sdk-web` pasa a `codehunters.web.*` (2026-10-09) | `docs/adr/0021-postgresql-only-and-codehunters-properties.md` |
+| D24 | Bloque 3 de la evaluación de arquitectura: achicar sobre la plataforma. `sdk-tracing` sobre Micrometer Tracing (solo el propagator de headers legacy y el `TraceContextPort`), el outbox guarda y publica el `traceparent` de la request, authz sobre el `keycloak-policy-enforcer` oficial y el i18n de `sdk-web` sobre el `MessageSource` de Boot (2026-10-09) | `docs/adr/0022` a `0025` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1582,3 +1583,22 @@ a la ADR 0004 y a las partes de SQL Server de las ADR 0015 y 0018.
 - Tres ramas paralelas por grupo de módulos, integradas en una sola.
 - Las entradas históricas de este plan conservan los prefijos de su momento; desde `sdk-web` 3.0 las
   claves son `codehunters.web.*`.
+
+## Fase 28 — Bloque 3: achicar sobre la plataforma ✅ (rama `refactor/review-block-3`, sobre `master`)
+
+Decisión D24 ([ADR 0022](../adr/0022-tracing-on-micrometer-tracing.md),
+[0023](../adr/0023-authz-on-keycloak-policy-enforcer.md),
+[0024](../adr/0024-outbox-carries-its-own-trace-context.md),
+[0025](../adr/0025-i18n-on-boot-message-source.md)).
+
+| Módulo | Antes | Ahora | Cambio |
+|---|---|---|---|
+| `sdk-tracing` | 2.0.0 | 3.0.0 | sobre Micrometer Tracing; quedan el propagator OTel de headers legacy y el `TraceContextPort` sobre el `Tracer`; se van el filtro servlet, el decorator y la instrumentación de Rabbit |
+| `sdk-event-messaging-*` | 9.0.0 (sin publicar) | 9.0.0 | columna `traceparent`; ambos transportes publican el contexto de la request; con `Tracer`, se restaura alrededor de cada envío |
+| `sdk-user-security-authz` | 5.0.0 (sin publicar) | 5.0.0 | `keycloak-policy-enforcer` oficial dentro de la cadena de Spring Security, solo para requests con bearer token |
+| `sdk-web` | 3.0.0 (sin publicar) | 3.0.0 | i18n sobre el `MessageSource` de Boot; resolver `X-Locale` sin locale por defecto; 401/403 con el resolver de la app |
+| `sdk-bom` | 4.0.0 (sin publicar) | 5.0.0 | `sdk-tracing` 3.0.0 |
+
+- Cuatro ramas paralelas, integradas en una sola.
+- Abierto: el enforcer de Keycloak no cachea decisiones (una llamada UMA por request enforced salvo
+  RPT); Brave no soporta los headers legacy.

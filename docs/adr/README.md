@@ -5,7 +5,7 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | ADR | Title | Status |
 |---|---|---|
 | [0001](0001-split-event-messaging-by-transport.md) | Split sdk-event-messaging by transport | accepted |
-| [0002](0002-move-policy-enforcer-to-its-own-artifact.md) | Move the Keycloak policy enforcer to sdk-user-security-authz | accepted |
+| [0002](0002-move-policy-enforcer-to-its-own-artifact.md) | Move the Keycloak policy enforcer to sdk-user-security-authz | accepted; adapter technology superseded by [0023](0023-authz-on-keycloak-policy-enforcer.md) |
 | [0003](0003-retire-geo-validation-from-the-sdk.md) | Retire sdk-geo-validation from the SDK | superseded by [0015](0015-domain-agnostic-geofencing.md) |
 | [0004](0004-single-codehunters-property-prefix.md) | Use the codehunters.&lt;sdk&gt; property prefix with deprecated aliases | superseded by [0021](0021-postgresql-only-and-codehunters-properties.md) |
 | [0005](0005-rename-sdk-utils-to-sdk-totp.md) | Rename sdk-utils to sdk-totp | superseded by [0016](0016-consolidate-web-and-commons-artifacts.md) |
@@ -19,9 +19,13 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0013](0013-jpa-building-blocks.md) | JPA building blocks: UUID v7 entities, Spring Data auditing and whitelisted queries | accepted |
 | [0014](0014-jasper-reports-from-the-classpath-only.md) | Render JasperReports templates from the classpath only | accepted |
 | [0015](0015-domain-agnostic-geofencing.md) | Keep sdk-geo-validation as domain-agnostic geofencing | accepted; SQL Server adapter superseded by [0021](0021-postgresql-only-and-codehunters-properties.md) |
-| [0016](0016-consolidate-web-and-commons-artifacts.md) | Merge the servlet web modules into sdk-web and TOTP into sdk-commons | accepted, amended by [0021](0021-postgresql-only-and-codehunters-properties.md) |
+| [0016](0016-consolidate-web-and-commons-artifacts.md) | Merge the servlet web modules into sdk-web and TOTP into sdk-commons | accepted, amended by [0021](0021-postgresql-only-and-codehunters-properties.md) and [0025](0025-i18n-on-boot-message-source.md) |
 | [0017](0017-publish-on-release-tags.md) | Publish packages only from published GitHub releases | accepted |
 | [0018](0018-charge-attempts-only-for-started-sends.md) | Charge reclaim attempts only for rows whose send had started | accepted; SQL Server parts superseded by [0021](0021-postgresql-only-and-codehunters-properties.md) |
 | [0019](0019-postgis-geofence-adapter.md) | PostGIS geofence adapter with geodesic coverage | accepted |
 | [0020](0020-package-by-capability.md) | Package the SDKs by capability, not by architectural layer | accepted |
 | [0021](0021-postgresql-only-and-codehunters-properties.md) | PostgreSQL only, configuration under codehunters.* only | accepted |
+| [0022](0022-tracing-on-micrometer-tracing.md) | Build sdk-tracing on Micrometer Tracing; keep only the legacy-header propagator | accepted |
+| [0023](0023-authz-on-keycloak-policy-enforcer.md) | Run Keycloak's official policy enforcer inside the Spring Security chain | accepted |
+| [0024](0024-outbox-carries-its-own-trace-context.md) | The outbox stores and publishes the writing request's trace context | accepted |
+| [0025](0025-i18n-on-boot-message-source.md) | Build sdk-web i18n on Boot's message source and locale resolver | accepted |
