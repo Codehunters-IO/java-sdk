@@ -161,8 +161,37 @@ val verifyPackageLayout = tasks.register("verifyPackageLayout") {
     }
 }
 
+// No property aliases (ADR 0021): configuration lives under codehunters.* only, so no module may
+// register an EnvironmentPostProcessor, the mechanism the removed aliases used.
+val verifyNoLegacyAliases = tasks.register("verifyNoLegacyAliases") {
+    description = "Fails when a module registers an EnvironmentPostProcessor (ADR 0021)."
+    group = JavaBasePlugin.VERIFICATION_GROUP
+    val factories = layout.projectDirectory.file("src/main/resources/META-INF/spring.factories")
+    val projectPath = project.path
+    val marker = layout.buildDirectory.file("verifyNoLegacyAliases/ok")
+    inputs.files(factories).withPropertyName("factories").withPathSensitivity(PathSensitivity.RELATIVE)
+    outputs.file(marker).withPropertyName("marker")
+    doLast {
+        val file = factories.asFile
+        val offending = if (file.isFile) file.readLines().filter { "EnvironmentPostProcessor" in it } else emptyList()
+        if (offending.isNotEmpty()) {
+            throw GradleException(
+                "$projectPath registers an EnvironmentPostProcessor in META-INF/spring.factories. " +
+                    "Configuration lives under codehunters.* only, with no aliases (ADR 0021):\n" +
+                    offending.joinToString("\n") { "  - $it" }
+            )
+        }
+        marker.get().asFile.apply { parentFile.mkdirs() }.writeText("ok\n")
+    }
+}
+
 tasks.named("check") {
-    dependsOn(tasks.named("jacocoTestCoverageVerification"), verifyCoverageGates, verifyPackageLayout)
+    dependsOn(
+        tasks.named("jacocoTestCoverageVerification"),
+        verifyCoverageGates,
+        verifyPackageLayout,
+        verifyNoLegacyAliases,
+    )
 }
 
 tasks.register("jacocoLogCodeCoverage") {

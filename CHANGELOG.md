@@ -34,16 +34,19 @@ was never published:
 
 - `sdk-event-messaging-*` 9.0.0: PostgreSQL only; the dialect selection and `claim.dialect` are
   gone; startup fails when the outbox data source is not PostgreSQL; the `outbox.*` aliases are
-  removed.
+  removed. Tests that ran the outbox on H2 need one of the fixes in its MIGRATION-9.0.
 - `sdk-web` 3.0.0: keys move to `codehunters.web.errors`, `codehunters.web.device` and
-  `codehunters.web.i18n`; the old i18n aliases are removed.
+  `codehunters.web.i18n`; the old i18n aliases are removed. The configuration metadata flags the
+  old `codehunters.*` keys as errors with their replacements.
 - `sdk-audit-log` 5.0.0, `sdk-file-share` 4.0.0, `sdk-user-security` and `-authz` 5.0.0: the
   aliases for older property prefixes are removed; audit ships PostgreSQL DDL only.
 - `sdk-geo-validation` 2.0.0: polygon and PostGIS adapters only; `geo.validation.enabled` is gone.
 - `sdk-jpa` 3.0.0: PostgreSQL is the only supported database.
 - `sdk-parameter` 4.0.0: ships PostgreSQL DDL; `ParameterModule` has no built-in product modules.
-- `sdk-commons` 3.0.0 no longer depends on `sdk-support`.
+- `sdk-commons` 3.0.0 removes the TOTP legacy property aliases and no longer depends on `sdk-support`.
 - `sdk-support` is removed and no longer managed by the BOM.
+- Build: `verifyNoLegacyAliases`, part of `check`, fails a module that registers an
+  `EnvironmentPostProcessor`.
 
 ## sdk-bom 3.1.0
 

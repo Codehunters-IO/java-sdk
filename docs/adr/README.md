@@ -19,7 +19,7 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0013](0013-jpa-building-blocks.md) | JPA building blocks: UUID v7 entities, Spring Data auditing and whitelisted queries | accepted |
 | [0014](0014-jasper-reports-from-the-classpath-only.md) | Render JasperReports templates from the classpath only | accepted |
 | [0015](0015-domain-agnostic-geofencing.md) | Keep sdk-geo-validation as domain-agnostic geofencing | accepted; SQL Server adapter superseded by [0021](0021-postgresql-only-and-codehunters-properties.md) |
-| [0016](0016-consolidate-web-and-commons-artifacts.md) | Merge the servlet web modules into sdk-web and TOTP into sdk-commons | accepted |
+| [0016](0016-consolidate-web-and-commons-artifacts.md) | Merge the servlet web modules into sdk-web and TOTP into sdk-commons | accepted, amended by [0021](0021-postgresql-only-and-codehunters-properties.md) |
 | [0017](0017-publish-on-release-tags.md) | Publish packages only from published GitHub releases | accepted |
 | [0018](0018-charge-attempts-only-for-started-sends.md) | Charge reclaim attempts only for rows whose send had started | accepted; SQL Server parts superseded by [0021](0021-postgresql-only-and-codehunters-properties.md) |
 | [0019](0019-postgis-geofence-adapter.md) | PostGIS geofence adapter with geodesic coverage | accepted |

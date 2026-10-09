@@ -53,6 +53,10 @@ keeps the SDK independent of the services it came from.
 ## Confirmation
 
 - No `*LegacyProperties`, `spring.factories` alias entry or deprecated metadata remains; the build
-  has no `sdk-support` project.
+  has no `sdk-support` project. The `verifyNoLegacyAliases` task, part of `check`, fails a module
+  that registers an `EnvironmentPostProcessor`.
+- Keys renamed between `codehunters.*` prefixes stay listed in the configuration metadata with
+  deprecation level `error` and their replacement, so IDEs and `spring-boot-properties-migrator`
+  report them; nothing reads them at runtime.
 - `rg -i` over the repository finds no mention of the previous product line.
 - The outbox auto-configuration test fails startup for a data source that reports H2.
