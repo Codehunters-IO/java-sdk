@@ -6,6 +6,7 @@ import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.pdf417.encoder.Dimensions;
 import io.codehunters.barcode.BarcodeFormat;
+import io.codehunters.barcode.BarcodeRejectedException;
 import io.codehunters.barcode.BarcodeRequest;
 import io.codehunters.barcode.internal.ZxingMapping;
 import java.nio.charset.StandardCharsets;
@@ -43,7 +44,7 @@ public final class Symbol {
       return new Symbol(modules, request.margin(), !format.isTwoDimensional());
     } catch (WriterException | IllegalArgumentException e) {
       // ZXing messages may quote the content; the cause is dropped on purpose.
-      throw new IllegalArgumentException("the content cannot be encoded as " + format);
+      throw BarcodeRejectedException.content("the content cannot be encoded as " + format);
     }
   }
 

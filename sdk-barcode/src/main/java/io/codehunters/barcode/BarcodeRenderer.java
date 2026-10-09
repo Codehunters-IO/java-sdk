@@ -42,8 +42,9 @@ public final class BarcodeRenderer {
    * @param request what to render
    * @param format the image format
    * @param out where to write
-   * @throws IllegalArgumentException if the request exceeds the limits or the content does not fit
-   *     the symbol
+   * @throws BarcodeRejectedException with code {@value BarcodeRejectedException#CONTENT_REJECTED}
+   *     if the request exceeds the limits or the content does not fit the symbol
+   * @throws IllegalArgumentException if an argument is null
    * @throws UncheckedIOException if {@code out} fails
    */
   public void render(BarcodeRequest request, ImageFormat format, OutputStream out) {
@@ -84,7 +85,7 @@ public final class BarcodeRenderer {
 
   private void requireWithinLimits(int width, int height, String what) {
     if (width > limits.maxWidth() || height > limits.maxHeight()) {
-      throw new IllegalArgumentException(
+      throw BarcodeRejectedException.content(
           what
               + " exceeds the limit of "
               + limits.maxWidth()

@@ -34,7 +34,7 @@ public record BarcodeRequest(
       throw new IllegalArgumentException("errorCorrection must not be null");
     }
     if (content == null || content.isEmpty()) {
-      throw new IllegalArgumentException("content must not be empty");
+      throw BarcodeRejectedException.content("content must not be empty");
     }
     requireSize(width, height, margin);
     ContentRules.check(format, content);
@@ -83,10 +83,10 @@ public record BarcodeRequest(
 
   private static void requireSize(int width, int height, int margin) {
     if (width < 1 || height < 1) {
-      throw new IllegalArgumentException("width and height must be at least 1 pixel");
+      throw BarcodeRejectedException.content("width and height must be at least 1 pixel");
     }
     if (margin < 0 || margin > MAX_MARGIN) {
-      throw new IllegalArgumentException("margin must be between 0 and " + MAX_MARGIN);
+      throw BarcodeRejectedException.content("margin must be between 0 and " + MAX_MARGIN);
     }
   }
 }
