@@ -1,15 +1,16 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.export;
 
+import io.codehunters.jasper.ReportException;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 
 /** Buffers a document in memory and fails as soon as it grows past the limit. */
-final class CappedOutputStream extends OutputStream {
+public final class CappedOutputStream extends OutputStream {
 
   private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
   private final long limit;
 
-  CappedOutputStream(long limit) {
+  public CappedOutputStream(long limit) {
     this.limit = limit;
   }
 
@@ -25,7 +26,7 @@ final class CappedOutputStream extends OutputStream {
     buffer.write(b, off, len);
   }
 
-  byte[] toByteArray() {
+  public byte[] toByteArray() {
     return buffer.toByteArray();
   }
 

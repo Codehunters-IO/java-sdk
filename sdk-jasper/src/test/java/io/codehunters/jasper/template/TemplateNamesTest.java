@@ -1,4 +1,4 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.template;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

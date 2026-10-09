@@ -3,6 +3,7 @@ package io.codehunters.jasper;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.codehunters.jasper.template.HardenedContext;
 import java.lang.reflect.Method;
 import java.util.Map;
 import net.sf.jasperreports.engine.JasperCompileManager;

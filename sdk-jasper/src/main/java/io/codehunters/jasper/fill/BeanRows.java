@@ -1,4 +1,4 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.fill;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -14,13 +14,13 @@ import net.sf.jasperreports.engine.data.JRAbstractBeanDataSource;
  * Rows read through JavaBean getters, as JasperReports does, and through record components, which
  * its bean source cannot read. A dotted field ({@code customer.name}) walks either kind.
  */
-final class BeanRows extends JRAbstractBeanDataSource {
+public final class BeanRows extends JRAbstractBeanDataSource {
 
   private final List<?> rows;
   private final Map<Class<?>, Map<String, Method>> accessors = new HashMap<>();
   private int index = -1;
 
-  BeanRows(List<?> rows) {
+  public BeanRows(List<?> rows) {
     super(true);
     this.rows = rows;
   }

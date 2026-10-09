@@ -1,5 +1,6 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.template;
 
+import io.codehunters.jasper.ReportException;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -11,13 +12,13 @@ import java.util.function.Function;
  * template share one load, so a {@code .jrxml} is compiled once however many requests arrive
  * together. A failed load is not cached: its callers get the failure and the next call loads again.
  */
-final class TemplateCache<T> {
+public final class TemplateCache<T> {
 
   private final int maxEntries;
   private final Function<String, T> loader;
   private final Map<String, CompletableFuture<T>> entries;
 
-  TemplateCache(int maxEntries, Function<String, T> loader) {
+  public TemplateCache(int maxEntries, Function<String, T> loader) {
     if (maxEntries < 0) {
       throw new IllegalArgumentException("cache size must not be negative");
     }
@@ -26,7 +27,7 @@ final class TemplateCache<T> {
     this.entries = new LinkedHashMap<>(16, 0.75f, true);
   }
 
-  T get(String name) {
+  public T get(String name) {
     if (maxEntries == 0) {
       return loader.apply(name);
     }

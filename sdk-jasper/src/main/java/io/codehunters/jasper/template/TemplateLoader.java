@@ -1,5 +1,7 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.template;
 
+import io.codehunters.jasper.ReportException;
+import io.codehunters.jasper.ReportSettings;
 import java.io.IOException;
 import java.io.InputStream;
 import net.sf.jasperreports.engine.JRException;
@@ -9,19 +11,19 @@ import net.sf.jasperreports.engine.JasperReportsContext;
 import net.sf.jasperreports.engine.util.JRLoader;
 
 /** Reads a template from the base folder: a {@code .jasper} as is, a {@code .jrxml} compiled. */
-final class TemplateLoader {
+public final class TemplateLoader {
 
   private final ReportSettings settings;
   private final JasperReportsContext context;
   private final ClassLoader loader;
 
-  TemplateLoader(ReportSettings settings, JasperReportsContext context, ClassLoader loader) {
+  public TemplateLoader(ReportSettings settings, JasperReportsContext context, ClassLoader loader) {
     this.settings = settings;
     this.context = context;
     this.loader = loader;
   }
 
-  JasperReport load(String name) {
+  public JasperReport load(String name) {
     try (InputStream in = loader.getResourceAsStream(settings.resolve(name))) {
       if (in == null) {
         throw new ReportException(

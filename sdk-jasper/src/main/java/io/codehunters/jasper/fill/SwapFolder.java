@@ -1,4 +1,4 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.fill;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -14,14 +14,14 @@ import java.util.Comparator;
  * neither read swapped pages nor plant a link where a swap file will be written. Each render swaps
  * into its own subfolder, so two renders never share a file name.
  */
-final class SwapFolder implements AutoCloseable {
+public final class SwapFolder implements AutoCloseable {
 
   private static final String PREFIX = "jasper-swap-";
 
   private final Path parent;
   private Path folder;
 
-  SwapFolder(Path parent) {
+  public SwapFolder(Path parent) {
     this.parent = parent;
   }
 

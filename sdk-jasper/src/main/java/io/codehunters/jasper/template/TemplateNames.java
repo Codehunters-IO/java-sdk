@@ -1,4 +1,4 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.template;
 
 import java.util.regex.Pattern;
 
@@ -8,9 +8,9 @@ import java.util.regex.Pattern;
  * application code; these rules keep a name that reaches a report from anywhere else from leaving
  * the base folder.
  */
-final class TemplateNames {
+public final class TemplateNames {
 
-  static final String TEMPLATE_RULE =
+  public static final String TEMPLATE_RULE =
       "template must be a relative classpath name ending in .jasper or .jrxml, made of letters,"
           + " digits, '.', '_', '-' and '/'";
 
@@ -20,11 +20,11 @@ final class TemplateNames {
 
   private TemplateNames() {}
 
-  static boolean isResource(String name) {
+  public static boolean isResource(String name) {
     return name != null && name.length() <= MAX_LENGTH && PATH.matcher(name).matches();
   }
 
-  static boolean isTemplate(String name) {
+  public static boolean isTemplate(String name) {
     return isResource(name) && (name.endsWith(".jasper") || name.endsWith(".jrxml"));
   }
 }

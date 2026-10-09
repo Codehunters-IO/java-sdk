@@ -1,5 +1,6 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.template;
 
+import io.codehunters.jasper.ReportSettings;
 import java.util.List;
 import net.sf.jasperreports.engine.DefaultJasperReportsContext;
 import net.sf.jasperreports.engine.SimpleJasperReportsContext;
@@ -16,11 +17,11 @@ import net.sf.jasperreports.repo.RepositoryService;
  * JasperReports 7 parses JRXML and JRTX with Jackson's XML mapper, which leaves DTDs unprocessed,
  * so a DOCTYPE's entities are never resolved.
  */
-final class HardenedContext extends SimpleJasperReportsContext {
+public final class HardenedContext extends SimpleJasperReportsContext {
 
   private final List<RepositoryService> repositories;
 
-  HardenedContext(ReportSettings settings, ClassLoader loader) {
+  public HardenedContext(ReportSettings settings, ClassLoader loader) {
     super(DefaultJasperReportsContext.getInstance());
     var limits = settings.fillLimits();
     setProperty(MaxPagesGovernor.PROPERTY_MAX_PAGES_ENABLED, "true");

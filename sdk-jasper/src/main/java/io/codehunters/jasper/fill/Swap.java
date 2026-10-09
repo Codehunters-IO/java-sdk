@@ -1,5 +1,6 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.fill;
 
+import io.codehunters.jasper.Virtualization;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
@@ -13,7 +14,7 @@ import net.sf.jasperreports.engine.util.JRSwapFile;
  * deletes the file and the folder, so it must outlive the export, which reads the swapped pages
  * back.
  */
-final class Swap implements AutoCloseable {
+public final class Swap implements AutoCloseable {
 
   private static final int BLOCK_SIZE = 4096;
   private static final int MIN_GROW = 64;
@@ -26,7 +27,8 @@ final class Swap implements AutoCloseable {
     this.folder = folder;
   }
 
-  static Swap open(Virtualization virtualization, JasperReportsContext context, SwapFolder swaps)
+  public static Swap open(
+      Virtualization virtualization, JasperReportsContext context, SwapFolder swaps)
       throws IOException {
     if (!virtualization.enabled()) {
       return new Swap(null, null);
@@ -36,13 +38,13 @@ final class Swap implements AutoCloseable {
     return new Swap(new JRSwapFileVirtualizer(virtualization.maxPages(), file, true), folder);
   }
 
-  void attachTo(Map<String, Object> parameters) {
+  public void attachTo(Map<String, Object> parameters) {
     if (virtualizer != null) {
       parameters.put(JRParameter.REPORT_VIRTUALIZER, virtualizer);
     }
   }
 
-  void freeze() {
+  public void freeze() {
     if (virtualizer != null) {
       virtualizer.setReadOnly(true);
     }

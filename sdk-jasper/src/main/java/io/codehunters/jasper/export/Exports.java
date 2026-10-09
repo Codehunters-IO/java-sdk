@@ -1,5 +1,6 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.export;
 
+import io.codehunters.jasper.ReportFormat;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
@@ -17,7 +18,7 @@ import net.sf.jasperreports.pdf.JRPdfExporter;
 import net.sf.jasperreports.pdf.PdfExporterConfiguration;
 
 /** Writes a filled report in one format, into a stream the caller keeps open. */
-final class Exports {
+public final class Exports {
 
   // Levels a, the accessible PDF/A variants, need a tagged document like the tagged flag itself.
   private static final Set<String> TAGGED_PDFA = Set.of("pdfa1a", "pdfa2a", "pdfa3a");
@@ -28,7 +29,7 @@ final class Exports {
    * Whether the report asks for a tagged PDF, directly or through an accessible PDF/A level. The
    * OpenPDF release on Maven Central lacks the structure-tree API JasperReports tags with.
    */
-  static boolean asksForTaggedPdf(JasperPrint print, JasperReportsContext context) {
+  public static boolean asksForTaggedPdf(JasperPrint print, JasperReportsContext context) {
     var properties = JRPropertiesUtil.getInstance(context);
     String conformance =
         properties.getProperty(print, PdfExporterConfiguration.PROPERTY_PDFA_CONFORMANCE);
@@ -36,7 +37,7 @@ final class Exports {
         || (conformance != null && TAGGED_PDFA.contains(conformance.toLowerCase(Locale.ROOT)));
   }
 
-  static void write(
+  public static void write(
       JasperPrint print, ReportFormat format, JasperReportsContext context, OutputStream out)
       throws JRException {
     switch (format) {

@@ -1,5 +1,7 @@
 package io.codehunters.jasper;
 
+import io.codehunters.jasper.template.TemplateNames;
+
 /**
  * How the renderer loads templates and bounds its work.
  *
@@ -62,7 +64,13 @@ public record ReportSettings(
     this(templateBase, cacheSize, maxOutputBytes, FillLimits.DEFAULT, virtualization);
   }
 
-  String resolve(String name) {
+  /**
+   * Where a template or resource sits on the classpath; the renderer's template loading reads it.
+   *
+   * @param name a name relative to {@link #templateBase()}
+   * @return the classpath location
+   */
+  public String resolve(String name) {
     return templateBase + "/" + name;
   }
 }

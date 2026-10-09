@@ -1,5 +1,7 @@
-package io.codehunters.jasper;
+package io.codehunters.jasper.template;
 
+import io.codehunters.jasper.ReportRequest;
+import io.codehunters.jasper.ReportSettings;
 import java.io.InputStream;
 import net.sf.jasperreports.engine.JasperReportsContext;
 import net.sf.jasperreports.repo.DefaultRepositoryService;
