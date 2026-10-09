@@ -17,6 +17,18 @@ public interface MessagePublisherPort {
   String OUTBOX_ID_HEADER = "outbox-message-id";
 
   /**
+   * W3C trace context header. Adapters set it in {@link #publish(OutboxMessage)} to the message's
+   * stored {@link OutboxMessage#getTraceparent() traceparent}, when it has one.
+   */
+  String TRACEPARENT_HEADER = "traceparent";
+
+  /**
+   * Copy of {@link #TRACEPARENT_HEADER} for consumers that read only this one. Adapters set it only
+   * when {@code codehunters.outbox.publisher.legacy-traceparent-header} is {@code true}.
+   */
+  String LEGACY_TRACEPARENT_HEADER = "x-traceparent";
+
+  /**
    * Publishes a JSON message with a routing key.
    *
    * @param topic the destination topic or exchange
