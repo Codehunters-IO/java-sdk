@@ -1,5 +1,6 @@
 package io.codehunters.security.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -43,6 +44,7 @@ class KeycloakSecurityEndToEndTest {
               "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
               "codehunters.security.public-paths[0]=/public/**",
               "codehunters.security.excluded-paths[0]=/health",
+              "codehunters.security.introspection.enabled=true",
               "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
               "codehunters.security.introspection.client-secret=secret");
 
@@ -157,6 +159,20 @@ class KeycloakSecurityEndToEndTest {
     keycloak.sessionActive(false);
 
     expect(bearer(get("/api/me"), keycloak.token()), status().isUnauthorized());
+  }
+
+  @Test
+  void should_accept_token_of_revoked_session_without_asking_keycloak_when_introspection_is_off() {
+    keycloak.sessionActive(false);
+
+    runner
+        .withPropertyValues("codehunters.security.introspection.enabled=false")
+        .run(
+            context ->
+                mockMvc(context)
+                    .perform(bearer(get("/api/me"), keycloak.token()))
+                    .andExpect(status().isOk()));
+    assertThat(keycloak.introspectionCalls()).isZero();
   }
 
   @Test

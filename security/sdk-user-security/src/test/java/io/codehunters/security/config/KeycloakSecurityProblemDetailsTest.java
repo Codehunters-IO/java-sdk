@@ -44,9 +44,7 @@ class KeycloakSecurityProblemDetailsTest {
           .withPropertyValues(
               "codehunters.security.url=" + keycloak.url(),
               "codehunters.security.realm=" + FakeKeycloak.REALM,
-              "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
-              "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
-              "codehunters.security.introspection.client-secret=secret");
+              "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID);
 
   @AfterEach
   void tearDown() {
@@ -103,9 +101,7 @@ class KeycloakSecurityProblemDetailsTest {
         .withPropertyValues(
             "codehunters.security.url=" + keycloak.url(),
             "codehunters.security.realm=" + FakeKeycloak.REALM,
-            "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
-            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
-            "codehunters.security.introspection.client-secret=secret")
+            "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID)
         .run(
             context ->
                 mockMvc(context)
@@ -123,9 +119,7 @@ class KeycloakSecurityProblemDetailsTest {
         .withPropertyValues(
             "codehunters.security.url=" + keycloak.url(),
             "codehunters.security.realm=" + FakeKeycloak.REALM,
-            "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
-            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
-            "codehunters.security.introspection.client-secret=secret")
+            "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID)
         .run(context -> assertThat(context).hasNotFailed());
 
     assertThat(output)
