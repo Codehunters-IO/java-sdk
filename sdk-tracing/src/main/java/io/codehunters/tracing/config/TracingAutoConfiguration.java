@@ -1,8 +1,8 @@
 package io.codehunters.tracing.config;
 
-import io.codehunters.tracing.MdcTaskDecorator;
-import io.codehunters.tracing.MdcTraceContextAdapter;
 import io.codehunters.tracing.TraceContextPort;
+import io.codehunters.tracing.mdc.MdcTaskDecorator;
+import io.codehunters.tracing.mdc.MdcTraceContextAdapter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

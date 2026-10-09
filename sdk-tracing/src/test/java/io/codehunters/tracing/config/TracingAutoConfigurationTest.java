@@ -2,10 +2,10 @@ package io.codehunters.tracing.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.tracing.MdcTaskDecorator;
-import io.codehunters.tracing.MdcTraceContextAdapter;
 import io.codehunters.tracing.TraceContextPort;
 import io.codehunters.tracing.TraceParent;
+import io.codehunters.tracing.mdc.MdcTaskDecorator;
+import io.codehunters.tracing.mdc.MdcTraceContextAdapter;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;

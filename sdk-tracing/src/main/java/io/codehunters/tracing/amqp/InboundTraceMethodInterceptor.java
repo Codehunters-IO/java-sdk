@@ -1,5 +1,8 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.amqp;
 
+import io.codehunters.tracing.TraceHeaders;
+import io.codehunters.tracing.TraceParent;
+import io.codehunters.tracing.internal.TraceMdc;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;

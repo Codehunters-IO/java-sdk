@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "2.0.0"
 description = "Trace id propagation across HTTP, async tasks and RabbitMQ through the MDC."
 
 dependencies {

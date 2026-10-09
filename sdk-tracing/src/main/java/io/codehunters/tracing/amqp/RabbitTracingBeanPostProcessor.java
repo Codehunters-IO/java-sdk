@@ -1,4 +1,4 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.amqp;
 
 import java.util.Arrays;
 import java.util.Collection;

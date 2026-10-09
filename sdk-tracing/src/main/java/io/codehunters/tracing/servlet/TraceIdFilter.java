@@ -1,5 +1,8 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.servlet;
 
+import io.codehunters.tracing.TraceHeaders;
+import io.codehunters.tracing.TraceParent;
+import io.codehunters.tracing.internal.TraceMdc;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

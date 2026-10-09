@@ -1,9 +1,10 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.amqp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import io.codehunters.tracing.TraceHeaders;
 import java.util.HashMap;
 import java.util.Map;
 import org.aopalliance.intercept.MethodInvocation;

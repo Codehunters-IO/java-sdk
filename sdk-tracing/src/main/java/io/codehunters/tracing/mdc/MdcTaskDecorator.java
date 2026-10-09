@@ -1,4 +1,4 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.mdc;
 
 import java.util.Map;
 import org.slf4j.MDC;

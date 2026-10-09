@@ -2,7 +2,7 @@ package io.codehunters.tracing.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.tracing.TraceIdFilter;
+import io.codehunters.tracing.servlet.TraceIdFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

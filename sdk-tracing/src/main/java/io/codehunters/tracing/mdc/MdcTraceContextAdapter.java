@@ -1,5 +1,9 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.mdc;
 
+import io.codehunters.tracing.TraceContextPort;
+import io.codehunters.tracing.TraceHeaders;
+import io.codehunters.tracing.TraceParent;
+import io.codehunters.tracing.internal.TraceMdc;
 import java.util.Optional;
 import org.slf4j.MDC;
 

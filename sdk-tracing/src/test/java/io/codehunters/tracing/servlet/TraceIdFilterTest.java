@@ -1,7 +1,8 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.servlet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.tracing.TraceHeaders;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.ServletException;
 import java.io.IOException;

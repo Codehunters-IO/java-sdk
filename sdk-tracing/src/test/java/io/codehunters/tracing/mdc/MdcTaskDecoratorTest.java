@@ -1,7 +1,8 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.mdc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.tracing.TraceHeaders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

@@ -1,5 +1,8 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.amqp;
 
+import io.codehunters.tracing.TraceHeaders;
+import io.codehunters.tracing.TraceParent;
+import io.codehunters.tracing.internal.TraceMdc;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

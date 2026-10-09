@@ -1,7 +1,9 @@
-package io.codehunters.tracing;
+package io.codehunters.tracing.amqp;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.tracing.TraceHeaders;
+import io.codehunters.tracing.TraceParent;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

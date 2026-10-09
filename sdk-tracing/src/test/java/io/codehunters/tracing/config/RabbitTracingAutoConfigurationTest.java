@@ -3,9 +3,9 @@ package io.codehunters.tracing.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import io.codehunters.tracing.InboundTraceMethodInterceptor;
-import io.codehunters.tracing.RabbitTracingBeanPostProcessor;
-import io.codehunters.tracing.TracePropagationMessagePostProcessor;
+import io.codehunters.tracing.amqp.InboundTraceMethodInterceptor;
+import io.codehunters.tracing.amqp.RabbitTracingBeanPostProcessor;
+import io.codehunters.tracing.amqp.TracePropagationMessagePostProcessor;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
