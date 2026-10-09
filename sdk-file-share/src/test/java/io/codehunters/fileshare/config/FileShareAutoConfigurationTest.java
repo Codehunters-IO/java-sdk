@@ -202,6 +202,33 @@ class FileShareAutoConfigurationTest {
             });
   }
 
+  @Test
+  void should_not_follow_redirect_from_upload_url() {
+    runner
+        .withPropertyValues("codehunters.file-share.base-url=" + server.url())
+        .run(
+            context -> {
+              var status = put(uploadClient(context), server.url() + "/moved-upload");
+              assertThat(status).isEqualTo(307);
+              assertThat(server.redirectTargetHits()).isZero();
+            });
+  }
+
+  @Test
+  void should_fail_startup_when_max_upload_size_is_not_positive() {
+    runner
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.max-upload-size=0B")
+        .run(
+            context ->
+                assertThat(context)
+                    .hasFailed()
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("max-upload-size"));
+  }
+
   @ParameterizedTest
   @ValueSource(strings = {"0B", "-1B", "2GB"})
   void should_fail_startup_when_max_download_size_cannot_be_buffered(String size) {
@@ -262,10 +289,24 @@ class FileShareAutoConfigurationTest {
               assertThat(properties.readTimeout()).isEqualTo(Duration.ofSeconds(30));
               assertThat(properties.downloadIdleTimeout()).isEqualTo(Duration.ofSeconds(30));
               assertThat(properties.maxDownloadSize().toMegabytes()).isEqualTo(50);
+              assertThat(properties.maxUploadSize().toGigabytes()).isEqualTo(5);
+              assertThat(properties.uploadIdleTimeout()).isEqualTo(Duration.ofSeconds(30));
               assertThat(properties.presigned().allowedHosts()).isEmpty();
               assertThat(properties.auth().clientRegistrationId()).isNull();
               assertThat(properties.auth().principal()).isEqualTo("codehunters-file-share");
             });
+  }
+
+  static RestClient uploadClient(org.springframework.context.ApplicationContext context) {
+    return context.getBean("fileShareUploadRestClient", RestClient.class);
+  }
+
+  static int put(RestClient client, String url) {
+    return client
+        .put()
+        .uri(url)
+        .body(new byte[] {1, 2, 3})
+        .exchange((request, response) -> response.getStatusCode().value());
   }
 
   record RestClientConsumer(RestClient client) {}
