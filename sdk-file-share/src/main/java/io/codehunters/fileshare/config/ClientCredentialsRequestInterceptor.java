@@ -1,8 +1,8 @@
 package io.codehunters.fileshare.config;
 
-import io.codehunters.fileshare.domain.exception.FileShareException;
-import io.codehunters.fileshare.domain.exception.FileShareUnauthorizedException;
-import io.codehunters.fileshare.domain.exception.FileShareUnavailableException;
+import io.codehunters.fileshare.FileShareException;
+import io.codehunters.fileshare.FileShareUnauthorizedException;
+import io.codehunters.fileshare.FileShareUnavailableException;
 import java.io.IOException;
 import java.util.Set;
 import org.springframework.http.HttpRequest;

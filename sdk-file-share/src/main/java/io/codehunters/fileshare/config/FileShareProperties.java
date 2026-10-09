@@ -1,6 +1,6 @@
 package io.codehunters.fileshare.config;
 
-import io.codehunters.fileshare.infrastructure.RestClientFileShareAdapter;
+import io.codehunters.fileshare.http.RestClientFileShareAdapter;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;

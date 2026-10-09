@@ -1,8 +1,9 @@
 package io.codehunters.fileshare.config;
 
-import io.codehunters.fileshare.application.FileShareClient;
-import io.codehunters.fileshare.infrastructure.PresignedUrlPolicy;
-import io.codehunters.fileshare.infrastructure.RestClientFileShareAdapter;
+import io.codehunters.fileshare.FileShareClient;
+import io.codehunters.fileshare.FileShareRequestInterceptor;
+import io.codehunters.fileshare.http.PresignedUrlPolicy;
+import io.codehunters.fileshare.http.RestClientFileShareAdapter;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;

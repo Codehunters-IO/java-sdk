@@ -13,7 +13,7 @@ import org.springframework.core.env.ConfigurableEnvironment;
 
 /**
  * Honours the 1.x {@code vitxo.file-share.*} keys under their {@code codehunters.file-share.*}
- * names until 3.0. Runs right after the application's configuration files are loaded; a key set
+ * names until 4.0. Runs right after the application's configuration files are loaded; a key set
  * under the new name always wins.
  */
 public class FileShareLegacyProperties implements EnvironmentPostProcessor, Ordered {
