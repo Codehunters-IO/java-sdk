@@ -27,12 +27,12 @@ class RenamedPropertiesMetadataTest {
     "codehunters.device.user-agent.max-length, codehunters.web.device.user-agent.max-length",
     "codehunters.device.user-agent.cache-size, codehunters.web.device.user-agent.cache-size",
     "codehunters.i18n.enabled, codehunters.web.i18n.enabled",
-    "codehunters.i18n.basename, codehunters.web.i18n.basename",
-    "codehunters.i18n.default-locale, codehunters.web.i18n.default-locale",
+    "codehunters.i18n.basename, spring.messages.basename",
+    "codehunters.i18n.default-locale, spring.web.locale",
     "codehunters.i18n.supported-locales, codehunters.web.i18n.supported-locales",
     "codehunters.i18n.header-name, codehunters.web.i18n.header-name",
-    "codehunters.i18n.encoding, codehunters.web.i18n.encoding",
-    "codehunters.i18n.fallback-to-system-locale, codehunters.web.i18n.fallback-to-system-locale"
+    "codehunters.i18n.encoding, spring.messages.encoding",
+    "codehunters.i18n.fallback-to-system-locale, spring.messages.fallback-to-system-locale"
   })
   void should_flag_renamed_key_as_error_with_its_replacement_when_metadata_is_read(
       String oldKey, String newKey) throws IOException {

@@ -3,7 +3,7 @@ package io.codehunters.web.i18n.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -15,29 +15,23 @@ import org.springframework.boot.context.properties.source.MapConfigurationProper
 class I18nPropertiesTest {
 
   private static final Locale SPANISH = Locale.of("es");
+  private static final I18nProperties.Mdc NO_MDC = new I18nProperties.Mdc(false);
 
   @Test
   void should_use_default_values_when_nothing_is_configured() {
     I18nProperties properties = bind(Map.of());
 
     assertThat(properties.enabled()).isTrue();
-    assertThat(properties.basename()).containsExactly("classpath:i18n/messages");
-    assertThat(properties.defaultLocale()).isEqualTo(SPANISH);
     assertThat(properties.supportedLocales()).isEmpty();
     assertThat(properties.headerName()).isEqualTo("X-Locale");
-    assertThat(properties.encoding()).isEqualTo(StandardCharsets.UTF_8);
-    assertThat(properties.fallbackToSystemLocale()).isFalse();
+    assertThat(properties.mdc().enabled()).isFalse();
   }
 
   @Test
-  void should_bind_several_basenames_when_given_as_a_comma_separated_list() {
-    I18nProperties properties =
-        bind(
-            Map.of(
-                "codehunters.web.i18n.basename", "classpath:i18n/messages,classpath:i18n/errors"));
+  void should_enable_the_mdc_filter_when_configured() {
+    I18nProperties properties = bind(Map.of("codehunters.web.i18n.mdc.enabled", "true"));
 
-    assertThat(properties.basename())
-        .containsExactly("classpath:i18n/messages", "classpath:i18n/errors");
+    assertThat(properties.mdc().enabled()).isTrue();
   }
 
   @Test
@@ -50,15 +44,6 @@ class I18nPropertiesTest {
   }
 
   @Test
-  void should_reject_supported_locales_when_they_do_not_include_the_default_locale() {
-    assertThatThrownBy(() -> bind(Map.of("codehunters.web.i18n.supported-locales", "en,pt")))
-        .isInstanceOf(BindException.class)
-        .rootCause()
-        .hasMessageContaining("codehunters.web.i18n.supported-locales")
-        .hasMessageContaining("codehunters.web.i18n.default-locale");
-  }
-
-  @Test
   void should_reject_header_name_when_it_is_not_an_http_token() {
     assertThatThrownBy(() -> bind(Map.of("codehunters.web.i18n.header-name", "X Locale")))
         .isInstanceOf(BindException.class)
@@ -67,73 +52,29 @@ class I18nPropertiesTest {
   }
 
   @Test
-  void should_reject_encoding_when_charset_is_unknown() {
-    assertThatThrownBy(() -> bind(Map.of("codehunters.web.i18n.encoding", "no-such-charset")))
-        .isInstanceOf(BindException.class);
-  }
-
-  @Test
-  void should_reject_basename_when_list_is_empty() {
-    assertThatThrownBy(
-            () -> new I18nProperties(true, List.of(), SPANISH, List.of(), "X-Locale", null, false))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.web.i18n.basename");
-  }
-
-  @Test
-  void should_reject_basename_when_an_entry_is_blank() {
-    assertThatThrownBy(
-            () ->
-                new I18nProperties(
-                    true, List.of("classpath:a", " "), SPANISH, List.of(), "X-Locale", null, false))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.web.i18n.basename");
-  }
-
-  @Test
-  void should_reject_default_locale_when_it_has_no_language() {
-    assertThatThrownBy(
-            () ->
-                new I18nProperties(
-                    true, List.of("classpath:a"), Locale.ROOT, List.of(), "X-Locale", null, false))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("codehunters.web.i18n.default-locale");
-  }
-
-  @Test
   void should_reject_supported_locale_when_it_has_no_language() {
-    assertThatThrownBy(
-            () ->
-                new I18nProperties(
-                    true,
-                    List.of("classpath:a"),
-                    SPANISH,
-                    List.of(SPANISH, Locale.ROOT),
-                    "X-Locale",
-                    null,
-                    false))
+    List<Locale> supported = List.of(SPANISH, Locale.ROOT);
+
+    assertThatThrownBy(() -> new I18nProperties(true, supported, "X-Locale", NO_MDC))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("codehunters.web.i18n.supported-locales");
   }
 
   @Test
-  void should_default_encoding_to_utf8_when_constructed_without_one() {
-    I18nProperties properties =
-        new I18nProperties(
-            true, List.of("classpath:a"), SPANISH, List.of(), "X-Locale", null, false);
+  void should_disable_the_mdc_filter_when_constructed_without_mdc_settings() {
+    var properties = new I18nProperties(true, List.of(), "X-Locale", null);
 
-    assertThat(properties.encoding()).isEqualTo(StandardCharsets.UTF_8);
+    assertThat(properties.mdc().enabled()).isFalse();
   }
 
   @Test
-  void should_copy_lists_when_constructed_from_mutable_lists() {
-    List<String> basenames = new java.util.ArrayList<>(List.of("classpath:a"));
-    I18nProperties properties =
-        new I18nProperties(true, basenames, SPANISH, List.of(), "X-Locale", null, false);
+  void should_copy_supported_locales_when_constructed_from_a_mutable_list() {
+    List<Locale> supported = new ArrayList<>(List.of(SPANISH));
+    var properties = new I18nProperties(true, supported, "X-Locale", NO_MDC);
 
-    basenames.add("classpath:b");
+    supported.add(Locale.ENGLISH);
 
-    assertThat(properties.basename()).containsExactly("classpath:a");
+    assertThat(properties.supportedLocales()).containsExactly(SPANISH);
   }
 
   private static I18nProperties bind(Map<String, String> values) {
