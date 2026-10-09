@@ -6,10 +6,10 @@
 - `io.codehunters.audit` keeps only what services use: `Auditable`, `AuditEvent`,
   `AuditEventPublisherPort`, `AuditContextProvider`, `NoOpAuditContextProvider`, the failure and
   rejection listeners and `AuditPersistenceException`. Auto-configurations and properties move to
-  `audit.config`, the aspect to `audit.aspect`, `AsyncAuditEventPublisher` and
+  `audit.config`, the aspect to `audit.internal.aspect`, `AsyncAuditEventPublisher` and
   `FailSafeAuditEventPublisher` to `audit.persistence`. Only imports change; see
   [MIGRATION-4.0.md](MIGRATION-4.0.md).
-- Internals move too (`audit.aspect`, `audit.reactive`, `audit.device`); the few made public for the
+- Internals move too (`audit.internal.aspect`, `audit.internal.reactive`, `audit.internal.device`); the few made public for the
   auto-configuration are not API.
 - The device context provider names sdk-web 2.0's `io.codehunters.web.device` classes.
 

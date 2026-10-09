@@ -3,7 +3,7 @@ package io.codehunters.audit.config;
 import io.codehunters.audit.AuditEventFailureListener;
 import io.codehunters.audit.AuditEventPublisherPort;
 import io.codehunters.audit.AuditEventRejectionListener;
-import io.codehunters.audit.aspect.AuditMdcTaskDecorator;
+import io.codehunters.audit.internal.aspect.AuditMdcTaskDecorator;
 import io.codehunters.audit.persistence.AsyncAuditEventPublisher;
 import io.codehunters.audit.persistence.AuditEventJdbcAdapter;
 import io.codehunters.audit.persistence.AutoCommitDataSource;

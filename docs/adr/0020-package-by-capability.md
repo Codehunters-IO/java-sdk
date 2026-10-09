@@ -25,7 +25,7 @@ Every library module follows one layout:
 
 - `io.codehunters.<module>`, the root package, holds the public API: annotations, value types,
   interfaces meant to be injected or implemented, exceptions and the main entry classes.
-- Sub-packages are named by capability (`messaging.jdbc`, `audit.reactive`, `jasper.template`,
+- Sub-packages are named by capability (`messaging.jdbc`, `audit.persistence`, `web.errors.servlet`,
   `web.device.ip`), never by layer: `application`, `domain`, `infrastructure`, `usecase`, `port(s)`,
   `drivenadapters`, `entrypoint` and `adapter(s)` are not used as segments.
 - `config` holds auto-configuration, `@ConfigurationProperties`, legacy-alias post-processors and

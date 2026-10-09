@@ -2,9 +2,9 @@ package io.codehunters.audit.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.audit.aspect.AuditAspect;
-import io.codehunters.audit.aspect.InMemoryAuditEventPublisher;
-import io.codehunters.audit.aspect.OrderService;
+import io.codehunters.audit.internal.aspect.AuditAspect;
+import io.codehunters.audit.internal.aspect.InMemoryAuditEventPublisher;
+import io.codehunters.audit.internal.aspect.OrderService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.aop.support.AopUtils;

@@ -21,7 +21,7 @@ publishers move to sub-packages. Only imports change: class names, properties
 | `io.codehunters.audit.AuditJdbcAutoConfiguration` | `io.codehunters.audit.config.AuditJdbcAutoConfiguration` |
 | `io.codehunters.audit.AuditProperties` | `io.codehunters.audit.config.AuditProperties` |
 | `io.codehunters.audit.AuditLegacyProperties` | `io.codehunters.audit.config.AuditLegacyProperties` |
-| `io.codehunters.audit.AuditAspect` | `io.codehunters.audit.aspect.AuditAspect` |
+| `io.codehunters.audit.AuditAspect` | `io.codehunters.audit.internal.aspect.AuditAspect` |
 | `io.codehunters.audit.AsyncAuditEventPublisher` | `io.codehunters.audit.persistence.AsyncAuditEventPublisher` |
 | `io.codehunters.audit.FailSafeAuditEventPublisher` | `io.codehunters.audit.persistence.FailSafeAuditEventPublisher` |
 
@@ -30,9 +30,9 @@ publishers move to sub-packages. Only imports change: class names, properties
 `TransactionAwareAuditEventPublisher`).
 
 Implementation classes that were package-private in 3.x also moved: `CapturedCall`,
-`AuditSpelEvaluator`, `AuditProxyCheck` and `AuditMdcTaskDecorator` to `audit.aspect`;
-`AsyncResults`, `ReactorResults` and `ReactorSecurityActor` to `audit.reactive`;
-`DeviceAuditContextProvider` to `audit.device`. Some are now public so the auto-configuration can
+`AuditSpelEvaluator`, `AuditProxyCheck` and `AuditMdcTaskDecorator` to `audit.internal.aspect`;
+`AsyncResults`, `ReactorResults` and `ReactorSecurityActor` to `audit.internal.reactive`;
+`DeviceAuditContextProvider` to `audit.internal.device`. Some are now public so the auto-configuration can
 reach them; they are not API and may change in any release.
 
 ## Steps
