@@ -41,6 +41,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D18 | `sdk-audit-log` 3.1.0: en WebFlux, sin actor de la anotación ni del provider, un `Mono` o `Flux` toma el usuario autenticado del contexto Reactor del suscriptor (`ReactiveSecurityContextHolder`); Spring Security sigue opcional. JTA y cancelación ya eran correctos: solo se fijan con tests (2026-10-08) | — |
 | D19 | `sdk-geo-validation` 1.1.0 suma un adaptador PostGIS sobre una tabla o vista del servicio (nombres configurados y validados), con `ST_Covers` sobre `geography`: geodésico, cruza el antimeridiano, el borde es de la zona. Una sola consulta distingue `ZONE_NOT_FOUND` de `OUTSIDE_ZONE` (2026-10-09) | `docs/adr/0019-postgis-geofence-adapter.md` |
 | D20 | Los SDK no usan estructura hexagonal: se empaquetan por capacidad. El paquete raíz es la API, los subpaquetes se nombran por lo que hacen, `config` tiene la auto-configuración y `internal` lo que no es API; ningún paquete se reparte entre dos jars. Se mueven sin shims y cada módulo afectado sube de major, porque ningún servicio los consume todavía (2026-10-09) | `docs/adr/0020-package-by-capability.md` |
+| D21 | Bloque 1 de la evaluación de arquitectura (seguridad y datos personales): TOTP con valores por defecto compatibles con las apps de autenticación y auto-configuración opt-in (`sdk-commons` 3.0.0), nombre de la autenticación igual al user id y datos del gateway como no verificados (`sdk-user-security` 4.1.0), parámetros de ubicación rechazados a cualquier profundidad (`sdk-jasper` 2.1.0) y alias de listas copiados desde una sola fuente (`sdk-support` 1.0.1); BOM 3.0.0 (2026-10-09) | — |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1513,3 +1514,22 @@ en la nueva major se corren una major más.
   `check`: sin nombres de capa, `package-info.java` en cada paquete, todo bajo la raíz declarada,
   nada bajo la raíz de otro módulo y la API sin imports de `config`.
 - Se trabajó en cuatro ramas paralelas por grupo de módulos, integradas en una sola.
+
+## Fase 25 — Bloque 1 de la evaluación de arquitectura: seguridad y PII (rama `fix/security-pii-block`, sobre `master`)
+
+Decisión D21. Una evaluación de calidad y utilidad de los SDK (revisión estática por módulo más una
+aplicación consumidora de prueba con 13 módulos) dejó hallazgos por bloques; este es el primero.
+
+| Módulo | Antes | Ahora | Cambio |
+|---|---|---|---|
+| `sdk-commons` | 2.0.0 | 3.0.0 | TOTP por defecto HMAC-SHA1, 6 dígitos y 30 s; `codehunters.totp.enabled` opt-in; `verifyStep` y `verifyAfter` para rechazar códigos repetidos; `provisioningUri` (`otpauth://`) |
+| `sdk-user-security` | 4.0.0 | 4.1.0 | `Authentication.getName()` es el user id (antes el `toString()` con IP y ubicación); `GatewayContext` no verificado; el 401 por headers del gateway usa el entry point de la aplicación |
+| `sdk-jasper` | 2.0.0 | 2.1.0 | parámetros de tipo ubicación rechazados a cualquier profundidad (hasta 8 niveles, con ciclos); tag `template` en `report.render`; un solo bean `reportRenderer` |
+| `sdk-support` | 1.0.0 | 1.0.1 | una lista o mapa legado se copia desde la fuente de mayor precedencia, sin mezclar perfiles; cada clave declarada necesita su regla de renombre |
+| `sdk-bom` | 2.0.0 | 3.0.0 | versiones nuevas |
+
+- Se trabajó en cuatro ramas paralelas, una por módulo, integradas en una sola.
+- `KeycloakPrincipal` serializado con Jackson suma la propiedad `name` (igual al user id); queda
+  fijado con un test.
+- Bloques siguientes de la evaluación: fallos silenciosos (audit-log, contrato común de errores de
+  cliente), reducción (tracing, authz, i18n) y experiencia de desarrollo (messaging, parameter).
