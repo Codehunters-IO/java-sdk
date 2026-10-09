@@ -46,8 +46,10 @@ import org.springframework.web.servlet.LocaleResolver;
 public class I18nAutoConfiguration {
 
   /**
-   * Filter order: after the tracing filter, which runs near {@link Ordered#HIGHEST_PRECEDENCE}.
-   * Both filters write to MDC; locale piggybacks on the same async-propagation mechanism.
+   * Filter order: early, near {@link Ordered#HIGHEST_PRECEDENCE}, so later filters and their log
+   * lines see the {@code locale} MDC key. The key lives on the request thread only; {@code @Async}
+   * work sees it only when the application propagates the MDC (e.g. Micrometer's {@code
+   * Slf4jThreadLocalAccessor} with a context-propagating task decorator).
    */
   public static final int LOCALE_MDC_FILTER_ORDER = Ordered.HIGHEST_PRECEDENCE + 10;
 
