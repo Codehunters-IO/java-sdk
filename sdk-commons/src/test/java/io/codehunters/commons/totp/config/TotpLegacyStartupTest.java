@@ -21,7 +21,7 @@ class TotpLegacyStartupTest {
 
   @Test
   void should_build_generator_from_legacy_time_step_when_application_starts() {
-    try (var context = start("--vitxo.totp.time-step=60s")) {
+    try (var context = start("--codehunters.totp.enabled=true", "--vitxo.totp.time-step=60s")) {
       var generator = context.getBean(TotpGenerator.class);
 
       assertThat(generator.generate(SECRET, Instant.ofEpochSecond(59)))
@@ -31,7 +31,8 @@ class TotpLegacyStartupTest {
 
   @Test
   void should_fail_startup_when_legacy_time_step_is_not_whole_seconds() {
-    assertThatThrownBy(() -> start("--vitxo.totp.time-step=1500ms"))
+    assertThatThrownBy(
+            () -> start("--codehunters.totp.enabled=true", "--vitxo.totp.time-step=1500ms"))
         .rootCause()
         .hasMessageContaining("timeStep");
   }
