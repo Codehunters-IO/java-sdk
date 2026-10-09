@@ -118,6 +118,43 @@ class KeycloakAuthzAutoConfigurationTest {
   }
 
   @Test
+  void should_fail_startup_when_a_public_path_covers_a_catalogued_path() {
+    enabled
+        .withPropertyValues(
+            "codehunters.security.public-paths[0]=/api/**",
+            "codehunters.security.authz.paths[0].path=/api/users/*",
+            "codehunters.security.authz.paths[0].name=users")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("/api/**")
+                    .hasMessageContaining("/api/users/*"));
+  }
+
+  @Test
+  void should_start_when_public_paths_and_catalog_do_not_overlap() {
+    enabled
+        .withPropertyValues(
+            "codehunters.security.public-paths[0]=/public/**",
+            "codehunters.security.authz.paths[0].path=/api/users/*",
+            "codehunters.security.authz.paths[0].name=users")
+        .run(context -> assertThat(context).hasNotFailed());
+  }
+
+  @Test
+  void should_fail_startup_when_a_skip_path_is_not_a_valid_pattern() {
+    enabled
+        .withPropertyValues("codehunters.security.authz.skip-paths[0]=/actuator/**/health")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .hasStackTraceContaining("codehunters.security.authz.skip-paths"));
+  }
+
+  @Test
   void should_close_keycloak_http_client_when_context_closes() {
     enabled.run(
         context -> {

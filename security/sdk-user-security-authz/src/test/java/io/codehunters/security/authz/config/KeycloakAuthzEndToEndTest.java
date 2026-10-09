@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
+import io.codehunters.security.jwt.KeycloakJwtAuthenticationConverter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.URI;
@@ -15,10 +16,17 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -212,6 +220,56 @@ class KeycloakAuthzEndToEndTest {
   }
 
   @Test
+  void should_forbid_forged_permissions_in_authorization_when_the_chain_reads_another_header() {
+    runner
+        .withUserConfiguration(CustomHeaderChain.class)
+        .run(
+            context ->
+                mockMvc(context)
+                    .perform(
+                        get("/api/users/1")
+                            .header(CUSTOM_HEADER, "Bearer " + keycloak.token())
+                            .header(
+                                "Authorization",
+                                "Bearer " + keycloak.forgedRpt(FakeKeycloak.USERS_ID, "READ")))
+                    .andExpect(status().isForbidden()));
+  }
+
+  @Test
+  void should_allow_the_validated_token_when_the_chain_reads_another_header() {
+    keycloak.grant(FakeKeycloak.USERS_ID, "READ");
+    runner
+        .withUserConfiguration(CustomHeaderChain.class)
+        .run(
+            context ->
+                mockMvc(context)
+                    .perform(get("/api/users/1").header(CUSTOM_HEADER, "Bearer " + keycloak.token()))
+                    .andExpect(status().isOk()));
+  }
+
+  @Test
+  void should_forbid_encoded_slash_that_would_reach_a_disabled_path() {
+    runner
+        .withUserConfiguration(RelaxedFirewall.class)
+        .run(
+            context ->
+                mockMvc(context)
+                    .perform(bearer(get(URI.create("/api/open%2F1")), keycloak.token()))
+                    .andExpect(status().isForbidden()));
+  }
+
+  @Test
+  void should_not_enforce_skipped_paths() {
+    runner
+        .withPropertyValues(AUTHZ + "skip-paths[0]=/api/users/**")
+        .run(
+            context ->
+                mockMvc(context)
+                    .perform(bearer(get("/api/users/1"), keycloak.token()))
+                    .andExpect(status().isOk()));
+  }
+
+  @Test
   void should_count_failed_calls_to_keycloak_when_a_meter_registry_exists() {
     keycloak.grant(FakeKeycloak.USERS_ID, "READ");
     runner
@@ -273,6 +331,40 @@ class KeycloakAuthzEndToEndTest {
   @Import(TestController.class)
   static class WebApp {}
 
+  /** An application chain that reads the token from its own header, without a resolver bean. */
+  @Configuration(proxyBeanMethods = false)
+  @EnableWebSecurity
+  static class CustomHeaderChain {
+
+    @Bean
+    SecurityFilterChain customHeaderChain(
+        HttpSecurity http, JwtDecoder decoder, KeycloakJwtAuthenticationConverter converter)
+        throws Exception {
+      return http.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+          .oauth2ResourceServer(
+              server ->
+                  server
+                      .bearerTokenResolver(customHeaderResolver())
+                      .jwt(jwt -> jwt.decoder(decoder).jwtAuthenticationConverter(converter)))
+          .build();
+    }
+  }
+
+  /** Lets encoded slashes, periods, percents and semicolons reach the application. */
+  @Configuration(proxyBeanMethods = false)
+  static class RelaxedFirewall {
+
+    @Bean
+    WebSecurityCustomizer relaxedFirewall() {
+      var firewall = new StrictHttpFirewall();
+      firewall.setAllowUrlEncodedSlash(true);
+      firewall.setAllowUrlEncodedPeriod(true);
+      firewall.setAllowUrlEncodedPercent(true);
+      firewall.setAllowSemicolon(true);
+      return web -> web.httpFirewall(firewall);
+    }
+  }
+
   @RestController
   static class TestController {
 
@@ -299,6 +391,11 @@ class KeycloakAuthzEndToEndTest {
     @GetMapping("/api/open/{id}")
     String open(@PathVariable String id) {
       return "open " + id;
+    }
+
+    @GetMapping("/api/{slug}")
+    String slug(@PathVariable String slug) {
+      return "slug " + slug;
     }
 
     @GetMapping("/public/ping")

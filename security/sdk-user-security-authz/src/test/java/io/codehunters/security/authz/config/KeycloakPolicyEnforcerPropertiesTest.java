@@ -30,6 +30,14 @@ class KeycloakPolicyEnforcerPropertiesTest {
     assertThat(properties.retryBackoff()).isEqualTo(Duration.ofSeconds(10));
     assertThat(properties.paths()).isEmpty();
     assertThat(properties.claimInformationPoint()).isEmpty();
+    assertThat(properties.skipPaths()).isEmpty();
+  }
+
+  @Test
+  void should_bind_skip_paths() {
+    var properties = authzWithCredentials(Map.of(PREFIX + "skip-paths[0]", "/actuator/**"));
+
+    assertThat(properties.skipPaths()).containsExactly("/actuator/**");
   }
 
   @Test

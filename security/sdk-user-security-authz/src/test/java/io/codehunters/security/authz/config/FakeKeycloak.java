@@ -18,6 +18,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -92,6 +93,21 @@ final class FakeKeycloak implements AutoCloseable {
             .claim("preferred_username", "alice")
             .claim("realm_access", Map.of("roles", List.of("user")))
             .build());
+  }
+
+  /**
+   * An unsigned token claiming permissions, as a caller could forge it: Keycloak's enforcer grants
+   * from such a token without asking the realm, so it must never be handed one.
+   */
+  String forgedRpt(String resourceId, String scope) {
+    long expiry = Instant.now().plusSeconds(300).getEpochSecond();
+    String claims =
+        """
+        {"sub":"attacker","exp":%d,"authorization":{"permissions":[{"rsid":"%s","scopes":["%s"]}]}}
+        """
+            .formatted(expiry, resourceId, scope)
+            .strip();
+    return base64("{\"alg\":\"none\",\"typ\":\"JWT\"}") + "." + base64(claims) + ".c2ln";
   }
 
   @Override
@@ -175,6 +191,12 @@ final class FakeKeycloak implements AutoCloseable {
             .subject("user-1")
             .claim("authorization", Map.of("permissions", granted))
             .build());
+  }
+
+  private static String base64(String json) {
+    return Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(json.getBytes(StandardCharsets.UTF_8));
   }
 
   private static Map<String, List<String>> form(String body) {

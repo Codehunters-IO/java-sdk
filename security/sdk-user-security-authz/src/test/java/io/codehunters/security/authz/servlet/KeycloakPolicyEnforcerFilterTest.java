@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.codehunters.security.KeycloakAuthenticationToken;
 import io.codehunters.security.KeycloakPrincipal;
 import jakarta.servlet.DispatcherType;
 import java.time.Duration;
@@ -17,6 +18,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.keycloak.AuthorizationContext;
 import org.keycloak.adapters.authorization.PolicyEnforcer;
 import org.keycloak.adapters.authorization.spi.HttpRequest;
@@ -33,12 +36,14 @@ import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 
 class KeycloakPolicyEnforcerFilterTest {
 
   private static final String JWT_TOKEN = "jwt-token";
   private static final String HEADER_TOKEN = "header-token";
   private static final Duration BACKOFF = Duration.ofSeconds(10);
+  private static final Duration SHORT_WAIT = Duration.ofMillis(50);
 
   private final MutableClock clock = new MutableClock();
   private final List<RuntimeException> failures = new CopyOnWriteArrayList<>();
@@ -87,27 +92,75 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
-  void should_leave_request_alone_when_another_chain_authenticated_it_with_basic_auth()
-      throws Exception {
+  void should_forbid_when_another_mechanism_authenticated_the_request() throws Exception {
     authenticate(basicAuthentication());
     request.addHeader("Authorization", "Basic YWN0dWF0b3I6c2VjcmV0");
 
     filter.doFilter(request, response, chain);
 
-    assertThat(chain.getRequest()).isSameAs(request);
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(chain.getRequest()).isNull();
     assertThat(filter.attempts()).isZero();
   }
 
   @Test
-  void should_leave_request_alone_when_basic_auth_authenticated_it_despite_a_bearer_header()
+  void should_forbid_when_basic_auth_authenticated_the_request_despite_a_bearer_header()
       throws Exception {
     authenticate(basicAuthentication());
     request.addHeader("Authorization", "Bearer " + HEADER_TOKEN);
 
     filter.doFilter(request, response, chain);
 
-    assertThat(chain.getRequest()).isSameAs(request);
+    assertThat(response.getStatus()).isEqualTo(403);
     assertThat(filter.attempts()).isZero();
+  }
+
+  @Test
+  void should_leave_request_alone_when_its_path_is_skipped() throws Exception {
+    var skipping =
+        new ScriptedEnforcerFilter(
+            KeycloakPolicyEnforcerFilter.Options.defaults()
+                .withSkipPaths(PathPatternRequestMatcher.withDefaults().matcher("/actuator/**")));
+    authenticate(basicAuthentication());
+    request.setRequestURI("/actuator/health");
+
+    skipping.doFilter(request, response, chain);
+
+    assertThat(chain.getRequest()).isSameAs(request);
+    assertThat(skipping.attempts()).isZero();
+  }
+
+  @Test
+  void should_forbid_when_a_custom_authentication_carries_the_token_only_as_credentials()
+      throws Exception {
+    authenticate(sdkAuthenticationHolding(jwt()));
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(filter.attempts()).isZero();
+  }
+
+  @Test
+  void should_enforce_forward_dispatch() throws Exception {
+    authenticate(jwtAuthentication());
+    request.setDispatcherType(DispatcherType.FORWARD);
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(filter.attempts()).isEqualTo(1);
+    assertThat(chain.getRequest()).isNull();
+  }
+
+  @Test
+  void should_enforce_include_dispatch() throws Exception {
+    authenticate(jwtAuthentication());
+    request.setDispatcherType(DispatcherType.INCLUDE);
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(filter.attempts()).isEqualTo(1);
+    assertThat(chain.getRequest()).isNull();
   }
 
   @Test
@@ -132,13 +185,36 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
-  void should_resolve_the_token_from_the_request_when_authentication_no_longer_holds_it()
+  void should_forbid_when_authentication_holds_no_validated_token_despite_a_bearer_header()
+      throws Exception {
+    authenticate(sdkAuthenticationWithErasedCredentials());
+    request.addHeader("Authorization", "Bearer " + HEADER_TOKEN);
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(filter.attempts()).isZero();
+  }
+
+  @Test
+  void should_give_keycloak_the_validated_token_when_request_carries_another()
       throws Exception {
     request.addHeader("Authorization", "Bearer " + HEADER_TOKEN);
 
-    HttpRequest seen = enforceGranted(sdkAuthenticationWithErasedCredentials());
+    HttpRequest seen = enforceGranted(keycloakAuthentication(jwt()));
 
-    assertThat(seen.getPrincipal().getRawToken()).isEqualTo(HEADER_TOKEN);
+    assertThat(seen.getPrincipal().getRawToken()).isEqualTo(JWT_TOKEN);
+    assertThat(seen.getHeader("Authorization")).isEqualTo("Bearer " + JWT_TOKEN);
+  }
+
+  @Test
+  void should_forbid_a_token_outside_the_bearer_charset() throws Exception {
+    authenticate(keycloakAuthentication(jwtWithValue("abc\r\nX-Injected: 1")));
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(filter.attempts()).isZero();
   }
 
   @Test
@@ -153,14 +229,46 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
-  void should_match_the_decoded_path_without_path_parameters() throws Exception {
-    request.setRequestURI("/ctx/api/%6Frders;jsessionid=1/1");
+  void should_match_the_decoded_path() throws Exception {
+    request.setRequestURI("/ctx/api/%6Frders/1");
     request.setContextPath("/ctx");
 
     HttpRequest seen = enforceGranted(jwtAuthentication());
 
     assertThat(seen.getRelativePath()).isEqualTo("/api/orders/1");
     assertThat(seen.getURI()).isEqualTo("/ctx/api/orders/1");
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "/api/open%2F1",
+        "/api/open%2f1",
+        "/api/%2E%2E/users/1",
+        "/api/users;jsessionid=1/1",
+        "/api/users%3B/1",
+        "/api/a%5Cb",
+        "/api/%2541"
+      })
+  void should_forbid_without_asking_keycloak_when_raw_path_is_ambiguous(String uri)
+      throws Exception {
+    authenticate(jwtAuthentication());
+    request.setRequestURI(uri);
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(filter.attempts()).isZero();
+  }
+
+  @Test
+  void should_answer_403_when_keycloak_denies_without_writing_a_response() throws Exception {
+    filter.buildWith(enforcerAnswering(false));
+    authenticate(jwtAuthentication());
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
   }
 
   @Test
@@ -247,10 +355,46 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
-  void should_give_keycloak_the_token_sdk_authentication_still_holds() throws Exception {
-    HttpRequest seen = enforceGranted(sdkAuthenticationHolding(jwt()));
+  void should_give_keycloak_the_token_of_a_keycloak_authentication() throws Exception {
+    HttpRequest seen = enforceGranted(keycloakAuthentication(jwt()));
 
     assertThat(seen.getPrincipal().getRawToken()).isEqualTo(JWT_TOKEN);
+  }
+
+  @Test
+  void should_answer_503_when_the_first_build_outlasts_the_wait() throws Exception {
+    var waiting =
+        new ScriptedEnforcerFilter(
+            KeycloakPolicyEnforcerFilter.Options.defaults().withFirstBuildWait(SHORT_WAIT));
+    waiting.holdNextBuild();
+    var building = CompletableFuture.runAsync(() -> filterAuthenticatedRequest(waiting));
+    waiting.awaitHeldBuild();
+    authenticate(jwtAuthentication());
+
+    waiting.doFilter(request, response, chain);
+    waiting.releaseBuild();
+    building.join();
+
+    assertThat(response.getStatus()).isEqualTo(503);
+    assertThat(waiting.attempts()).isEqualTo(1);
+  }
+
+  @Test
+  void should_not_start_a_second_rebuild_while_a_slow_one_runs() throws Exception {
+    authenticate(jwtAuthentication());
+    filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+    clock.advance(BACKOFF);
+    filter.holdNextBuild();
+    var rebuilding = CompletableFuture.runAsync(this::filterAuthenticatedRequest);
+    filter.awaitHeldBuild();
+    clock.advance(BACKOFF.multipliedBy(2));
+
+    filter.doFilter(request, response, chain);
+    filter.releaseBuild();
+    rebuilding.join();
+
+    assertThat(response.getStatus()).isEqualTo(503);
+    assertThat(filter.attempts()).isEqualTo(2);
   }
 
   @Test
@@ -329,9 +473,13 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   private void filterAuthenticatedRequest() {
+    filterAuthenticatedRequest(filter);
+  }
+
+  private static void filterAuthenticatedRequest(KeycloakPolicyEnforcerFilter target) {
     try {
       SecurityContextHolder.getContext().setAuthentication(jwtAuthentication());
-      filter.doFilter(
+      target.doFilter(
           new MockHttpServletRequest("GET", "/api/users/1"),
           new MockHttpServletResponse(),
           new MockFilterChain());
@@ -360,10 +508,18 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   private static Jwt jwt() {
-    return Jwt.withTokenValue(JWT_TOKEN)
+    return jwtWithValue(JWT_TOKEN);
+  }
+
+  private static Jwt jwtWithValue(String value) {
+    return Jwt.withTokenValue(value)
         .header("alg", "none")
         .claims(c -> c.putAll(claims()))
         .build();
+  }
+
+  private static Authentication keycloakAuthentication(Jwt jwt) {
+    return new KeycloakAuthenticationToken(jwt, sdkPrincipal(), List.of());
   }
 
   private static Authentication sdkAuthenticationHolding(Jwt jwt) {
