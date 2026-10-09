@@ -1,5 +1,7 @@
 package io.codehunters.jpa.specification;
 
+import static io.codehunters.jpa.internal.Checks.require;
+
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
@@ -26,15 +28,27 @@ public record SearchCriteria(String attribute, SearchOperation operation, List<O
 
   /** Validates the condition and copies the values. */
   public SearchCriteria {
-    require(attribute != null && !attribute.isBlank(), "the search attribute must not be blank");
-    require(operation != null && values != null, "the search operation and values are required");
     require(
-        values.stream().allMatch(Objects::nonNull), "search values must not be null; use IS_NULL");
-    require(operation.accepts(values.size()), operation + " takes " + operation.arity());
+        attribute != null && !attribute.isBlank(),
+        "the search attribute must not be blank",
+        InvalidSearchException::new);
+    require(
+        operation != null && values != null,
+        "the search operation and values are required",
+        InvalidSearchException::new);
+    require(
+        values.stream().allMatch(Objects::nonNull),
+        "search values must not be null; use IS_NULL",
+        InvalidSearchException::new);
+    require(
+        operation.accepts(values.size()),
+        operation + " takes " + operation.arity(),
+        InvalidSearchException::new);
     require(
         operation != SearchOperation.LIKE
             || String.valueOf(values.get(0)).length() <= MAX_LIKE_LENGTH,
-        "a LIKE value may have at most " + MAX_LIKE_LENGTH + " characters");
+        "a LIKE value may have at most " + MAX_LIKE_LENGTH + " characters",
+        InvalidSearchException::new);
     values = List.copyOf(values);
   }
 
@@ -49,11 +63,5 @@ public record SearchCriteria(String attribute, SearchOperation operation, List<O
    */
   public static SearchCriteria of(String attribute, SearchOperation operation, Object... values) {
     return new SearchCriteria(attribute, operation, values == null ? null : Arrays.asList(values));
-  }
-
-  private static void require(boolean condition, String message) {
-    if (!condition) {
-      throw new InvalidSearchException(message);
-    }
   }
 }
