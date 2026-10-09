@@ -39,6 +39,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D16 | Los paquetes se publican solo al publicar un release de GitHub, uno por módulo. Cada merge a `master` crea borradores automáticos; una persona los revisa y publica, y el BOM va último (2026-10-08) | `docs/adr/0017-publish-on-release-tags.md` |
 | D17 | `sdk-event-messaging` 7.0: el despachador marca cada fila (`send_started_at`) justo antes de publicarla y un reclamo solo cobra intento a las filas marcadas. Los cuatro artefactos van a 7.0.0 y los alias `outbox.*` siguen hasta 8.0 porque ningún servicio migró desde 5.x (2026-10-08) | `docs/adr/0018-charge-attempts-only-for-started-sends.md` |
 | D18 | `sdk-audit-log` 3.1.0: en WebFlux, sin actor de la anotación ni del provider, un `Mono` o `Flux` toma el usuario autenticado del contexto Reactor del suscriptor (`ReactiveSecurityContextHolder`); Spring Security sigue opcional. JTA y cancelación ya eran correctos: solo se fijan con tests (2026-10-08) | — |
+| D19 | `sdk-geo-validation` 1.1.0 suma un adaptador PostGIS sobre una tabla o vista del servicio (nombres configurados y validados), con `ST_Covers` sobre `geography`: geodésico, cruza el antimeridiano, el borde es de la zona. Una sola consulta distingue `ZONE_NOT_FOUND` de `OUTSIDE_ZONE` (2026-10-09) | `docs/adr/0019-postgis-geofence-adapter.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1455,3 +1456,31 @@ de tocar código.
 
 `sdk-bom` 1.4.0 (1.3.0 es de la Fase 21). El lock se regenera; al mergear después de la Fase 21 hay
 que resolver el conflicto del lock y del número de versión.
+
+## Fase 23 — `sdk-geo-validation` 1.1.0: adaptador PostGIS ✅ (rama `feature/sdk-geo-postgis`, sobre `master`)
+
+Decisión D19 ([ADR 0019](../adr/0019-postgis-geofence-adapter.md)).
+
+- `JdbcGeoFences` (antes `SqlServerGeoFences`): el template con timeout propio lo comparten los dos
+  adaptadores JDBC.
+- `PostgisZoneTable`: tabla o vista y columnas (`scope`, `zone-id`, `geometry`; opcionales
+  `zone-type`, `zone-name`, `zone-parent`), validadas como identificadores (máx. 63) y entre comillas
+  dobles.
+- `PostgisGeoFence`: una consulta con CTE y `LEFT JOIN LATERAL` devuelve siempre una fila con
+  `has_zones` y la zona que cubre el punto (`ST_Covers` sobre `geography`, `ORDER BY zone_id
+  LIMIT 1`). Columna `geography` o `geometry` SRID 4326.
+- `codehunters.geo.adapter=postgis`, `codehunters.geo.postgis.table`, `.columns.*`,
+  `.query-timeout` (2 s). Sin spring-jdbc, sin tabla o con `DataSource` ambiguo falla al arrancar.
+- Tests: identificadores y SQL; IT sobre PostGIS (`imresamu/postgis:17-3.5-alpine`, multi-arch, corre
+  nativo en arm64): dentro, vértice, fuera, scope sin zonas, agujero, zona que cruza el antimeridiano,
+  menor id entre zonas que cubren, columna `geometry`, solo id; y el timeout vía auto-configuración
+  con una vista lenta.
+- Versiones: `sdk-geo-validation` 1.1.0, `sdk-bom` 1.5.0. Se corrigen de paso las versiones del BOM
+  y de audit-log en el README y el CHANGELOG raíz, que habían quedado atrás.
+- Revisión: el CTE se leía dos veces y PostgreSQL lo materializaba, así que nunca usaba el índice
+  espacial (con 20 000 zonas en un scope, 283 ms contra 0,25 ms). Ahora es `NOT MATERIALIZED`, y un
+  IT con `EXPLAIN` sobre 5000 zonas analizadas exige el índice GIST de la columna `geography` y el
+  índice de expresión `(geom::geography)` de una `geometry`. Una zona con id en blanco ya no tapa a
+  otra que también cubre el punto. Se documentan la columna de scope de texto, el orden del id
+  según su tipo, SRID 0 como 4326, qué se valida al arrancar y que el timeout no cubre la espera de
+  conexión.

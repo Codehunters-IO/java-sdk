@@ -2,8 +2,8 @@ package io.codehunters.geo;
 
 /**
  * Port: decides whether a point falls inside the zones of a scope. The SDK ships a polygon
- * implementation fed by the caller's zones and a SQL Server one that delegates to a stored
- * procedure; a service may supply its own.
+ * implementation fed by the caller's zones, a SQL Server one that delegates to a stored procedure
+ * and a PostGIS one that reads a zone table; a service may supply its own.
  */
 @FunctionalInterface
 public interface GeoFenceValidator {

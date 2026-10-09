@@ -7,7 +7,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 1.3.0 | [below](#sdk-bom-130) | — |
+| `sdk-bom` | 1.5.0 | [below](#sdk-bom-150) | — |
 | `sdk-user-security` | 3.1.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | in the changelog |
 | `sdk-user-security-authz` | 3.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | in the changelog |
 | `sdk-tracing` | 1.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | in the changelog |
@@ -16,7 +16,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-event-messaging-rabbit` | 7.0.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
 | `sdk-event-messaging-kafka` | 7.0.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) |
 | `sdk-file-share` | 2.0.0 | [CHANGELOG](sdk-file-share/CHANGELOG.md) | [2.0](sdk-file-share/MIGRATION-2.0.md) |
-| `sdk-audit-log` | 3.0.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) |
+| `sdk-audit-log` | 3.1.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) |
 | `sdk-measure-micrometer` | 3.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) |
 | `sdk-parameter` | 2.0.0 | [CHANGELOG](sdk-parameter/CHANGELOG.md) | [2.0](sdk-parameter/MIGRATION-2.0.md) |
 | `sdk-commons` | 1.1.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [1.1](sdk-commons/MIGRATION-1.1.md) · [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
@@ -25,7 +25,17 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-jasper` | 1.0.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
 | `sdk-jpa` | 1.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-support` | 1.0.0 | internal; no public API | — |
-| `sdk-geo-validation` | 1.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [1.0](sdk-geo-validation/MIGRATION-1.0.md) |
+| `sdk-geo-validation` | 1.1.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [1.0](sdk-geo-validation/MIGRATION-1.0.md) |
+
+## sdk-bom 1.5.0
+
+- Includes `sdk-geo-validation` 1.1.0, which adds a PostGIS adapter
+  ([ADR 0019](docs/adr/0019-postgis-geofence-adapter.md)).
+
+## sdk-bom 1.4.0
+
+- Includes `sdk-audit-log` 3.1.0, which takes the actor of a `Mono` or `Flux` from the subscriber's
+  Reactor context.
 
 ## sdk-bom 1.3.0
 

@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "1.0.0"
+version = "1.1.0"
 description = "Geofencing: decides whether a point falls inside the zones of a caller-defined scope."
 
 dependencies {
@@ -16,5 +16,7 @@ dependencies {
     testImplementation(libs.archunit.junit5)
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.testcontainers:testcontainers-mssqlserver")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
     testRuntimeOnly("com.microsoft.sqlserver:mssql-jdbc")
+    testRuntimeOnly("org.postgresql:postgresql")
 }
