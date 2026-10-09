@@ -15,8 +15,8 @@ class OnOutboxTransportCondition extends SpringBootCondition {
   private static final String TYPE_KEY = "codehunters.outbox.publisher.type";
   private static final Map<String, String> ARTIFACT_MARKERS =
       Map.of(
-          "rabbit", "io.codehunters.messaging.rabbit.config.EventMessagingRabbitAutoConfiguration",
-          "kafka", "io.codehunters.messaging.kafka.config.EventMessagingKafkaAutoConfiguration");
+          "rabbit", TransportAutoConfigurations.RABBIT,
+          "kafka", TransportAutoConfigurations.KAFKA);
 
   private final Map<String, String> artifactMarkers;
 

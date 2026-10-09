@@ -40,9 +40,9 @@ import org.springframework.context.annotation.Configuration;
  */
 @AutoConfiguration(
     afterName = {
-      "io.codehunters.messaging.jdbc.config.EventMessagingJdbcAutoConfiguration",
-      "io.codehunters.messaging.rabbit.config.EventMessagingRabbitAutoConfiguration",
-      "io.codehunters.messaging.kafka.config.EventMessagingKafkaAutoConfiguration",
+      TransportAutoConfigurations.JDBC,
+      TransportAutoConfigurations.RABBIT,
+      TransportAutoConfigurations.KAFKA,
       "io.codehunters.tracing.config.TracingAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.MetricsAutoConfiguration",
       "org.springframework.boot.micrometer.metrics.autoconfigure.CompositeMeterRegistryAutoConfiguration",
