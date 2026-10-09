@@ -13,6 +13,9 @@ Internal module; its consumers are the SDK modules, which need no change for the
   the new key did not define were still copied.
 - A declared key without a rename fails when the aliases are constructed, not at application
   startup.
+- Applied a second time to the same environment (parent and child contexts, a DevTools restart),
+  the aliases no longer read their own source as new keys already set, so no key is wrongly
+  reported as ignored.
 
 ## 1.0.0
 
