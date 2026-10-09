@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "4.0.0"
 description = "HTTP client for the file-share service: presigned upload and download tickets."
 
 codehuntersPackages {
@@ -10,7 +10,6 @@ codehuntersPackages {
 }
 
 dependencies {
-    implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("org.springframework:spring-web")

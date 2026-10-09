@@ -1,5 +1,15 @@
 # Changelog — sdk-file-share
 
+## 4.0.0
+
+### Breaking
+- The 1.x property aliases are removed, with their `EnvironmentPostProcessor`
+  (`FileShareLegacyProperties`) and their deprecated configuration metadata: only
+  `codehunters.file-share.*` binds. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
+
+### Removed
+- The dependency on `sdk-support`.
+
 ## 3.0.0
 
 ### Breaking
@@ -8,17 +18,10 @@
   is in `io.codehunters.fileshare`, value types in `io.codehunters.fileshare.model`, the REST
   client in `io.codehunters.fileshare.http`. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
 
-### Changed
-- The `vitxo.file-share.*` aliases are honoured until 4.0.0 (was 3.0.0).
-
 ## 2.0.0
 
 ### Breaking
-- Properties move to `codehunters.file-share.*`; `vitxo.file-share.*` is deprecated and honoured
-  until 3.0.0.
-- Old keys are read the way Boot binds them, so an environment variable may spell a dashed name
-  with or without underscores (`VITXO_FILE_SHARE_BASE_URL` or `VITXO_FILESHARE_BASEURL`). Only the documented old keys are aliased, and
-  startup lists old keys ignored because the new key is set.
+- Properties move to `codehunters.file-share.*`.
 - Ticket `expiresAt` is an `Instant`.
 - `FileRef` requires `id` and `workflowId`; `status` is never `null` (`FileStatus.UNKNOWN`).
 - `UploadRequest` and `FileRef` validate their fields; `referenceId` arguments are validated.
