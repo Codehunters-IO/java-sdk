@@ -174,8 +174,9 @@ Publishing locally needs `GH_PACKAGES_USERNAME` / `GH_PACKAGES_TOKEN`.
   `./gradlew :sdk-bom:updateBomLock`, which records the versions in
   `platform/sdk-bom/bom-lock.properties`.
 - SonarCloud — single project `codehunters_java-sdk`, org `codehunters`
-- Pull requests also run the shared TruffleHog secret scan, GitHub dependency review (fails on
-  high) and commit lint (`commitlint.config.js`) from `Codehunters-IO/ci-templates@v2`.
+- Pull requests also run the shared TruffleHog secret scan and commit lint (`commitlint.config.js`)
+  from `Codehunters-IO/ci-templates@v2`. GitHub dependency review is not used: on a private
+  repository it needs GitHub Advanced Security; the weekly OWASP scan covers known CVEs.
 - OWASP dependency check — `./gradlew dependencyCheckAnalyze` (aggregate report in
   `build/reports/`, fails on CVSS ≥ 7, suppressions in `config/dependency-check/suppressions.xml`).
   `security-scan.yml` runs it weekly; set the `NVD_API_KEY` secret to keep it fast.
