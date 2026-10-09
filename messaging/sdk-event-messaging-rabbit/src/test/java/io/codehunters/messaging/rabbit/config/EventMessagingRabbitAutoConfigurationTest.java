@@ -5,7 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.MessagePublisherPort;
-import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.jdbc.config.EventMessagingJdbcAutoConfiguration;
@@ -57,7 +57,7 @@ class EventMessagingRabbitAutoConfigurationTest {
         .withBean(ConnectionFactory.class, () -> connectionFactory(true, true))
         .run(
             context -> {
-              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+              assertThat(context).hasSingleBean(OutboxDispatchStore.class);
               assertThat(context).hasSingleBean(MessagePublisherPort.class);
               assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
               assertThat(context).hasSingleBean(OutboxScheduler.class);

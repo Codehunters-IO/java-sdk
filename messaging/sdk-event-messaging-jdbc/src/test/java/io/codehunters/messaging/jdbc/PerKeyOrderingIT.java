@@ -2,6 +2,7 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxStatus;
 import java.time.Clock;
@@ -73,7 +74,8 @@ class PerKeyOrderingIT {
   void should_not_hand_successor_to_concurrent_claimers_when_head_is_in_flight() throws Exception {
     save(MAIN, "A", "A1");
     save(MAIN, "A", "A2");
-    assertThat(payloads(adapter.claimPendingMessages(ORIGIN, 1, "w0", TTL))).containsExactly("A1");
+    assertThat(payloads(adapter.claim(new ClaimRequest(ORIGIN, "w0", 1, TTL))))
+        .containsExactly("A1");
 
     var results = claimConcurrently("w1", "w2");
 
@@ -90,7 +92,7 @@ class PerKeyOrderingIT {
   }
 
   private List<OutboxMessage<String>> claim(String worker) {
-    return adapter.claimPendingMessages(ORIGIN, 10, worker, TTL);
+    return adapter.claim(new ClaimRequest(ORIGIN, worker, 10, TTL));
   }
 
   private List<List<OutboxMessage<String>>> claimConcurrently(String... workers) throws Exception {
@@ -135,6 +137,6 @@ class PerKeyOrderingIT {
   }
 
   private static List<String> payloads(List<OutboxMessage<String>> claimed) {
-    return claimed.stream().map(OutboxMessage::getMessage).toList();
+    return claimed.stream().map(OutboxMessage::message).toList();
   }
 }

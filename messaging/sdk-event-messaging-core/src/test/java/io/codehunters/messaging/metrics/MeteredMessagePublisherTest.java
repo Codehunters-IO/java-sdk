@@ -91,7 +91,7 @@ class MeteredMessagePublisherTest {
 
     @Override
     public void publish(OutboxMessage<String> message) {
-      record("message:" + message.getTopic());
+      record("message:" + message.topic());
     }
 
     private void record(String call) {

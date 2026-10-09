@@ -4,9 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import io.codehunters.messaging.MessagePublisherPort;
-import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.OutboxDispatchStore;
+import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
+import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
 import io.codehunters.messaging.jdbc.scheduler.OutboxScheduler;
@@ -34,7 +36,8 @@ class EventMessagingJdbcAutoConfigurationTest {
               AutoConfigurations.of(
                   EventMessagingJdbcAutoConfiguration.class,
                   EventMessagingCoreAutoConfiguration.class,
-                  OutboxDispatchSchedulerAutoConfiguration.class))
+                  OutboxDispatchSchedulerAutoConfiguration.class,
+                  OutboxMetricsAutoConfiguration.class))
           .withPropertyValues("spring.application.name=test-app");
 
   @Test
@@ -44,9 +47,52 @@ class EventMessagingJdbcAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).hasSingleBean(JsonMapper.class);
-              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+              assertThat(context).hasSingleBean(OutboxDispatchStore.class);
               assertThat(context).hasSingleBean(LockProvider.class);
               assertThat(context).hasSingleBean(OutboxPurgeScheduler.class);
+            });
+  }
+
+  @Test
+  void should_expose_one_adapter_as_writer_and_dispatch_store_when_datasource_available() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(OutboxWriter.class);
+              assertThat(context.getBean(OutboxWriter.class))
+                  .isSameAs(context.getBean(OutboxDispatchStore.class))
+                  .isSameAs(context.getBean("outboxJdbcAdapter"));
+            });
+  }
+
+  @Test
+  void should_back_off_when_application_defines_an_outbox_writer() {
+    OutboxWriter applicationWriter = mock(OutboxWriter.class);
+
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(OutboxWriter.class, () -> applicationWriter)
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(OutboxJdbcAdapter.class);
+              assertThat(context).doesNotHaveBean(OutboxFailedGauge.class);
+              assertThat(context.getBean(OutboxWriter.class)).isSameAs(applicationWriter);
+            });
+  }
+
+  @Test
+  void should_back_off_when_application_defines_an_outbox_dispatch_store() {
+    OutboxDispatchStore applicationStore = mock(OutboxDispatchStore.class);
+
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(OutboxDispatchStore.class, () -> applicationStore)
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(OutboxJdbcAdapter.class);
+              assertThat(context).hasSingleBean(OutboxFailedGauge.class);
+              assertThat(context.getBean(OutboxDispatchStore.class)).isSameAs(applicationStore);
             });
   }
 
@@ -90,7 +136,7 @@ class EventMessagingJdbcAutoConfigurationTest {
         .withBean(DataSource.class, this::createDataSource)
         .run(
             context -> {
-              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+              assertThat(context).hasSingleBean(OutboxDispatchStore.class);
               assertThat(context).doesNotHaveBean(MessagePublisherPort.class);
               assertThat(context).doesNotHaveBean(SendOutboxMessagesPort.class);
               assertThat(context).doesNotHaveBean(OutboxScheduler.class);
@@ -101,7 +147,7 @@ class EventMessagingJdbcAutoConfigurationTest {
   void should_not_create_outbox_beans_when_no_datasource() {
     contextRunner.run(
         context -> {
-          assertThat(context).doesNotHaveBean(OutboxRepositoryPort.class);
+          assertThat(context).doesNotHaveBean(OutboxDispatchStore.class);
           assertThat(context).doesNotHaveBean(SendOutboxMessagesPort.class);
         });
   }
@@ -114,7 +160,7 @@ class EventMessagingJdbcAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).hasNotFailed();
-              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+              assertThat(context).hasSingleBean(OutboxDispatchStore.class);
               assertThat(context).hasSingleBean(LockProvider.class);
               assertThat(context).hasSingleBean(OutboxPurgeScheduler.class);
               assertThat(context).doesNotHaveBean(MessagePublisherPort.class);
@@ -137,7 +183,7 @@ class EventMessagingJdbcAutoConfigurationTest {
               assertThat(
                       context.getBeanFactory().getBeanDefinition("jacksonJsonMapper").isPrimary())
                   .isTrue();
-              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+              assertThat(context).hasSingleBean(OutboxDispatchStore.class);
             });
   }
 
@@ -171,7 +217,7 @@ class EventMessagingJdbcAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context.getBean(JsonMapper.class)).isSameAs(applicationMapper);
-              assertThat(context).hasSingleBean(OutboxRepositoryPort.class);
+              assertThat(context).hasSingleBean(OutboxDispatchStore.class);
             });
   }
 

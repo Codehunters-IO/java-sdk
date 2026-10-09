@@ -2,9 +2,11 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxStatus;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -62,12 +64,12 @@ class OutboxJdbcAdapterPostgresIT {
   void should_round_trip_message_when_saved_and_claimed_on_postgres() {
     adapter.save(message("k1", Map.of("amount", 10)));
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL);
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL));
 
     assertThat(claimed).hasSize(1);
-    assertThat(claimed.get(0).getStatus()).isEqualTo(OutboxStatus.IN_FLIGHT);
-    assertThat(claimed.get(0).getSeq()).isNotNull();
-    assertThat(claimed.get(0).getMessage()).isEqualTo("{\"amount\":10}");
+    assertThat(claimed.get(0).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+    assertThat(claimed.get(0).seq()).isNotNull();
+    assertThat(claimed.get(0).message()).isEqualTo("{\"amount\":10}");
   }
 
   @Test
@@ -84,17 +86,14 @@ class OutboxJdbcAdapterPostgresIT {
   @Test
   void should_mark_published_when_updated_after_claim() {
     adapter.save(message("k1", "payload"));
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL).get(0);
-    var publishedAt = LocalDateTime.now(ZoneOffset.UTC).withNano(0);
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL)).get(0);
 
-    claimed.setStatus(OutboxStatus.PUBLISHED);
-    claimed.setPublishedAt(publishedAt);
-    adapter.update(claimed);
+    adapter.update(claimed.published(Instant.now()));
 
     var row =
         jdbcClient
             .sql("SELECT status, published_at, claimed_by FROM outbox_message WHERE id = :id")
-            .param("id", claimed.getId())
+            .param("id", claimed.id())
             .query()
             .singleRow();
     assertThat(row.get("status")).isEqualTo("PUBLISHED");
@@ -105,25 +104,23 @@ class OutboxJdbcAdapterPostgresIT {
   @Test
   void should_fence_out_stale_worker_when_claim_was_taken_over_after_ttl() {
     adapter.save(message("k1", "payload"));
-    var staleClaim = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL).get(0);
+    var staleClaim = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL)).get(0);
     jdbcClient
         .sql("UPDATE outbox_message SET claimed_at = :old WHERE id = :id")
         .param("old", LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10))
-        .param("id", staleClaim.getId())
+        .param("id", staleClaim.id())
         .update();
-    var liveClaim = adapter.claimPendingMessages(ORIGIN, 10, "w2", TTL).get(0);
+    var liveClaim = adapter.claim(new ClaimRequest(ORIGIN, "w2", 10, TTL)).get(0);
 
-    staleClaim.setStatus(OutboxStatus.PUBLISHED);
-    adapter.update(staleClaim);
+    adapter.update(staleClaim.published(Instant.now()));
 
-    var afterStale = rowOf(staleClaim.getId());
+    var afterStale = rowOf(staleClaim.id());
     assertThat(afterStale.get("status")).isEqualTo("IN_FLIGHT");
-    assertThat(afterStale.get("claimed_by")).isEqualTo(liveClaim.getClaimedBy());
+    assertThat(afterStale.get("claimed_by")).isEqualTo(liveClaim.claimedBy());
 
-    liveClaim.setStatus(OutboxStatus.PUBLISHED);
-    adapter.update(liveClaim);
+    adapter.update(liveClaim.published(Instant.now()));
 
-    assertThat(rowOf(liveClaim.getId()).get("status")).isEqualTo("PUBLISHED");
+    assertThat(rowOf(liveClaim.id()).get("status")).isEqualTo("PUBLISHED");
   }
 
   private Map<String, Object> rowOf(UUID id) {
@@ -158,9 +155,9 @@ class OutboxJdbcAdapterPostgresIT {
     markStaleInFlight(id);
     markSendStartedByDeadInstance(id);
 
-    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+    var reclaimed = adapter.claim(new ClaimRequest(ORIGIN, "live", 10, Duration.ofMinutes(5)));
 
-    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(2);
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(2);
     assertThat(attemptsOf(id)).isEqualTo(2);
   }
 
@@ -170,9 +167,9 @@ class OutboxJdbcAdapterPostgresIT {
     adapter.save(unsent(id));
     recordOneFailedAttempt(id);
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "live", 10, Duration.ofMinutes(5)));
 
-    assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
+    assertThat(claimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
   }
 
@@ -180,11 +177,11 @@ class OutboxJdbcAdapterPostgresIT {
   void should_return_stored_traceparent_when_message_is_claimed() {
     adapter.save(unsent(UUID.randomUUID()).toBuilder().traceparent(TRACEPARENT).build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL);
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL));
 
     assertThat(claimed)
         .singleElement()
-        .extracting(OutboxMessage::getTraceparent)
+        .extracting(OutboxMessage::traceparent)
         .isEqualTo(TRACEPARENT);
   }
 
@@ -216,9 +213,9 @@ class OutboxJdbcAdapterPostgresIT {
   void should_claim_null_traceparent_when_message_was_saved_without_one() {
     adapter.save(unsent(UUID.randomUUID()));
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", TTL);
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, TTL));
 
-    assertThat(claimed).singleElement().extracting(OutboxMessage::getTraceparent).isNull();
+    assertThat(claimed).singleElement().extracting(OutboxMessage::traceparent).isNull();
   }
 
   private void markSendStartedByDeadInstance(UUID id) {
@@ -260,7 +257,7 @@ class OutboxJdbcAdapterPostgresIT {
         .topic("t")
         .key("k")
         .message("p")
-        .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+        .occurredAt(Instant.now())
         .build();
   }
 }

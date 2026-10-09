@@ -2,18 +2,19 @@ package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.EventMessage;
 import io.codehunters.messaging.MessagePublisherDecorator;
 import io.codehunters.messaging.MessagePublisherPort;
+import io.codehunters.messaging.OutboxDispatchStore;
+import io.codehunters.messaging.OutboxEvent;
 import io.codehunters.messaging.OutboxMessage;
-import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.factory.EventMessageFactory;
 import io.codehunters.messaging.factory.OutboxEventFactory;
+import io.codehunters.messaging.factory.TraceIdSource;
 import io.codehunters.tracing.TraceContextPort;
 import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -33,6 +34,9 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class EventMessagingCoreAutoConfigurationTest {
 
+  private static final OutboxEvent<String> EVENT =
+      OutboxEvent.to("t").key("a").type("n").payload("p");
+
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(EventMessagingCoreAutoConfiguration.class))
@@ -50,7 +54,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_create_use_case_when_repository_and_publisher_present() {
     contextRunner
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(context -> assertThat(context).hasSingleBean(SendOutboxMessagesPort.class));
   }
@@ -58,7 +62,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_not_create_use_case_when_publisher_missing() {
     contextRunner
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .run(context -> assertThat(context).doesNotHaveBean(SendOutboxMessagesPort.class));
   }
 
@@ -80,7 +84,8 @@ class EventMessagingCoreAutoConfigurationTest {
 
   @Test
   void should_back_off_when_custom_beans_provided() {
-    var customFactory = new EventMessageFactory("custom-origin");
+    var customFactory =
+        new EventMessageFactory("custom-origin", TraceIdSource.none(), Clock.systemUTC());
 
     contextRunner
         .withBean(EventMessageFactory.class, () -> customFactory)
@@ -96,9 +101,8 @@ class EventMessagingCoreAutoConfigurationTest {
     contextRunner.run(
         context -> {
           EventMessageFactory factory = context.getBean(EventMessageFactory.class);
-          EventMessage<String> event =
-              factory.create("trace-1", "aggregate-1", "event.name", "EVENT_TYPE", "payload");
-          assertThat(event.getHeader().getOrigin()).isEqualTo("test-app");
+          EventMessage<String> event = factory.create(EVENT.traceId("trace-1"));
+          assertThat(event.header().origin()).isEqualTo("test-app");
         });
   }
 
@@ -266,7 +270,7 @@ class EventMessagingCoreAutoConfigurationTest {
     SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
     contextRunner
-        .withBean(OutboxRepositoryPort.class, this::repositoryWithOneMessage)
+        .withBean(OutboxDispatchStore.class, this::repositoryWithOneMessage)
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .withBean(MeterRegistry.class, () -> registry)
         .run(
@@ -280,7 +284,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_not_decorate_publisher_when_no_meter_registry() {
     contextRunner
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(
             context -> {
@@ -293,7 +297,7 @@ class EventMessagingCoreAutoConfigurationTest {
   void should_create_use_case_when_micrometer_absent() {
     contextRunner
         .withClassLoader(new FilteredClassLoader(MeterRegistry.class))
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(context -> assertThat(context).hasSingleBean(SendOutboxMessagesPort.class));
   }
@@ -308,12 +312,11 @@ class EventMessagingCoreAutoConfigurationTest {
         .withBean(TraceContextPort.class, () -> port)
         .run(
             context -> {
-              EventMessage<String> event =
-                  context.getBean(EventMessageFactory.class).create(null, "a", "n", "T", "p");
+              EventMessage<String> event = context.getBean(EventMessageFactory.class).create(EVENT);
               OutboxMessage<EventMessage<String>> outbox =
-                  context.getBean(OutboxEventFactory.class).create("t", null, "a", "n", "T", "p");
-              assertThat(event.getHeader().getTraceId()).isEqualTo(current.traceId());
-              assertThat(outbox.getMessage().getHeader().getTraceId()).isEqualTo(current.traceId());
+                  context.getBean(OutboxEventFactory.class).create(EVENT);
+              assertThat(event.header().traceId()).isEqualTo(current.traceId());
+              assertThat(outbox.message().header().traceId()).isEqualTo(current.traceId());
             });
   }
 
@@ -327,11 +330,7 @@ class EventMessagingCoreAutoConfigurationTest {
         .withBean(TraceContextPort.class, () -> port)
         .run(
             context ->
-                assertThat(
-                        context
-                            .getBean(OutboxEventFactory.class)
-                            .create("t", null, "a", "n", "T", "p")
-                            .getTraceparent())
+                assertThat(context.getBean(OutboxEventFactory.class).create(EVENT).traceparent())
                     .isEqualTo(current.format()));
   }
 
@@ -352,7 +351,7 @@ class EventMessagingCoreAutoConfigurationTest {
   void should_create_use_case_when_micrometer_tracing_absent() {
     contextRunner
         .withClassLoader(new FilteredClassLoader(Tracer.class))
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(
             context -> {
@@ -368,11 +367,7 @@ class EventMessagingCoreAutoConfigurationTest {
         .run(
             context ->
                 assertThat(
-                        context
-                            .getBean(EventMessageFactory.class)
-                            .create(null, "a", "n", "T", "p")
-                            .getHeader()
-                            .getTraceId())
+                        context.getBean(EventMessageFactory.class).create(EVENT).header().traceId())
                     .isNull());
   }
 
@@ -391,13 +386,12 @@ class EventMessagingCoreAutoConfigurationTest {
         .run(context -> assertThat(context.getBean(Clock.class)).isSameAs(custom));
   }
 
-  private OutboxRepositoryPort repositoryWithOneMessage() {
-    OutboxRepositoryPort repository = mock(OutboxRepositoryPort.class);
+  private OutboxDispatchStore repositoryWithOneMessage() {
+    OutboxDispatchStore repository = mock(OutboxDispatchStore.class);
     OutboxMessage<String> message =
         OutboxMessage.<String>builder().topic("events").key("k").message("{}").build();
-    when(repository.claimPendingMessages(any(), anyInt(), any(), any()))
-        .thenReturn(List.of(message));
-    when(repository.markSendStarted(message)).thenReturn(true);
+    when(repository.claim(any())).thenReturn(List.of(message));
+    when(repository.markSendStarted(message)).thenReturn(Optional.of(message));
     return repository;
   }
 }

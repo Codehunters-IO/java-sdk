@@ -2,6 +2,7 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.OutboxMessage;
 import java.time.Clock;
 import java.time.Duration;
@@ -93,10 +94,10 @@ class OutboxClaimConcurrencyIT {
   private List<UUID> drain(String worker, CountDownLatch startGate) throws InterruptedException {
     startGate.await();
     var claimed = new ArrayList<UUID>();
-    List<OutboxMessage<String>> batch = adapter.claimPendingMessages(ORIGIN, BATCH, worker, TTL);
+    List<OutboxMessage<String>> batch = adapter.claim(new ClaimRequest(ORIGIN, worker, BATCH, TTL));
     while (!batch.isEmpty()) {
-      batch.forEach(message -> claimed.add(message.getId()));
-      batch = adapter.claimPendingMessages(ORIGIN, BATCH, worker, TTL);
+      batch.forEach(message -> claimed.add(message.id()));
+      batch = adapter.claim(new ClaimRequest(ORIGIN, worker, BATCH, TTL));
     }
     return claimed;
   }
