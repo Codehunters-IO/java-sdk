@@ -8,6 +8,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalLong;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -16,8 +17,9 @@ import javax.crypto.spec.SecretKeySpec;
  * {@link javax.crypto.Mac} is created per call.
  *
  * <p>Verification compares every candidate in the window in constant time and does not stop at the
- * first match. It does not prevent a code from being reused inside its window: callers that need
- * one-time use must remember the last accepted time step per secret.
+ * first match. {@link #verify} does not prevent a code from being reused inside its window. For
+ * one-time use, store the step {@link #verifyAfter} returns per secret and pass it back on the next
+ * attempt.
  */
 public final class TotpGenerator {
 
@@ -27,6 +29,12 @@ public final class TotpGenerator {
 
   /** The largest number of steps of drift {@link #verify} accepts on each side. */
   public static final int MAX_VARIANCE = 10;
+
+  /**
+   * The {@code lastAcceptedStep} to pass to {@link #verifyAfter} when no code has been accepted for
+   * the secret yet.
+   */
+  public static final long NO_ACCEPTED_STEP = Long.MIN_VALUE;
 
   private final TotpConfig config;
   private final Clock clock;
@@ -118,17 +126,80 @@ public final class TotpGenerator {
    *     #MAX_VARIANCE}
    */
   public boolean verify(TotpSecret secret, String code, int variance, Instant at) {
+    return verifyStep(secret, code, variance, at).isPresent();
+  }
+
+  /**
+   * Verifies a code against the current time and returns the time step it matched.
+   *
+   * @param secret the shared secret
+   * @param code the code to verify
+   * @param variance the number of steps of drift tolerated on each side, {@code 0} to {@value
+   *     #MAX_VARIANCE}
+   * @return the matched time step, or empty if the code is invalid or {@code null}
+   * @throws IllegalArgumentException if {@code variance} is outside {@code 0..}{@value
+   *     #MAX_VARIANCE}
+   */
+  public OptionalLong verifyStep(TotpSecret secret, String code, int variance) {
+    return verifyStep(secret, code, variance, clock.instant());
+  }
+
+  /**
+   * Verifies a code against a given instant and returns the time step it matched. When the code
+   * matches more than one step of the window, the latest one is returned.
+   *
+   * @param secret the shared secret
+   * @param code the code to verify
+   * @param variance the number of steps of drift tolerated on each side, {@code 0} to {@value
+   *     #MAX_VARIANCE}
+   * @param at the instant to verify against
+   * @return the matched time step, or empty if the code is invalid or {@code null}
+   * @throws IllegalArgumentException if {@code variance} is outside {@code 0..}{@value
+   *     #MAX_VARIANCE}
+   */
+  public OptionalLong verifyStep(TotpSecret secret, String code, int variance, Instant at) {
+    return match(secret, code, variance, new Window(computeCounter(at), NO_ACCEPTED_STEP));
+  }
+
+  /**
+   * Verifies a code against the current time, accepting it only for a time step after {@code
+   * lastAcceptedStep}. Store the returned step per secret and pass it back next time: a code that
+   * was already accepted, or an older one, is then rejected.
+   *
+   * @param secret the shared secret
+   * @param code the code to verify
+   * @param variance the number of steps of drift tolerated on each side, {@code 0} to {@value
+   *     #MAX_VARIANCE}
+   * @param lastAcceptedStep the step returned by the last successful call for this secret, or
+   *     {@link #NO_ACCEPTED_STEP}
+   * @return the matched time step, or empty if the code is invalid, {@code null} or not after
+   *     {@code lastAcceptedStep}
+   * @throws IllegalArgumentException if {@code variance} is outside {@code 0..}{@value
+   *     #MAX_VARIANCE}
+   */
+  public OptionalLong verifyAfter(
+      TotpSecret secret, String code, int variance, long lastAcceptedStep) {
+    var window = new Window(computeCounter(clock.instant()), lastAcceptedStep);
+    return match(secret, code, variance, window);
+  }
+
+  private OptionalLong match(TotpSecret secret, String code, int variance, Window window) {
     if (variance < 0 || variance > MAX_VARIANCE) {
       throw new IllegalArgumentException("variance must be between 0 and " + MAX_VARIANCE);
     }
     if (code == null) {
-      return false;
+      return OptionalLong.empty();
     }
-    byte[] expected = code.getBytes(StandardCharsets.US_ASCII);
-    long counter = computeCounter(at);
-    boolean matched = false;
-    for (int i = -variance; i <= variance; i++) {
-      matched |= MessageDigest.isEqual(codeBytes(secret, counter + i), expected);
+    return latestMatch(secret, code.getBytes(StandardCharsets.US_ASCII), variance, window);
+  }
+
+  // Every candidate is computed and compared, whatever matched before, so timing does not reveal
+  // which step (if any) the code belongs to.
+  private OptionalLong latestMatch(TotpSecret secret, byte[] code, int variance, Window window) {
+    OptionalLong matched = OptionalLong.empty();
+    for (long step = window.current() - variance; step <= window.current() + variance; step++) {
+      boolean equal = MessageDigest.isEqual(codeBytes(secret, step), code);
+      matched = equal && step > window.lastAccepted() ? OptionalLong.of(step) : matched;
     }
     return matched;
   }
@@ -164,4 +235,6 @@ public final class TotpGenerator {
       throw new TotpException("Failed to compute HMAC", e);
     }
   }
+
+  private record Window(long current, long lastAccepted) {}
 }
