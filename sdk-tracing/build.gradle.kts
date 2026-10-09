@@ -16,6 +16,7 @@ dependencies {
     compileOnly("org.springframework:spring-context")
     compileOnly("org.slf4j:slf4j-api")
     compileOnly("io.opentelemetry:opentelemetry-api")
+    compileOnly("io.opentelemetry:opentelemetry-sdk-trace")
     compileOnly("org.springframework.boot:spring-boot-micrometer-tracing-opentelemetry")
 
     testImplementation("org.springframework.boot:spring-boot-autoconfigure")

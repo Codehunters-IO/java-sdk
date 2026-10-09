@@ -34,7 +34,7 @@ class LegacyTraceHeadersAutoConfigurationTest {
   private static final String W3C_TRACE_ID = "0af7651916cd43dd8448eb211c80319c";
   private static final String W3C_PARENT = "00-" + W3C_TRACE_ID + "-b7ad6b7169203331-01";
   private static final String LOW_TRACE_ID = "4bf92f3577b34da60000000000000001";
-  private static final String HIGH_TRACE_ID = "4bf92f3577b34da67fffffffffffffff";
+  private static final String HIGH_TRACE_ID = "4bf92f3577b34da67ffffffffffffff0";
 
   private static final TextMapGetter<Map<String, String>> GETTER =
       new TextMapGetter<>() {

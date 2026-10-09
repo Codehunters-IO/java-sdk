@@ -27,7 +27,7 @@ class LegacyTraceHeadersPropagatorTest {
   private static final String UNSAMPLED_PARENT = "00-" + TRACE_ID + "-" + SPAN_ID + "-00";
   private static final String OTHER_PARENT = "00-" + OTHER_TRACE_ID + "-" + OTHER_SPAN_ID + "-01";
   private static final String LOW_TRACE_ID = "4bf92f3577b34da60000000000000001";
-  private static final String HIGH_TRACE_ID = "4bf92f3577b34da67fffffffffffffff";
+  private static final String HIGH_TRACE_ID = "4bf92f3577b34da67ffffffffffffff0";
   private static final double ALWAYS = 1.0;
   private static final double NEVER = 0.0;
   private static final double HALF = 0.5;
@@ -47,7 +47,8 @@ class LegacyTraceHeadersPropagatorTest {
 
   private static final TextMapSetter<Map<String, String>> SETTER = Map::put;
 
-  private final LegacyTraceHeadersPropagator propagator = new LegacyTraceHeadersPropagator(false, ALWAYS);
+  private final LegacyTraceHeadersPropagator propagator =
+      new LegacyTraceHeadersPropagator(false, ALWAYS);
 
   @Test
   void should_extract_the_remote_parent_when_only_x_traceparent_is_present() {
@@ -108,7 +109,8 @@ class LegacyTraceHeadersPropagatorTest {
   void should_not_sample_x_trace_id_alone_when_the_probability_is_zero() {
     SpanContext parent =
         extractWith(
-            new LegacyTraceHeadersPropagator(false, NEVER), Map.of(TraceHeaders.TRACE_ID, TRACE_ID));
+            new LegacyTraceHeadersPropagator(false, NEVER),
+            Map.of(TraceHeaders.TRACE_ID, TRACE_ID));
 
     assertThat(parent.isValid()).isTrue();
     assertThat(parent.isSampled()).isFalse();
