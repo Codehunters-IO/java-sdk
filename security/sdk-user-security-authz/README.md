@@ -19,8 +19,15 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
 - **Placement.** The enforcer runs right after Spring Security's `AuthorizationFilter`, in every
   `SecurityFilterChain`: the sdk-user-security chains and any chain the application defines. It
   is added by a `Customizer<HttpSecurity>` bean, which Spring Security applies to each
-  `HttpSecurity` it builds. Only requests carrying a `Bearer` token are enforced, so a chain that
-  authenticates otherwise (basic auth on actuator, for example) is left alone.
+  `HttpSecurity` it builds.
+- **Which requests.** The decision comes from the authentication Spring Security established, not
+  from request headers: requests a bearer token authenticated (Spring Security's token
+  authentications and sdk-user-security's) are enforced, wherever the token was read from (an
+  application `BearerTokenResolver` reading a query parameter or another header included). A chain
+  that authenticates otherwise (basic auth on actuator, for example) is left alone. Keycloak gets
+  the token the authentication holds; when it no longer holds it, the application's
+  `BearerTokenResolver` (or Spring Security's default one) reads it from the request, and a request
+  whose token cannot be found is denied (403).
 - **Authentication first.** A protected path without a valid token answers 401 from Spring
   Security; Keycloak is not asked. Requests Spring Security lets through unauthenticated (public
   and excluded paths) are not enforced. An authenticated request is enforced on every path,
@@ -35,10 +42,15 @@ Decisions are Keycloak's enforcer's; this module only configures it and places i
   through. Mapped paths follow their own `enforcement-mode` in both cases. `DISABLED` evaluates
   nothing.
 - **Patterns** are Keycloak's: `/*` at the end matches any sub-path, `{id}` one segment, `*.ext` a
-  suffix. Ant's `**` is rejected at startup.
+  suffix. Ant's `**` is rejected at startup. They are matched against the decoded path without
+  path parameters (`;name=value`), the path Spring MVC routes on: `/api/%6Frders/1` is enforced as
+  `/api/orders/1`.
 - **Keycloak unreachable.** The enforcer is built on the first enforced request, so the service
-  starts without Keycloak. If Keycloak cannot be reached then, the request answers 503 and the next
-  enforced request tries again. Once built, a failed authorization call counts as a denial (403).
+  starts without Keycloak; requests arriving meanwhile wait for it. If the build fails, enforced
+  requests answer 503 for `retry-backoff` without calling Keycloak; then one request rebuilds while
+  the others keep answering 503. Once built, a failure of the enforcer answers 503, but a failed
+  authorization call is a denial (403): Keycloak's enforcer does not tell it apart. Such calls are
+  logged at `WARN` and counted (see Metrics).
 - **Unknown names.** A resource `name` Keycloak does not know leaves the path without a resource:
   its requests are denied.
 - Error dispatches (`/error`) are not enforced a second time.
@@ -56,6 +68,18 @@ Keycloak's enforcer has no decision cache.
 Every call is bounded by `connect-timeout` and `read-timeout`, and at most `max-connections` run at
 once. Map only the routes that need resource-level decisions; coarse role checks are cheaper with
 `@PreAuthorize`.
+
+## Metrics
+
+With Micrometer on the classpath and a `MeterRegistry` bean, failures are counted as
+`codehunters.authz.enforcer.failures`, tagged `stage`:
+
+| `stage` | Counted when |
+|---|---|
+| `enforcer` | The enforcer could not be built, or failed while enforcing (both answer 503) |
+| `call` | A call to Keycloak failed with an I/O error (connection refused, read timeout); a failed authorization call still answers 403 |
+
+A build that fails because Keycloak is unreachable counts once under each stage.
 
 ## Configuration
 
@@ -75,6 +99,7 @@ Keycloak's URL and realm come from `codehunters.security.url` and `codehunters.s
 | `codehunters.security.authz.connect-timeout` | `2s` | |
 | `codehunters.security.authz.read-timeout` | `3s` | |
 | `codehunters.security.authz.max-connections` | `50` | Concurrent connections to Keycloak |
+| `codehunters.security.authz.retry-backoff` | `10s` | 503 without retrying after a failed enforcer build |
 | `codehunters.security.authz.paths[].path` | — | Keycloak pattern; must start with `/` |
 | `codehunters.security.authz.paths[].name` | — | Keycloak resource name; required |
 | `codehunters.security.authz.paths[].enforcement-mode` | `ENFORCING` | `DISABLED` skips the path |
@@ -104,8 +129,49 @@ codehunters:
           enforcement-mode: DISABLED
 ```
 
-To replace the enforcer, define a `KeycloakPolicyEnforcerFilter` bean; the auto-configuration
-then places yours in the chain.
+### Public routes
+
+An authenticated request is enforced on every path, public ones included, so under `ENFORCING` a
+caller that sends its token to a public route is denied unless the route is mapped. Map public
+routes with `enforcement-mode: DISABLED`; Keycloak is then not asked. `name` is still required and
+must be a resource of the client, since the enforcer resolves every mapped path at startup:
+
+```yaml
+codehunters:
+  security:
+    public-paths: [/api/v1/catalog/**, /api/v1/ping]
+    authz:
+      enabled: true
+      resource: catalog-service
+      client-secret: ${KEYCLOAK_CLIENT_SECRET}
+      paths:
+        - path: /api/v1/catalog/*
+          name: catalog
+          enforcement-mode: DISABLED
+        - path: /api/v1/ping
+          name: catalog
+          enforcement-mode: DISABLED
+        - path: /api/v1/orders/{id}
+          name: orders
+          methods:
+            - method: GET
+              scopes: [READ]
+```
+
+Under `PERMISSIVE`, unmapped routes pass already; the mapping is only needed for public routes
+under a mapped pattern.
+
+### Extending
+
+- To read tokens from elsewhere (a query parameter, another header), define a
+  `BearerTokenResolver` bean: Spring Security authenticates with it and the enforcer reads tokens
+  with it.
+- Calls to Keycloak go through the `keycloakPolicyEnforcerHttpClient` bean (Apache HttpClient 4),
+  closed with the context. It is not a default candidate, so it never becomes the application's
+  `HttpClient`.
+- To replace the enforcer, define a `KeycloakPolicyEnforcerFilter` bean; the auto-configuration
+  then places yours in the chain. `KeycloakPolicyEnforcerFilter.Options` sets its token resolver,
+  retry backoff, clock and failure listener.
 
 ## Migrating from 4.x
 

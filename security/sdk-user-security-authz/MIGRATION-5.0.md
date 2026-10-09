@@ -24,7 +24,7 @@ through `keycloak.policy-enforcer.enabled` is now off.
 
 | Key | Change |
 |---|---|
-| `codehunters.security.authz.retry-backoff` | Removed; ignored if left. A failed first build of the enforcer is retried on the next enforced request |
+| `codehunters.security.authz.retry-backoff` | Kept; default `10s` (was `30s`). After a failed build of the enforcer, requests answer 503 for that long, then one request rebuilds |
 | `codehunters.security.authz.lazy-load-paths` | Added, default `false` |
 | `codehunters.security.authz.http-method-as-scope` | Added, default `false` |
 | `codehunters.security.authz.path-cache.max-entries` / `lifespan` | Added, default `1000` / `30s` |
@@ -46,7 +46,9 @@ through `keycloak.policy-enforcer.enabled` is now off.
 | Ant patterns (`/api/users/**`) | Keycloak patterns (`/api/users/*` matches any sub-path, `{id}` one segment). `**` fails startup |
 | A method not listed for a path was denied | Asks Keycloak for the path's `scopes`, the HTTP method with `http-method-as-scope`, or the bare resource. List every method a path serves |
 | A method listed with no scopes was accepted | Startup fails |
-| Keycloak unreachable answered 503 | 503 only while the enforcer is first built; afterwards a failed authorization call is a denial (403) |
+| Requests with a `Bearer` header were enforced | Requests a bearer token authenticated are enforced, decided from the authentication: tokens an application `BearerTokenResolver` reads from a query parameter or another header included. Basic-auth chains pass |
+| Keycloak unreachable answered 503 | 503 while the enforcer cannot be built, for `retry-backoff` after each failed build; once built, an enforcer failure answers 503, a failed authorization call is a denial (403), logged at `WARN` and counted as `codehunters.authz.enforcer.failures` |
+| Patterns matched the request URI | Keycloak patterns match the decoded path without path parameters, as Spring MVC routes it |
 | Keycloak answering 400 (unknown resource or scope) was logged as an error | Denied (403); the enforcer logs at debug under `org.keycloak.adapters.authorization` |
 | One authorization call per enforced request | Same: Keycloak's enforcer has no decision cache. Resolved paths are cached (`path-cache.*`); see the README's Latency section |
 
@@ -54,7 +56,8 @@ through `keycloak.policy-enforcer.enabled` is now off.
 
 | 4.x | 5.0 |
 |---|---|
-| `io.codehunters.security.authz.servlet.KeycloakAuthzFilter` | `io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter` (extends Keycloak's `ServletPolicyEnforcerFilter`) |
+| `io.codehunters.security.authz.servlet.KeycloakAuthzFilter` | `io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter` (runs Keycloak's `PolicyEnforcer` like its `ServletPolicyEnforcerFilter`), configured with `KeycloakPolicyEnforcerFilter.Options` |
+| — | `keycloakPolicyEnforcerHttpClient` (`CloseableHttpClient`, not a default candidate, closed with the context) |
 | `keycloakAuthzFilterRegistration` (`FilterRegistrationBean`) | `keycloakPolicyEnforcerFilterRegistration`, disabled: the filter only runs inside the security chain |
 | — | `keycloakPolicyEnforcerCustomizer` (`Customizer<HttpSecurity>`) |
 | An application `AuthzClient` bean replaced the client | No longer used. Define a `KeycloakPolicyEnforcerFilter` bean to replace the enforcer |
@@ -76,4 +79,7 @@ The dependency `org.keycloak:keycloak-authz-client` is replaced by
 5. If you used `PERMISSIVE` to observe without blocking, set `paths[].enforcement-mode: DISABLED`
    on the paths you are not ready to enforce instead.
 6. List every method each mapped path serves, or set `paths[].scopes`.
-7. Remove `retry-backoff`, and any `AuthzClient` bean defined to customise the old client.
+7. Keep `retry-backoff` only if `10s` does not suit, and remove any `AuthzClient` bean defined to
+   customise the old client; to read tokens from elsewhere, define a `BearerTokenResolver` bean.
+8. Authenticated callers are enforced on public routes too: map them with
+   `enforcement-mode: DISABLED` (see the README's Public routes).

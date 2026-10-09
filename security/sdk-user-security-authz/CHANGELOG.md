@@ -16,13 +16,20 @@
 - The dependency on `sdk-support`.
 - `KeycloakAuthzFilter`, its servlet `FilterRegistrationBean` and the use of an application
   `AuthzClient` bean.
-- `codehunters.security.authz.retry-backoff`.
 - The dependency on `keycloak-authz-client` (now brought by `keycloak-policy-enforcer`).
 
 ### Added
-- `KeycloakPolicyEnforcerFilter`, extending Keycloak's `ServletPolicyEnforcerFilter`, and the
-  `keycloakPolicyEnforcerCustomizer` (`Customizer<HttpSecurity>`) that places it after
-  `AuthorizationFilter` in every `SecurityFilterChain`.
+- `KeycloakPolicyEnforcerFilter`, running Keycloak's `PolicyEnforcer` the way its
+  `ServletPolicyEnforcerFilter` does, with `KeycloakPolicyEnforcerFilter.Options` (token resolver,
+  retry backoff, clock, failure listener), and the `keycloakPolicyEnforcerCustomizer`
+  (`Customizer<HttpSecurity>`) that places it after `AuthorizationFilter` in every
+  `SecurityFilterChain`.
+- The `keycloakPolicyEnforcerHttpClient` bean (Apache `CloseableHttpClient`, not a default
+  candidate), closed with the context.
+- The `codehunters.authz.enforcer.failures` counter, tagged `stage` (`enforcer`, `call`), when
+  Micrometer and a `MeterRegistry` are present. Failed calls to Keycloak are logged at `WARN`.
+- An application `BearerTokenResolver` bean is used to read tokens the authentication no longer
+  holds.
 - Dependency `org.keycloak:keycloak-policy-enforcer` 26.0.12.
 - Properties mapped to Keycloak's `PolicyEnforcerConfig`: `lazy-load-paths`,
   `http-method-as-scope`, `path-cache.max-entries`, `path-cache.lifespan`,
@@ -31,9 +38,18 @@
 - Startup fails when a listed method has no scopes, a path uses `**` or does not start with `/`,
   or an enforcement mode is unknown.
 
+### Changed
+- `codehunters.security.authz.retry-backoff` now defaults to `10s` (was `30s`) and applies to
+  building Keycloak's enforcer: after a failed build, enforced requests answer 503 for that long
+  without calling Keycloak, then a single request rebuilds.
+
 ### Behaviour changes
-- Only requests with a `Bearer` token are enforced; a request another chain authenticated without
-  one (basic auth on actuator, for example) passes through.
+- Requests a bearer token authenticated are enforced, decided from the authentication rather than
+  the `Authorization` header: tokens an application `BearerTokenResolver` reads from a query
+  parameter or another header are enforced too. A request another chain authenticated otherwise
+  (basic auth on actuator, for example) passes through. A token authentication whose token cannot
+  be found is denied (403).
+- Paths are matched decoded and without path parameters, as Spring MVC routes them.
 - Unauthenticated requests are answered by Spring Security (401 on protected paths) before
   Keycloak is asked; anonymous requests on public and excluded paths are not enforced.
 - Authenticated requests to paths not in the catalog are denied (403) under `ENFORCING`;
@@ -41,8 +57,9 @@
 - Patterns are Keycloak's (`/*`, `{id}`), not Ant's.
 - A method a path does not list falls back to the path's `scopes` (or the HTTP method with
   `http-method-as-scope`) instead of being denied.
-- Keycloak unreachable answers 503 only while the enforcer is first built; afterwards a failed
-  authorization call is a denial (403).
+- Keycloak unreachable answers 503 while the enforcer cannot be built (for `retry-backoff` after
+  each failed build); once built, a failure of the enforcer answers 503, while a failed
+  authorization call is a denial (403), logged at `WARN` and counted.
 - Resolved paths are cached (`path-cache.*`). There is still one authorization call per enforced
   request unless the token is an RPT carrying the permission.
 
