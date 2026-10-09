@@ -8,7 +8,7 @@ pluginManagement {
 
 rootProject.name = "java-sdk"
 
-// Modules are included here as each is migrated from vitxo-sdk-* (see README module table).
+// Library modules (see the README module table).
 include("sdk-measure-micrometer")
 include("sdk-geo-validation")
 include("sdk-tracing")

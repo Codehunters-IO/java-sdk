@@ -1,6 +1,6 @@
 # 0019 — PostGIS geofence adapter with geodesic coverage
 
-- Status: accepted
+- Status: accepted (the SQL Server adapter it compares with is removed by 0021)
 - Date: 2026-10-09
 
 ## Context

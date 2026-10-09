@@ -199,7 +199,7 @@ orders.findAll(SEARCH.allOf(List.of(
   is a `ClientInputException` from `sdk-commons`, and still an `IllegalArgumentException`.
   Whitelist and value-count errors are thrown when the specification is built; conversion and
   unsupported-operation errors when the query runs, where Spring wraps them in
-  `InvalidDataAccessApiUsageException`. `sdk-web` 2.1.0 finds it in the cause chain and answers
+  `InvalidDataAccessApiUsageException`. `sdk-web` 3.0.0 finds it in the cause chain and answers
   400 with the code; without `sdk-web`, look for it in the cause chain. An invalid whitelist
   (`SpecificationBuilder.of(...)`) is a programming error: a plain `IllegalArgumentException`.
 - **Indexes.** `LIKE` compares `lower(column)` with a leading `%`: no plain B-tree index helps.

@@ -14,7 +14,7 @@ Unreleased 2.1.0 became 3.0.0: dropping SQL Server support is breaking. See
   outside the whitelist or the same one twice. It extends `sdk-commons`' `ClientInputException`, so
   it is still an `IllegalArgumentException`, as before.
 - `InvalidSearchException` is now a `ClientInputException` (code `INVALID_SEARCH`), still an
-  `IllegalArgumentException`. `sdk-web` 2.1.0 answers both with 400 and the code, also when Spring
+  `IllegalArgumentException`. `sdk-web` 3.0.0 answers both with 400 and the code, also when Spring
   wraps the search exception in `InvalidDataAccessApiUsageException` at query time.
 - `sdk-commons` is an `api` dependency, so it reaches the application's runtime classpath. Its
   TOTP auto-configuration stays off unless `codehunters.totp.enabled=true`.

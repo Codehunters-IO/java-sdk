@@ -39,12 +39,13 @@ Chosen option: **Option A**.
 
 - `sdk-web` 1.0.0 contains `io.codehunters.weberrors`, `io.codehunters.device` and
   `io.codehunters.i18n`. Each keeps its own auto-configuration, properties
-  (`codehunters.web-errors.*`, `codehunters.device.*`, `codehunters.i18n.*`) and switch
+  (`codehunters.web.errors.*`, `codehunters.web.device.*`, `codehunters.web.i18n.*` since
+  `sdk-web` 3.0) and switch
   (`<prefix>.enabled=false`), so a service can turn off the parts it does not use.
 - `sdk-commons` 1.1.0 contains `io.codehunters.totp` next to its helpers. The helpers still depend
   on the JDK only (ArchUnit), and so does the TOTP core; only `io.codehunters.totp.config` touches
-  Spring Boot, which stays `compileOnly`. `sdk-support` becomes a runtime dependency of
-  `sdk-commons`, for the `vitxo.totp.*` aliases. This amends
+  Spring Boot, which stays `compileOnly`. `sdk-commons` 1.1.0 also took a runtime dependency
+  on `sdk-support` for the legacy TOTP property aliases (both removed by ADR 0021). This amends
   [ADR 0010](0010-sdk-commons-for-framework-free-helpers.md), which promised no auto-configuration.
 - Both publish the Gradle capabilities of what they replace (`sdk-web-errors`, `sdk-device`,
   `sdk-i18n`; `sdk-totp`, `sdk-utils`), so a Gradle build resolving an old and a new artifact fails
@@ -59,7 +60,7 @@ Stay separate:
 |---|---|
 | `sdk-barcode`, `sdk-jasper`, `sdk-jpa` | Heavy dependencies (ZXing, JasperReports + JDT, Hibernate) |
 | `sdk-tracing` | Used by web and by RabbitMQ/messaging; inside `sdk-web` it would pull web into messaging |
-| `sdk-parameter`, `sdk-geo-validation` | JDBC / SQL Server and a domain of their own |
+| `sdk-parameter`, `sdk-geo-validation` | JDBC and a domain of their own |
 | `sdk-measure-micrometer` | Micrometer and AOP, nothing in common with the web stack |
 | `sdk-event-messaging-*`, `sdk-user-security*` | Split on purpose ([0001](0001-split-event-messaging-by-transport.md), [0002](0002-move-policy-enforcer-to-its-own-artifact.md)) |
 
@@ -72,7 +73,7 @@ Stay separate:
   and the locale resolver only activate in servlet applications, but the i18n `messageSource` is
   registered in any application: a service that used only `sdk-web-errors` or `sdk-device` (a batch
   job reading IPs, too) has Boot's message source replaced and `spring.messages.*` ignored until it
-  moves its bundles or sets `codehunters.i18n.enabled=false`. `sdk-web/MIGRATION-1.0.md` calls this
+  moves its bundles or sets `codehunters.web.i18n.enabled=false`. `sdk-web/MIGRATION-1.0.md` calls this
   out as breaking.
 - Bad: every Boot application using the `sdk-commons` helpers gets the TOTP auto-configuration;
   `codehunters.totp.enabled=false` leaves it out.

@@ -23,7 +23,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 |---|---|---|
 | D1 | Partir `sdk-event-messaging` en `-core`, `-jdbc`, `-rabbit` y `-kafka` | `docs/adr/0001-event-messaging-split.md` |
 | D2 | Sacar el PEP de autorización a `sdk-user-security-authz` | `docs/adr/0002-user-security-authz-split.md` |
-| D3 | ~~Retirar `sdk-geo-validation` del SDK y moverlo al servicio de rifas~~ Reemplazada por D14 (2026-10-07) | `docs/adr/0003-retire-geo-validation-from-the-sdk.md` (superseded) |
+| D3 | ~~Retirar `sdk-geo-validation` del SDK y moverlo al servicio original~~ Reemplazada por D14 (2026-10-07) | `docs/adr/0003-retire-geo-validation-from-the-sdk.md` (superseded) |
 | D4 | Un solo prefijo, `codehunters.<sdk>.*`, con alias deprecados por una versión mayor | `docs/adr/0004-property-prefix.md` |
 | D5 | Renombrar `sdk-utils` a `sdk-totp`. TOTP pasa a `sdk-commons` por D15 | `docs/adr/0005-utils-to-totp.md` |
 | D6 | Crear `sdk-bom` (`java-platform`) y dejar de exportar el BOM de Boot a los consumidores | `docs/adr/0006-sdk-bom.md` |
@@ -34,7 +34,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D11 | Los utilitarios sueltos de `codehuntersio-java-commons-support` van a un módulo nuevo `sdk-commons`, solo JDK; no se reusa `sdk-utils` porque `sdk-totp` publica esa capability (2026-10-07) | `docs/adr/0010-sdk-commons-for-framework-free-helpers.md` |
 | D12 | Lo que queda de `codehuntersio-java-commons-support` se extrae en módulos propios, en este orden: `sdk-web-errors`, `sdk-device`, `sdk-barcode`, `sdk-jpa` (con converters y specifications) y `sdk-jasper`. Lo que ya cubren Boot, Spring o los SDK actuales se omite. `ClientIpResolver` va a `sdk-device`, junto al user agent, y no a `sdk-user-security` (2026-10-07) | — |
 | D13 | Los errores HTTP se responden con RFC 9457 `ProblemDetail` y una extensión `code` estable que sale de un enum `ErrorCode` por contexto (2026-10-07) | `docs/adr/0011-problem-details-with-stable-error-codes.md` |
-| D14 | `sdk-geo-validation` se queda en el SDK como geofencing agnóstico de dominio: sin conceptos de rifas, el servicio que lo usa define el scope (`ZoneRef` opaco) y es dueño del procedimiento o de las zonas. Reemplaza a D3 (2026-10-07) | `docs/adr/0015-domain-agnostic-geofencing.md` |
+| D14 | `sdk-geo-validation` se queda en el SDK como geofencing agnóstico de dominio: sin conceptos de un servicio, el servicio que lo usa define el scope (`ZoneRef` opaco) y es dueño del procedimiento o de las zonas. Reemplaza a D3 (2026-10-07) | `docs/adr/0015-domain-agnostic-geofencing.md` |
 | D15 | Fusionar artefactos mientras ningún servicio migró: `sdk-web` 1.0.0 = `sdk-web-errors` + `sdk-device` + `sdk-i18n`; `sdk-commons` 1.1.0 absorbe `sdk-totp`. Paquetes, propiedades y alias no cambian; cada parte conserva su auto-configuración y su switch. Se quedan aparte barcode, jasper, jpa (dependencias pesadas), tracing (lo usa messaging), parameter, geo, measure, messaging y security (2026-10-08) | `docs/adr/0016-consolidate-web-and-commons-artifacts.md` |
 | D16 | Los paquetes se publican solo al publicar un release de GitHub, uno por módulo. Cada merge a `master` crea borradores automáticos; una persona los revisa y publica, y el BOM va último (2026-10-08) | `docs/adr/0017-publish-on-release-tags.md` |
 | D17 | `sdk-event-messaging` 7.0: el despachador marca cada fila (`send_started_at`) justo antes de publicarla y un reclamo solo cobra intento a las filas marcadas. Los cuatro artefactos van a 7.0.0 y los alias `outbox.*` siguen hasta 8.0 porque ningún servicio migró desde 5.x (2026-10-08) | `docs/adr/0018-charge-attempts-only-for-started-sends.md` |
@@ -43,6 +43,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D20 | Los SDK no usan estructura hexagonal: se empaquetan por capacidad. El paquete raíz es la API, los subpaquetes se nombran por lo que hacen, `config` tiene la auto-configuración y `internal` lo que no es API; ningún paquete se reparte entre dos jars. Se mueven sin shims y cada módulo afectado sube de major, porque ningún servicio los consume todavía (2026-10-09) | `docs/adr/0020-package-by-capability.md` |
 | D21 | Bloque 1 de la evaluación de arquitectura (seguridad y datos personales): TOTP con valores por defecto compatibles con las apps de autenticación y auto-configuración opt-in (`sdk-commons` 3.0.0), nombre de la autenticación igual al user id y datos del gateway como no verificados (`sdk-user-security` 4.1.0), parámetros de ubicación rechazados a cualquier profundidad (`sdk-jasper` 2.1.0) y alias de listas copiados desde una sola fuente (`sdk-support` 1.0.1); BOM 3.0.0 (2026-10-09) | — |
 | D22 | Bloque 2 de la evaluación de arquitectura (fallos silenciosos y errores de cliente): `ClientInputException` en `sdk-commons` (subclase de `IllegalArgumentException` con `code` estable) que `sdk-web` 2.1.0 responde con 400; `sdk-jpa` y `sdk-barcode` 2.1.0 la usan; `sdk-audit-log` 4.1.0 reporta al arrancar `@Auditable` sin publisher o con expresiones inválidas y toma el actor servlet de Spring Security. `sdk-bom` 3.1.0 (la 3.0.0 no se publica sola) (2026-10-09) | — |
+| D23 | Solo PostgreSQL y solo propiedades `codehunters.*`: se eliminan las implementaciones de SQL Server, todos los alias de prefijos anteriores, `sdk-support` y toda mención a la línea de producto de origen; `sdk-web` pasa a `codehunters.web.*` (2026-10-09) | `docs/adr/0021-postgresql-only-and-codehunters-properties.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -312,7 +313,7 @@ Desbloqueada por D10 (A4). Detalle en `sdk-file-share/CHANGELOG.md`, `README.md`
 - `2c86d6d` → `38618e8`: mapeo dentro de `execute`, `PresignedUrlPolicy` (https + hosts permitidos con
   comodín `*.`), body de error a 512 caracteres, `FileShareException.status()`, `download` acotado por
   `max-download-size` y sobrecargas en streaming.
-- `8bba2a7` → `a9561bf`: `codehunters.file-share.*` con alias `vitxo.file-share.*` hasta 3.0, connect
+- `8bba2a7` → `a9561bf`: `codehunters.file-share.*` con alias `legacy.file-share.*` hasta 3.0, connect
   timeout real, `RestClient` desde el builder de la app con `defaultCandidate = false`, client credentials
   y hook `FileShareRequestInterceptor`; fuera Lombok.
 - `3631070`: ADR 0009, README, CHANGELOG, MIGRATION-2.0.
@@ -346,7 +347,7 @@ Desbloqueada por D10 (A4). Detalle en `sdk-file-share/CHANGELOG.md`, `README.md`
   obligatorio con auth salvo `auth.allow-insecure-http=true`; `client-registration-id` vacío = sin auth.
 - `a370e1c`, `c3e9c34`: README, ADR 0009, MIGRATION, CHANGELOG y javadoc.
 - Quedan como límites documentados: validación de nombre/tipo solo ASCII (controles Unicode,
-  bidi y barras parecidas pasan) y alias `vitxo.*` que no cubren claves de `@PropertySource`.
+  bidi y barras parecidas pasan) y alias `legacy.*` que no cubren claves de `@PropertySource`.
 
 Verificación: 163 tests, cobertura 96,2 % líneas / 93,1 % ramas, `./gradlew clean build` y
 `./gradlew -p build-logic test` en verde.
@@ -365,7 +366,7 @@ Verificación: 163 tests, cobertura 96,2 % líneas / 93,1 % ramas, `./gradlew cl
 6. `FileStatus.UNKNOWN`; se elimina el código muerto y Lombok.
 7. Auth saliente según D10: client credentials + hook `FileShareRequestInterceptor` (se suma, no
    reemplaza).
-8. Prefijo: `vitxo.file-share.*` → `codehunters.file-share.*`.
+8. Prefijo: `legacy.file-share.*` → `codehunters.file-share.*`.
 
 ## Fase 6 — `sdk-audit-log` 3.0.0 ✅ (rama `feature/sdk-audit-log-v3`, sobre `feature/sdk-file-share-v2`)
 
@@ -376,7 +377,7 @@ Detalle en `sdk-audit-log/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.md`.
   `AuditPersistenceException` se propaga (suprimida en la excepción original si el método falló).
 - `55e3f42` → `1d22699`: `MethodBasedEvaluationContext`, caché de expresiones acotada a 1024, errores
   de sintaxis SpEL → campo `null` en vez de perder el evento.
-- `38203dd` → `38fe497`: `codehunters.audit.*` con alias `vitxo.audit.*` hasta 4.0 y metadatos de
+- `38203dd` → `38fe497`: `codehunters.audit.*` con alias `legacy.audit.*` hasta 4.0 y metadatos de
   deprecación; `codehunters.audit.async.*` validado al arrancar.
 - `91137c4` → `8617444`: `AuditEventJdbcAdapter` síncrono; `AsyncAuditEventPublisher` +
   `AuditEventRejectionListener` (contador `audit.events.rejected`); executor acotado, con MDC,
@@ -493,7 +494,7 @@ del arranque con `fail-on-error=true`. 175 tests, 98,4 % líneas / 91,3 % ramas.
    en `null`. Se inyecta `Clock` y la duración se mide con `nanoTime`.
 4. `AuditSpelEvaluator`: `MethodBasedEvaluationContext` y caché de expresiones.
 5. SQL de referencia para Postgres, además del de SQL Server.
-6. Prefijo: `vitxo.audit.*` → `codehunters.audit.*`.
+6. Prefijo: `legacy.audit.*` → `codehunters.audit.*`.
 
 ## Fase 7 — `sdk-measure-micrometer` 3.0.0 ✅ (rama `feature/sdk-measure-v3`, sobre `feature/sdk-audit-log-v3`)
 
@@ -526,7 +527,7 @@ Detalle en `sdk-measure-micrometer/CHANGELOG.md`, `README.md` y `MIGRATION-3.0.m
   `x.count` no choca con `x_seconds_count` en Prometheus, pero el sufijo confunde.)
 - Las expresiones que no parsean no fallan el arranque (se loguean y quedan `unknown`), como pide
   el punto 2; solo los errores de estructura de la anotación lo hacen.
-- No había propiedades `vitxo.*` en este módulo, así que no hay alias.
+- No había propiedades `legacy.*` en este módulo, así que no hay alias.
 
 Verificación: 50 tests, cobertura 100 % líneas / 93,2 % ramas, mutaciones detectadas (contexto
 SpEL, `afterName`), `./gradlew clean build` y `./gradlew -p build-logic test` en verde.
@@ -605,7 +606,7 @@ Verificación: 119 tests, cobertura 97,4 % líneas / 86,9 % ramas. Un `cache-ttl
 arrancaba sin caché; el test nuevo lo fija.
 
 **Desvíos del plan:**
-- No hay alias de propiedades: la 1.x no tenía ninguna propiedad `vitxo.*`.
+- No hay alias de propiedades: la 1.x no tenía ninguna propiedad `legacy.*`.
 - El tope de 1024 respuestas de la caché es una constante, no una propiedad.
 - Se añadieron, fuera del plan: `@ConditionalOnSingleCandidate(DataSource)`, tabla validada contra
   inyección SQL y resultados inmodificables.
@@ -633,7 +634,7 @@ Commits (cada test en rojo seguido de su cambio):
   en dispatch async y de error, y registra los fallos del resolver solo con la clase de la
   excepción.
 - `4c454ee` → `d90659c`: `I18nProperties` pasa a record validado bajo `codehunters.i18n`
-  (`enabled`, varias `basename`, `supported-locales`, `encoding` como `Charset`); los `vitxo.i18n.*`
+  (`enabled`, varias `basename`, `supported-locales`, `encoding` como `Charset`); los `legacy.i18n.*`
   siguen hasta 2.0 con metadata de deprecación. Tres configuraciones anidadas, antes de las de
   Boot: mensajes (cede solo ante un bean llamado `messageSource`, avisa si hay
   `spring.messages.basename`), servlet (solo apps servlet) y validación (solo con proveedor; cede
@@ -655,7 +656,7 @@ Verificación: 57 tests, cobertura 100 % líneas / 100 % ramas; `./gradlew clean
 **Correcciones de la review** (cada test en rojo seguido de su cambio):
 
 - `1a7c7cb` → `30b7112` (`platform/sdk-support`, afecta a todos los módulos con alias): una
-  variable de entorno que parte con `_` un nombre con guion (`VITXO_I18N_DEFAULT_LOCALE`) se
+  variable de entorno que parte con `_` un nombre con guion (`LEGACY_I18N_DEFAULT_LOCALE`) se
   copiaba a un nombre que nunca enlaza. Cada `*LegacyProperties` declara ahora sus claves viejas, y
   el helper las busca como lo hace Boot (las dos formas de env), recorre por índice las listas y
   sigue recorriendo las fuentes para los campos anidados (`paths[0].methods[0]`). Las claves viejas
@@ -683,7 +684,7 @@ Tareas planificadas:
 2. `before = {MessageSourceAutoConfiguration, ValidationAutoConfiguration, WebMvcAutoConfiguration}`,
    con la precedencia sobre `spring.messages.*` documentada.
 3. `supportedLocales`; `_` se normaliza a `-`. `LocaleMdcFilter` registra los errores en el log.
-4. `I18nProperties` pasa a record. Prefijo: `vitxo.i18n.*` → `codehunters.i18n.*`.
+4. `I18nProperties` pasa a record. Prefijo: `legacy.i18n.*` → `codehunters.i18n.*`.
 
 ## Fase 10 — `sdk-totp` 2.0.0 (antes `sdk-utils`) y retiro de `sdk-geo-validation` ✅ (rama `feature/sdk-totp-v2`, sobre `feature/sdk-i18n-v1`; geo 1 y 2 bloqueados)
 
@@ -695,10 +696,10 @@ Rama: `feature/sdk-totp-v2`.
 2. `Locale.ROOT` en el padding y en Base32; comparación de tiempo constante; `floorDiv`; variance
    ≤ 10; el paso debe ser de segundos enteros y ≥ 1 s; `SecureRandom` estático; `fromHex`.
 3. Tests con los vectores del RFC 6238, apéndice B (SHA1, SHA256, SHA512).
-4. Prefijo: `vitxo.totp.*` → `codehunters.totp.*`.
+4. Prefijo: `legacy.totp.*` → `codehunters.totp.*`.
 
 **geo-validation** (D3), rama `chore/remove-geo-validation`:
-1. Entregar el código al equipo del servicio de rifas, que es quien lo adopta. **Es trabajo de otro
+1. Entregar el código al equipo del servicio original, que es quien lo adopta. **Es trabajo de otro
    repo y necesita un dueño.**
 2. Una vez adoptado, eliminar `sdk-geo-validation` de `settings.gradle.kts` y su directorio. La 0.2.0
    sigue disponible en GitHub Packages.
@@ -706,7 +707,7 @@ Rama: `feature/sdk-totp-v2`.
    para no entregar los bugs. Ese arreglo no se publica.
 
 **Estado: hecha, salvo los puntos 1 y 2 de geo-validation** (bloqueados: falta el dueño en el
-servicio de rifas). Rama `feature/sdk-totp-v2`, creada desde `feature/sdk-parameter-v2` en un
+servicio original). Rama `feature/sdk-totp-v2`, creada desde `feature/sdk-parameter-v2` en un
 worktree aparte mientras la Fase 9 avanzaba en paralelo, y después rebaseada sobre
 `feature/sdk-i18n-v1` (único conflicto: las filas de geo e i18n del README raíz). Los hashes de esta
 sección son los de antes del rebase. Cada cambio lleva antes su commit de test en rojo.
@@ -718,7 +719,7 @@ sección son los de antes del rebase. Cada cambio lleva antes su commit de test 
   comparación en tiempo constante sin cortar en la primera coincidencia; variance `0..10`
   (`MAX_VARIANCE`); código `null` → `false`; paso de segundos enteros ≥ 1 s; `SecureRandom`
   estático; los errores de Base32 y hex no repiten la entrada. Se quitó el test con bucle.
-- `62526be` → `9a8b511`: `codehunters.totp.*` con alias `vitxo.totp.*` hasta 3.0
+- `62526be` → `9a8b511`: `codehunters.totp.*` con alias `legacy.totp.*` hasta 3.0
   (`TotpLegacyProperties` sobre `sdk-support`) y metadata de deprecación; un paso inválido hace
   fallar el arranque; versión 2.0.0.
 - `7478f57` → `ba1d454` (geo): `NaN` e infinitos rechazados, el mensaje ya no lleva la coordenada,
@@ -752,7 +753,7 @@ Verificación: `sdk-totp` 105 tests (98,4 % líneas, 100 % ramas); `sdk-geo-vali
   clock; `TotpDigits.FOUR` deprecado. Tests de los bordes de variance (±10 aceptado, 11 rechazado).
 - `5877494`: el test de vectores RFC ya no tiene `switch` (la semilla viaja como dato), el test de
   locale toma `@ResourceLock(Resources.LOCALE)`, y un `SpringApplication` real prueba que
-  `vitxo.totp.time-step` llega al generador y que un paso legacy inválido hace fallar el arranque.
+  `legacy.totp.time-step` llega al generador y que un paso legacy inválido hace fallar el arranque.
 - `70d43bf`, `7584aa9` (geo): tests del otro borde de latitud y longitud; versión `0.2.1-SNAPSHOT`,
   que el publish nunca sube, para que el código corregido no pueda salir como `0.2.0`.
 - `172bcf6`: README, CHANGELOG, MIGRATION-2.0 y ADR 0005 (la capability solo protege a Gradle; en
@@ -769,12 +770,12 @@ Verificación tras la review: `sdk-totp` 142 tests (98,6 % líneas, 100 % ramas)
   hacerlo).
 - `sdk-bom` todavía declara `sdk-geo-validation`, ahora en `0.2.1-SNAPSHOT`: hay que sacarlo del BOM
   antes de publicar la 1.0.0 (Fase 11), aunque el módulo siga sin dueño.
-- Las claves legacy con nombres desconocidos (`vitxo.totp.algo-mal-escrito`) se ignoran sin aviso,
+- Las claves legacy con nombres desconocidos (`legacy.totp.algo-mal-escrito`) se ignoran sin aviso,
   como en el resto de los módulos que usan `LegacyPropertyAliases`.
 
 **Tras el rebase sobre `feature/sdk-i18n-v1`:** `9848125` → `30ee6a0`. `TotpLegacyProperties` declara
 sus claves viejas (`time-step`, `digits`, `algorithm`) para la nueva API de `LegacyPropertyAliases`,
-y un test fija la forma `VITXO_TOTP_TIME_STEP`. `sdk-totp` queda con 143 tests; `./gradlew clean
+y un test fija la forma `LEGACY_TOTP_TIME_STEP`. `sdk-totp` queda con 143 tests; `./gradlew clean
 build` y `./gradlew -p build-logic test` en verde.
 
 ## Fase 11 — Cierre ✅ (rama `feature/release-closeout`, sobre `feature/sdk-totp-v2`)
@@ -1268,10 +1269,10 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
 | `keycloak.security.*` | `codehunters.security.*` |
 | `keycloak.policy-enforcer.*`, `keycloak.host`, `keycloak.realm` | `codehunters.security.authz.*` (URL y realm desde `codehunters.security`) |
 | `outbox.*` | `codehunters.outbox.*` |
-| `vitxo.audit.*` | `codehunters.audit.*` |
-| `vitxo.file-share.*` | `codehunters.file-share.*` |
-| `vitxo.i18n.*` | `codehunters.i18n.*` |
-| `vitxo.totp.*` | `codehunters.totp.*` |
+| `legacy.audit.*` | `codehunters.audit.*` |
+| `legacy.file-share.*` | `codehunters.file-share.*` |
+| `legacy.i18n.*` | `codehunters.i18n.*` |
+| `legacy.totp.*` | `codehunters.totp.*` |
 | (no había) | `codehunters.tracing.*`, `codehunters.measure.*`, `codehunters.parameter.*`, `codehunters.jpa.*` |
 | `geo.validation.enabled` | `codehunters.geo.enabled` (alias hasta 2.0); nuevos `codehunters.geo.adapter` y `codehunters.geo.sql-server.*` |
 
@@ -1319,7 +1320,7 @@ Las Fases 2 a 10 son independientes entre sí, excepto 4 → 3. El orden sugerid
    borrar el resto sin versionar de `sdk-utils/`.
 3. Confirmar la clave de la organización de Sonar en SonarCloud (`sonar.organization` en
    `build.gradle.kts`).
-4. ~~Dueño de `sdk-geo-validation` en el servicio de rifas (Fase 10, geo 1 y 2).~~ Ya no aplica:
+4. ~~Dueño de `sdk-geo-validation` en el servicio original (Fase 10, geo 1 y 2).~~ Ya no aplica:
    D14 lo deja en el SDK como geofencing agnóstico (Fase 18).
 5. ~~Push de `master` y de las 19 ramas en orden, y PRs encadenados, cada uno contra el anterior.~~
    Hecho; ver "Integración en `master`".
@@ -1351,7 +1352,7 @@ Estado de los pendientes (2026-10-07):
 
 ## Fase 18 — `sdk-geo-validation` 1.0.0, agnóstico de dominio ✅ (rama `feature/sdk-geo-validation-v1`, sobre `master`)
 
-D14 revierte D3: el módulo se queda, sin conceptos de rifas
+D14 revierte D3: el módulo se queda, sin conceptos de un servicio
 ([ADR 0015](../adr/0015-domain-agnostic-geofencing.md), que reemplaza a la 0003).
 
 - `e51e62b` → `48d4709`: modelo neutro. `GeoFenceValidator.validate(ZoneRef, GeoPoint[, Coverage])`,
@@ -1382,7 +1383,7 @@ coordenadas ahora no rompe a nadie.
 
 - `cf7f07a` → `a1bf60c`: `codehuntersPublishing { replaces(...) }` acepta varios artefactos.
 - `24062c3`: `git mv` de `sdk-web-errors`, `sdk-device` y `sdk-i18n` a `sdk-web`, y de `sdk-totp` a
-  `sdk-commons`. Paquetes, propiedades, alias `vitxo.*` y auto-configuraciones (cada una con su
+  `sdk-commons`. Paquetes, propiedades, alias `legacy.*` y auto-configuraciones (cada una con su
   `enabled`) sin cambios; un solo `AutoConfiguration.imports` y un solo `spring.factories` por
   artefacto. Capabilities: `sdk-web` → `sdk-web-errors`, `sdk-device`, `sdk-i18n`; `sdk-commons` →
   `sdk-totp`, `sdk-utils`. `sdk-commons` gana `sdk-support` en runtime (alias de TOTP); Boot sigue
@@ -1558,3 +1559,26 @@ Decisión D22. Va en el mismo PR que el bloque 1 (#30), por pedido del usuario.
   no nombra el tipo Java.
 - Abierto: `SimpleEvaluationContext` para las expresiones de audit-log (rompería expresiones con
   llamadas a métodos, va en una major).
+
+## Fase 27 — Solo PostgreSQL, solo `codehunters.*` ✅ (rama `chore/postgres-only-codehunters-properties`, sobre `master`)
+
+Decisión D23 ([ADR 0021](../adr/0021-postgresql-only-and-codehunters-properties.md)), que reemplaza
+a la ADR 0004 y a las partes de SQL Server de las ADR 0015 y 0018.
+
+| Módulo | Antes | Ahora | Cambio |
+|---|---|---|---|
+| `sdk-event-messaging-*` | 8.0.0 | 9.0.0 | solo PostgreSQL; sin selección de dialecto ni `claim.dialect`; falla al arrancar si la base no es PostgreSQL; sin alias `outbox.*` |
+| `sdk-web` | 2.1.0 (sin publicar) | 3.0.0 | claves bajo `codehunters.web.errors`, `codehunters.web.device`, `codehunters.web.i18n`; sin alias de i18n |
+| `sdk-commons` | 3.0.0 (sin publicar) | 3.0.0 | sin alias de TOTP ni dependencia de `sdk-support` |
+| `sdk-file-share` | 3.0.0 | 4.0.0 | sin alias |
+| `sdk-audit-log` | 4.1.0 (sin publicar) | 5.0.0 | solo DDL de PostgreSQL; sin alias |
+| `sdk-user-security`, `-authz` | 4.1.0 / 4.0.0 | 5.0.0 | sin alias `keycloak.*` |
+| `sdk-geo-validation` | 1.1.0 | 2.0.0 | adaptadores polygon y PostGIS; sin adaptador SQL Server ni alias |
+| `sdk-jpa` | 2.1.0 (sin publicar) | 3.0.0 | PostgreSQL como única base documentada |
+| `sdk-parameter` | 3.0.0 | 4.0.0 | DDL de PostgreSQL; `ParameterModule` sin módulos de producto |
+| `sdk-support` | 1.0.1 | — | eliminado |
+| `sdk-bom` | 3.1.0 (sin publicar) | 4.0.0 | versiones nuevas; ya no gestiona `sdk-support` |
+
+- Tres ramas paralelas por grupo de módulos, integradas en una sola.
+- Las entradas históricas de este plan conservan los prefijos de su momento; desde `sdk-web` 3.0 las
+  claves son `codehunters.web.*`.

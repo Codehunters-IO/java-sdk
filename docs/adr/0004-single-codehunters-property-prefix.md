@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by 0021
 date: 2026-10-05
 decision-makers: [andres]
 ---
@@ -8,8 +8,8 @@ decision-makers: [andres]
 
 ## Context and Problem Statement
 
-Module properties use five unrelated schemes: `vitxo.*` (inherited from the previous library
-family), `outbox.*`, `geo.validation.*`, `keycloak.*`, and none at all. Short generic prefixes such as
+Module properties use five unrelated schemes: a prefix inherited from the previous library
+family, `outbox.*`, `geo.validation.*`, `keycloak.*`, and none at all. Short generic prefixes such as
 `outbox` and `keycloak` can collide with application or third-party keys.
 
 ## Considered Options
@@ -38,3 +38,8 @@ its configuration on the day it upgrades.
 ## More Information
 
 - Mapping table: `docs/plans/2026-10-05-sdk-migration.md`, section "Prefijos de propiedades".
+
+## Later changes
+
+[ADR 0021](0021-postgresql-only-and-codehunters-properties.md) keeps the `codehunters.*` namespace
+and removes every alias for the older prefixes.

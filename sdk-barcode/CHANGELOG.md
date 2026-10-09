@@ -7,7 +7,7 @@
   `IllegalArgumentException`), replaces the bare `IllegalArgumentException` for what a client can
   get wrong: `BARCODE_IMAGE_REJECTED` for images `BarcodeReader` refuses,
   `BARCODE_CONTENT_REJECTED` for `BarcodeRequest`s that cannot be rendered. Messages are unchanged.
-  `sdk-web` 2.1.0 answers it with 400 and the code. A missing (`null`) content counts as
+  `sdk-web` 3.0.0 answers it with 400 and the code. A missing (`null`) content counts as
   `BARCODE_CONTENT_REJECTED`, like an empty one; other missing arguments stay plain
   `IllegalArgumentException`s.
 - `sdk-commons` is an `api` dependency, so it reaches the application's runtime classpath. Its
