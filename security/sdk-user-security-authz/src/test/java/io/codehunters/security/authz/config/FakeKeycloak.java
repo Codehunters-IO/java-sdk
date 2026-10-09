@@ -92,6 +92,7 @@ final class FakeKeycloak implements AutoCloseable {
             .expirationTime(Date.from(now.plusSeconds(300)))
             .claim("preferred_username", "alice")
             .claim("realm_access", Map.of("roles", List.of("user")))
+            .claim("typ", "Bearer")
             .build());
   }
 

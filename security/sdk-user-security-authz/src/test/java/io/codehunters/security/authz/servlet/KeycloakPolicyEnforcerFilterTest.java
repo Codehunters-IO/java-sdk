@@ -40,7 +40,9 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 
 class KeycloakPolicyEnforcerFilterTest {
 
-  private static final String JWT_TOKEN = "jwt-token";
+  // An unsigned JWT: Keycloak's enforcer parses the token it is given, so it must be one.
+  private static final String JWT_TOKEN = "eyJhbGciOiJub25lIn0.eyJzdWIiOiJ1c2VyLTEifQ.c2ln";
+  private static final String RESOURCE = "orders-service";
   private static final String HEADER_TOKEN = "header-token";
   private static final Duration BACKOFF = Duration.ofSeconds(10);
   private static final Duration SHORT_WAIT = Duration.ofMillis(50);
@@ -153,6 +155,55 @@ class KeycloakPolicyEnforcerFilterTest {
   }
 
   @Test
+  void should_enforce_forward_dispatch_to_a_skipped_path() throws Exception {
+    var skipping =
+        new ScriptedEnforcerFilter(
+            KeycloakPolicyEnforcerFilter.Options.defaults()
+                .withSkipPaths(PathPatternRequestMatcher.withDefaults().matcher("/actuator/**")));
+    authenticate(jwtAuthentication());
+    request.setRequestURI("/actuator/health");
+    request.setDispatcherType(DispatcherType.FORWARD);
+
+    skipping.doFilter(request, response, chain);
+
+    assertThat(skipping.attempts()).isEqualTo(1);
+    assertThat(chain.getRequest()).isNull();
+  }
+
+  @Test
+  void should_forbid_without_asking_keycloak_when_token_is_not_a_jwt() throws Exception {
+    authenticate(keycloakAuthentication(jwtWithValue("opaque-token")));
+
+    filter.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(filter.attempts()).isZero();
+  }
+
+  @Test
+  void should_forbid_a_permission_token_issued_to_another_client() throws Exception {
+    var scoped =
+        new ScriptedEnforcerFilter(KeycloakPolicyEnforcerFilter.Options.defaults(), RESOURCE);
+    authenticate(keycloakAuthentication(permissionToken("other-service")));
+
+    scoped.doFilter(request, response, chain);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    assertThat(scoped.attempts()).isZero();
+  }
+
+  @Test
+  void should_enforce_a_permission_token_issued_to_this_resource() throws Exception {
+    var scoped =
+        new ScriptedEnforcerFilter(KeycloakPolicyEnforcerFilter.Options.defaults(), RESOURCE);
+    authenticate(keycloakAuthentication(permissionToken(RESOURCE)));
+
+    scoped.doFilter(request, response, chain);
+
+    assertThat(scoped.attempts()).isEqualTo(1);
+  }
+
+  @Test
   void should_enforce_include_dispatch() throws Exception {
     authenticate(jwtAuthentication());
     request.setDispatcherType(DispatcherType.INCLUDE);
@@ -247,7 +298,11 @@ class KeycloakPolicyEnforcerFilterTest {
         "/api/users;jsessionid=1/1",
         "/api/users%3B/1",
         "/api/a%5Cb",
-        "/api/%2541"
+        "/api/%2541",
+        "/api/orders/%2A",
+        "/api/orders/%2a",
+        "/api/%7Bid%7D",
+        "/api/a%3Fb"
       })
   void should_forbid_without_asking_keycloak_when_raw_path_is_ambiguous(String uri)
       throws Exception {
@@ -512,6 +567,15 @@ class KeycloakPolicyEnforcerFilterTest {
 
   private static Jwt jwtWithValue(String value) {
     return Jwt.withTokenValue(value).header("alg", "none").claims(c -> c.putAll(claims())).build();
+  }
+
+  private static Jwt permissionToken(String audience) {
+    return Jwt.withTokenValue(JWT_TOKEN)
+        .header("alg", "none")
+        .claim("sub", "user-1")
+        .audience(List.of(audience))
+        .claim("authorization", Map.of("permissions", List.of(Map.of("rsid", "orders"))))
+        .build();
   }
 
   private static Authentication keycloakAuthentication(Jwt jwt) {

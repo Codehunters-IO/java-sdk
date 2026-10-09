@@ -134,6 +134,36 @@ class KeycloakAuthzAutoConfigurationTest {
   }
 
   @Test
+  void should_fail_startup_when_an_excluded_path_overlaps_a_catalogued_path() {
+    enabled
+        .withPropertyValues(
+            "codehunters.security.excluded-paths[0]=/api/users/export",
+            "codehunters.security.authz.paths[0].path=/api/users/{id}",
+            "codehunters.security.authz.paths[0].name=users")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("codehunters.security.excluded-paths"));
+  }
+
+  @Test
+  void should_fail_startup_when_a_skip_path_overlaps_a_catalogued_path() {
+    enabled
+        .withPropertyValues(
+            "codehunters.security.authz.skip-paths[0]=/api/**",
+            "codehunters.security.authz.paths[0].path=/api/users/{id}",
+            "codehunters.security.authz.paths[0].name=users")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("codehunters.security.authz.skip-paths"));
+  }
+
+  @Test
   void should_start_when_public_paths_and_catalog_do_not_overlap() {
     enabled
         .withPropertyValues(

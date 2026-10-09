@@ -262,11 +262,11 @@ class KeycloakAuthzEndToEndTest {
   @Test
   void should_not_enforce_skipped_paths() {
     runner
-        .withPropertyValues(AUTHZ + "skip-paths[0]=/api/users/**")
+        .withPropertyValues(AUTHZ + "skip-paths[0]=/api/other")
         .run(
             context ->
                 mockMvc(context)
-                    .perform(bearer(get("/api/users/1"), keycloak.token()))
+                    .perform(bearer(get("/api/other"), keycloak.token()))
                     .andExpect(status().isOk()));
   }
 

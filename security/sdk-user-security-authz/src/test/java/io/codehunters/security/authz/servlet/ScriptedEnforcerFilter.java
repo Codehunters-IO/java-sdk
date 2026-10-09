@@ -24,6 +24,16 @@ final class ScriptedEnforcerFilter extends KeycloakPolicyEnforcerFilter {
     super(new PolicyEnforcerConfig(), null, options);
   }
 
+  ScriptedEnforcerFilter(Options options, String resource) {
+    super(configFor(resource), null, options);
+  }
+
+  private static PolicyEnforcerConfig configFor(String resource) {
+    var config = new PolicyEnforcerConfig();
+    config.setResource(resource);
+    return config;
+  }
+
   void failBuilds() {
     builds = ScriptedEnforcerFilter::unreachable;
   }
