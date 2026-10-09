@@ -13,10 +13,25 @@ Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
 
 ### Added
 - `codehunters.security.require-access-token-type` (default `true`).
+- Introspection metrics, when Micrometer is on the classpath (`compileOnly`): Micrometer's `cache.*`
+  meters tagged `cache=codehunters.security.introspection.cache` (hits, misses, evictions, size) and
+  the `codehunters.security.introspection.failures` counter, through a `sessionIntrospectorMetrics`
+  `MeterBinder` bean. `SessionIntrospector.cache()` and `failures()` expose them.
 - `io.codehunters.security.KeycloakAuthenticationToken`, the authentication of a verified Keycloak
   token: an `AbstractOAuth2TokenAuthenticationToken<Jwt>` whose principal is the `KeycloakPrincipal`.
 
+### Changed
+- The introspection result cache is Caffeine (expire after write = `cache-ttl`, maximum size =
+  `cache-max-entries`) instead of a synchronized `LinkedHashMap` LRU that serialised every
+  authenticated request on one lock. Eviction is Caffeine's size-based policy, not strict LRU.
+- `com.github.ben-manes.caffeine:caffeine` is a runtime dependency (version managed by Spring Boot).
+
 ### Behaviour changes
+- **Introspection is off by default** (`codehunters.security.introspection.enabled=false`; 4.x:
+  `true`). On by default and fail-closed, it turned a Keycloak outage into an outage of every
+  service `cache-ttl` later. Without it a revoked session's token is accepted until it expires; set
+  `enabled: true` (with `client-id` and `client-secret`) to keep 4.x's check. `client-id` and
+  `client-secret` are no longer required unless it is enabled.
 - The authentication of a bearer request is a `KeycloakAuthenticationToken` instead of a
   `UsernamePasswordAuthenticationToken`. The validated `Jwt` stays available through `getToken()`
   after Spring Security erases credentials, and the gateway filter keeps the type when it adds the

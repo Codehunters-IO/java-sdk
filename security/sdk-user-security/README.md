@@ -14,8 +14,8 @@ The access token is the only source of identity and authorities.
    `exp`/`nbf` (60 s skew), `sub` and `aud`. Unsigned tokens, HS256 tokens and tokens signed with an
    unknown key are rejected. The key set is cached and refetched at most every 30 s, so tokens with
    made-up key ids cannot make the service hammer Keycloak.
-2. Unless introspection is disabled, Keycloak is asked whether the token's session is still active
-   (RFC 7662). This runs only for tokens that passed step 1.
+2. When introspection is enabled (it is off by default), Keycloak is asked whether the token's
+   session is still active (RFC 7662). This runs only for tokens that passed step 1.
 3. Authorities are the realm roles plus the roles of the clients listed in `role-clients`, as
    `ROLE_<NAME>`.
 4. The gateway's `x-user-id` and `x-user-roles` headers are optional. When present they must agree
@@ -82,11 +82,11 @@ rejects a token without `sub` as an invalid bearer token (401).
 | `codehunters.security.excluded-paths` | `[]` | No security at all (health probes) |
 | `codehunters.security.cors.*` | see below | `allowed-origins` `[]`, `allowed-methods` GET/POST/PUT/DELETE/PATCH/OPTIONS, `allowed-headers` `*`, `allow-credentials` `false`, `max-age` `3600` |
 | `codehunters.security.method-security.enabled` | `true` | `false` leaves `@EnableMethodSecurity` to the application |
-| `codehunters.security.introspection.enabled` | `true` | Rejects tokens of revoked sessions |
+| `codehunters.security.introspection.enabled` | `false` | `true` rejects tokens of revoked sessions; see [Session introspection](#session-introspection) |
 | `codehunters.security.introspection.client-id` | — | Required when introspection is enabled |
 | `codehunters.security.introspection.client-secret` | — | Required when introspection is enabled |
 | `codehunters.security.introspection.cache-ttl` | `30s` | Also the worst-case revocation latency |
-| `codehunters.security.introspection.cache-max-entries` | `10000` | Hard cap; least recently used is evicted |
+| `codehunters.security.introspection.cache-max-entries` | `10000` | Hard cap (Caffeine size-based eviction) |
 | `codehunters.security.introspection.fail-open` | `false` | `true` accepts verified tokens while Keycloak is unreachable |
 | `codehunters.security.introspection.connect-timeout` | `2s` | |
 | `codehunters.security.introspection.read-timeout` | `3s` | |
@@ -94,13 +94,47 @@ rejects a token without `sub` as an invalid bearer token (401).
 Missing or invalid required keys fail startup. Path patterns use Spring's `PathPattern` syntax:
 `**` is only allowed at the end (`/api/**`), unlike 2.x's Ant patterns (`/api/**/health`).
 
+### Session introspection
+
+Off by default. Without it a token stays valid until it expires even if its Keycloak session was
+revoked (logout, admin kill); keep access tokens short-lived (Keycloak's default is 5 minutes) and
+that window is the revocation latency.
+
+Turning it on closes the window down to `cache-ttl`, at a price: every token missing from the cache
+costs a call to Keycloak, and with `fail-open: false` (the default) a Keycloak outage rejects every
+request whose token is not cached any more, so it becomes an outage of every service using it
+`cache-ttl` after Keycloak goes down. Enable it for services where a revoked session must stop
+working before the token expires, and size Keycloak for it:
+
+```yaml
+codehunters:
+  security:
+    introspection:
+      enabled: true
+      client-id: my-service
+      client-secret: ${KEYCLOAK_CLIENT_SECRET}
+      cache-ttl: 30s           # worst-case revocation latency
+      fail-open: false         # true keeps serving verified tokens while Keycloak is down
+```
+
+Results are cached by SHA-256 of the token in a Caffeine cache (expire after write = `cache-ttl`,
+at most `cache-max-entries`); failed calls are never cached. With Micrometer and Spring Boot's
+metrics on, the `sessionIntrospectorMetrics` `MeterBinder` bean publishes:
+
+| Meter | What |
+|---|---|
+| `cache.gets{cache=codehunters.security.introspection.cache, result=hit\|miss}` | Cache hits and misses (a miss is a call to Keycloak) |
+| `cache.evictions`, `cache.size`, ... `{cache=codehunters.security.introspection.cache}` | Micrometer's other Caffeine meters |
+| `codehunters.security.introspection.failures` | Calls that got no answer from Keycloak (timeouts, 5xx, connection refused) |
+
 ## Failure semantics
 
 | Situation | Response |
 |---|---|
 | No token on a protected path | 401 with `WWW-Authenticate` |
 | Invalid, expired, foreign or unsigned token | 401 |
-| Session revoked | 401 |
+| Session revoked, introspection enabled | 401 |
+| Session revoked, introspection off (default) | accepted until the token expires |
 | Keycloak introspection unreachable | 401 (`fail-open: false`) or accepted (`fail-open: true`) |
 | `x-user-id` / `x-user-roles` disagree with the token, or come without a token | 401, `application/problem+json` |
 | `@PreAuthorize` denies | 403 |
@@ -124,8 +158,9 @@ constructor so its 401 matches the others.
 
 ## Migrating from 4.x
 
-5.0 no longer reads the `keycloak.security.*` keys; use `codehunters.security.*`. See
-[MIGRATION-5.0.md](MIGRATION-5.0.md).
+5.0 no longer reads the `keycloak.security.*` keys; use `codehunters.security.*`. Session
+introspection is off by default: set `codehunters.security.introspection.enabled: true` to keep 4.x's
+check. See [MIGRATION-5.0.md](MIGRATION-5.0.md).
 
 ## Migrating from 3.x
 
