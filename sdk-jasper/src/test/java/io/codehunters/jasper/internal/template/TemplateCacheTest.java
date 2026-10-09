@@ -26,17 +26,24 @@ class TemplateCacheTest {
   }
 
   @Test
-  void should_evict_the_least_recently_used_template_when_full() {
-    var loader = CountingLoader.immediate();
-    var cache = new TemplateCache<>(2, loader);
+  void should_keep_at_most_the_configured_number_of_templates() {
+    var cache = new TemplateCache<>(2, CountingLoader.immediate());
 
     cache.get("a");
     cache.get("b");
-    cache.get("a");
     cache.get("c");
-    cache.get("b");
 
-    assertThat(loader.calls()).isEqualTo(4);
+    assertThat(cache.size()).isEqualTo(2);
+  }
+
+  @Test
+  void should_report_a_cache_of_size_zero_as_disabled() {
+    assertThat(new TemplateCache<>(0, CountingLoader.immediate()).isEnabled()).isFalse();
+  }
+
+  @Test
+  void should_report_a_sized_cache_as_enabled() {
+    assertThat(new TemplateCache<>(1, CountingLoader.immediate()).isEnabled()).isTrue();
   }
 
   @Test

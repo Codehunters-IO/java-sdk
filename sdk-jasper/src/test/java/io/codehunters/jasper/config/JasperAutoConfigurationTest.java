@@ -10,6 +10,7 @@ import io.codehunters.jasper.ReportFormat;
 import io.codehunters.jasper.ReportRenderer;
 import io.codehunters.jasper.ReportRequest;
 import io.codehunters.jasper.metrics.MeteredReportRenderer;
+import io.codehunters.jasper.metrics.TemplateCacheMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.OutputStream;
@@ -110,6 +111,27 @@ class JasperAutoConfigurationTest {
                           .tag("format", "pdf")
                           .tag("outcome", "SUCCESS")
                           .timer()
+                          .count())
+                  .isEqualTo(1);
+            });
+  }
+
+  @Test
+  void should_publish_template_cache_metrics_when_a_meter_registry_exists() {
+    runner
+        .withUserConfiguration(Meters.class)
+        .run(
+            context -> {
+              context.getBean(ReportRenderer.class).toBytes(ORDERS);
+              context.getBean(ReportRenderer.class).toBytes(ORDERS);
+
+              assertThat(
+                      context
+                          .getBean(MeterRegistry.class)
+                          .get("cache.gets")
+                          .tag("cache", TemplateCacheMetrics.CACHE_NAME)
+                          .tag("result", "hit")
+                          .functionCounter()
                           .count())
                   .isEqualTo(1);
             });
