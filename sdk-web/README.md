@@ -107,9 +107,18 @@ throw new ApiException(OrderErrorCode.ORDER_NOT_FOUND, List.of(orderId));
 
 Other SDK modules reject bad client input with `io.codehunters.commons.error.ClientInputException`
 from `sdk-commons`: an `IllegalArgumentException` with a stable `code()`. The handler answers it with
-`400`, whether it is thrown directly or arrives as the cause of another exception (Spring Data wraps
-exceptions raised while a query is built in `InvalidDataAccessApiUsageException`). The cause chain
-is walked up to 16 levels deep.
+`400` when it is thrown directly or reached only through exceptions that merely wrap it:
+`InvalidDataAccessApiUsageException` (Spring Data wraps exceptions raised while a query is built in
+it), `CompletionException`, `ExecutionException`, `UndeclaredThrowableException` and
+`ServletException`, up to 16 levels deep. Any other exception on the way means the server decided
+the outcome: an `IllegalStateException` around it stays a `500`, and an exception annotated with
+`@ResponseStatus` keeps its status.
+
+When the input is rejected while Spring binds the request — a `ClientInputException` thrown from a
+constructor Jackson calls for a `@RequestBody`, or from a converter for a `@RequestParam` — Spring
+reports `HttpMessageNotReadableException` or `MethodArgumentTypeMismatchException` first, and the
+client gets the framework's generic `400` without the code. Validate in the controller or service
+to keep the code.
 
 ```http
 HTTP/1.1 400 Bad Request
@@ -124,8 +133,9 @@ Content-Type: application/problem+json
 }
 ```
 
-The `detail` is the bundle message `error.<CODE>` when there is one, so it can be localized like any
-other code, and otherwise the exception message. That message is safe by the exception's contract:
+The `detail` is the application's bundle message `error.<CODE>` when there is one, so it can be
+localized like any other code; else, for the codes below, the SDK's own default in English or
+Spanish (`io/codehunters/web/errors/client-input*.properties`); else the exception message. That message is safe by the exception's contract:
 it states the rule that was broken and never repeats the client's input. Applications may throw
 `ClientInputException` (or a subclass) themselves under the same contract.
 
