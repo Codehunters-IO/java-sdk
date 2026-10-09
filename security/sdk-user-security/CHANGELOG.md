@@ -2,6 +2,15 @@
 
 ## 4.1.0
 
+### Behaviour changes
+- `Authentication.getName()` and `HttpServletRequest.getRemoteUser()` return the user id instead of
+  the record's `toString()`; `authentication.name` in `@PreAuthorize` changes accordingly.
+- `KeycloakPrincipal.toString()` prints the user id only.
+- A `KeycloakPrincipal` with a null or blank user id is refused, and a token without `sub` is
+  rejected as an invalid bearer token (401).
+- The gateway-header 401 body and headers change (see Fixed).
+- The JSON form of `KeycloakPrincipal` is unchanged from 4.0.0.
+
 ### Fixed
 - `Authentication.getName()`, `HttpServletRequest.getRemoteUser()` and `authentication.name` in
   `@PreAuthorize` are the user id. `KeycloakPrincipal` now implements `AuthenticatedPrincipal`;
@@ -9,8 +18,12 @@
   IP, geolocation and User-Agent into security events and access logs, and
   `@PreAuthorize("authentication.name == #id")` never matched.
 - `KeycloakPrincipal.toString()` prints the user id only.
-- Serialized with Jackson, `KeycloakPrincipal` keeps the same fields as before plus `name`, which
-  equals `userId`. `gatewayContext()` is not a bean property, so it adds nothing to the JSON.
+- Serialized with Jackson, `KeycloakPrincipal` writes the same fields as 4.0.0: `getName()` is
+  `@JsonIgnore`, so stored principals read back with unknown properties failing.
+  `gatewayContext()` is not a bean property, so it adds nothing to the JSON. The JSON still carries
+  the unverified gateway values; the redaction covers `toString()` only.
+- With several `AuthenticationEntryPoint` or `AccessDeniedHandler` beans and no `@Primary`, Spring's
+  defaults answer the Keycloak chain; a startup warning now says so.
 - The 401 for gateway headers that disagree with the token goes through the application's
   `AuthenticationEntryPoint`, so with `sdk-web` it carries `code`, `instance` and `traceId` like the
   other 401s. Without an entry point it is a problem detail with `code: UNAUTHORIZED` and

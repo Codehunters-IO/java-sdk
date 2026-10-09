@@ -57,6 +57,14 @@ KeycloakSecurityUtils.getGatewayContext().map(GatewayContext::ip);
 only, and `GatewayContext.toString()` prints no value at all, so neither leaks the gateway context
 or the session id into logs or security events.
 
+That redaction covers `toString()` only. Serialized as JSON (a session store, a cache, an event
+payload), `KeycloakPrincipal` still writes every component, the deprecated and unverified gateway
+values included, exactly as in 4.0.0; `getName()` is not written, so stored principals read back
+with unknown properties failing. Do not serialize the principal where those values must not go.
+
+A principal always has a user id: the record refuses a null or blank one, and the token converter
+rejects a token without `sub` as an invalid bearer token (401).
+
 ## Configuration
 
 | Key | Default | Notes |
@@ -98,8 +106,10 @@ Missing or invalid required keys fail startup. Path patterns use Spring's `PathP
 
 With `sdk-web` (its errors part) on the classpath, 401 and 403 bodies are `application/problem+json` with
 `code` and `traceId`, and the 401 keeps the bearer `WWW-Authenticate` challenge. Any application
-that defines exactly one `AuthenticationEntryPoint` and one `AccessDeniedHandler` bean gets the same
-wiring with its own handlers. Without them the bodies are empty, as before, except for the
+that defines exactly one `AuthenticationEntryPoint` and one `AccessDeniedHandler` bean, or marks
+one of several `@Primary`, gets the same wiring with its own handlers. With several and no primary,
+Spring's defaults answer and a warning at startup says so. Without them the bodies are empty, as
+before, except for the
 gateway-header 401, which always carries a problem detail (`type`, `title`, `status`, `detail`,
 `instance`, `code: UNAUTHORIZED`) and the bearer challenge.
 
