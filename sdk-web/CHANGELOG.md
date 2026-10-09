@@ -7,12 +7,38 @@
 ### Changed
 - Properties move under the artifact's prefix: `codehunters.web-errors.*` →
   `codehunters.web.errors.*`, `codehunters.device.*` → `codehunters.web.device.*`,
-  `codehunters.i18n.*` → `codehunters.web.i18n.*`. Keys below the prefix keep their names; the old
-  prefixes are not read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+  `codehunters.i18n.*` → `codehunters.web.i18n.*`. Keys below the prefix keep their names, except the
+  i18n message-source and default-locale keys, now Boot's (see Removed); the old prefixes are not
+  read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
 - The configuration metadata lists every renamed key with `level: error` and its replacement, so
   IDEs and `spring-boot-properties-migrator` report keys still using the old prefixes.
+- i18n builds on Spring Boot instead of replacing it: the SDK no longer registers a
+  `messageSource`, so Boot's applies and `spring.messages.*` is honoured (2.x ignored it with a
+  warning). The errors part appends its bundle to the application's message source, after the
+  application's bundles.
+- `XLocaleAwareLocaleResolver` extends Spring's `AcceptHeaderLocaleResolver` semantics: its
+  constructors are `(headerName)` and `(headerName, supportedLocales)`, the default locale comes
+  from `setDefaultLocale` (`spring.web.locale`), and `Accept-Language` without `supported-locales`
+  is the container's parse of it.
+
+### Behaviour changes
+- No SDK default locale: when no header resolves, the locale is `spring.web.locale`, else the
+  container's (the JVM default without `Accept-Language`), as with Boot. 2.x answered `es`.
+- Bundles follow Boot's defaults: base name `messages` at the class path root (2.x:
+  `classpath:i18n/messages`), fallback to the JVM locale on (2.x: off).
+- `XLocaleAwareLocaleResolver.setLocale` applies the locale to the rest of the request instead of
+  throwing `UnsupportedOperationException`, so `LocaleChangeInterceptor` works.
+- `spring.web.locale-resolver=fixed` makes the SDK's resolver back off for Boot's
+  `FixedLocaleResolver`; 2.x ignored it with a warning.
+- Spring Security 401 and 403 problem details resolve their locale with the application's
+  `localeResolver`, so they follow `X-Locale`; before they used `Accept-Language` only.
+- `LocaleMdcFilter` is registered only with `codehunters.web.i18n.mdc.enabled=true`.
 
 ### Removed
+- The i18n `messageSource` and the properties that configured it: `codehunters.i18n.basename`,
+  `encoding` and `fallback-to-system-locale` (use `spring.messages.*`), and `default-locale` (use
+  `spring.web.locale`). The startup warnings about `spring.messages.*` and `spring.web.locale*`
+  go with them.
 - The pre-1.0 i18n property aliases, their `EnvironmentPostProcessor` and their deprecated
   configuration metadata.
 - The dependency on `sdk-support`.
@@ -30,6 +56,8 @@
   Codes from the SDK: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa` 2.1.0), `BARCODE_IMAGE_REJECTED`,
   `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). See the README's "Client input errors".
 - `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
+- `codehunters.web.i18n.mdc.enabled` (default `false`).
+- `ProblemWriter(MessageSource, TraceIdProvider, ProblemSettings, LocaleResolver)`.
 
 ## 2.0.0
 

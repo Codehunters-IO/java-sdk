@@ -6,7 +6,7 @@ Servlet web toolkit for Spring MVC services, in three independent parts:
 |---|---|---|---|
 | [Errors](#errors--iocodehuntersweberrors) | `io.codehunters.web.errors` | `codehunters.web.errors.*` | RFC 9457 problem details with stable codes |
 | [Device](#device--iocodehunterswebdevice) | `io.codehunters.web.device` | `codehunters.web.device.*` | Client IP behind trusted proxies, User-Agent, geo-IP port |
-| [i18n](#i18n--iocodehunterswebi18n) | `io.codehunters.web.i18n` | `codehunters.web.i18n.*` | `X-Locale` resolution, `MessageSource`, localized validation |
+| [i18n](#i18n--iocodehunterswebi18n) | `io.codehunters.web.i18n` | `codehunters.web.i18n.*` | `X-Locale` resolution on top of Boot's `Accept-Language` resolver |
 
 Each part has its own auto-configuration and switch: set `codehunters.web.errors.enabled`,
 `codehunters.web.device.enabled` or `codehunters.web.i18n.enabled` to `false` to drop it. Until 1.0.0
@@ -186,8 +186,10 @@ which starts with the method and parameter (`create.order.name`).
 
 ### Messages
 
-Details are resolved through the application's `MessageSource` (the [i18n](#i18n--iocodehunterswebi18n) bundles
-when that part is enabled), in the request locale:
+Details are resolved through the application's `MessageSource`, Boot's one configured by
+`spring.messages.*` (see [i18n](#i18n--iocodehunterswebi18n)), in the request locale. The SDK appends
+its own bundle (`io/codehunters/web/errors/client-input*.properties`) to that message source, after
+the application's bundles, so an application key always wins:
 
 | Error | Key | Arguments |
 |---|---|---|
@@ -252,6 +254,11 @@ SecurityFilterChain api(
 The filter chain of `sdk-user-security` does not wire them yet; applications that need problem
 details for 401/403 declare their own chain as above. `ProblemWriter` writes the same body from any
 other servlet code.
+
+These answers run before Spring MVC resolves the locale, so `ProblemWriter` asks the application's
+`localeResolver` bean itself: a 401 or 403 detail follows `X-Locale` like every other problem. Without
+that bean it uses the `LocaleContextHolder` locale, which Boot's request-context filter takes from
+`Accept-Language`.
 
 ### Logging
 
@@ -418,78 +425,85 @@ application defines its own. `ClientContextResolver` is registered in servlet ap
 
 ## i18n — `io.codehunters.web.i18n`
 
-Request locale resolution, a resource-bundle `MessageSource` and localized bean validation
-messages for Spring Boot 4 applications.
+An `X-Locale` request header on top of Spring Boot's own locale handling. Message bundles, their
+encoding and caching, and the default locale stay Boot's (`spring.messages.*`, `spring.web.locale`);
+the SDK adds only the header and, optionally, the locale in the MDC.
 
 ### What it registers
 
-The auto-configuration has two independent parts. Each backs off when the application provides
-its own bean.
+| Bean | Active when | Backs off on |
+|---|---|---|
+| `localeResolver` (`XLocaleAwareLocaleResolver`) | servlet web application with Spring MVC | a bean named `localeResolver`; `spring.web.locale-resolver=fixed` |
+| `localeMdcFilterRegistration` (`LocaleMdcFilter`) | `codehunters.web.i18n.mdc.enabled=true` | a bean named `localeMdcFilterRegistration` |
 
-| Part | Active when | Beans | Backs off on |
-|---|---|---|---|
-| Messages | always | `messageSource` (`ReloadableResourceBundleMessageSource`) | a bean named `messageSource` |
-| Servlet web | servlet web application with Spring MVC | `localeResolver` (`XLocaleAwareLocaleResolver`), `localeMdcFilterRegistration` | a bean named `localeResolver` / `localeMdcFilterRegistration` |
+It runs before Boot's `WebMvcAutoConfiguration`, so its resolver replaces Boot's
+`AcceptHeaderLocaleResolver`, which it extends. With `spring.web.locale-resolver=fixed` it backs off
+and Boot's `FixedLocaleResolver` applies. Outside servlet applications it registers nothing.
 
-It runs before Boot's `MessageSourceAutoConfiguration` and `WebMvcAutoConfiguration`, so its beans
-win. It registers no validator: Boot's `defaultValidator` already resolves `{key}` messages through
-the `messageSource` (see [Validation messages](#validation-messages)).
+### Messages
 
-#### Precedence over `spring.messages.*`
+The SDK registers no `MessageSource`. Boot's `MessageSourceAutoConfiguration` builds it from
+`spring.messages.*`: `messages*.properties` at the class path root by default, or the comma-separated
+`spring.messages.basename` list, UTF-8 by default. Boot registers it only when the first base name has
+a base file (`messages.properties`, or `i18n/messages.properties` for `spring.messages.basename=i18n/messages`).
 
-While this SDK provides `messageSource`, Boot's `spring.messages.*` settings are ignored, and a
-warning is logged at startup if `spring.messages.basename` is set. Configure bundles under
-`codehunters.web.i18n.*` instead. To use Boot's message source, declare your own `messageSource` bean
-or set `codehunters.web.i18n.enabled=false`.
+```yaml
+spring:
+  messages:
+    basename: i18n/messages,i18n/errors
+    fallback-to-system-locale: false   # a missing locale falls back to the base file, not the JVM's
+```
 
-#### Precedence over `spring.web.locale*`
-
-While this SDK provides `localeResolver`, Boot's `spring.web.locale` and
-`spring.web.locale-resolver` have no effect; startup warns when either is set. Use
-`codehunters.web.i18n.default-locale` instead, or declare your own `localeResolver` bean.
+The [errors](#messages) part appends its bundle to that message source after the application's
+bundles; an application key with the same name wins.
 
 ### Locale resolution
 
 `XLocaleAwareLocaleResolver` picks the locale in this order:
 
-1. The custom header (`X-Locale` by default). It takes BCP 47 tags (`en-US`) and Java's `en_US`
-   form; blank, unparseable, or longer than 35 characters values are ignored.
-2. `Accept-Language`. Without `supported-locales`, the highest-weighted range that names a
-   language; `*` and ranges of weight zero are skipped.
-3. `codehunters.web.i18n.default-locale`, also when `Accept-Language` is unparseable or names no usable
-   language (never the container's root locale or the JVM locale).
+1. A locale set on the request with `setLocale`, e.g. by a `LocaleChangeInterceptor` (`?locale=en`).
+   It lasts for that request only; an unsupported locale or `null` clears it.
+2. The custom header (`X-Locale` by default). It takes BCP 47 tags (`en-US`) and Java's `en_US`
+   form; blank, unparseable, or longer than 35 characters values are ignored. Unicode extensions
+   (`en-US-u-ca-japanese`) are dropped, so a client cannot switch calendars or numbering systems.
+3. Spring's `AcceptHeaderLocaleResolver`: `Accept-Language`, else `spring.web.locale`, else the
+   servlet container's locale, which is the JVM default (`Locale.getDefault()`) when the request has
+   no `Accept-Language`. This is what Boot does without the SDK. An `Accept-Language` that names no
+   language (`*`, garbage) gives `spring.web.locale` when set, never the root locale.
 
-Unicode extensions (`en-US-u-ca-japanese`) are dropped from the custom header, so a client cannot
-switch calendars or numbering systems.
+There is no SDK default locale: set `spring.web.locale` (e.g. `es`) to pin it instead of relying on the
+JVM default.
 
-With `codehunters.web.i18n.supported-locales` set, both headers are matched against that list the
-same way Spring's `AcceptHeaderLocaleResolver` does: an exact match wins, otherwise a supported
-locale with the same language and no country (`en-GB` → `en`). A custom header that matches
-nothing falls through to `Accept-Language`, and an `Accept-Language` that matches nothing falls
-through to the default locale. Without the list, any locale is accepted.
+With `codehunters.web.i18n.supported-locales` set, the request locale, the header and
+`Accept-Language` are matched against that list the way Spring's `AcceptHeaderLocaleResolver` does:
+an exact match wins, otherwise a supported locale with the same language and no country (`en-GB` →
+`en`). A header that matches nothing falls through to `Accept-Language`, and an `Accept-Language`
+that matches nothing gives `spring.web.locale` (or the container's locale). Without the list, any
+locale is accepted.
+
+The [errors](#errors-outside-spring-mvc) part resolves 401 and 403 details with this resolver too.
 
 ### Locale in the MDC
 
-`LocaleMdcFilter` puts the resolved language tag in the SLF4J MDC under `locale` for the duration
-of the request, on async and error dispatches too, and restores the previous value afterwards. It
-runs at `HIGHEST_PRECEDENCE + 10`, after the tracing filter. If the resolver throws, the filter
-logs a warning with the exception class only (its message may echo request headers) and the
-request continues without the MDC entry.
+Off by default. With `codehunters.web.i18n.mdc.enabled=true`, `LocaleMdcFilter` puts the resolved
+language tag in the SLF4J MDC under `locale` for the duration of the request, on async and error
+dispatches too, and restores the previous value afterwards. It runs at `HIGHEST_PRECEDENCE + 10`,
+after the tracing filter. If the resolver throws, the filter logs a warning with the exception class
+only (its message may echo request headers) and the request continues without the MDC entry.
 
 ### Validation messages
 
 Boot's validator (`ValidationAutoConfiguration`, from `spring-boot-starter-validation`) resolves
-`{key}` placeholders in constraint messages through the application's message source, in the locale
-of `LocaleContextHolder` (set by Spring MVC from the resolver). Keys the message source does not
-have fall back to `ValidationMessages.properties` and then to the provider's default messages.
-`ValidationConfigurationCustomizer` beans apply as usual.
+`{key}` placeholders in constraint messages through Boot's message source, in the locale of
+`LocaleContextHolder` (set by Spring MVC from the resolver). Keys the message source does not have
+fall back to `ValidationMessages.properties` and then to the provider's default messages.
 
 ```java
 record CreateOrder(@NotNull(message = "{order.id.required}") String id) {}
 ```
 
 ```properties
-# src/main/resources/i18n/messages_en.properties
+# src/main/resources/messages_en.properties
 order.id.required=The order id is required
 ```
 
@@ -498,23 +512,20 @@ order.id.required=The order id is required
 | Property | Default | Meaning |
 |---|---|---|
 | `codehunters.web.i18n.enabled` | `true` | Turn the whole auto-configuration off |
-| `codehunters.web.i18n.basename` | `classpath:i18n/messages` | Bundle base names, comma-separated, in lookup order |
-| `codehunters.web.i18n.default-locale` | `es` | Locale used when no header resolves, and the bundle fallback |
-| `codehunters.web.i18n.supported-locales` | empty (any) | Locales the application serves (`es,en-US`); must include the default locale |
+| `codehunters.web.i18n.supported-locales` | empty (any) | Locales the application serves (`es,en-US`) |
 | `codehunters.web.i18n.header-name` | `X-Locale` | Header that overrides `Accept-Language` |
-| `codehunters.web.i18n.encoding` | `UTF-8` | Bundle encoding |
-| `codehunters.web.i18n.fallback-to-system-locale` | `false` | Fall back to the JVM locale when a bundle is missing |
+| `codehunters.web.i18n.mdc.enabled` | `false` | Register `LocaleMdcFilter` |
+| `spring.web.locale` (Boot) | — | Locale used when no header resolves |
+| `spring.messages.*` (Boot) | `basename=messages` | Bundles, encoding, fallback, cache |
 
-Invalid values fail at startup: an empty or blank base name, a locale without a language, a
-default locale missing from a non-empty `supported-locales`, a header name that is not an HTTP
-token, or an unknown charset.
+Invalid values fail at startup: a supported locale without a language, or a header name that is not
+an HTTP token.
 
 ### Known limits
 
-- Bundles are cached for the life of the application; edits to bundle files need a restart.
 - Only servlet applications get the resolver and the filter; WebFlux is not supported.
 - Matching against `supported-locales` never maps a locale to one of another country
   (`es-MX` does not become `es-CO`), as in Spring's resolver. Scripts are kept, so `zh-Hant-TW`
   does not match a supported `zh-TW`.
-- The locale comes from request headers only: `LocaleResolver.setLocale` (and so
-  `LocaleChangeInterceptor`) throws `UnsupportedOperationException`.
+- `setLocale` is not remembered across requests (no cookie or session); use Spring's
+  `CookieLocaleResolver` or `SessionLocaleResolver` as `localeResolver` for that.
