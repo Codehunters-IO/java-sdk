@@ -1,9 +1,13 @@
 package io.codehunters.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.AuthenticatedPrincipal;
 
@@ -68,5 +72,17 @@ class KeycloakPrincipalTest {
   void should_keep_gateway_values_out_of_gateway_context_to_string() {
     assertThat(principal.gatewayContext().toString())
         .doesNotContain(COUNTRY, CITY, LATITUDE, LONGITUDE, IP, USER_AGENT);
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = {"", "  "})
+  void should_reject_a_principal_without_a_user_id(String userId) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                new KeycloakPrincipal(
+                    userId, USERNAME, null, null, null, null, null, null, SESSION_ID))
+        .withMessage("userId must not be null or blank");
   }
 }

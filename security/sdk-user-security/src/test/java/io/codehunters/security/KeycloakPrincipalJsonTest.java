@@ -5,13 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 class KeycloakPrincipalJsonTest {
 
   private static final String USER_ID = "user-1";
 
-  private final JsonMapper mapper = JsonMapper.builder().build();
+  private final JsonMapper mapper =
+      JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
 
   private final KeycloakPrincipal principal =
       new KeycloakPrincipal(
@@ -26,7 +28,7 @@ class KeycloakPrincipalJsonTest {
           "sid-1");
 
   @Test
-  void should_add_only_a_name_equal_to_the_user_id_when_written_as_json() {
+  void should_write_the_same_properties_as_4_0_when_written_as_json() {
     Map<String, Object> json =
         mapper.readValue(mapper.writeValueAsString(principal), new TypeReference<>() {});
 
@@ -40,9 +42,14 @@ class KeycloakPrincipalJsonTest {
             "longitude",
             "ip",
             "userAgent",
-            "sessionId",
-            "name")
-        .containsEntry("name", USER_ID);
+            "sessionId");
+  }
+
+  @Test
+  void should_read_back_what_it_wrote_when_unknown_properties_fail() {
+    var json = mapper.writeValueAsString(principal);
+
+    assertThat(mapper.readValue(json, KeycloakPrincipal.class)).isEqualTo(principal);
   }
 
   @Test

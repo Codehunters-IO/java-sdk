@@ -269,7 +269,7 @@ class KeycloakSecurityUtilsTest {
   }
 
   @Test
-  void should_returnGatewayContext_when_authenticated() {
+  void should_return_gateway_context_when_authenticated() {
     // Given
     setAuthentication(USER_ID, USERNAME, List.of());
 
@@ -283,7 +283,7 @@ class KeycloakSecurityUtilsTest {
   }
 
   @Test
-  void should_returnEmptyGatewayContext_when_noAuthentication() {
+  void should_return_empty_gateway_context_when_no_authentication() {
     // When
     var result = KeycloakSecurityUtils.getGatewayContext();
 
