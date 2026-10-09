@@ -1,86 +1,103 @@
 # sdk-tracing
 
-W3C trace context propagation through servlet requests, async tasks and RabbitMQ, via the logging
-MDC (`traceId`, `spanId`, `traceFlags`) so every log line carries the trace.
+A thin layer on top of [Micrometer Tracing](https://docs.micrometer.io/tracing/reference/). Spring
+Boot creates, propagates and exports the trace; this module adds the two things Boot does not have:
+reading the gateway's legacy trace headers, and a framework-free `TraceContextPort` for application
+code.
 
 ```kotlin
-implementation("io.codehunters:sdk-tracing:2.0.0")
+implementation("io.codehunters:sdk-tracing:3.0.0")
+// the application picks the tracer bridge, for example:
+implementation("org.springframework.boot:spring-boot-starter-opentelemetry")
 ```
 
-## What it does
+`sdk-tracing` brings only `io.micrometer:micrometer-tracing` (the API). The bridge (OpenTelemetry,
+recommended, or Brave) and the exporter are the application's choice.
 
-| Where | Reads | Writes |
-|---|---|---|
-| Incoming HTTP (`TraceIdFilter`) | `traceparent`, then `x-traceparent`, then `x-trace-id` | MDC, with a new span for this service; kept for async and error dispatches |
-| `@Async` / executors (`MdcTaskDecorator`) | caller's MDC | task thread's MDC |
-| Published RabbitMQ messages | a `traceparent` already on the message, then the MDC, then the event envelope's `header.traceId` | `traceparent`, plus `x-traceparent`, `x-trace-id`, `x-span-id` for 0.x consumers |
-| RabbitMQ listeners, including batch | `traceparent`, then `x-traceparent`, then `x-trace-id` (any header case, `byte[]` values decoded) | MDC, with a new span |
+## What Spring Boot does
 
-Invalid ids (wrong length, upper case, all zeros) are ignored and a new trace starts. The sampled
-flag travels with the trace.
+With a bridge on the classpath, Boot propagates W3C `traceparent` (and `baggage`) in and out of:
 
-Application code reads the context through `TraceContextPort` (`currentTraceId()`,
-`currentSpanId()`, `currentTraceParent()`), never through the MDC directly.
+| Where | How |
+|---|---|
+| Servlet and WebFlux servers | observation filter, on by default |
+| `RestClient`, `RestTemplate`, `WebClient` | built from Boot's auto-configured builders |
+| `@Async` and executors | a `ContextPropagatingTaskDecorator` bean (see [MIGRATION-3.0.md](MIGRATION-3.0.md)) |
+| `RabbitTemplate` / Rabbit listeners | `spring.rabbitmq.template.observation-enabled`, `spring.rabbitmq.listener.{simple,direct}.observation-enabled` |
+| `KafkaTemplate` / Kafka listeners | `spring.kafka.template.observation-enabled`, `spring.kafka.listener.observation-enabled` |
+| `@Scheduled` methods | observed by Spring Framework, a new trace per run |
 
-## Coexistence
+It also puts `traceId` / `spanId` in the logging MDC, samples (`management.tracing.sampling.probability`)
+and exports spans (`management.otlp.tracing.*`, `management.tracing.*`). The propagation formats are
+`management.tracing.propagation.type` / `.consume` / `.produce`.
 
-- **Micrometer Tracing / OpenTelemetry:** the servlet filter runs right after Micrometer's
-  observation filter. With a real tracer the MDC is already populated and the filter, the listener
-  interceptor and the message post-processor leave it alone; with Boot's no-op tracer, or without
-  Micrometer, this SDK provides the context. Both use the same `traceId` / `spanId` MDC keys.
-- **Partial MDC:** if other code puts only a W3C `traceId` in the MDC, publishing keeps that trace
-  with a new span.
-- **Gateway:** matches the gateway contract (`traceparent`, with `x-traceparent` as a defensive copy).
-- **sdk-event-messaging-rabbit 6.x:** this module is the single owner of the outbound Rabbit
-  post-processor, also on the outbox's `outboxRabbitTemplate`; it is added to each `RabbitTemplate`
-  at most once. `sdk-event-messaging-core` reads `TraceContextPort` to fill the trace id of new
-  events. Kafka is not instrumented: `sdk-event-messaging-kafka` records carry the trace id only in
-  the event envelope.
+## What this module adds
 
-## Known limits
+| Bean | Does |
+|---|---|
+| `LegacyTraceHeadersPropagator` | OpenTelemetry `TextMapPropagator`: reads the gateway's legacy headers when no standard `traceparent` is present |
+| `TraceContextPort` | `currentTraceId()`, `currentSpanId()`, `currentTraceParent()` of the span in scope, read from the Micrometer `Tracer` |
 
-- `tracestate` is not propagated over HTTP (no vendor state is used today).
-- Span ids created here are never reported to a tracing backend: in a mixed estate with an
-  OpenTelemetry collector, children of these spans point at parents the backend never saw.
-- Trace ids that are not W3C ids (for example UUIDs sent by an old producer as `x-trace-id`) are
-  dropped and a new trace starts.
-- Re-sending an inbound `Message` object (forwarding, republish recoverers) keeps its original
-  `traceparent`.
-- Listener containers declared directly as beans (not through a container factory) are not traced.
+### Legacy headers (OpenTelemetry bridge)
+
+Boot composes every `TextMapPropagator` bean into its `ContextPropagators`, so the extra propagator
+applies to every instrumented server, client, template and listener above. On extraction:
+
+1. a valid `traceparent` (or a parent another propagator already extracted, for example B3) always
+   wins: the legacy headers are ignored;
+2. otherwise `x-traceparent` (W3C format, sampled flag kept);
+3. otherwise `x-trace-id` with `x-span-id`, sampled;
+4. otherwise `x-trace-id` alone, sampled, with a generated parent span id.
+
+Ids that are not W3C ids (wrong length, upper case, all zeros, UUIDs) are ignored and Boot starts a
+new trace. Injection stays standard W3C; set `codehunters.tracing.legacy-headers.inject=true` to
+also write `x-traceparent` for consumers that read only that header. `x-trace-id` / `x-span-id` are
+never written.
+
+The propagator is registered under the same condition as Boot's own (`management.tracing.export.enabled`,
+default `true`), and only when Boot's OpenTelemetry tracing auto-configuration is on the classpath.
+
+**Brave** is not supported for legacy headers: Boot builds Brave's propagation from properties only,
+with no extension point for an extra extractor. With Brave, standard W3C/B3 propagation and
+`TraceContextPort` work; `x-traceparent` / `x-trace-id` are not read.
+
+### TraceContextPort
+
+| Application has | Port |
+|---|---|
+| a Micrometer `Tracer` bean (OpenTelemetry or Brave) | `MicrometerTraceContextAdapter`: the ids the tracer exports and propagates; a deferred sampling decision is reported as not sampled |
+| no `Tracer` bean, or Boot's no-op tracer | `MdcTraceContextAdapter`: reads `traceId` / `spanId` / `traceFlags` from the MDC; never starts or propagates a trace |
+| its own `TraceContextPort` bean | that bean |
+
+`sdk-event-messaging-core` and `sdk-web` read the port to stamp the trace id on events and error
+responses.
 
 ## Configuration
 
-| Key | Default |
-|---|---|
-| `codehunters.tracing.enabled` | `true` |
+| Key | Default | |
+|---|---|---|
+| `codehunters.tracing.enabled` | `true` | registers the port and the propagator |
+| `codehunters.tracing.legacy-headers.enabled` | `true` | reads `x-traceparent` / `x-trace-id` |
+| `codehunters.tracing.legacy-headers.inject` | `false` | also writes `x-traceparent` |
 
-RabbitMQ propagation needs `spring-rabbit` and Jackson on the classpath; the servlet filter needs a
-servlet web application.
+## Known limits
+
+- A bare `x-trace-id` has no parent span: the generated parent id is never reported, so the backend
+  shows the first span of this service under a parent it never saw.
+- `tracestate` is not read from `x-traceparent` (the gateway sends none).
 
 ## Packages
 
 | Package | Contents |
 |---|---|
 | `io.codehunters.tracing` | `TraceContextPort`, `TraceParent`, `TraceHeaders` |
-| `io.codehunters.tracing.servlet` | `TraceIdFilter` |
-| `io.codehunters.tracing.mdc` | `MdcTraceContextAdapter`, `MdcTaskDecorator` |
-| `io.codehunters.tracing.amqp` | RabbitMQ post-processor, listener interceptor, bean post-processor |
-| `io.codehunters.tracing.config` | Auto-configuration |
-| `io.codehunters.tracing.internal` | Not API; may change in any release |
+| `io.codehunters.tracing.otel` | `LegacyTraceHeadersPropagator` |
+| `io.codehunters.tracing.micrometer` | `MicrometerTraceContextAdapter` |
+| `io.codehunters.tracing.mdc` | `MdcTraceContextAdapter` (fallback) |
+| `io.codehunters.tracing.config` | Auto-configuration and `TracingProperties` |
 
-## Migrating from 1.x
+## Migrating
 
-Only imports change; see [MIGRATION-2.0.md](MIGRATION-2.0.md).
-
-## Migrating from 0.x
-
-| 0.x | 1.0 |
-|---|---|
-| `TraceContextPort.currentTraceId()` returns `String` or `null` | returns `Optional<String>`; new `currentTraceParent()` |
-| Header and MDC constants on `TraceIdFilter`, `InboundTraceMethodInterceptor`, ... | `TraceHeaders` |
-| Wrote and read only `x-traceparent` | W3C `traceparent` first; `x-traceparent` still read and written |
-| Reused the caller's span id | New span per service; the caller's span is the parent |
-| Copied any `traceId` from the event body into `traceparent` | Only valid W3C trace ids |
-| Needed a `JsonMapper` bean for RabbitMQ tracing | No bean needed; Jackson on the classpath |
-| Ran first, before Micrometer, generating a competing trace id | Runs after Micrometer's observation filter and defers to it |
-| Error-page and async-dispatch logs had no trace | Same trace as the request |
+- From 2.x: [MIGRATION-3.0.md](MIGRATION-3.0.md) — the servlet filter, task decorator and RabbitMQ
+  components are removed in favour of Boot's instrumentation.
+- From 1.x: [MIGRATION-2.0.md](MIGRATION-2.0.md) — package moves.
