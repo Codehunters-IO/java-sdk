@@ -18,6 +18,7 @@ import io.codehunters.tracing.TraceContextPort;
 import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.tracing.Tracer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -298,6 +299,50 @@ class EventMessagingCoreAutoConfigurationTest {
                   context.getBean(OutboxEventFactory.class).create("t", null, "a", "n", "T", "p");
               assertThat(event.getHeader().getTraceId()).isEqualTo(current.traceId());
               assertThat(outbox.getMessage().getHeader().getTraceId()).isEqualTo(current.traceId());
+            });
+  }
+
+  @Test
+  void should_stamp_current_traceparent_when_trace_context_port_present() {
+    TraceParent current = TraceParent.generate();
+    TraceContextPort port = mock(TraceContextPort.class);
+    when(port.currentTraceParent()).thenReturn(Optional.of(current));
+
+    contextRunner
+        .withBean(TraceContextPort.class, () -> port)
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(OutboxEventFactory.class)
+                            .create("t", null, "a", "n", "T", "p")
+                            .getTraceparent())
+                    .isEqualTo(current.format()));
+  }
+
+  @Test
+  void should_restore_stored_trace_context_around_publishes_when_tracer_present() {
+    contextRunner
+        .withBean(Tracer.class, () -> Tracer.NOOP)
+        .run(context -> assertThat(context).hasBean("outboxTraceContextDecorator"));
+  }
+
+  @Test
+  void should_not_restore_trace_context_when_no_tracer_bean() {
+    contextRunner.run(
+        context -> assertThat(context).doesNotHaveBean("outboxTraceContextDecorator"));
+  }
+
+  @Test
+  void should_create_use_case_when_micrometer_tracing_absent() {
+    contextRunner
+        .withClassLoader(new FilteredClassLoader(Tracer.class))
+        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(SendOutboxMessagesPort.class);
+              assertThat(context).doesNotHaveBean("outboxTraceContextDecorator");
             });
   }
 
