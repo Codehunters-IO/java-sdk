@@ -25,7 +25,7 @@ class AuditDeviceContextTest {
       new WebApplicationContextRunner()
           .withConfiguration(
               AutoConfigurations.of(AuditAutoConfiguration.class, DeviceAutoConfiguration.class))
-          .withPropertyValues("codehunters.device.trusted-proxies=10.0.0.0/8");
+          .withPropertyValues("codehunters.web.device.trusted-proxies=10.0.0.0/8");
 
   @Configuration(proxyBeanMethods = false)
   static class OwnProvider {

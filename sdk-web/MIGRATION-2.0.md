@@ -2,8 +2,8 @@
 
 `io.codehunters:sdk-web` 2.0.0 moves its three parts under the artifact's own package,
 `io.codehunters.web`, and splits the errors adapter by what each class does. Only imports change:
-class names, properties (`codehunters.web-errors.*`, `codehunters.device.*`, `codehunters.i18n.*`),
-the legacy `vitxo.i18n.*` aliases and behaviour are those of 1.0.0.
+class names, properties (`codehunters.web-errors.*`, `codehunters.device.*`, `codehunters.i18n.*`)
+and behaviour are those of 1.0.0.
 
 ## Packages
 
@@ -37,7 +37,6 @@ the legacy `vitxo.i18n.*` aliases and behaviour are those of 1.0.0.
 | `io.codehunters.weberrors.config.WebErrorsAutoConfiguration` | `io.codehunters.web.errors.config.WebErrorsAutoConfiguration` |
 | `io.codehunters.device.config.DeviceAutoConfiguration` | `io.codehunters.web.device.config.DeviceAutoConfiguration` |
 | `io.codehunters.i18n.config.I18nAutoConfiguration` | `io.codehunters.web.i18n.config.I18nAutoConfiguration` |
-| `io.codehunters.i18n.config.I18nLegacyProperties` | `io.codehunters.web.i18n.config.I18nLegacyProperties` |
 
 ## Steps
 
@@ -52,8 +51,6 @@ the legacy `vitxo.i18n.*` aliases and behaviour are those of 1.0.0.
 3. **Names in strings.** `@AutoConfigureAfter(name = ...)`, `excludeName`,
    `spring.autoconfigure.exclude` and `FilteredClassLoader` prefixes that name these classes need
    the new names too.
-
-The `vitxo.i18n.*` keys are now honoured until 3.0.0 (was 2.0.0).
 
 ## Logging
 

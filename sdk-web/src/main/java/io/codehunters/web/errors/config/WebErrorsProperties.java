@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * Configuration for the web-errors SDK, bound from the {@code codehunters.web-errors} prefix.
+ * Configuration for the web-errors SDK, bound from the {@code codehunters.web.errors} prefix.
  * Invalid values fail at startup.
  *
  * @param enabled whether the SDK auto-configuration is active
@@ -14,7 +14,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     <base>order-not-found}); unset keeps {@code about:blank}
  * @param includeTraceId whether problem details carry the {@code traceId} extension
  */
-@ConfigurationProperties(prefix = "codehunters.web-errors")
+@ConfigurationProperties(prefix = "codehunters.web.errors")
 public record WebErrorsProperties(
     @DefaultValue("true") boolean enabled,
     URI typeBaseUri,
@@ -24,7 +24,7 @@ public record WebErrorsProperties(
   public WebErrorsProperties {
     if (typeBaseUri != null && !(typeBaseUri.isAbsolute() && hasDirectoryPath(typeBaseUri))) {
       throw new IllegalArgumentException(
-          "codehunters.web-errors.type-base-uri must be an absolute URI ending with '/'");
+          "codehunters.web.errors.type-base-uri must be an absolute URI ending with '/'");
     }
   }
 

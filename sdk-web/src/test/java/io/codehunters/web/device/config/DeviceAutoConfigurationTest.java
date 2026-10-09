@@ -79,7 +79,7 @@ class DeviceAutoConfigurationTest {
 
   @Test
   void should_believe_forwarding_headers_from_the_configured_trusted_proxies() {
-    web.withPropertyValues("codehunters.device.trusted-proxies=10.0.0.0/8")
+    web.withPropertyValues("codehunters.web.device.trusted-proxies=10.0.0.0/8")
         .run(
             context ->
                 assertThat(
@@ -94,8 +94,8 @@ class DeviceAutoConfigurationTest {
   @Test
   void should_read_forwarded_instead_when_configured() {
     web.withPropertyValues(
-            "codehunters.device.trusted-proxies=10.0.0.0/8",
-            "codehunters.device.forwarding-header=forwarded")
+            "codehunters.web.device.trusted-proxies=10.0.0.0/8",
+            "codehunters.web.device.forwarding-header=forwarded")
         .run(
             context ->
                 assertThat(
@@ -120,55 +120,55 @@ class DeviceAutoConfigurationTest {
 
   @Test
   void should_register_nothing_when_disabled() {
-    web.withPropertyValues("codehunters.device.enabled=false")
+    web.withPropertyValues("codehunters.web.device.enabled=false")
         .run(context -> assertThat(context).doesNotHaveBean(ClientIpResolver.class));
   }
 
   @Test
   void should_fail_startup_when_a_trusted_proxy_is_not_an_address_or_block() {
-    web.withPropertyValues("codehunters.device.trusted-proxies=10.0.0.0/8,proxy.internal")
+    web.withPropertyValues("codehunters.web.device.trusted-proxies=10.0.0.0/8,proxy.internal")
         .run(
             context ->
                 assertThat(context)
                     .getFailure()
                     .rootCause()
                     .hasMessage(
-                        "codehunters.device.trusted-proxies: trusted proxy entry 1 is not an IP"
+                        "codehunters.web.device.trusted-proxies: trusted proxy entry 1 is not an IP"
                             + " address or CIDR block"));
   }
 
   @Test
   void should_fail_startup_when_the_user_agent_length_is_out_of_range() {
-    web.withPropertyValues("codehunters.device.user-agent.max-length=8")
+    web.withPropertyValues("codehunters.web.device.user-agent.max-length=8")
         .run(
             context ->
                 assertThat(context)
                     .getFailure()
                     .rootCause()
                     .hasMessage(
-                        "codehunters.device.user-agent.max-length must be between 16 and 8192"));
+                        "codehunters.web.device.user-agent.max-length must be between 16 and 8192"));
   }
 
   @Test
   void should_fail_startup_when_the_cached_headers_could_exceed_64_mb() {
     web.withPropertyValues(
-            "codehunters.device.user-agent.max-length=8192",
-            "codehunters.device.user-agent.cache-size=4097")
+            "codehunters.web.device.user-agent.max-length=8192",
+            "codehunters.web.device.user-agent.cache-size=4097")
         .run(
             context ->
                 assertThat(context)
                     .getFailure()
                     .rootCause()
                     .hasMessage(
-                        "codehunters.device.user-agent.max-length x cache-size must not exceed"
+                        "codehunters.web.device.user-agent.max-length x cache-size must not exceed"
                             + " 33554432 characters (64 MB of cached headers)"));
   }
 
   @Test
   void should_accept_the_largest_cache_that_fits_in_64_mb() {
     web.withPropertyValues(
-            "codehunters.device.user-agent.max-length=8192",
-            "codehunters.device.user-agent.cache-size=4096")
+            "codehunters.web.device.user-agent.max-length=8192",
+            "codehunters.web.device.user-agent.cache-size=4096")
         .run(context -> assertThat(context).hasNotFailed());
   }
 
@@ -186,13 +186,13 @@ class DeviceAutoConfigurationTest {
 
   @Test
   void should_fail_startup_when_the_cache_size_is_out_of_range() {
-    web.withPropertyValues("codehunters.device.user-agent.cache-size=-1")
+    web.withPropertyValues("codehunters.web.device.user-agent.cache-size=-1")
         .run(
             context ->
                 assertThat(context)
                     .getFailure()
                     .rootCause()
                     .hasMessage(
-                        "codehunters.device.user-agent.cache-size must be between 0 and 100000"));
+                        "codehunters.web.device.user-agent.cache-size must be between 0 and 100000"));
   }
 }

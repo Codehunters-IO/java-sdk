@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "2.1.0"
+version = "3.0.0"
 description = "Servlet web toolkit: RFC 9457 problem details, client IP and User-Agent, X-Locale i18n."
 
 codehuntersPackages {
@@ -16,7 +16,6 @@ codehuntersPublishing {
 }
 
 dependencies {
-    implementation(project(":sdk-support"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("org.springframework:spring-context")

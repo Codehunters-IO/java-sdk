@@ -1,6 +1,19 @@
 # Changelog — sdk-web
 
-## 2.1.0
+## 3.0.0
+
+2.1.0 was never released; its changes ship in 3.0.0.
+
+### Changed
+- Properties move under the artifact's prefix: `codehunters.web-errors.*` →
+  `codehunters.web.errors.*`, `codehunters.device.*` → `codehunters.web.device.*`,
+  `codehunters.i18n.*` → `codehunters.web.i18n.*`. Keys below the prefix keep their names; the old
+  prefixes are not read. See [MIGRATION-3.0.md](MIGRATION-3.0.md).
+
+### Removed
+- The pre-1.0 i18n property aliases, their `EnvironmentPostProcessor` and their deprecated
+  configuration metadata.
+- The dependency on `sdk-support`.
 
 ### Added
 - `ClientInputException` from `sdk-commons` 3.0.0 is answered with `400` and its `code()`, also
@@ -28,9 +41,6 @@
 - Only imports change: class names, properties and behaviour are those of 1.0.0. See
   [MIGRATION-2.0.md](MIGRATION-2.0.md).
 
-### Changed
-- The `vitxo.i18n.*` aliases are honoured until 3.0.0 (was 2.0.0).
-
 ## 1.0.0
 
 First release ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md)).
@@ -42,7 +52,7 @@ First release ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts
 
 ### Unchanged
 - Packages (`io.codehunters.weberrors`, `io.codehunters.device`, `io.codehunters.i18n`), classes,
-  properties, legacy `vitxo.i18n.*` aliases and the behaviour of each part are those of the three
+  properties and the behaviour of each part are those of the three
   1.0.0 releases below; what changes is that the parts now ship together (next section).
 - Each part keeps its auto-configuration and its switch (`codehunters.web-errors.enabled`,
   `codehunters.device.enabled`, `codehunters.i18n.enabled`).
@@ -132,8 +142,7 @@ Hardened before release, after review:
 ### sdk-i18n 1.0.0
 
 #### Breaking
-- Properties moved from `vitxo.i18n.*` to `codehunters.i18n.*`. The old keys are still read
-  until 2.0.0 and are marked deprecated in the configuration metadata.
+- Properties moved under `codehunters.i18n.*`.
 - `I18nProperties` is a record: `getBasename()` and the other getters become `basename()`,
   `defaultLocale()`, `headerName()`, `encoding()` and `fallbackToSystemLocale()`. `basename()`
   returns a `List<String>` and `encoding()` a `Charset`. There are no setters.
@@ -163,7 +172,4 @@ Hardened before release, after review:
 - `LocaleMdcFilter` logs resolver failures (exception class only) instead of swallowing them.
 - A startup warning when `spring.messages.basename`, `spring.web.locale` or
   `spring.web.locale-resolver` is set, since the SDK's beans ignore them.
-- Legacy keys set as environment variables may spell dashed names with underscores
-  (`VITXO_I18N_DEFAULT_LOCALE` as well as `VITXO_I18N_DEFAULTLOCALE`); startup also lists old keys
-  ignored because the new key is set.
 - Runs before Boot's message source and Web MVC auto-configurations.
