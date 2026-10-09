@@ -15,7 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * JDBC-backed {@link AuditEventPublisherPort} that inserts audit events into the {@code
  * audit_event} table on the calling thread. Wrap it in {@link
- * io.codehunters.audit.AsyncAuditEventPublisher} to write off the caller's thread.
+ * io.codehunters.audit.persistence.AsyncAuditEventPublisher} to write off the caller's thread.
  *
  * <p>The insert takes part in the caller's Spring-managed transaction on the same data source, if
  * there is one: the row commits or rolls back with the business write. Without one it auto-commits.

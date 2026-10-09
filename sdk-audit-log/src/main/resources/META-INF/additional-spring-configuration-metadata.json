@@ -6,7 +6,7 @@
       "deprecation": {
         "level": "warning",
         "replacement": "codehunters.audit.fail-on-error",
-        "reason": "Renamed in 3.0.0; the old key is honoured until 4.0.0."
+        "reason": "Renamed in 3.0.0; the old key is honoured until 5.0.0."
       }
     }
   ]
