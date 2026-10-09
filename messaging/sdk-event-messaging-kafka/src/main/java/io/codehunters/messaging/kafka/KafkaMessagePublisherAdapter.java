@@ -20,7 +20,10 @@ import org.springframework.kafka.core.KafkaTemplate;
  * every event of one aggregate lands on the same partition in order. Each record carries a {@code
  * content-type: application/json} header and an {@value MessagePublisherPort#OUTBOX_ID_HEADER}
  * header with the outbox row id; delivery is at-least-once, so consumers MUST dedupe on that
- * header.
+ * header. It also carries the {@value MessagePublisherPort#TRACEPARENT_HEADER} header with the
+ * trace context stored with the row, so the consumer continues the trace of the work that created
+ * it rather than the dispatcher's; {@value MessagePublisherPort#LEGACY_TRACEPARENT_HEADER} only
+ * when asked to. The outbox template does not enable Boot's observation, so nothing else writes it.
  *
  * <p>Every send, including any wait inside {@link KafkaTemplate#send} for metadata or buffer space,
  * blocks for at most {@code sendTimeout}. The dispatcher publishes a claimed batch sequentially, so
@@ -37,21 +40,40 @@ public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
 
   private final KafkaTemplate<String, String> kafkaTemplate;
   private final Duration sendTimeout;
+  private final boolean legacyTraceparentHeader;
 
   /**
-   * Creates the adapter.
+   * Creates the adapter, sending the stored trace context as {@code traceparent} only.
    *
    * @param kafkaTemplate the underlying {@link KafkaTemplate} with String key and value serializers
    * @param sendTimeout the maximum wait for the broker acknowledgement of one record
    */
   public KafkaMessagePublisherAdapter(
       KafkaTemplate<String, String> kafkaTemplate, Duration sendTimeout) {
-    this.kafkaTemplate = kafkaTemplate;
-    this.sendTimeout = sendTimeout;
+    this(kafkaTemplate, sendTimeout, false);
   }
 
   /**
-   * Sends the message keyed by {@code message_key} with the content-type and outbox id headers.
+   * Creates the adapter.
+   *
+   * @param kafkaTemplate the underlying {@link KafkaTemplate} with String key and value serializers
+   * @param sendTimeout the maximum wait for the broker acknowledgement of one record
+   * @param legacyTraceparentHeader whether the stored trace context is also sent as {@value
+   *     MessagePublisherPort#LEGACY_TRACEPARENT_HEADER}
+   */
+  public KafkaMessagePublisherAdapter(
+      KafkaTemplate<String, String> kafkaTemplate,
+      Duration sendTimeout,
+      boolean legacyTraceparentHeader) {
+    this.kafkaTemplate = kafkaTemplate;
+    this.sendTimeout = sendTimeout;
+    this.legacyTraceparentHeader = legacyTraceparentHeader;
+  }
+
+  /**
+   * Sends the message keyed by {@code message_key} with the content-type and outbox id headers, and
+   * with its stored trace context, when it has one, as the {@value
+   * MessagePublisherPort#TRACEPARENT_HEADER} header.
    *
    * @param message the claimed outbox message
    */
@@ -59,9 +81,8 @@ public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
   public void publish(OutboxMessage<String> message) {
     ProducerRecord<String, String> record =
         jsonRecord(message.getTopic(), message.getKey(), message.getMessage());
-    record
-        .headers()
-        .add(OUTBOX_ID_HEADER, message.getId().toString().getBytes(StandardCharsets.UTF_8));
+    record.headers().add(OUTBOX_ID_HEADER, utf8(message.getId().toString()));
+    addTraceHeaders(record, message.getTraceparent());
     log.debug(
         "Publishing outbox message to topic: {}, id: {}", message.getTopic(), message.getId());
     send(record);
@@ -81,6 +102,22 @@ public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
   public void publish(String topic, String payload) {
     log.debug("Publishing unkeyed message to topic: {}", topic);
     send(jsonRecord(topic, null, payload));
+  }
+
+  // The stored context is sent as it is: the consumer's span then parents on the span that created
+  // the row, not on the scheduled dispatch that happens to publish it.
+  private void addTraceHeaders(ProducerRecord<String, String> record, String traceparent) {
+    if (traceparent == null || traceparent.isBlank()) {
+      return;
+    }
+    record.headers().add(TRACEPARENT_HEADER, utf8(traceparent));
+    if (legacyTraceparentHeader) {
+      record.headers().add(LEGACY_TRACEPARENT_HEADER, utf8(traceparent));
+    }
+  }
+
+  private static byte[] utf8(String value) {
+    return value.getBytes(StandardCharsets.UTF_8);
   }
 
   private static ProducerRecord<String, String> jsonRecord(
