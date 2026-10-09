@@ -1,5 +1,6 @@
 package io.codehunters.security;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.springframework.security.core.AuthenticatedPrincipal;
 
 /**
@@ -12,9 +13,10 @@ import org.springframework.security.core.AuthenticatedPrincipal;
  * <p>{@link #getName()} is the user id, so {@code Authentication.getName()}, {@code
  * HttpServletRequest.getRemoteUser()} and {@code @PreAuthorize("authentication.name == #id")} see
  * the user id. {@link #toString()} carries the user id only, keeping the gateway context and the
- * session id out of logs and security events.
+ * session id out of logs and security events. Serialized as JSON, the principal still carries every
+ * component, gateway values included, exactly as in 4.0.0: {@code getName()} is not written.
  *
- * @param userId the user identifier ({@code sub} claim)
+ * @param userId the user identifier ({@code sub} claim); never null or blank
  * @param username the username ({@code preferred_username} claim)
  * @param country the gateway-reported country code; not verified
  * @param city the gateway-reported city; not verified
@@ -36,11 +38,20 @@ public record KeycloakPrincipal(
     String sessionId)
     implements AuthenticatedPrincipal {
 
+  /** Requires a user id, which is the authentication name. */
+  public KeycloakPrincipal {
+    if (userId == null || userId.isBlank()) {
+      throw new IllegalArgumentException("userId must not be null or blank");
+    }
+  }
+
   /**
-   * The user id, which Spring Security reports as the authentication name.
+   * The user id, which Spring Security reports as the authentication name. Not written as JSON, so
+   * the principal reads back as it did in 4.0.0.
    *
    * @return the user id
    */
+  @JsonIgnore
   @Override
   public String getName() {
     return userId;
