@@ -8,7 +8,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.expression.EvaluationContext;
@@ -32,10 +31,11 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
  * fails because the call itself failed, leaving {@code #result} null, is expected and not warned
  * about; write {@code #result?.id} to make that explicit.
  *
- * <p>The context is a full {@code StandardEvaluationContext}: expressions may call any method of
- * the arguments and reference types with {@code T(...)}. Expressions come from the application's
- * own annotations, never from input, so this is accepted; switching to a restricted context would
- * break expressions that call methods.
+ * <p>Expressions run in a sandbox, a read-only {@code SimpleEvaluationContext}: they read
+ * properties (getters and record components, {@code #order.id}), index lists and maps ({@code
+ * #tags['k']}) and use operators, but call no method, reference no type ({@code T(...)}), call no
+ * constructor, resolve no bean ({@code @name}) and assign nothing. Such an expression resolves to
+ * {@code null} like any failure; {@link AuditExpressionCheck} reports it at startup.
  *
  * @since 1.0.0
  */
@@ -75,11 +75,8 @@ final class AuditSpelEvaluator {
    * @return the context
    */
   EvaluationContext buildContext(Method method, Object[] args, Object result, boolean failed) {
-    var ctx = new AuditEvaluationContext(method, args, result, failed, nameDiscoverer);
-    for (int i = 0; i < args.length; i++) {
-      ctx.setVariable("arg" + i, args[i]);
-    }
-    return ctx;
+    return new AuditEvaluationContext(
+        new AuditEvaluationContext.CapturedArguments(method, args, result, failed), nameDiscoverer);
   }
 
   String evaluate(String expression, EvaluationContext ctx) {
@@ -174,44 +171,6 @@ final class AuditSpelEvaluator {
       cache.putIfAbsent(expression, parsed);
     }
     return parsed;
-  }
-
-  /** Keeps {@code #result} bound to the method's return value, never to a parameter. */
-  private static final class AuditEvaluationContext extends MethodBasedEvaluationContext {
-
-    private static final String RESULT = "result";
-
-    private final Object result;
-    private final boolean failed;
-    private final String label;
-
-    AuditEvaluationContext(
-        Method method,
-        Object[] args,
-        Object result,
-        boolean failed,
-        ParameterNameDiscoverer nameDiscoverer) {
-      super(null, method, args, nameDiscoverer);
-      this.result = result;
-      this.failed = failed;
-      this.label = MethodLabels.of(method);
-    }
-
-    String label() {
-      return label;
-    }
-
-    boolean failed() {
-      return failed;
-    }
-
-    @Override
-    public Object lookupVariable(String name) {
-      if (RESULT.equals(name)) {
-        return result;
-      }
-      return super.lookupVariable(name);
-    }
   }
 
   /** An expression and the annotation attribute it was written in. */
