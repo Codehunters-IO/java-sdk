@@ -14,7 +14,9 @@ import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.AuthorityUtils;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextHolderStrategy;
 
 /**
  * In a servlet application the authenticated user lives in the calling thread's {@link
@@ -31,9 +33,12 @@ class AuditAspectServletSecurityTest {
 
   private final RoutingRecorder recorder = new RoutingRecorder();
   private final AccountService accounts = proxied();
+  private final SecurityContextHolderStrategy strategy =
+      SecurityContextHolder.getContextHolderStrategy();
 
   @AfterEach
   void clearThreadState() {
+    SecurityContextHolder.setContextHolderStrategy(strategy);
     SecurityContextHolder.clearContext();
     ThreadBoundContextProvider.clear();
   }
@@ -105,6 +110,15 @@ class AuditAspectServletSecurityTest {
     assertThat(recorder.attached().getFirst().actorId()).isNull();
   }
 
+  @Test
+  void should_still_record_the_event_when_the_security_context_cannot_be_read() {
+    SecurityContextHolder.setContextHolderStrategy(new BrokenStrategy());
+
+    accounts.close("ACC-1");
+
+    assertThat(recorder.attached().getFirst().actorId()).isNull();
+  }
+
   private AccountService proxied() {
     return proxied(CompletableFuture.completedFuture("closed"));
   }
@@ -116,6 +130,26 @@ class AuditAspectServletSecurityTest {
         new AuditAspect(
             recorder, new ThreadBoundContextProvider(), new AuditAspect.Options(FIXED, false, 0)));
     return factory.getProxy();
+  }
+
+  /** A security context store that fails on every read. */
+  private static final class BrokenStrategy implements SecurityContextHolderStrategy {
+
+    @Override
+    public void clearContext() {}
+
+    @Override
+    public SecurityContext getContext() {
+      throw new IllegalStateException("context unavailable");
+    }
+
+    @Override
+    public void setContext(SecurityContext context) {}
+
+    @Override
+    public SecurityContext createEmptyContext() {
+      throw new IllegalStateException("context unavailable");
+    }
   }
 
   /** Audited calls with and without an actor expression. */

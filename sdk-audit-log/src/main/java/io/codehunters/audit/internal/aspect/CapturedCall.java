@@ -2,6 +2,7 @@ package io.codehunters.audit.internal.aspect;
 
 import io.codehunters.audit.AuditContextProvider;
 import io.codehunters.audit.Auditable;
+import io.codehunters.audit.internal.security.CallingThreadActor;
 import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -14,10 +15,10 @@ import org.springframework.expression.EvaluationContext;
 
 /**
  * What an audit event needs from the calling thread, taken when the audited method returns: the
- * {@link AuditContextProvider} fields, the MDC, and every expression that does not name {@code
- * #result}. Only expressions naming {@code #result} are evaluated later, once the outcome is known,
- * so work that completes on another thread still records the caller's actor, request and argument
- * values.
+ * {@link AuditContextProvider} fields, the MDC, the authenticated user of Spring Security's
+ * thread-bound context, and every expression that does not name {@code #result}. Only expressions
+ * naming {@code #result} are evaluated later, once the outcome is known, so work that completes on
+ * another thread still records the caller's actor, request and argument values.
  */
 final class CapturedCall {
 
@@ -36,6 +37,7 @@ final class CapturedCall {
   private final Map<String, Optional<Object>> resolved = new LinkedHashMap<>();
   private final ProviderFields provider;
   private final Map<String, String> mdc;
+  private final String threadActor;
 
   private CapturedCall(Auditable auditable, Method method, Object[] args, Capture capture) {
     this.auditable = auditable;
@@ -44,6 +46,7 @@ final class CapturedCall {
     this.spel = capture.spel();
     this.provider = ProviderFields.of(capture.contextProvider());
     this.mdc = capture.withMdc() ? MDC.getCopyOfContextMap() : null;
+    this.threadActor = CallingThreadActor.current();
     resolveEarly();
   }
 
@@ -65,6 +68,15 @@ final class CapturedCall {
 
   Map<String, String> mdc() {
     return mdc;
+  }
+
+  /**
+   * The authenticated user of the calling thread's Spring Security context.
+   *
+   * @return the user's name, or {@code null} when there is none or Spring Security is absent
+   */
+  String threadActor() {
+    return threadActor;
   }
 
   /**

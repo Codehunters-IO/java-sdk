@@ -49,7 +49,9 @@ import org.springframework.core.Ordered;
  * transaction on the completing thread, with the caller's MDC, and cannot fail the call: a failure
  * to publish it is logged, even in fail-on-error mode. When neither the annotation nor the provider
  * names an actor and Spring Security is present, a {@code Mono} or {@code Flux} event takes the
- * authenticated user of the subscriber's Reactor context, where WebFlux keeps it.
+ * authenticated user of the subscriber's Reactor context, where WebFlux keeps it. Failing that, an
+ * event takes the authenticated, non-anonymous user of the calling thread's {@code
+ * SecurityContextHolder}, where a servlet application keeps it, read when the method returns.
  *
  * <p>The aspect is {@link Ordered}. With the default {@link Ordered#LOWEST_PRECEDENCE} it runs
  * inside the transaction of a {@code @Transactional} method, so a synchronous write of a success
@@ -256,7 +258,9 @@ public class AuditAspect implements Ordered {
         auditable.entityType(),
         resolved.entityId(),
         auditable.action(),
-        firstNonBlank(firstNonBlank(resolved.actorId(), provider.actorId()), outcome.actor()),
+        firstNonBlank(
+            firstNonBlank(resolved.actorId(), provider.actorId()),
+            firstNonBlank(outcome.actor(), call.threadActor())),
         firstNonBlank(auditable.actorType(), provider.actorType()),
         provider.ipAddress(),
         resolved.payload(),
