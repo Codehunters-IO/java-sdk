@@ -112,18 +112,72 @@ sets the OUTPUT parameters:
   rounded up to whole seconds). A slow procedure fails the check instead of holding the request.
 - Needs `spring-jdbc` and exactly one `DataSource` bean (or a primary one). Missing pieces fail at
   startup with a message naming the property.
-- PostGIS or other databases: implement `GeoFenceValidator` yourself, or load the zones into a
-  `GeoZoneSource`. A PostGIS adapter is a possible follow-up.
+- Other databases: implement `GeoFenceValidator` yourself, or load the zones into a
+  `GeoZoneSource`. PostgreSQL with PostGIS has its own adapter, below.
+
+### `postgis`: a zone table you own
+
+```yaml
+codehunters:
+  geo:
+    adapter: postgis
+    postgis:
+      table: geo.zones                # table or view: name or schema.name
+      columns:                        # defaults shown
+        scope: scope_ref
+        zone-id: zone_id
+        geometry: geom
+        zone-type: zone_type          # optional columns: leave blank to not read them
+        zone-name: zone_name
+        zone-parent: zone_parent
+```
+
+Each row is one zone of one scope. A reference table:
+
+```sql
+CREATE TABLE geo.zones (
+    scope_ref   VARCHAR(128) NOT NULL,          -- compared with ZoneRef.value()
+    zone_id     VARCHAR(128) NOT NULL,
+    zone_type   VARCHAR(200),
+    zone_name   VARCHAR(200),
+    zone_parent VARCHAR(200),
+    geom        geography(MultiPolygon, 4326) NOT NULL
+);
+CREATE INDEX idx_zones_scope ON geo.zones (scope_ref);
+CREATE INDEX idx_zones_geom ON geo.zones USING GIST (geom);
+```
+
+- Coverage is tested on the geography with `ST_Covers`
+  ([ADR 0019](../docs/adr/0019-postgis-geofence-adapter.md)): edges are great-circle arcs, so the
+  check is accurate for zones of any size, a zone may cross the antimeridian, and a point on the
+  border is inside. Holes work as usual.
+- The geometry column may be `geography` or `geometry` in SRID 4326 (polygon or multipolygon); a
+  `geometry` is cast to `geography` on every row of the scope. Prefer `geography` with a GIST index
+  for scopes with many zones; another SRID fails at query time.
+- One statement tells `ZONE_NOT_FOUND` (no row for the scope) from `OUTSIDE_ZONE` (rows, none
+  covering the point). When several zones cover the point, the lowest `zone-id` wins.
+- The table and column names are written into the statement, so they are validated as identifiers
+  at startup and double-quoted: they match case-sensitively, as PostgreSQL stores them (lower case
+  for unquoted DDL). Values are always bound.
+- The query runs on a template of its own with a query timeout (`query-timeout`, default 2 s,
+  rounded up to whole seconds).
+- Needs `spring-jdbc`, the PostgreSQL driver and exactly one `DataSource` bean (or a primary one).
+  Missing pieces fail at startup with a message naming the property.
+- The polygon fence draws straight lines in degrees and PostGIS great circles: near long edges the
+  two adapters can disagree.
 
 ## Configuration
 
 | Property | Default | |
 |---|---|---|
 | `codehunters.geo.enabled` | `true` | `false` registers nothing |
-| `codehunters.geo.adapter` | — | `polygon` or `sql-server`; unset registers nothing |
+| `codehunters.geo.adapter` | — | `polygon`, `sql-server` or `postgis`; unset registers nothing |
 | `codehunters.geo.sql-server.procedure` | — | required with `sql-server` |
 | `codehunters.geo.sql-server.parameters.*` | see above | parameter names |
 | `codehunters.geo.sql-server.query-timeout` | `2s` | longest the procedure may run; positive |
+| `codehunters.geo.postgis.table` | — | required with `postgis` |
+| `codehunters.geo.postgis.columns.*` | see above | column names |
+| `codehunters.geo.postgis.query-timeout` | `2s` | longest the query may run; positive |
 
 The 0.x key `geo.validation.enabled` is honoured as `codehunters.geo.enabled` until 2.0, with a
 warning. Upgrading from 0.2.0: see [MIGRATION-1.0.md](MIGRATION-1.0.md).

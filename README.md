@@ -15,7 +15,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 
 | Module | Package | Version | Docs |
 |---|---|---|---|
-| `sdk-bom` | — (BOM, `java-platform`) | 1.2.0 | [below](#using-the-bom) |
+| `sdk-bom` | — (BOM, `java-platform`) | 1.5.0 | [below](#using-the-bom) |
 | `sdk-user-security` | `io.codehunters.security` | 3.1.0 | [README](security/sdk-user-security/README.md) · [CHANGELOG](security/sdk-user-security/CHANGELOG.md) |
 | `sdk-user-security-authz` | `io.codehunters.security.authz` | 3.0.0 | [README](security/sdk-user-security-authz/README.md) · [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 1.0.0 | [README](sdk-tracing/README.md) · [CHANGELOG](sdk-tracing/CHANGELOG.md) |
@@ -32,7 +32,7 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-barcode` | `io.codehunters.barcode` | 1.0.0 | [README](sdk-barcode/README.md) · [MIGRATION](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | `io.codehunters.jasper` | 1.0.0 | [README](sdk-jasper/README.md) · [MIGRATION](sdk-jasper/MIGRATION-from-commons-support.md) |
 | `sdk-jpa` | `io.codehunters.jpa` | 1.0.0 | [README](sdk-jpa/README.md) · [MIGRATION](sdk-jpa/MIGRATION-from-commons-support.md) |
-| `sdk-geo-validation` | `io.codehunters.geo` | 1.0.0 | [README](sdk-geo-validation/README.md) · [MIGRATION](sdk-geo-validation/MIGRATION-1.0.md) |
+| `sdk-geo-validation` | `io.codehunters.geo` | 1.1.0 | [README](sdk-geo-validation/README.md) · [MIGRATION](sdk-geo-validation/MIGRATION-1.0.md) |
 | `sdk-support` | `io.codehunters.support` | 1.0.0, internal | Legacy property aliases; brought in transitively |
 
 Release notes for every module are indexed in [CHANGELOG.md](CHANGELOG.md).
@@ -47,7 +47,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.codehunters:sdk-bom:1.2.0"))
+    implementation(platform("io.codehunters:sdk-bom:1.5.0"))
     implementation("io.codehunters:sdk-user-security")
     implementation("io.codehunters:sdk-event-messaging-jdbc")
     implementation("io.codehunters:sdk-event-messaging-rabbit")
@@ -62,7 +62,7 @@ Maven:
     <dependency>
       <groupId>io.codehunters</groupId>
       <artifactId>sdk-bom</artifactId>
-      <version>1.2.0</version>
+      <version>1.5.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -79,7 +79,7 @@ but Maven's nearest-wins mediation can still mix versions of `sdk-support` and
 Do it one module at a time; each module's `MIGRATION-*.md` (or CHANGELOG, for security and tracing)
 has the full checklist. What every service has to look at:
 
-1. **Coordinates.** Import `sdk-bom:1.3.0` and drop explicit SDK versions.
+1. **Coordinates.** Import `sdk-bom:1.5.0` and drop explicit SDK versions.
 
    | Before | Now |
    |---|---|
