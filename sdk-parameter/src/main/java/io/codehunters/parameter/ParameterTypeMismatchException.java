@@ -1,6 +1,4 @@
-package io.codehunters.parameter.domain.exception;
-
-import io.codehunters.parameter.domain.model.ParameterType;
+package io.codehunters.parameter;
 
 /**
  * Thrown when a parameter value is requested as a type incompatible with its declared {@link

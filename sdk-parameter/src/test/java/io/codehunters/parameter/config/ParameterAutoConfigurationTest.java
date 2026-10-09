@@ -2,11 +2,11 @@ package io.codehunters.parameter.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.parameter.application.ParameterClient;
-import io.codehunters.parameter.domain.model.Parameter;
-import io.codehunters.parameter.domain.model.ParameterModule;
-import io.codehunters.parameter.infrastructure.CachingParameterClient;
-import io.codehunters.parameter.infrastructure.JdbcParameterAdapter;
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterClient;
+import io.codehunters.parameter.ParameterModule;
+import io.codehunters.parameter.cache.CachingParameterClient;
+import io.codehunters.parameter.jdbc.JdbcParameterAdapter;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;

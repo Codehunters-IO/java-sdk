@@ -1,7 +1,5 @@
-package io.codehunters.parameter.application;
+package io.codehunters.parameter;
 
-import io.codehunters.parameter.domain.model.Parameter;
-import io.codehunters.parameter.domain.model.ParameterModule;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -60,8 +58,8 @@ public interface ParameterClient {
    * @param module the owning module
    * @param submodule the submodule filter; {@code null} returns all submodules
    * @return an unmodifiable map keyed by parameter name, in name order; values may be {@code null}
-   * @throws io.codehunters.parameter.domain.exception.ParameterException if two rows share a name,
-   *     which happens when {@code submodule} is {@code null} and a name exists in two submodules
+   * @throws io.codehunters.parameter.ParameterException if two rows share a name, which happens
+   *     when {@code submodule} is {@code null} and a name exists in two submodules
    */
   Map<String, String> asMap(ParameterModule module, String submodule);
 
@@ -71,8 +69,8 @@ public interface ParameterClient {
    * @param module the owning module
    * @param submodule the submodule filter; {@code null} returns all submodules
    * @return an unmodifiable map keyed by parameter name, in name order
-   * @throws io.codehunters.parameter.domain.exception.ParameterException if two rows share a name,
-   *     which happens when {@code submodule} is {@code null} and a name exists in two submodules
+   * @throws io.codehunters.parameter.ParameterException if two rows share a name, which happens
+   *     when {@code submodule} is {@code null} and a name exists in two submodules
    */
   Map<String, Parameter> asMapByName(ParameterModule module, String submodule);
 }

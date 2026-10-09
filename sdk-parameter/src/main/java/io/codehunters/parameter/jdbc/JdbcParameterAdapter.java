@@ -1,10 +1,12 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.jdbc;
 
-import io.codehunters.parameter.application.ParameterClient;
-import io.codehunters.parameter.domain.exception.ParameterAccessException;
-import io.codehunters.parameter.domain.exception.ParameterException;
-import io.codehunters.parameter.domain.model.Parameter;
-import io.codehunters.parameter.domain.model.ParameterModule;
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterAccessException;
+import io.codehunters.parameter.ParameterClient;
+import io.codehunters.parameter.ParameterException;
+import io.codehunters.parameter.ParameterModule;
+import io.codehunters.parameter.internal.Arguments;
+import io.codehunters.parameter.internal.ParameterMaps;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;

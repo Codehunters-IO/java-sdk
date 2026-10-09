@@ -1,10 +1,10 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.internal;
 
 import java.util.Collection;
 import java.util.Objects;
 
-/** Argument checks shared by the JDBC adapter and the cache. */
-final class Arguments {
+/** Argument checks shared by the JDBC client and the cache. Not API. */
+public final class Arguments {
 
   private Arguments() {}
 
@@ -15,7 +15,7 @@ final class Arguments {
    * @param name the argument name, for the message
    * @throws IllegalArgumentException if any element is {@code null}
    */
-  static void requireNoNullElements(Collection<?> values, String name) {
+  public static void requireNoNullElements(Collection<?> values, String name) {
     if (values != null && values.stream().anyMatch(Objects::isNull)) {
       throw new IllegalArgumentException(name + " must not contain null elements");
     }

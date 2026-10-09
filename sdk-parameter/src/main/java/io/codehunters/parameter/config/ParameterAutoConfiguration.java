@@ -1,8 +1,8 @@
 package io.codehunters.parameter.config;
 
-import io.codehunters.parameter.application.ParameterClient;
-import io.codehunters.parameter.infrastructure.CachingParameterClient;
-import io.codehunters.parameter.infrastructure.JdbcParameterAdapter;
+import io.codehunters.parameter.ParameterClient;
+import io.codehunters.parameter.cache.CachingParameterClient;
+import io.codehunters.parameter.jdbc.JdbcParameterAdapter;
 import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;

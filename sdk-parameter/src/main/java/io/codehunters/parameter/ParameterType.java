@@ -1,4 +1,4 @@
-package io.codehunters.parameter.domain.model;
+package io.codehunters.parameter;
 
 /**
  * Declared value type for a parameter. Coercion to native types is performed by {@link Parameter}.

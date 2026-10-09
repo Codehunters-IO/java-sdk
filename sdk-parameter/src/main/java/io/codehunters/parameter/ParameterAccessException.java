@@ -1,4 +1,4 @@
-package io.codehunters.parameter.domain.exception;
+package io.codehunters.parameter;
 
 /**
  * Thrown when the underlying database access fails for any reason. Wraps Spring {@code

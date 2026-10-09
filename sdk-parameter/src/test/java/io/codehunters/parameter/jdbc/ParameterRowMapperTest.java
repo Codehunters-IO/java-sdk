@@ -1,10 +1,10 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import io.codehunters.parameter.domain.exception.ParameterAccessException;
+import io.codehunters.parameter.ParameterAccessException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import org.junit.jupiter.api.Test;

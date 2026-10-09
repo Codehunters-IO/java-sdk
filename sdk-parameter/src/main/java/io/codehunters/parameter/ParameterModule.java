@@ -1,4 +1,4 @@
-package io.codehunters.parameter.domain.model;
+package io.codehunters.parameter;
 
 import java.util.Map;
 import java.util.function.Function;

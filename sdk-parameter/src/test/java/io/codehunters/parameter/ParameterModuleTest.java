@@ -1,4 +1,4 @@
-package io.codehunters.parameter.domain.model;
+package io.codehunters.parameter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

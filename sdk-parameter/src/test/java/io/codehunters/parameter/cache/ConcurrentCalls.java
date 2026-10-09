@@ -1,11 +1,11 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.cache;
 
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
-import io.codehunters.parameter.application.ParameterClient;
-import io.codehunters.parameter.domain.model.Parameter;
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterClient;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;

@@ -1,6 +1,6 @@
 package io.codehunters.parameter.config;
 
-import io.codehunters.parameter.infrastructure.JdbcParameterAdapter;
+import io.codehunters.parameter.jdbc.JdbcParameterAdapter;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;

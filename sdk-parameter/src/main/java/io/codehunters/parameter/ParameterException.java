@@ -1,4 +1,4 @@
-package io.codehunters.parameter.domain.exception;
+package io.codehunters.parameter;
 
 /** Base exception for all parameter SDK failures. */
 public class ParameterException extends RuntimeException {

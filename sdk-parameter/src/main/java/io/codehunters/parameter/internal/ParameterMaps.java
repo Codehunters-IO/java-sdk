@@ -1,7 +1,7 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.internal;
 
-import io.codehunters.parameter.domain.exception.ParameterException;
-import io.codehunters.parameter.domain.model.Parameter;
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 /** Builds the name-keyed views returned by {@code asMap} and {@code asMapByName}. */
-final class ParameterMaps {
+public final class ParameterMaps {
 
   private ParameterMaps() {}
 
@@ -22,7 +22,7 @@ final class ParameterMaps {
    * @return an unmodifiable map from name to value
    * @throws ParameterException if a name appears in more than one row
    */
-  static <V> Map<String, V> byName(List<Parameter> rows, Function<Parameter, V> value) {
+  public static <V> Map<String, V> byName(List<Parameter> rows, Function<Parameter, V> value) {
     Map<String, V> result = new LinkedHashMap<>();
     rows.forEach(row -> putUnique(result, row.name(), value.apply(row)));
     return Collections.unmodifiableMap(result);

@@ -1,6 +1,5 @@
-package io.codehunters.parameter.domain.model;
+package io.codehunters.parameter;
 
-import io.codehunters.parameter.domain.exception.ParameterTypeMismatchException;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -10,7 +9,7 @@ import java.util.UUID;
  * {@code value} into native Java types based on the declared {@link ParameterType}.
  *
  * <p>JSON values are exposed as the raw string through {@link #value()}; consumers parse them with
- * their preferred JSON mapper. The domain layer holds no JSON binding to keep it framework-free.
+ * their preferred JSON mapper. This type holds no JSON binding to keep it framework-free.
  *
  * @param id the parameter identifier
  * @param module the owning module

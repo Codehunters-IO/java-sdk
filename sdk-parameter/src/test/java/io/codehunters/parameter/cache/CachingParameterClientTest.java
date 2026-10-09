@@ -1,4 +1,4 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,11 +11,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import io.codehunters.parameter.application.ParameterClient;
-import io.codehunters.parameter.domain.exception.ParameterAccessException;
-import io.codehunters.parameter.domain.model.Parameter;
-import io.codehunters.parameter.domain.model.ParameterModule;
-import io.codehunters.parameter.domain.model.ParameterType;
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterAccessException;
+import io.codehunters.parameter.ParameterClient;
+import io.codehunters.parameter.ParameterModule;
+import io.codehunters.parameter.ParameterType;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;

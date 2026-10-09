@@ -1,9 +1,9 @@
-package io.codehunters.parameter.infrastructure;
+package io.codehunters.parameter.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.codehunters.parameter.domain.model.Parameter;
-import io.codehunters.parameter.domain.model.ParameterModule;
+import io.codehunters.parameter.Parameter;
+import io.codehunters.parameter.ParameterModule;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;

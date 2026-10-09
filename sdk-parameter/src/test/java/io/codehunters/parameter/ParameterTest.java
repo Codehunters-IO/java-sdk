@@ -1,9 +1,8 @@
-package io.codehunters.parameter.domain.model;
+package io.codehunters.parameter;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.parameter.domain.exception.ParameterTypeMismatchException;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
