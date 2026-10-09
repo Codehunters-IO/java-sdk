@@ -17,7 +17,7 @@ import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
 /**
- * Enables Spring Data JPA auditing for {@link io.codehunters.jpa.domain.AuditableEntity}: the time
+ * Enables Spring Data JPA auditing for {@link io.codehunters.jpa.entity.AuditableEntity}: the time
  * comes from the application's {@link Clock} (UTC system clock otherwise) and the author from
  * Spring Security when it is on the classpath.
  *

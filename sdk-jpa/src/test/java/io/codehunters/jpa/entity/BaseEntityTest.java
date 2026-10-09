@@ -1,4 +1,4 @@
-package io.codehunters.jpa.domain;
+package io.codehunters.jpa.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

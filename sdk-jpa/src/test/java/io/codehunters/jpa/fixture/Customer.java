@@ -1,6 +1,6 @@
 package io.codehunters.jpa.fixture;
 
-import io.codehunters.jpa.domain.BaseEntity;
+import io.codehunters.jpa.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;

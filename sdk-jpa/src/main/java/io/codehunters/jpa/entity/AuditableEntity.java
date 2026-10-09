@@ -1,4 +1,4 @@
-package io.codehunters.jpa.domain;
+package io.codehunters.jpa.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.EntityListeners;

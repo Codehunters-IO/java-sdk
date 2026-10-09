@@ -2,7 +2,7 @@ package io.codehunters.jpa.fixture;
 
 import io.codehunters.jpa.converter.StringListConverter;
 import io.codehunters.jpa.converter.StringMapConverter;
-import io.codehunters.jpa.domain.AuditableEntity;
+import io.codehunters.jpa.entity.AuditableEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
