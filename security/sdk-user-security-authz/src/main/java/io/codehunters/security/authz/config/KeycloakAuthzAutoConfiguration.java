@@ -1,5 +1,6 @@
 package io.codehunters.security.authz.config;
 
+import io.codehunters.security.authz.config.KeycloakPolicyEnforcerProperties.PathMapping;
 import io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter;
 import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
 import io.codehunters.security.config.KeycloakSecurityProperties;
@@ -44,7 +45,8 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
  * it builds: the sdk-user-security chains and any chain the application defines. Requests are
  * therefore authenticated (or rejected with 401) before Keycloak is asked. Only the token Spring
  * Security validated reaches Keycloak; requests authenticated without one are denied unless their
- * path is listed in {@code skip-paths}. A public path may not cover a catalogued one.
+ * path is listed in {@code skip-paths}. Public, excluded and skipped paths may not overlap a
+ * catalogued path the enforcer enforces.
  *
  * <p>The enforcer is built on the first enforced request, so a service starts while Keycloak is
  * unreachable; a failed build is retried after {@code retry-backoff}. Calls to Keycloak go through
@@ -82,7 +84,7 @@ public class KeycloakAuthzAutoConfiguration {
       KeycloakPolicyEnforcerProperties properties,
       @Qualifier(HTTP_CLIENT) CloseableHttpClient httpClient,
       ObjectProvider<EnforcerFailureCounter> counters) {
-    CatalogChecks.requireNoPublicPathCovers(security.publicPaths(), properties.paths());
+    requireCatalogEnforcedEverywhere(security, properties);
     EnforcerFailureCounter counter = counters.getIfAvailable(EnforcerFailureCounter::none);
     var options =
         KeycloakPolicyEnforcerFilter.Options.defaults()
@@ -147,6 +149,18 @@ public class KeycloakAuthzAutoConfiguration {
   public Customizer<HttpSecurity> keycloakPolicyEnforcerCustomizer(
       KeycloakPolicyEnforcerFilter filter) {
     return http -> http.addFilterAfter(filter, AuthorizationFilter.class);
+  }
+
+  // Paths the enforcer never sees (anonymous ones and skipped ones) may not overlap enforced ones.
+  private static void requireCatalogEnforcedEverywhere(
+      KeycloakSecurityProperties security, KeycloakPolicyEnforcerProperties properties) {
+    List<PathMapping> catalog = properties.paths();
+    CatalogChecks.requireNoOverlap(
+        "codehunters.security.public-paths", security.publicPaths(), catalog);
+    CatalogChecks.requireNoOverlap(
+        "codehunters.security.excluded-paths", security.excludedPaths(), catalog);
+    CatalogChecks.requireNoOverlap(
+        "codehunters.security.authz.skip-paths", properties.skipPaths(), catalog);
   }
 
   // Keycloak's enforcer turns a failed authorization call into a denial (403) and logs it at debug

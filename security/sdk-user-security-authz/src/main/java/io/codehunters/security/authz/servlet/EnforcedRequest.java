@@ -28,8 +28,10 @@ import org.springframework.http.server.RequestPath;
  */
 final class EnforcedRequest extends HttpServletRequestWrapper {
 
-  // Encoded '/', '\', '.', '%', ';' and plain ';' decode differently in Keycloak and Spring MVC.
-  private static final Pattern AMBIGUOUS = Pattern.compile("(?i)%2f|%5c|%2e|%25|%3b|;");
+  // Encoded '/', '\', '.', '%', ';' and plain ';' decode differently in Keycloak and Spring MVC;
+  // decoded '*', '{', '}' and '?' are pattern characters to Keycloak's matcher.
+  private static final Pattern AMBIGUOUS =
+      Pattern.compile("(?i)%2f|%5c|%2e|%25|%3b|;|%2a|%7b|%7d|%3f");
 
   private final String authorization;
 

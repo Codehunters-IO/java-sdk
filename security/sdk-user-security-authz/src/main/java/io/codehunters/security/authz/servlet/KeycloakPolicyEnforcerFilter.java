@@ -39,9 +39,10 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
  * Keycloak's official {@link PolicyEnforcer}, run inside the Spring Security filter chain after
  * authorization, the way Keycloak's {@code ServletPolicyEnforcerFilter} runs it.
  *
- * <p>Every authenticated request (request, forward and include dispatches) is enforced unless its
- * path is one of {@link Options#skipPaths()}; unauthenticated requests (public and excluded paths)
- * and error dispatches pass through. The decision fails closed:
+ * <p>Every authenticated request (request, forward and include dispatches) is enforced unless the
+ * client's request path is one of {@link Options#skipPaths()}; forwards and includes are always
+ * enforced. Unauthenticated requests (public and excluded paths) and error dispatches pass through.
+ * The decision fails closed:
  *
  * <ul>
  *   <li>Only the token Spring Security validated is given to Keycloak, read from the authentication
@@ -50,7 +51,8 @@ import org.springframework.security.web.util.matcher.RequestMatcher;
  *       signature.
  *   <li>An authentication without such a token (basic auth, form login, a custom principal) is
  *       denied (403); list the paths such chains serve in {@link Options#skipPaths()}.
- *   <li>A token outside the bearer charset, or a path whose decoding is ambiguous, is denied.
+ *   <li>A token outside the bearer charset, a token that is not a JWT, a token carrying permissions
+ *       but issued to another client, and a path whose decoding is ambiguous are denied.
  *   <li>A denial Keycloak did not answer itself answers 403.
  * </ul>
  *
@@ -76,6 +78,7 @@ public class KeycloakPolicyEnforcerFilter implements Filter {
   private final AuthenticationTrustResolver trust = new AuthenticationTrustResolverImpl();
   private final ReentrantLock firstBuild = new ReentrantLock();
   private final AtomicBoolean building = new AtomicBoolean();
+  private final AtomicBoolean warnedOpaqueToken = new AtomicBoolean();
   private final AtomicReference<Instant> retryAt = new AtomicReference<>();
   private volatile PolicyEnforcer enforcer;
 
@@ -141,7 +144,14 @@ public class KeycloakPolicyEnforcerFilter implements Filter {
   private boolean isEnforceable(HttpServletRequest request, Authentication authentication) {
     return ENFORCED_DISPATCHES.contains(request.getDispatcherType())
         && trust.isAuthenticated(authentication)
-        && !options.skipPaths().matches(request);
+        && !isSkipped(request);
+  }
+
+  // Skip paths apply to what the client asked for: a forward or include from a skipped path may
+  // target an enforced one, and the request may still carry the outer path, so both are enforced.
+  private boolean isSkipped(HttpServletRequest request) {
+    return request.getDispatcherType() == DispatcherType.REQUEST
+        && options.skipPaths().matches(request);
   }
 
   private boolean isGranted(
@@ -153,6 +163,13 @@ public class KeycloakPolicyEnforcerFilter implements Filter {
     }
     if (!BearerTokens.isBearerCharset(token.get())) {
       return forbid(response, "Malformed bearer token");
+    }
+    if (!BearerTokens.isJwt(token.get())) {
+      warnOpaqueTokenOnce();
+      return forbid(response, "Bearer token is not a JWT");
+    }
+    if (!BearerTokens.isIssuedTo(authentication, config.getResource())) {
+      return forbid(response, "Permissions issued to another client");
     }
     if (EnforcedRequest.isAmbiguous(request)) {
       return forbid(response, "Ambiguous request path");
@@ -263,6 +280,14 @@ public class KeycloakPolicyEnforcerFilter implements Filter {
           e.toString());
       options.failureListener().accept(e);
       throw new EnforcerUnavailableException();
+    }
+  }
+
+  private void warnOpaqueTokenOnce() {
+    if (warnedOpaqueToken.compareAndSet(false, true)) {
+      log.warn(
+          "Requests authenticated with tokens that are not JWTs are denied: Keycloak's policy"
+              + " enforcer parses every token it is given as a JWT");
     }
   }
 
