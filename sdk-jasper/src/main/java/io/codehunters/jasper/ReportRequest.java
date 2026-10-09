@@ -7,14 +7,15 @@ import java.io.Reader;
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * What to render: a classpath template, its parameters, its rows and the output format.
@@ -23,7 +24,9 @@ import java.util.stream.Stream;
  *     (precompiled, preferred) or {@code .jrxml}
  * @param parameters the report parameters, unmodifiable; values may be null but never a URL, URI,
  *     File, Path, stream or reader, which JasperReports would load from directly, nor hold one in a
- *     collection, map or array nested up to 8 levels deep
+ *     collection, map or array nested up to 8 levels deep; nested collections, maps and arrays are
+ *     copied, and one that contains itself is refused (best effort: other containers such as {@code
+ *     Optional} or beans are not looked into)
  * @param data the rows
  * @param format the output format
  */
@@ -102,70 +105,97 @@ public record ReportRequest(
     if (parameters == null) {
       throw new IllegalArgumentException("parameters must not be null");
     }
-    parameters.keySet().forEach(ReportRequest::checkName);
-    parameters.forEach(ReportRequest::checkValue);
-    return Collections.unmodifiableMap(new LinkedHashMap<>(parameters));
+    var copy = new LinkedHashMap<String, Object>();
+    parameters.forEach((name, value) -> copy.put(checkName(name), new Scan(name).visit(value, 0)));
+    return Collections.unmodifiableMap(copy);
   }
 
-  // JasperReports loads an image, subreport or style template directly from a value of these types,
-  // bypassing the classpath-only repository; a stream may even be deserialized as a report. They
-  // are
-  // looked for at any depth, in map keys too; cycles are visited once and the nesting is bounded.
-  private static void checkValue(String name, Object value) {
-    switch (scan(value, 0, Collections.newSetFromMap(new IdentityHashMap<>()))) {
-      case LOCATION ->
-          throw new IllegalArgumentException(
-              "parameter "
-                  + name
-                  + " holds a URL, URI, File, Path, stream or reader; pass a classpath location as"
-                  + " a String");
-      case TOO_DEEP ->
-          throw new IllegalArgumentException(
-              "parameter "
-                  + name
-                  + " nests collections, maps or arrays more than "
-                  + MAX_NESTING
-                  + " levels deep");
-      case CLEAN -> {}
-    }
-  }
+  /**
+   * Walks one parameter value. JasperReports loads an image, subreport or style template directly
+   * from a URL, URI, File, Path, stream or reader, bypassing the classpath-only repository; a
+   * stream may even be deserialized as a report. Such values are looked for in collections, map
+   * keys and values, and object arrays, at most {@value #MAX_NESTING} levels deep; a structure that
+   * contains itself is refused. Every container is copied as it is checked (lists and other
+   * collections to unmodifiable lists, sets to unmodifiable sets, maps to unmodifiable maps, arrays
+   * to new arrays), so changing the caller's collections later cannot slip a location in. This is
+   * best effort: only {@link Collection}, {@link Map} and {@code Object[]} are traversed, not
+   * {@code Optional}, {@code Map.Entry}, other {@code Iterable}s or beans; a lazily loaded
+   * collection is loaded, and one modified concurrently fails with {@code
+   * ConcurrentModificationException}.
+   */
+  private static final class Scan {
 
-  private enum Finding {
-    CLEAN,
-    LOCATION,
-    TOO_DEEP
-  }
+    private final String name;
+    private final Set<Object> path = Collections.newSetFromMap(new IdentityHashMap<>());
 
-  private static Finding scan(Object value, int depth, Set<Object> visited) {
-    if (isLocation(value)) {
-      return Finding.LOCATION;
+    Scan(String name) {
+      this.name = name;
     }
-    if (!isContainer(value) || !visited.add(value)) {
-      return Finding.CLEAN;
+
+    Object visit(Object value, int depth) {
+      if (isLocation(value)) {
+        throw rejected(
+            "holds a URL, URI, File, Path, stream or reader; pass a classpath location"
+                + " as a String");
+      }
+      if (!isContainer(value)) {
+        return value;
+      }
+      return enter(value, depth);
     }
-    if (depth == MAX_NESTING) {
-      return Finding.TOO_DEEP;
+
+    private Object enter(Object value, int depth) {
+      if (depth == MAX_NESTING) {
+        throw rejected(
+            "nests collections, maps or arrays more than " + MAX_NESTING + " levels deep");
+      }
+      if (!path.add(value)) {
+        throw rejected("holds a collection, map or array that contains itself");
+      }
+      try {
+        return copyOf(value, depth + 1);
+      } finally {
+        path.remove(value);
+      }
     }
-    return children(value)
-        .map(child -> scan(child, depth + 1, visited))
-        .filter(finding -> finding != Finding.CLEAN)
-        .findFirst()
-        .orElse(Finding.CLEAN);
+
+    private Object copyOf(Object value, int depth) {
+      return switch (value) {
+        case Map<?, ?> map -> copyOf(map, depth);
+        case Set<?> set -> Collections.unmodifiableSet(collect(set, new LinkedHashSet<>(), depth));
+        case Collection<?> values ->
+            Collections.unmodifiableList(collect(values, new ArrayList<>(), depth));
+        case Object[] array -> copyOf(array, depth);
+        default -> value;
+      };
+    }
+
+    private Map<Object, Object> copyOf(Map<?, ?> map, int depth) {
+      var copy = new LinkedHashMap<Object, Object>();
+      map.forEach((key, element) -> copy.put(visit(key, depth), visit(element, depth)));
+      return Collections.unmodifiableMap(copy);
+    }
+
+    private <C extends Collection<Object>> C collect(Collection<?> values, C copy, int depth) {
+      values.forEach(element -> copy.add(visit(element, depth)));
+      return copy;
+    }
+
+    private Object[] copyOf(Object[] array, int depth) {
+      var copy = array.clone();
+      Arrays.setAll(copy, index -> visit(array[index], depth));
+      return copy;
+    }
+
+    private IllegalArgumentException rejected(String reason) {
+      return new IllegalArgumentException("parameter " + name + " " + reason);
+    }
   }
 
   private static boolean isContainer(Object value) {
     return value instanceof Collection<?>
         || value instanceof Map<?, ?>
         || value instanceof Object[];
-  }
-
-  private static Stream<?> children(Object value) {
-    return switch (value) {
-      case Collection<?> values -> values.stream();
-      case Map<?, ?> values -> Stream.concat(values.keySet().stream(), values.values().stream());
-      case Object[] values -> Arrays.stream(values);
-      default -> Stream.empty();
-    };
   }
 
   private static boolean isLocation(Object value) {
@@ -177,12 +207,13 @@ public record ReportRequest(
         || value instanceof Reader;
   }
 
-  private static void checkName(String name) {
+  private static String checkName(String name) {
     if (name == null || name.isBlank()) {
       throw new IllegalArgumentException("parameter names must not be null or blank");
     }
     if (MANAGED.contains(name)) {
       throw new IllegalArgumentException("parameter " + name + " is managed by the SDK");
     }
+    return name;
   }
 }
