@@ -2,9 +2,12 @@ package io.codehunters.parameter.cache;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 import io.codehunters.parameter.ParameterModule;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 class ParameterCacheTest {
@@ -58,6 +61,50 @@ class ParameterCacheTest {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> ParameterCache.create(TTL, 0))
         .withMessageContaining("size must be positive");
+  }
+
+  @Test
+  void should_fail_fast_instead_of_deadlocking_when_a_load_reads_its_own_key() {
+    var cache = ParameterCache.create(TTL, 4);
+    var key = CacheKey.of("lookup", MODULE, "", "LIMIT");
+
+    assertThatThrownBy(
+            () ->
+                assertTimeoutPreemptively(
+                    Duration.ofSeconds(5), () -> cache.get(key, () -> cache.get(key, () -> "x"))))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageStartingWith("re-entrant load of CacheKey[operation=lookup")
+        .hasMessageEndingWith("a parameter load must not read its own answer");
+  }
+
+  @Test
+  void should_let_a_load_read_another_key_when_the_cache_is_shared() {
+    var cache = ParameterCache.create(TTL, 4);
+    var outer = CacheKey.of("lookup", MODULE, "", "OUTER");
+    var inner = CacheKey.of("lookup", MODULE, "", "INNER");
+
+    String answer = cache.get(outer, () -> cache.get(inner, () -> "inner"));
+
+    assertThat(answer).isEqualTo("inner");
+  }
+
+  @Test
+  void should_cache_a_null_answer_as_absence_when_the_load_returns_null() {
+    var cache = ParameterCache.create(TTL, 4);
+    var key = CacheKey.of("lookup", MODULE, "", "MISSING");
+    var loads = new AtomicInteger();
+    cache.get(key, () -> nullAfterCounting(loads));
+
+    Object second = cache.get(key, () -> nullAfterCounting(loads));
+
+    assertThat(second).isNull();
+    assertThat(loads).hasValue(1);
+    assertThat(cache.entries().synchronous().stats().loadFailureCount()).isZero();
+  }
+
+  private static Object nullAfterCounting(AtomicInteger loads) {
+    loads.incrementAndGet();
+    return null;
   }
 
   @Test
