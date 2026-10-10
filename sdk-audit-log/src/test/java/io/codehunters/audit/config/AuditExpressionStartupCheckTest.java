@@ -103,6 +103,49 @@ class AuditExpressionStartupCheckTest {
     assertThat(output).doesNotContain(INVALID);
   }
 
+  @Test
+  void should_fail_startup_naming_the_unknown_variable_when_it_is_not_a_parameter() {
+    runner
+        .withBean(UnknownVariables.class, UnknownVariables::new)
+        .withPropertyValues(FAIL_FAST)
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .hasMessageContaining(INVALID)
+                    .hasMessageContaining(
+                        "entityId: references #ordrId, which is not a parameter (parameters:"
+                            + " orderId, note)")
+                    .hasMessageContaining("payload[late]: references #p2")
+                    .hasMessageNotContaining("actorId")
+                    .hasMessageNotContaining("correlationId"));
+  }
+
+  @Test
+  void should_log_an_error_for_an_unknown_variable_when_fail_fast_is_not_set(
+      CapturedOutput output) {
+    runner
+        .withBean(UnknownVariables.class, UnknownVariables::new)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains("ERROR", INVALID, "references #ordrId");
+  }
+
+  /** Declares variables that are not parameters next to ones that are. */
+  static class UnknownVariables {
+
+    @Auditable(
+        entityType = "ORDER",
+        action = "READ",
+        entityId = "#ordrId",
+        actorId = "#note ?: #p0 ?: #a1 ?: #arg0",
+        correlationId = "#result?.id ?: #root ?: #orderId",
+        payload = {"late=#p2", "self=#note?.![#this]"})
+    public void find(String orderId, java.util.List<String> note) {
+      // audited only
+    }
+  }
+
   /** Declares expressions that parse but use what the sandbox refuses. */
   static class SandboxedExpressions {
 
