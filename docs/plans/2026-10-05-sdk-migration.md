@@ -45,6 +45,7 @@ empezar esa fase**. El contenido de los tests se escribe entonces, contra el có
 | D22 | Bloque 2 de la evaluación de arquitectura (fallos silenciosos y errores de cliente): `ClientInputException` en `sdk-commons` (subclase de `IllegalArgumentException` con `code` estable) que `sdk-web` 2.1.0 responde con 400; `sdk-jpa` y `sdk-barcode` 2.1.0 la usan; `sdk-audit-log` 4.1.0 reporta al arrancar `@Auditable` sin publisher o con expresiones inválidas y toma el actor servlet de Spring Security. `sdk-bom` 3.1.0 (la 3.0.0 no se publica sola) (2026-10-09) | — |
 | D23 | Solo PostgreSQL y solo propiedades `codehunters.*`: se eliminan las implementaciones de SQL Server, todos los alias de prefijos anteriores, `sdk-support` y toda mención a la línea de producto de origen; `sdk-web` pasa a `codehunters.web.*` (2026-10-09) | `docs/adr/0021-postgresql-only-and-codehunters-properties.md` |
 | D24 | Bloque 3 de la evaluación de arquitectura: achicar sobre la plataforma. `sdk-tracing` sobre Micrometer Tracing (solo el propagator de headers legacy y el `TraceContextPort`), el outbox guarda y publica el `traceparent` de la request, authz sobre el `keycloak-policy-enforcer` oficial y el i18n de `sdk-web` sobre el `MessageSource` de Boot (2026-10-09) | `docs/adr/0022` a `0025` |
+| D25 | Bloque 4 de la evaluación de arquitectura: efectos laterales opt-in (auditoría JPA, introspección, device solo servlet, scheduler y clock privados del outbox), caches en Caffeine con métricas, API fluida e inmutable del outbox con despacho al commit y claim de varias filas por clave, sandbox de SpEL en audit y file-share sobre el interceptor OAuth2 de Spring (2026-10-10) | `docs/adr/0026-developer-experience-defaults.md` |
 
 ## Decisiones abiertas (bloquean la fase indicada)
 
@@ -1648,3 +1649,20 @@ Revisión final de seguridad de authz (mismo PR), sin hallazgos altos:
   `codehunters.security.require-access-token-type`); `KeycloakAuthenticationToken` documenta que
   requiere un `Jwt` validado; MIGRATION-5.0 avisa de los mixins de Jackson para Spring Session en
   JSON.
+
+## Fase 29 — Bloque 4: experiencia de desarrollo y rendimiento ✅ (rama `feat/review-block-4`, sobre `master`)
+
+Decisión D25 ([ADR 0026](../adr/0026-developer-experience-defaults.md)). Cuatro ramas en paralelo,
+integradas en un solo PR. Las versiones se pliegan en las majors sin publicar.
+
+- `sdk-event-messaging-*` 9.0.0: records inmutables, `OutboxEvent` fluido, `OutboxWriter` y
+  `OutboxDispatchStore`, despacho al commit, `claim.max-per-key`, requeue de `FAILED`, scheduler y
+  clock privados, propiedades `Duration`, mapper JSON copiado del builder de Boot. Medido en
+  PostgreSQL 17: latencia commit a publish de unos 2,5 ms; backlog de 2000 filas a unos 1100 msg/s
+  (`max-per-key=1`) y 1490 msg/s (`max-per-key=10`).
+- `sdk-parameter` 4.0.0 y `sdk-jasper` 2.1.0: caches en Caffeine con métricas; invalidación en
+  parameter.
+- `sdk-web` 3.0.0 y `sdk-user-security` 5.0.0: Caffeine con métricas, device solo servlet, filtro
+  opcional de IP, introspección opt-in.
+- `sdk-jpa` 3.0.0, `sdk-file-share` 4.0.0 y `sdk-audit-log` 5.0.0: auditoría JPA opt-in,
+  interceptor OAuth2 de Spring con `upload` y fake en memoria, sandbox de SpEL.

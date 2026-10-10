@@ -144,6 +144,16 @@ service has to look at when moving to `sdk-bom` 5.0.0:
     from an OAuth2 token, and answers 503 during `retry-backoff` after a failed enforcer build
     ([ADR 0023](docs/adr/0023-authz-on-keycloak-policy-enforcer.md),
     [MIGRATION-5.0](security/sdk-user-security-authz/MIGRATION-5.0.md)).
+14. **Opt-in side effects.** JPA auditing (`codehunters.jpa.auditing.enabled`) and session
+    introspection (`codehunters.security.introspection.enabled`) are off by default; with
+    introspection off, a revoked session is accepted until its token expires. sdk-web device beans
+    register in servlet applications only, and the outbox uses a private scheduler and clock
+    ([ADR 0026](docs/adr/0026-developer-experience-defaults.md)).
+15. **Audit expressions** run in a read-only SpEL sandbox: write `#order.id`, not `#order.getId()`
+    ([MIGRATION-5.0](sdk-audit-log/MIGRATION-5.0.md)).
+16. **Outbox writes** use `OutboxEvent.to(topic).key(k).type(t).payload(p)` and `OutboxWriter`;
+    dispatch starts on commit and timing properties are `Duration`s
+    ([MIGRATION-9.0](messaging/MIGRATION-9.0.md)).
 
 ## Build
 

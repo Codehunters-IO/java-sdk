@@ -31,6 +31,24 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 Shrinks the SDK onto the platform (architecture review, block 3). Folds in 4.0.0, which was never
 published:
 
+Developer experience and throughput (architecture review, block 4,
+[ADR 0026](docs/adr/0026-developer-experience-defaults.md)), in the same unreleased majors:
+
+- `sdk-event-messaging-*` 9.0.0: immutable records and a fluent `OutboxEvent` write API,
+  `OutboxWriter` / `OutboxDispatchStore` instead of `OutboxRepositoryPort`, dispatch on commit,
+  up to `claim.max-per-key` rows per key, requeue of `FAILED` rows, a private scheduler and clock,
+  `Duration` timing properties and an outbox JSON mapper copied from Boot's builder.
+- `sdk-user-security` 5.0.0: session introspection is opt-in (security-relevant default change) and
+  cached in Caffeine with metrics.
+- `sdk-web` 3.0.0: Caffeine user-agent cache with metrics, device beans in servlet applications
+  only, opt-in `ForwardedClientIpFilter`.
+- `sdk-jpa` 3.0.0: JPA auditing is opt-in.
+- `sdk-audit-log` 5.0.0: read-only SpEL sandbox; JSON mapper from Boot's builder.
+- `sdk-file-share` 4.0.0: Spring Security's OAuth2 interceptor, signed `upload` helper, in-memory
+  test fake.
+- `sdk-parameter` 4.0.0 and `sdk-jasper` 2.1.0: Caffeine caches with metrics; parameter cache
+  invalidation.
+
 - `sdk-tracing` 3.0.0: built on Micrometer Tracing; keeps only the OpenTelemetry propagator for the
   legacy gateway headers and a `TraceContextPort` backed by the `Tracer`
   ([ADR 0022](docs/adr/0022-tracing-on-micrometer-tracing.md)). The servlet filter, task decorator
