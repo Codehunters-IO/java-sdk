@@ -57,6 +57,9 @@ public class EventMessagingJdbcAutoConfiguration {
    * JsonMapperBuilderCustomizer} applied), so registered modules, mixins and naming strategies
    * reach the stored payloads, and from a plain builder otherwise. Two settings are forced because
    * they shape the wire format consumers parse: no indentation and dates as ISO-8601 strings. The
+   * {@link io.codehunters.messaging.EventMessage} envelope is also pinned by mixins: its field
+   * names stay lower camel case and its null fields are written, whatever naming strategy or
+   * inclusion the application sets; only the payload follows the application's settings. The
    * builder is built and rebuilt before those changes, so a singleton application builder is never
    * modified. It is not a default candidate, so injecting a {@link JsonMapper} by type never sees
    * it and Boot's or the application's mapper stays the only match; the repository asks for it by
@@ -68,13 +71,14 @@ public class EventMessagingJdbcAutoConfiguration {
   @Bean(name = "outboxJsonMapper", defaultCandidate = false)
   @ConditionalOnMissingBean(name = "outboxJsonMapper")
   public JsonMapper outboxJsonMapper(ObjectProvider<JsonMapper.Builder> builders) {
-    return builders
-        .getIfAvailable(JsonMapper::builder)
-        .build()
-        .rebuild()
-        .disable(SerializationFeature.INDENT_OUTPUT)
-        .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
-        .build();
+    JsonMapper.Builder outbox =
+        builders
+            .getIfAvailable(JsonMapper::builder)
+            .build()
+            .rebuild()
+            .disable(SerializationFeature.INDENT_OUTPUT)
+            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS);
+    return EnvelopeFormat.pin(outbox).build();
   }
 
   /**

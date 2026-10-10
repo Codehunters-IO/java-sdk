@@ -72,14 +72,21 @@ public class OutboxDispatchSchedulerAutoConfiguration {
    * injecting a {@link TaskScheduler} by type never sees it. A replacement bean of the same name
    * must also be an {@link Executor} while {@code scheduling.dispatch-on-commit} is on.
    *
+   * <p>On shutdown it waits for a running dispatch to end, up to {@link
+   * EventMessagingProperties#maxDispatchRun()} (half the claim TTL plus one transport timeout), so
+   * a batch is published and written back rather than cut off mid-send and reclaimed later.
+   *
+   * @param properties the messaging configuration
    * @return a {@link ThreadPoolTaskScheduler}
    */
   @Bean(name = OUTBOX_TASK_SCHEDULER, defaultCandidate = false)
   @ConditionalOnMissingBean(name = OUTBOX_TASK_SCHEDULER)
-  public ThreadPoolTaskScheduler outboxTaskScheduler() {
+  public ThreadPoolTaskScheduler outboxTaskScheduler(EventMessagingProperties properties) {
     ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
     scheduler.setPoolSize(POOL_SIZE);
     scheduler.setThreadNamePrefix("outbox-");
+    scheduler.setWaitForTasksToCompleteOnShutdown(true);
+    scheduler.setAwaitTerminationMillis(properties.maxDispatchRun().toMillis());
     return scheduler;
   }
 
@@ -200,11 +207,14 @@ public class OutboxDispatchSchedulerAutoConfiguration {
 
   /**
    * Registers every {@link OutboxScheduledTask} bean on the outbox scheduler when the context
-   * starts.
+   * starts, and stops the {@code outboxDispatchTrigger}, when it is the SDK's {@link
+   * CoalescingDispatchTrigger}, when the context stops: no new commit-time drain starts, and one in
+   * progress ends after its current run.
    *
    * @param scheduler the SDK's {@code outboxTaskScheduler}
    * @param lockProvider the ShedLock provider
    * @param tasks the scheduled tasks
+   * @param dispatchTrigger the commit-time dispatch trigger, if any
    * @return an {@link OutboxSchedulingLifecycle}
    */
   @Bean
@@ -212,7 +222,12 @@ public class OutboxDispatchSchedulerAutoConfiguration {
   public OutboxSchedulingLifecycle outboxSchedulingLifecycle(
       @Qualifier(OUTBOX_TASK_SCHEDULER) TaskScheduler scheduler,
       LockProvider lockProvider,
-      ObjectProvider<OutboxScheduledTask> tasks) {
-    return new OutboxSchedulingLifecycle(scheduler, lockProvider, tasks.orderedStream().toList());
+      ObjectProvider<OutboxScheduledTask> tasks,
+      @Qualifier(DISPATCH_TRIGGER) ObjectProvider<OutboxDispatchTrigger> dispatchTrigger) {
+    var lifecycle =
+        new OutboxSchedulingLifecycle(scheduler, lockProvider, tasks.orderedStream().toList());
+    return dispatchTrigger.getIfAvailable() instanceof CoalescingDispatchTrigger coalescing
+        ? lifecycle.onStop(coalescing::stop)
+        : lifecycle;
   }
 }
