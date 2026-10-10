@@ -19,8 +19,10 @@ import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.ForwardedHeaderFilter;
 
 class DeviceAutoConfigurationTest {
 
@@ -32,11 +34,30 @@ class DeviceAutoConfigurationTest {
       new ApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(DeviceAutoConfiguration.class));
 
+  private static final String FILTER_ENABLED =
+      "codehunters.web.device.forwarded-request-filter.enabled=true";
+
   @Configuration(proxyBeanMethods = false)
   static class OwnParser {
     @Bean
     UserAgentParser ownParser() {
       return header -> UserAgentInfo.UNKNOWN;
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class OwnForwardedHeaderFilter {
+    @Bean
+    ForwardedHeaderFilter springForwardedHeaderFilter() {
+      return new ForwardedHeaderFilter();
+    }
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class RegisteredForwardedHeaderFilter {
+    @Bean
+    FilterRegistrationBean<ForwardedHeaderFilter> forwardedHeaderFilter() {
+      return new FilterRegistrationBean<>(new ForwardedHeaderFilter());
     }
   }
 
@@ -118,6 +139,56 @@ class DeviceAutoConfigurationTest {
   @Test
   void should_register_the_forwarded_request_filter_when_enabled() {
     web.withPropertyValues("codehunters.web.device.forwarded-request-filter.enabled=true")
+        .run(context -> assertThat(context).hasSingleBean(ForwardedClientIpFilter.class));
+  }
+
+  @Test
+  void
+      should_fail_startup_when_the_filter_is_combined_with_the_framework_forward_headers_strategy() {
+    web.withPropertyValues(FILTER_ENABLED, "server.forward-headers-strategy=framework")
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageStartingWith(
+                        "codehunters.web.device.forwarded-request-filter.enabled=true cannot be"
+                            + " combined with server.forward-headers-strategy=framework"));
+  }
+
+  @Test
+  void should_fail_startup_when_the_filter_is_combined_with_a_forwarded_header_filter_bean() {
+    web.withPropertyValues(FILTER_ENABLED)
+        .withUserConfiguration(OwnForwardedHeaderFilter.class)
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageStartingWith(
+                        "codehunters.web.device.forwarded-request-filter.enabled=true cannot be"
+                            + " combined with Spring's ForwardedHeaderFilter (bean"
+                            + " 'springForwardedHeaderFilter')"));
+  }
+
+  @Test
+  void should_fail_startup_when_the_filter_is_combined_with_a_registered_forwarded_header_filter() {
+    web.withPropertyValues(FILTER_ENABLED)
+        .withUserConfiguration(RegisteredForwardedHeaderFilter.class)
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageStartingWith(
+                        "codehunters.web.device.forwarded-request-filter.enabled=true cannot be"
+                            + " combined with Spring's ForwardedHeaderFilter (bean"
+                            + " 'forwardedHeaderFilter')"));
+  }
+
+  @Test
+  void should_start_when_the_filter_is_combined_with_the_native_forward_headers_strategy() {
+    web.withPropertyValues(FILTER_ENABLED, "server.forward-headers-strategy=native")
         .run(context -> assertThat(context).hasSingleBean(ForwardedClientIpFilter.class));
   }
 
