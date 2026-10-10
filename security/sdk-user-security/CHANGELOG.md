@@ -17,6 +17,9 @@ Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
   meters tagged `cache=codehunters.security.introspection.cache` (hits, misses, evictions, size) and
   the `codehunters.security.introspection.failures` counter, through a `sessionIntrospectorMetrics`
   `MeterBinder` bean. `SessionIntrospector.cache()` and `failures()` expose them.
+- A startup `WARN` when `codehunters.security.introspection.client-id` or `client-secret` is set but
+  `enabled` is unset or `false`: an upgrade from 4.x that kept only the credentials would otherwise
+  accept revoked sessions until their tokens expire without saying so.
 - `io.codehunters.security.KeycloakAuthenticationToken`, the authentication of a verified Keycloak
   token: an `AbstractOAuth2TokenAuthenticationToken<Jwt>` whose principal is the `KeycloakPrincipal`.
 
@@ -31,7 +34,8 @@ Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See
   `true`). On by default and fail-closed, it turned a Keycloak outage into an outage of every
   service `cache-ttl` later. Without it a revoked session's token is accepted until it expires; set
   `enabled: true` (with `client-id` and `client-secret`) to keep 4.x's check. `client-id` and
-  `client-secret` are no longer required unless it is enabled.
+  `client-secret` are no longer required unless it is enabled. Credentials left without `enabled: true` log a
+  startup `WARN`.
 - The authentication of a bearer request is a `KeycloakAuthenticationToken` instead of a
   `UsernamePasswordAuthenticationToken`. The validated `Jwt` stays available through `getToken()`
   after Spring Security erases credentials, and the gateway filter keeps the type when it adds the

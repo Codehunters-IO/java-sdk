@@ -51,7 +51,9 @@ codehunters:
 
 Leaving it off is the right choice when access tokens are short-lived (minutes) and a revoked
 session may keep working until its token expires. Credentials left in the configuration without
-`enabled: true` are ignored. The result cache is now Caffeine (same `cache-ttl` and
+`enabled: true` are ignored, and startup logs a `WARN` naming the gap ("introspection credentials
+configured but introspection is disabled"); add `enabled: true` or remove the credentials to clear
+it. The result cache is now Caffeine (same `cache-ttl` and
 `cache-max-entries`), and its hits, misses and failures are published as Micrometer meters; see
 the README's "Session introspection".
 

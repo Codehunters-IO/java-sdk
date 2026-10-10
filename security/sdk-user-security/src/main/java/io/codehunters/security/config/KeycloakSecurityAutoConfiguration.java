@@ -27,6 +27,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -129,6 +130,24 @@ public class KeycloakSecurityAutoConfiguration {
             .build();
     return new SessionIntrospector(
         restClient, properties.introspectionUri(), introspection, Clock.systemUTC());
+  }
+
+  /**
+   * Warns at startup when introspection credentials are configured while introspection is off:
+   * since introspection became opt-in, an upgrade that kept only the credentials silently stops
+   * rejecting revoked sessions.
+   *
+   * @param properties the security configuration
+   * @return the startup check
+   */
+  @Bean
+  @ConditionalOnBooleanProperty(
+      name = "codehunters.security.introspection.enabled",
+      havingValue = false,
+      matchIfMissing = true)
+  static SmartInitializingSingleton introspectionCredentialsCheck(
+      KeycloakSecurityProperties properties) {
+    return () -> IntrospectionCredentialsCheck.warnIfUnused(properties.introspection());
   }
 
   /**

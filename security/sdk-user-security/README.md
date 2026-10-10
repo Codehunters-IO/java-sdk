@@ -99,6 +99,8 @@ Missing or invalid required keys fail startup. Path patterns use Spring's `PathP
 Off by default. Without it a token stays valid until it expires even if its Keycloak session was
 revoked (logout, admin kill); keep access tokens short-lived (Keycloak's default is 5 minutes) and
 that window is the revocation latency.
+Setting `client-id` or `client-secret` without `enabled: true` logs a startup `WARN`, since it
+usually means a 4.x configuration that expected introspection to be on.
 
 Turning it on closes the window down to `cache-ttl`, at a price: every token missing from the cache
 costs a call to Keycloak, and with `fail-open: false` (the default) a Keycloak outage rejects every
