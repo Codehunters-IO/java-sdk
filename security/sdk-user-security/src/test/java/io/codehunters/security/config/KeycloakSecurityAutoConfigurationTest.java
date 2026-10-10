@@ -8,6 +8,7 @@ import io.micrometer.core.instrument.binder.MeterBinder;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.ManagementWebSecurityAutoConfiguration;
@@ -16,6 +17,8 @@ import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OA
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.web.OAuth2ResourceServerWebSecurityAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
@@ -24,7 +27,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+@ExtendWith(OutputCaptureExtension.class)
 class KeycloakSecurityAutoConfigurationTest {
+
+  private static final String UNUSED_CREDENTIALS_WARNING =
+      "introspection credentials configured but introspection is disabled";
 
   private final FakeKeycloak keycloak = new FakeKeycloak();
 
@@ -69,6 +76,44 @@ class KeycloakSecurityAutoConfigurationTest {
           assertThat(context).doesNotHaveBean("sessionIntrospectorMetrics");
           assertThat(context).hasSingleBean(JwtDecoder.class);
         });
+  }
+
+  @Test
+  void should_warn_when_introspection_credentials_are_set_but_introspection_is_left_off(
+      CapturedOutput output) {
+    runner
+        .withPropertyValues(
+            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
+            "codehunters.security.introspection.client-secret=secret")
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains(UNUSED_CREDENTIALS_WARNING).contains("set enabled=true");
+  }
+
+  @Test
+  void should_warn_when_introspection_credentials_are_set_but_introspection_is_disabled(
+      CapturedOutput output) {
+    runner
+        .withPropertyValues(
+            "codehunters.security.introspection.enabled=false",
+            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains(UNUSED_CREDENTIALS_WARNING);
+  }
+
+  @Test
+  void should_not_warn_when_introspection_is_off_without_credentials(CapturedOutput output) {
+    runner.run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).doesNotContain(UNUSED_CREDENTIALS_WARNING);
+  }
+
+  @Test
+  void should_not_warn_when_introspection_is_enabled(CapturedOutput output) {
+    introspecting.run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).doesNotContain(UNUSED_CREDENTIALS_WARNING);
   }
 
   @Test
