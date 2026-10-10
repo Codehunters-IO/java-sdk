@@ -21,7 +21,7 @@ class ParameterCacheTest {
   }
 
   @Test
-  void should_report_a_disabled_cache_as_disabled() {
+  void should_report_disabled_when_the_cache_was_created_disabled() {
     assertThat(ParameterCache.disabled().isEnabled()).isFalse();
   }
 
@@ -36,28 +36,28 @@ class ParameterCacheTest {
   }
 
   @Test
-  void should_reject_a_zero_ttl() {
+  void should_reject_creation_when_the_ttl_is_zero() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> ParameterCache.create(Duration.ZERO, 1))
         .withMessageContaining("TTL must be positive");
   }
 
   @Test
-  void should_reject_a_negative_ttl() {
+  void should_reject_creation_when_the_ttl_is_negative() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> ParameterCache.create(Duration.ofSeconds(-1), 1))
         .withMessageContaining("TTL must be positive");
   }
 
   @Test
-  void should_reject_a_missing_ttl() {
+  void should_reject_creation_when_the_ttl_is_missing() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> ParameterCache.create(null, 1))
         .withMessageContaining("TTL must be positive");
   }
 
   @Test
-  void should_reject_a_size_below_one() {
+  void should_reject_creation_when_the_size_is_below_one() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> ParameterCache.create(TTL, 0))
         .withMessageContaining("size must be positive");
@@ -108,7 +108,7 @@ class ParameterCacheTest {
   }
 
   @Test
-  void should_reject_a_null_module_to_invalidate() {
+  void should_reject_invalidation_when_the_module_is_null() {
     var cache = ParameterCache.create(TTL, 1);
 
     assertThatIllegalArgumentException().isThrownBy(() -> cache.invalidate(null));

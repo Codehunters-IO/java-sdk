@@ -76,7 +76,7 @@ class AuditExpressionStartupCheckTest {
   }
 
   @Test
-  void should_reject_expressions_the_sandbox_cannot_evaluate() {
+  void should_fail_startup_when_an_expression_uses_what_the_sandbox_refuses() {
     runner
         .withBean(SandboxedExpressions.class, SandboxedExpressions::new)
         .withPropertyValues(FAIL_FAST)
@@ -94,7 +94,8 @@ class AuditExpressionStartupCheckTest {
   }
 
   @Test
-  void should_accept_property_paths_indexes_and_safe_navigation(CapturedOutput output) {
+  void should_start_when_expressions_use_property_paths_indexes_and_safe_navigation(
+      CapturedOutput output) {
     runner
         .withBean(PropertyExpressions.class, PropertyExpressions::new)
         .withPropertyValues(FAIL_FAST)

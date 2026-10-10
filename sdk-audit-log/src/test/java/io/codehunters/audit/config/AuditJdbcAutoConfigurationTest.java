@@ -143,7 +143,7 @@ class AuditJdbcAutoConfigurationTest {
   }
 
   @Test
-  void should_build_audit_json_mapper_from_the_application_jackson_settings() {
+  void should_build_audit_json_mapper_from_jackson_settings_when_the_application_has_them() {
     runner
         .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration.class))
         .withPropertyValues("spring.jackson.serialization.indent-output=true")
@@ -156,7 +156,7 @@ class AuditJdbcAutoConfigurationTest {
   }
 
   @Test
-  void should_build_audit_json_mapper_with_defaults_without_application_jackson() {
+  void should_build_audit_json_mapper_with_defaults_when_the_application_has_no_jackson() {
     runner.run(
         ctx ->
             assertThat(

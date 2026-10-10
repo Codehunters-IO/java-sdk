@@ -126,7 +126,7 @@ class ParameterAutoConfigurationTest {
   }
 
   @Test
-  void should_register_a_disabled_cache_by_default() {
+  void should_register_a_disabled_cache_when_no_ttl_is_configured() {
     runner.run(ctx -> assertThat(ctx.getBean(ParameterCache.class).isEnabled()).isFalse());
   }
 
@@ -138,7 +138,7 @@ class ParameterAutoConfigurationTest {
   }
 
   @Test
-  void should_fail_startup_on_a_cache_size_below_one() {
+  void should_fail_startup_when_the_cache_size_is_below_one() {
     runner
         .withPropertyValues(
             "codehunters.parameter.cache-ttl=5m", "codehunters.parameter.cache-max-entries=0")
@@ -161,7 +161,7 @@ class ParameterAutoConfigurationTest {
   }
 
   @Test
-  void should_cache_without_micrometer_on_the_classpath() {
+  void should_cache_when_micrometer_is_not_on_the_classpath() {
     runner
         .withClassLoader(new FilteredClassLoader(MeterRegistry.class))
         .withPropertyValues("codehunters.parameter.cache-ttl=5m")

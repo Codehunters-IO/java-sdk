@@ -23,7 +23,7 @@ class FrameworkFreeCoreTest {
 
   // Caffeine is a plain library with no framework of its own, so it keeps the core stack-neutral.
   @Test
-  void should_keep_the_core_on_the_jdk_jasperreports_and_caffeine_so_any_stack_can_use_it() {
+  void should_depend_only_on_the_jdk_jasperreports_and_caffeine_when_outside_config_and_metrics() {
     classes()
         .that()
         .resideInAnyPackage(CORE)

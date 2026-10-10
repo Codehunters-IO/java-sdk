@@ -59,7 +59,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_serve_from_cache_until_just_before_the_ttl() {
+  void should_serve_from_cache_when_the_ttl_has_not_yet_elapsed() {
     when(delegate.lookup(MODULE, "T", "MAX")).thenReturn(Optional.empty());
 
     cache.lookup(MODULE, "T", "MAX");
@@ -81,7 +81,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_rethrow_an_error_from_the_delegate_without_caching_it() {
+  void should_rethrow_without_caching_when_the_delegate_throws_an_error() {
     when(delegate.lookup(MODULE, "T", "MAX"))
         .thenThrow(new StackOverflowError())
         .thenReturn(Optional.empty());
@@ -103,7 +103,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_keep_at_most_the_configured_number_of_answers() {
+  void should_evict_an_answer_when_more_than_the_configured_number_are_cached() {
     var small = ParameterCache.create(TTL, 2, now::get);
     var client = new CachingParameterClient(delegate, small);
     when(delegate.lookup(eq(MODULE), eq("T"), any())).thenReturn(Optional.empty());
@@ -116,7 +116,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_load_again_after_the_module_is_invalidated() {
+  void should_load_again_when_the_module_was_invalidated() {
     when(delegate.lookup(MODULE, "T", "MAX")).thenReturn(Optional.empty());
 
     cache.lookup(MODULE, "T", "MAX");
@@ -138,7 +138,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_drop_every_query_naming_the_invalidated_module() {
+  void should_drop_every_query_naming_the_module_when_it_is_invalidated() {
     when(delegate.findByModules(any())).thenReturn(List.of());
 
     cache.findByModules(List.of(AUTH, MODULE));
@@ -160,7 +160,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_load_everything_again_after_invalidating_all() {
+  void should_load_everything_again_when_the_cache_was_invalidated() {
     when(delegate.findByModule(any(), any())).thenReturn(List.of());
 
     cache.findByModule(MODULE, null);
@@ -321,7 +321,7 @@ class CachingParameterClientTest {
   }
 
   @Test
-  void should_reject_a_disabled_cache() {
+  void should_reject_construction_when_the_cache_is_disabled() {
     assertThatThrownBy(() -> new CachingParameterClient(delegate, ParameterCache.disabled()))
         .isInstanceOf(IllegalArgumentException.class);
   }

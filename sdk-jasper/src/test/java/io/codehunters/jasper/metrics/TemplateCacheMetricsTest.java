@@ -18,7 +18,7 @@ class TemplateCacheMetricsTest {
   private final SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
   @Test
-  void should_count_template_cache_hits_and_misses() {
+  void should_count_hits_and_misses_when_templates_are_rendered() {
     var renderer = new JasperReportRenderer();
     new TemplateCacheMetrics(renderer).bindTo(registry);
 
@@ -30,7 +30,7 @@ class TemplateCacheMetricsTest {
   }
 
   @Test
-  void should_name_the_cache_codehunters_jasper_template_cache() {
+  void should_name_the_cache_codehunters_jasper_template_cache_when_publishing_metrics() {
     assertThat(TemplateCacheMetrics.CACHE_NAME).isEqualTo("codehunters.jasper.template.cache");
   }
 
@@ -45,7 +45,7 @@ class TemplateCacheMetricsTest {
   }
 
   @Test
-  void should_reject_a_missing_renderer() {
+  void should_reject_construction_when_the_renderer_is_missing() {
     assertThatIllegalArgumentException().isThrownBy(() -> new TemplateCacheMetrics(null));
   }
 

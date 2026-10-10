@@ -28,7 +28,7 @@ class TemplateCacheTest {
   }
 
   @Test
-  void should_keep_at_most_the_configured_number_of_templates() {
+  void should_evict_a_template_when_more_than_the_configured_number_are_loaded() {
     var cache = new TemplateCache<>(2, CountingLoader.immediate());
 
     cache.get("a");
@@ -39,12 +39,12 @@ class TemplateCacheTest {
   }
 
   @Test
-  void should_report_a_cache_of_size_zero_as_disabled() {
+  void should_report_disabled_when_the_cache_size_is_zero() {
     assertThat(new TemplateCache<>(0, CountingLoader.immediate()).isEnabled()).isFalse();
   }
 
   @Test
-  void should_report_a_sized_cache_as_enabled() {
+  void should_report_enabled_when_the_cache_size_is_positive() {
     assertThat(new TemplateCache<>(1, CountingLoader.immediate()).isEnabled()).isTrue();
   }
 

@@ -20,7 +20,7 @@ class ParameterCacheMetricsTest {
   private final ParameterCache entries = ParameterCache.create(Duration.ofMinutes(5), 16);
 
   @Test
-  void should_count_hits_and_misses_under_the_cache_name() {
+  void should_count_hits_and_misses_under_the_cache_name_when_bound() {
     new ParameterCacheMetrics(entries).bindTo(registry);
     var client = new CachingParameterClient(delegate, entries);
     when(delegate.lookup(MODULE, "T", "MAX")).thenReturn(Optional.empty());
@@ -33,12 +33,12 @@ class ParameterCacheMetricsTest {
   }
 
   @Test
-  void should_name_the_cache_codehunters_parameter_cache() {
+  void should_name_the_cache_codehunters_parameter_cache_when_publishing_metrics() {
     assertThat(ParameterCacheMetrics.CACHE_NAME).isEqualTo("codehunters.parameter.cache");
   }
 
   @Test
-  void should_register_nothing_for_a_disabled_cache() {
+  void should_register_nothing_when_the_cache_is_disabled() {
     new ParameterCacheMetrics(ParameterCache.disabled()).bindTo(registry);
 
     assertThat(registry.getMeters()).isEmpty();
