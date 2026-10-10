@@ -93,7 +93,10 @@ byte[] pdf = renderer.toBytes(request);                     // capped at max-out
   ```
 - **The cache** keeps up to `cache-size` compiled templates in a Caffeine cache; when full, it evicts
   the templates least likely to be used again. Requests that arrive together for a template not yet
-  loaded share one compilation, run on the first request's thread; a failure is not cached.
+  loaded share one compilation, run on the first request's thread; a failure is not cached and
+  reaches every waiting request as the same exception (an `Error` too, unwrapped). Waiters block
+  until the compilation ends. A template loader must not read its own template through the cache:
+  that fails with `IllegalStateException("re-entrant load of template …")` instead of deadlocking.
 - **Templates are code.** Their expressions run as Java with the application's permissions. Load only
   templates shipped with the application; never one a user uploaded or named freely.
 

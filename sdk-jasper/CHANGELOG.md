@@ -9,6 +9,13 @@
   being cached are unchanged; a full cache now evicts by Caffeine's frequency-and-recency policy
   (W-TinyLFU) rather than strictly the least recently used template. `caffeine` is a new runtime
   dependency, at the version Spring Boot manages.
+- A template loader that reads its own template through the cache fails with
+  `IllegalStateException("re-entrant load of template …")` instead of deadlocking on its own
+  unfinished load. Reading another template is still allowed.
+- When the loader throws an `Error`, the callers waiting for that load now get the same raw `Error`
+  as the loading caller, instead of a `ReportException` wrapping it.
+- A loader that returns `null` fails the load with a `ReportException` naming the template; the
+  failure is not cached.
 
 - Parameters holding a `URL`, `URI`, `File`, `Path`, stream or reader below the first level of a
   collection, map or array, which 2.0.0 let through, are now rejected.
