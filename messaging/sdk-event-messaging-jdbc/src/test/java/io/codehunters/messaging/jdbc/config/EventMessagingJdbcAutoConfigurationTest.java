@@ -29,9 +29,11 @@ import org.springframework.boot.jackson.autoconfigure.JacksonAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.config.TaskManagementConfigUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 import tools.jackson.databind.json.JsonMapper;
 
 class EventMessagingJdbcAutoConfigurationTest {
@@ -129,6 +131,37 @@ class EventMessagingJdbcAutoConfigurationTest {
               assertThat(context).hasNotFailed();
               assertThat(context.getBean(DISPATCH_TRIGGER))
                   .isInstanceOf(CoalescingDispatchTrigger.class);
+            });
+  }
+
+  @Test
+  void should_stop_dispatch_trigger_when_context_stops() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              Object trigger = context.getBean(DISPATCH_TRIGGER);
+              context.getSourceApplicationContext(ConfigurableApplicationContext.class).stop();
+
+              assertThat(ReflectionTestUtils.getField(trigger, "stopped")).isEqualTo(true);
+            });
+  }
+
+  @Test
+  void should_wait_for_running_dispatch_up_to_its_bound_when_scheduler_shuts_down() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withPropertyValues("codehunters.outbox.publisher.type=kafka")
+        .run(
+            context -> {
+              Object scheduler = context.getBean(OUTBOX_TASK_SCHEDULER);
+
+              assertThat(
+                      ReflectionTestUtils.getField(scheduler, "waitForTasksToCompleteOnShutdown"))
+                  .isEqualTo(true);
+              assertThat(ReflectionTestUtils.getField(scheduler, "awaitTerminationMillis"))
+                  .isEqualTo(Duration.ofMinutes(5).dividedBy(2).plusSeconds(5).toMillis());
             });
   }
 

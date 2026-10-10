@@ -124,6 +124,30 @@ class OutboxSchedulingLifecycleTest {
     assertThat(lifecycle.isRunning()).isFalse();
   }
 
+  @Test
+  void should_run_stop_hook_when_stopped() {
+    AtomicInteger stops = new AtomicInteger();
+    OutboxSchedulingLifecycle lifecycle =
+        lifecycle(RecordingLockProvider.granting()).onStop(stops::incrementAndGet);
+    lifecycle.start();
+
+    lifecycle.stop();
+
+    assertThat(stops).hasValue(1);
+  }
+
+  @Test
+  void should_keep_original_without_hook_when_stop_hook_is_added() {
+    AtomicInteger stops = new AtomicInteger();
+    OutboxSchedulingLifecycle original = lifecycle(RecordingLockProvider.granting());
+    original.onStop(stops::incrementAndGet);
+    original.start();
+
+    original.stop();
+
+    assertThat(stops).hasValue(0);
+  }
+
   private OutboxSchedulingLifecycle lifecycle(LockProvider locks) {
     OutboxScheduledTask task =
         new OutboxScheduledTask(

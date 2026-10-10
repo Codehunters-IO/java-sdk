@@ -2,6 +2,9 @@ package io.codehunters.messaging.jdbc.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import io.codehunters.messaging.EventMessage;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -25,6 +28,11 @@ class OutboxJsonMapperTest {
   private static final String OUTBOX_JSON_MAPPER = "outboxJsonMapper";
   private static final Instant AT = Instant.parse("2026-10-09T10:15:30Z");
   private static final Sample SAMPLE = new Sample("order-7", AT);
+
+  private static final EventMessage<Sample> ENVELOPE =
+      new EventMessage<>(
+          new EventMessage.Header("trace-1", "1.0.0", "1", "orders-ms", AT, null),
+          new EventMessage.Body<>(null, "OrderPlaced", "order.placed", SAMPLE));
 
   record Sample(String orderId, Instant placedAt) {}
 
@@ -108,6 +116,37 @@ class OutboxJsonMapperTest {
   }
 
   @Test
+  void should_keep_envelope_field_names_when_application_uses_snake_case() {
+    withBootJackson
+        .withBean(JsonMapperBuilderCustomizer.class, OutboxJsonMapperTest::snakeCaseNonNull)
+        .run(
+            context ->
+                assertThat(envelopeJson(context))
+                    .contains("\"header\":{\"traceId\":\"trace-1\"")
+                    .contains("\"schemaVersion\":\"1\"")
+                    .contains("\"eventName\":\"OrderPlaced\"")
+                    .contains("\"eventType\":\"order.placed\""));
+  }
+
+  @Test
+  void should_keep_null_envelope_fields_when_application_excludes_nulls() {
+    withBootJackson
+        .withBean(JsonMapperBuilderCustomizer.class, OutboxJsonMapperTest::snakeCaseNonNull)
+        .run(
+            context ->
+                assertThat(envelopeJson(context))
+                    .contains("\"locale\":null")
+                    .contains("\"aggregate\":null"));
+  }
+
+  @Test
+  void should_apply_application_naming_to_payload_when_envelope_is_pinned() {
+    withBootJackson
+        .withBean(JsonMapperBuilderCustomizer.class, OutboxJsonMapperTest::snakeCaseNonNull)
+        .run(context -> assertThat(envelopeJson(context)).contains("\"order_id\":\"order-7\""));
+  }
+
+  @Test
   void should_order_after_boot_jackson_when_both_auto_configurations_load() {
     AutoConfiguration ordering =
         EventMessagingJdbcAutoConfiguration.class.getAnnotation(AutoConfiguration.class);
@@ -117,6 +156,14 @@ class OutboxJsonMapperTest {
 
   private static JsonMapperBuilderCustomizer snakeCase() {
     return builder -> builder.propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
+  }
+
+  private static JsonMapperBuilderCustomizer snakeCaseNonNull() {
+    return builder ->
+        builder
+            .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+            .changeDefaultPropertyInclusion(
+                inclusion -> JsonInclude.Value.construct(Include.NON_NULL, Include.NON_NULL));
   }
 
   private static JsonMapperBuilderCustomizer indented() {
@@ -129,6 +176,10 @@ class OutboxJsonMapperTest {
 
   private static String outboxJson(AssertableApplicationContext context) {
     return context.getBean(OUTBOX_JSON_MAPPER, JsonMapper.class).writeValueAsString(SAMPLE);
+  }
+
+  private static String envelopeJson(AssertableApplicationContext context) {
+    return context.getBean(OUTBOX_JSON_MAPPER, JsonMapper.class).writeValueAsString(ENVELOPE);
   }
 
   private static String applicationJson(AssertableApplicationContext context) {

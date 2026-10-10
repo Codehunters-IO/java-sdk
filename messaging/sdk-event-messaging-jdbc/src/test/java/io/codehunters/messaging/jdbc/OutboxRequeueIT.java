@@ -20,7 +20,10 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
-/** Operators put FAILED rows of the store's origin back to PENDING, by id or by message key. */
+/**
+ * Operators put FAILED rows of the store's origin back to PENDING, by id or by topic and message
+ * key.
+ */
 class OutboxRequeueIT {
 
   private static final String ORIGIN = "sentinel-ms-test";
@@ -30,6 +33,8 @@ class OutboxRequeueIT {
   private static final Instant NOW = Instant.parse("2026-10-09T10:00:00Z");
   private static final Instant FAILED_AT = NOW.minus(Duration.ofHours(1));
   private static final int EXHAUSTED_ATTEMPTS = 5;
+  // PostgreSQL accepts at most 65,535 bind parameters per statement.
+  private static final int MORE_IDS_THAN_ONE_STATEMENT_BINDS = 70_000;
 
   private final AtomicInteger dispatchRequests = new AtomicInteger();
   private final AtomicInteger requestsBeforeCommit = new AtomicInteger(-1);
@@ -143,25 +148,35 @@ class OutboxRequeueIT {
   }
 
   @Test
-  void should_requeue_failed_rows_of_key_in_every_topic_when_requeued_by_key() {
+  void should_requeue_failed_rows_of_key_on_topic_only_when_requeued_by_topic_and_key() {
     UUID main = saveFailed(adapter, "A", "A1");
     UUID audit = saveFailed(adapter, "audit", "A", "A1-audit");
 
-    int requeued = adapter.requeueFailed("A");
+    int requeued = adapter.requeueFailed(TOPIC, "A");
 
-    assertThat(requeued).isEqualTo(2);
+    assertThat(requeued).isEqualTo(1);
     assertThat(row(main).status()).isEqualTo(OutboxStatus.PENDING);
-    assertThat(row(audit).status()).isEqualTo(OutboxStatus.PENDING);
-    assertThat(row(audit).attempts()).isZero();
+    assertThat(row(main).attempts()).isZero();
+    assertThat(row(audit).status()).isEqualTo(OutboxStatus.FAILED);
   }
 
   @Test
-  void should_leave_other_keys_origins_and_statuses_untouched_when_requeued_by_key() {
+  void should_requeue_every_listed_row_when_ids_exceed_one_statement_bind_limit() {
+    List<UUID> ids = insertFailed(MORE_IDS_THAN_ONE_STATEMENT_BINDS);
+
+    int requeued = adapter.requeue(ids);
+
+    assertThat(requeued).isEqualTo(MORE_IDS_THAN_ONE_STATEMENT_BINDS);
+    assertThat(dispatchRequests).hasValue(1);
+  }
+
+  @Test
+  void should_leave_other_keys_origins_and_statuses_untouched_when_requeued_by_topic_and_key() {
     UUID otherKey = saveFailed(adapter, "B", "B1");
     UUID foreign = saveFailed(otherOriginAdapter, "A", "A1");
     UUID pending = save(adapter, "A", "A2");
 
-    int requeued = adapter.requeueFailed("A");
+    int requeued = adapter.requeueFailed(TOPIC, "A");
 
     assertThat(requeued).isZero();
     assertThat(row(otherKey).status()).isEqualTo(OutboxStatus.FAILED);
@@ -185,11 +200,11 @@ class OutboxRequeueIT {
   }
 
   @Test
-  void should_request_dispatch_after_commit_when_key_is_requeued_in_transaction() {
+  void should_request_dispatch_after_commit_when_topic_key_is_requeued_in_transaction() {
     saveFailed(adapter, "A", "A1");
     dispatchRequests.set(0);
 
-    transaction.executeWithoutResult(status -> adapter.requeueFailed("A"));
+    transaction.executeWithoutResult(status -> adapter.requeueFailed(TOPIC, "A"));
 
     assertThat(dispatchRequests).hasValue(1);
   }
@@ -212,7 +227,7 @@ class OutboxRequeueIT {
     transaction.executeWithoutResult(
         status -> {
           adapter.requeue(List.of(UUID.randomUUID()));
-          adapter.requeueFailed("unknown");
+          adapter.requeueFailed(TOPIC, "unknown");
         });
 
     assertThat(dispatchRequests).hasValue(0);
@@ -277,6 +292,24 @@ class OutboxRequeueIT {
         .param("at", OutboxRows.utc(FAILED_AT))
         .param("id", id)
         .update();
+  }
+
+  private List<UUID> insertFailed(int count) {
+    return jdbcClient
+        .sql(
+            """
+            INSERT INTO outbox_message (id, origin, topic, payload, status, attempts, occurred_at)
+            SELECT gen_random_uuid(), :origin, :topic, 'p', 'FAILED', :attempts, :at
+            FROM generate_series(1, :count)
+            RETURNING id
+            """)
+        .param("origin", ORIGIN)
+        .param("topic", TOPIC)
+        .param("attempts", EXHAUSTED_ATTEMPTS)
+        .param("at", OutboxRows.utc(FAILED_AT))
+        .param("count", count)
+        .query(UUID.class)
+        .list();
   }
 
   private List<OutboxMessage<String>> claim() {
