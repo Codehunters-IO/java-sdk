@@ -105,25 +105,27 @@ claim came back full, so more rows may be waiting.
 | Rule | Behaviour |
 |---|---|
 | Delivery | At-least-once. Consumers deduplicate on the `outbox-message-id` header |
-| Claim | Up to `batch-size` due `PENDING` rows, plus `IN_FLIGHT` rows whose claim is older than `claim.ttl`, are marked `IN_FLIGHT` for this instance. Concurrent claimers receive disjoint rows |
+| Claim | Up to `batch-size` due `PENDING` rows, plus `IN_FLIGHT` rows whose claim is older than `claim.ttl` or has no claim time, are marked `IN_FLIGHT` for this instance. Concurrent claimers receive disjoint rows |
 | Stale reclaim | Counts as an attempt when its send had started: the previous dispatcher may already have sent it |
 | Reclaim with `attempts ≥ max-attempts` | Marked `FAILED` with error `max-attempts-exceeded`, not sent again |
 | Time budget | Sending stops once half of `claim.ttl` has passed since the claim; the rest of the batch goes back to `PENDING`, so no other instance reclaims rows still being sent |
+| Interrupted publish | Shutdown, not a failure: the row goes back to `PENDING` with its attempts unchanged, the interrupt flag is kept, and the rest of the batch is released unsent |
+| Write-back failure | Logged by exception class; the row stays `IN_FLIGHT` until reclaimed after `claim.ttl`, the later rows of its key are released, and the other keys go on |
 | Publish failure | `attempts + 1`, retried after `backoff.base-delay x 2^(attempts - 1)`, capped at `backoff.max-delay`; `FAILED` once `attempts` reaches `max-attempts` |
-| Ordering | Per `(origin, topic, message_key)`, in insertion order (`seq`). One claim takes up to `claim.max-per-key` consecutive rows of a key. A row is not claimed while an earlier row with the same key is `FAILED`, `PENDING` but not yet due, or `IN_FLIGHT` under another live claim |
+| Ordering | Per `(origin, topic, message_key)`, in insertion order (`seq`). One claim takes up to `claim.max-per-key` consecutive rows of a key. A row is not claimed while an earlier row with the same key is `FAILED`, `PENDING` but not yet due, or `IN_FLIGHT` under another live claim. `seq` is assigned at insert, so ordering holds only while one transaction at a time writes a key (lock the aggregate row); `claim.commit-grace` narrows the window otherwise |
 | Key stops | When a row of a key is not published (failure, refused mark, time budget), the later rows of that key in the batch go back to `PENDING` unsent |
 | Head-of-line blocking | A `FAILED` row blocks every later row with the same key until it is requeued or deleted. Rows without a key are not ordered and never blocked |
 
 `FAILED` rows are never purged. Requeue them through `OutboxDispatchStore`:
 
 ```java
-outboxDispatchStore.requeueFailed(orderId); // every FAILED row with this key, in any topic
-outboxDispatchStore.requeue(ids);           // only the listed FAILED rows
+outboxDispatchStore.requeueFailed("orders", orderId); // FAILED rows of this topic and key
+outboxDispatchStore.requeue(ids);                     // only the listed FAILED rows
 ```
 
 Both put `FAILED` rows of this origin back to `PENDING`, due now, with `attempts = 0` and no error,
-claim or send mark, return the number of rows moved, and request a dispatch once the surrounding
-transaction commits. `requeue` binds the ids into one `IN (...)` list: chunk very large lists.
+claim or send mark, return the number of rows moved, and request one dispatch once the surrounding
+transaction commits. `requeue` sends the ids in statements of 1,000, so any number may be passed.
 
 At startup, `claim.ttl` must exceed `batch-size` times the transport timeout
 (`publisher.rabbit.confirm-timeout` or `publisher.kafka.send-timeout`); otherwise a batch still
@@ -153,6 +155,7 @@ Durations accept `30s`, `5m` or ISO-8601 (`PT5M`); a plain number means millisec
 | `max-attempts` | `5` | ≥ 1 |
 | `claim.ttl` | `5m` | > 0; must exceed the claim budget above (was `claim.ttl-ms`) |
 | `claim.max-per-key` | `10` | ≥ 1; rows of one key claimed together. `1` claims a key's next row only once every earlier one is resolved |
+| `claim.commit-grace` | `0s` | ≥ 0; a keyed row is claimed only once its `occurred_at` is this long past, so a late-committing earlier row of its key goes first. Delays every keyed row by at least this long |
 | `backoff.base-delay` | `30s` | > 0; doubled per attempt (was `backoff.base-delay-ms`) |
 | `backoff.max-delay` | `1h` | > 0 (was `backoff.max-delay-ms`) |
 | `publisher.type` | unset | `rabbit` or `kafka`, case-insensitive; only needed with both transports present |
@@ -175,6 +178,13 @@ outbox's time, for example in tests.
 registered when a Micrometer `Tracer` bean exists).
 
 ## Known limits
+
+- **Per-key ordering needs one writer per key at a time.** `seq` is assigned at insert, not commit:
+  of two concurrent transactions writing one key, the earlier insert can commit, and be published,
+  last. Lock the aggregate row in the writing transaction, or set `claim.commit-grace`.
+- **Renamed 8.x keys fail startup.** `claim.ttl-ms`, `backoff.base-delay-ms` and
+  `backoff.max-delay-ms` (in any relaxed form) stop the context with a message naming the
+  replacement.
 
 - **A reclaim counts only rows whose send had started.** The dispatcher marks each row right before
   publishing it; when it crashes or stalls past `claim.ttl`, the next claim adds one attempt to

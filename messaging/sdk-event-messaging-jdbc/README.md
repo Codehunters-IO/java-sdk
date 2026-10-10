@@ -46,7 +46,16 @@ commit; outside a transaction it asks right away. Requests coalesce: at most one
 while one runs, and a run whose claim came back full runs again, as does the poll's. These runs do
 not take the ShedLock dispatch lock: concurrent claimers on several instances receive disjoint rows
 (`SKIP LOCKED`), updates are fenced by the claim marker, and per-key order is kept by the claim. The
-poll stays as a safety net.
+poll stays as a safety net. A commit-triggered run claims only rows that no other live claim holds:
+when an earlier row of the key is `IN_FLIGHT` under another dispatcher's claim (or was just released
+with a backoff), the new row waits for a later run, which may be the next poll.
+
+**Shutdown.** When the context stops, `outboxSchedulingLifecycle` cancels the poll and the purge and
+stops the `CoalescingDispatchTrigger`: later requests are dropped and a running drain ends after its
+current claim. `outboxTaskScheduler` then waits for running tasks up to half of `claim.ttl` plus one
+transport timeout (`EventMessagingProperties#maxDispatchRun()`, 155 s with the defaults). A publish
+interrupted past that point is not charged as an attempt: the row and the rest of its batch go back
+to `PENDING` unchanged.
 
 To replace the scheduler, define a bean named `outboxTaskScheduler`: a `TaskScheduler` that, while
 `scheduling.dispatch-on-commit` is on, is also an `Executor` (`ThreadPoolTaskScheduler` is both).
@@ -74,7 +83,9 @@ LOCKED`, so concurrent dispatchers receive disjoint rows, marks them `IN_FLIGHT`
 A stale `IN_FLIGHT` reclaim counts as an attempt only when its send had started. Up to
 `claim.max-per-key` consecutive rows of one `(origin, topic, message_key)` are claimed together; a
 row is skipped while an earlier row with the same key is `FAILED`, `PENDING` but not yet due, or
-`IN_FLIGHT` under another live claim. At startup the SDK reads the database product name and fails
+`IN_FLIGHT` under another live claim. An `IN_FLIGHT` row without `claimed_at` counts as a stale
+claim. With `claim.commit-grace` above `0s`, a row with a key is also held back until its
+`occurred_at` is that long past (see [Per-key ordering](#per-key-ordering)). At startup the SDK reads the database product name and fails
 when it is not PostgreSQL; when the database cannot be reached at startup the check is skipped with
 a warning.
 
@@ -88,21 +99,42 @@ in the test profile, use a Testcontainers PostgreSQL, or declare a test bean imp
 `OutboxWriter` and `OutboxDispatchStore` (the JDBC adapter and its check back off). See
 [MIGRATION-9.0](../MIGRATION-9.0.md#tests-on-h2).
 
+## Per-key ordering
+
+Rows of a key are published in `seq` order, and PostgreSQL assigns `seq` when a row is inserted,
+not when its transaction commits. Of two transactions writing the same `(topic, key)` at once, the
+one that inserted first can commit last, after the other row was already claimed and published;
+dispatch on commit makes that window easy to hit. **Per-key ordering therefore requires one writer
+per key at a time**: lock the aggregate row (`SELECT ... FOR UPDATE`, or an optimistic version
+check) in the same transaction that saves the event.
+
+When that is not possible, set `codehunters.outbox.claim.commit-grace` (default `0s`, off): a keyed
+row is claimed only once its `occurred_at` is that long past on the dispatcher's clock, so an
+earlier row committed within the grace is claimed first. The grace must cover the slowest writer's
+time from `occurred_at` to commit, plus clock skew between instances; every keyed row is delayed by
+at least that long, usually to a later run or the next poll. Rows without a key are never held back.
+See [MIGRATION-9.0](../MIGRATION-9.0.md#per-key-ordering-and-concurrent-writers).
+
 ## Requeue
 
-`requeue(ids)` and `requeueFailed(key)` put `FAILED` rows of this origin back to `PENDING`, due now,
-with `attempts = 0` and no error, claim or send mark, and request a dispatch after the commit (see
-the [core README](../sdk-event-messaging-core/README.md#dispatch-semantics)). `requeue` binds the ids
-into one `IN (...)` list; chunk very large lists.
+`requeue(ids)` and `requeueFailed(topic, key)` put `FAILED` rows of this origin back to `PENDING`,
+due now, with `attempts = 0` and no error, claim or send mark, and request one dispatch after the
+commit (see the [core README](../sdk-event-messaging-core/README.md#dispatch-semantics)). `requeue`
+sends the ids in statements of 1,000, so any number of ids may be passed.
 
 ## JSON
 
 `outboxJsonMapper` is built from the application's `JsonMapper.Builder` when Boot's Jackson
 auto-configuration provides one, so `spring.jackson.*`, `JsonMapperBuilderCustomizer` beans and
-modules apply to the stored message, envelope included. Indented output is always off and dates
-are always ISO-8601 strings. Without Boot's Jackson it is a plain `JsonMapper` with those two
-settings. Define a bean named `outboxJsonMapper` to pin the format independently of the
-application.
+modules apply to the stored payload. Indented output is always off and dates are always ISO-8601
+strings. Without Boot's Jackson it is a plain `JsonMapper` with those two settings.
+
+The `EventMessage` envelope is pinned by mixins registered only on `outboxJsonMapper`: `header`,
+`body` and their fields keep their lower-camel-case names (`traceId`, `schemaVersion`,
+`eventName`, ...) and null fields are always written, whatever naming strategy or inclusion the
+application configures. With a `SNAKE_CASE` strategy the payload's `orderId` becomes `order_id`,
+while `header.traceId` stays. A bean of your own named `outboxJsonMapper` replaces the SDK's,
+pinning included.
 
 ## DDL
 
@@ -162,6 +194,8 @@ are never touched.
 | Lock provider fails | Logged with the exception class only; the run is skipped |
 | Instance dies with a claimed batch | Rows are reclaimed after `claim.ttl`; only rows whose send had started count one attempt |
 | A commit-time dispatch request is lost | The next poll picks the rows up |
+| Writing a row's outcome fails | Logged with the exception class only; the row stays `IN_FLIGHT` until reclaimed after `claim.ttl`, the later rows of its key are released, other keys go on |
+| Shutdown interrupts a publish | The row and the rest of the batch go back to `PENDING`; no attempt is charged |
 | `outbox_message` lacks `seq` | Every claim fails until the DDL is applied |
 
 ## Packages

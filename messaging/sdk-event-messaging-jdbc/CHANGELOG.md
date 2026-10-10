@@ -35,9 +35,17 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
   requests another dispatch when a poll's claim comes back full.
 - Per-key batched claim: up to `claim.max-per-key` consecutive rows of one key per claim; a row
   skipped because another claimer holds it still blocks its successors.
-- `requeue(ids)` and `requeueFailed(key)`: `FAILED` rows of the origin back to `PENDING`, due now,
-  with no attempts, error, claim or send mark; a dispatch is requested after the commit. `requeue`
-  binds the ids into one `IN (...)` list, so chunk very large lists.
+- Commit grace: with `ClaimRequest#commitGrace()` (`codehunters.outbox.claim.commit-grace`), a
+  keyed row is claimed only once its `occurred_at` is that long past. Rows without a key are never
+  held back; `0s` (the default) leaves the claim statement unchanged.
+- `requeue(ids)` and `requeueFailed(topic, key)`: `FAILED` rows of the origin back to `PENDING`, due
+  now, with no attempts, error, claim or send mark; one dispatch is requested after the commit.
+  `requeue` sends the ids in statements of 1,000, so any number may be passed.
+- `EnvelopeFormat` mixins on `outboxJsonMapper`: the `EventMessage` envelope keeps lower-camel-case
+  field names and writes its null fields whatever the application's naming strategy or inclusion.
+- Graceful shutdown: `outboxTaskScheduler` waits for running tasks up to
+  `EventMessagingProperties#maxDispatchRun()`, and `OutboxSchedulingLifecycle#onStop(Runnable)`
+  stops the `CoalescingDispatchTrigger` when the context stops.
 - `OutboxMetricsAutoConfiguration`, which now registers `OutboxFailedGauge`.
 
 ### Changed
@@ -60,6 +68,10 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 ### Fixed
 - The task and purge lock names no longer depend on a property default that was never resolved;
   unset names fall back to `outbox-<application>` / `outbox-purge-<application>`.
+- An `IN_FLIGHT` row without `claimed_at` (left by an operator or an older version) was never
+  claimed and blocked its key for good. It now counts as a stale claim and is reclaimed.
+- Shutdown cut off a running dispatch: the scheduler now waits for it, and the commit-time trigger
+  starts no further run once the context stops.
 
 ### Behaviour changes
 - Saving and claiming reference `traceparent`: apply the upgrade script **before** deploying 9.0,
@@ -78,8 +90,11 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 - Commit-triggered runs do not take the ShedLock dispatch lock; concurrent claimers receive
   disjoint rows and updates stay fenced.
 - `task.lock-at-least` defaults to `0` (was `10000` ms).
-- A global Jackson customisation (naming strategy, modules) now applies to the stored message,
-  envelope included.
+- A global Jackson customisation (naming strategy, modules) now applies to the stored payload. The
+  envelope keeps its 8.x field names and null fields whatever the customisation.
+- `requeueFailed` takes the topic: the same key on another topic is no longer requeued with it.
+- A commit-triggered run claims only rows no other live claim holds: a new row whose key has an
+  earlier row in another dispatcher's claim waits for a later run or the next poll.
 
 ## 8.0.0
 
