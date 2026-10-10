@@ -20,6 +20,12 @@ breaking. See
 - `sdk-commons` is an `api` dependency, so it reaches the application's runtime classpath. Its
   TOTP auto-configuration stays off unless `codehunters.totp.enabled=true`.
 
+- A startup `WARN` when the JPA metamodel holds entities extending `AuditableEntity` and no auditing
+  is active (neither `codehunters.jpa.auditing.enabled=true` nor the application's own
+  `@EnableJpaAuditing`, detected by the absence of an `AuditingHandler` / `jpaAuditingHandler`
+  bean). It names the entities. The auto-configuration now loads whenever JPA is present; only its
+  auditing part stays behind the property.
+
 ### Changed
 - `codehunters.jpa.auditing.enabled` defaults to `false`: JPA auditing is opt-in. Adding the jar
   no longer enables `@EnableJpaAuditing` for the whole application nor registers an `AuditorAware`

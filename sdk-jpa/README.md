@@ -93,6 +93,10 @@ codehunters:
       enabled: true   # default false: the SDK does not enable auditing
 ```
 
+When entities extend `AuditableEntity` and no auditing is active (the property is off and the
+application has no `@EnableJpaAuditing` of its own), startup logs a `WARN` naming them: their audit
+columns would otherwise stay empty without any error.
+
 ## Pages and sorting
 
 ```java

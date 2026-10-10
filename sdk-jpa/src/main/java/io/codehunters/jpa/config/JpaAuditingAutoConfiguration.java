@@ -5,7 +5,9 @@ import io.codehunters.jpa.auditing.SecurityContextAuditorAware;
 import java.time.Clock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
@@ -28,6 +30,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
  * application, not only the SDK's. It steps aside entirely when the application declares
  * {@code @EnableJpaAuditing} itself. An application {@link DateTimeProvider} or {@link
  * AuditorAware} bean replaces the SDK's. When it is on it logs it once at startup.
+ *
+ * <p>Whatever the property, it warns at startup when entities extend {@link
+ * io.codehunters.jpa.entity.AuditableEntity} and no auditing is active, from the SDK or from the
+ * application's own {@code @EnableJpaAuditing}.
  */
 @AutoConfiguration(
     afterName = "org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration")
@@ -37,14 +43,26 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
       "jakarta.persistence.EntityManagerFactory"
     })
 @ConditionalOnBean(type = "jakarta.persistence.EntityManagerFactory")
-@ConditionalOnBooleanProperty(name = "codehunters.jpa.auditing.enabled", matchIfMissing = false)
 @EnableConfigurationProperties(JpaAuditingProperties.class)
 public class JpaAuditingAutoConfiguration {
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public JpaAuditingAutoConfiguration() {}
 
+  /**
+   * Warns at startup when entities extend {@link io.codehunters.jpa.entity.AuditableEntity} but no
+   * auditing is active, whether or not the SDK's auditing is enabled.
+   *
+   * @param beans the application's bean factory
+   * @return the startup check
+   */
+  @Bean
+  static SmartInitializingSingleton codehuntersJpaAuditingActiveCheck(ListableBeanFactory beans) {
+    return new AuditingActiveCheck(beans);
+  }
+
   @Configuration(proxyBeanMethods = false)
+  @ConditionalOnBooleanProperty(name = "codehunters.jpa.auditing.enabled", matchIfMissing = false)
   @ConditionalOnMissingBean(name = "jpaAuditingHandler")
   @EnableJpaAuditing
   static class AuditingConfiguration {

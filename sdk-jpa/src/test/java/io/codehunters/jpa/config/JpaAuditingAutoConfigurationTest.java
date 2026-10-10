@@ -129,8 +129,7 @@ class JpaAuditingAutoConfigurationTest {
   }
 
   @Test
-  void should_warn_when_auditable_entities_exist_and_auditing_is_not_active(
-      CapturedOutput output) {
+  void should_warn_when_auditable_entities_exist_and_auditing_is_not_active(CapturedOutput output) {
     JpaFixtures.h2().run(context -> assertThat(context).hasNotFailed());
 
     assertThat(output)

@@ -16,8 +16,9 @@
 
   The SDK then logs `SDK JPA auditing is on` once at startup. Applications that declare
   `@EnableJpaAuditing` themselves are unaffected: the SDK still steps aside. Without the property
-  and without your own `@EnableJpaAuditing`, the audit columns stay empty (no error is raised), so
-  check them after upgrading.
+  and without your own `@EnableJpaAuditing`, the audit columns stay empty (no error is raised);
+  startup logs a `WARN` listing the entities that extend `AuditableEntity` ("entities extend
+  AuditableEntity but JPA auditing is not active"), so check the log after upgrading.
 - **SQL Server is no longer supported.** PostgreSQL is the only database the SDK is built and
   tested against. The reference DDL in the [README](README.md) is PostgreSQL's (`uuid`,
   `timestamp with time zone`).
