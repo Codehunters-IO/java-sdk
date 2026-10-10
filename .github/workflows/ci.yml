@@ -24,15 +24,26 @@ concurrency:
 permissions: {}
 
 jobs:
-  build:
+  # Build (compile + Spotless), then `check` in the test job: every module's tests, coverage
+  # rules and convention checks gate the change. No artifact, deploy or release runs here.
+  validate:
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    # java-main-pipeline declares these for its deploy and release jobs; a caller must grant at
+    # least as much, even though java-pr-pipeline turns those jobs off.
     permissions:
-      contents: read
-      packages: read
-    uses: Codehunters-IO/ci-templates/.github/workflows/java-library-build.yml@v2
+      contents: write
+      packages: write
+      issues: write
+      id-token: write
+    uses: Codehunters-IO/ci-templates/.github/workflows/java-pr-pipeline.yml@feature/java-test-tasks
     with:
-      gradle_commands: |
-        build
+      run_commit_lint: ${{ github.event_name == 'pull_request' }}
+      run_trufflehog: true
+      run_test: true
+      test_tasks: check
+      # Coverage is gated per module by the build itself (90% line, 80% branch).
+      run_coverage: false
+      extra_gradle_commands: |
         -p build-logic test
       docker_images: |
         testcontainers/ryuk:0.14.0
@@ -40,15 +51,4 @@ jobs:
         imresamu/postgis:17-3.5-alpine
         rabbitmq:4.1-alpine
         apache/kafka:4.1.1
-
-  secrets-scan:
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    permissions:
-      contents: read
-    uses: Codehunters-IO/ci-templates/.github/workflows/security-trufflehog.yml@v2
-
-  commit-lint:
-    if: ${{ github.event_name == 'pull_request' }}
-    permissions:
-      contents: read
-    uses: Codehunters-IO/ci-templates/.github/workflows/shared-commit-lint.yml@v2
+    secrets: inherit

@@ -15,11 +15,14 @@ ci-templates; this one carried about 240 lines of its own workflow logic and thr
 
 ## Decision
 
-ci-templates gains a stack for multi-module Gradle libraries, and this repository calls it:
+Validation reuses the shared Java pipeline: `java-pr-pipeline` builds without tests, then its
+test job runs `check`, so every module's tests, coverage rules and convention checks gate a pull
+request as they did before. Releases need what the Java service workflows do not offer (one
+draft and one upload per module tag), so ci-templates gains two library workflows for them:
 
 | Workflow here | Calls | Repository-specific input |
 |---|---|---|
-| `ci.yml` | `java-library-build.yml` | `./gradlew build`, `-p build-logic test`, test images |
+| `ci.yml` | `java-pr-pipeline.yml` | `test_tasks: check`, `-p build-logic test`, test images |
 | `release-drafts.yml` | `java-library-release-drafts.yml` | tag pattern, `io.codehunters` group, test images |
 | `publish.yml` | `java-library-publish.yml` | tag pattern, `verify-bom-release.sh`, test images |
 
@@ -38,7 +41,10 @@ The image pre-pull with Docker Hub mirrors moved into the shared workflows (`doc
   through the `@v2` alias, like every other consumer.
 - A change to the release flow needs a ci-templates release first; testing one before that means
   pointing the three `uses:` at a ci-templates branch, never merging that pin.
+- The pipeline compiles in its build job and again in its test job (the Gradle build cache
+  serves most of it), and asks for write permissions it uses only on deploy and release paths,
+  which `java-pr-pipeline` turns off.
 - The optional SonarCloud step of the old build is gone: the token it read is obsolete and the
   quality tool is still undecided. Adding one is an input of the shared build, not a step here.
-- Required status checks are named after the calling job and the shared one (`build / Build`).
+- Required status checks are named after the calling job and the shared one (`validate / PR Quality Gates` and its nested jobs).
   No ruleset requires them today: the current GitHub plan offers none for private repositories.
