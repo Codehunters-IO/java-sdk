@@ -5,6 +5,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import io.codehunters.parameter.ParameterModule;
 import java.time.Duration;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.function.Supplier;
@@ -18,7 +20,14 @@ import java.util.function.Supplier;
  *   <li>At most a fixed number of answers is kept; beyond it Caffeine evicts the answers least
  *       likely to be used again.
  *   <li>Concurrent misses for the same key share one load, which runs on the first caller's thread.
- *       A failure is passed to every caller waiting for it and is never cached.
+ *       A failure is passed to every caller waiting for it and is never cached. Waiters block,
+ *       without a timeout, until the shared load ends; the load bounds the wait.
+ *   <li>A load must not read its own answer from this cache: that call would wait for the load it
+ *       is part of. Such a re-entrant call fails with an {@link IllegalStateException} instead of
+ *       deadlocking; reading another answer is allowed. Two loads on different threads that wait
+ *       for each other's answer are not detected.
+ *   <li>A load that returns {@code null} is an answer, not a failure: the absence is cached like
+ *       any other answer and does not count as a failed load.
  *   <li>Hit, miss and eviction statistics are recorded; {@link ParameterCacheMetrics} publishes
  *       them to Micrometer.
  * </ul>
@@ -30,8 +39,11 @@ public final class ParameterCache {
   /** The maximum number of cached answers when none is given. */
   public static final int DEFAULT_MAX_ENTRIES = 1024;
 
+  private static final Object ABSENT = new Object();
+
   private final AsyncCache<CacheKey, Object> entries;
   private final boolean enabled;
+  private final ThreadLocal<Set<CacheKey>> loading = ThreadLocal.withInitial(HashSet::new);
 
   private ParameterCache(AsyncCache<CacheKey, Object> entries, boolean enabled) {
     this.entries = entries;
@@ -119,20 +131,45 @@ public final class ParameterCache {
 
   @SuppressWarnings("unchecked")
   <T> T get(CacheKey key, Supplier<T> load) {
+    if (loading.get().contains(key)) {
+      throw new IllegalStateException(
+          "re-entrant load of " + key + ": a parameter load must not read its own answer");
+    }
     var mine = new CompletableFuture<Object>();
     var shared = entries.get(key, (ignored, executor) -> mine);
-    return (T) (shared == mine ? load(load, mine) : await(shared));
+    return (T) unwrap(shared == mine ? load(key, load, mine) : await(shared));
   }
 
-  private static Object load(Supplier<?> load, CompletableFuture<Object> mine) {
+  private Object load(CacheKey key, Supplier<?> load, CompletableFuture<Object> mine) {
+    Set<CacheKey> keys = loading.get();
+    keys.add(key);
     try {
-      Object value = load.get();
+      Object value = wrap(load.get());
       mine.complete(value);
       return value;
     } catch (RuntimeException | Error ex) {
       mine.completeExceptionally(ex);
       throw ex;
+    } finally {
+      release(keys, key);
     }
+  }
+
+  private void release(Set<CacheKey> keys, CacheKey key) {
+    keys.remove(key);
+    if (keys.isEmpty()) {
+      loading.remove();
+    }
+  }
+
+  // Caffeine drops a future completed with null and counts it as a failed load, so absence is
+  // kept as an explicit marker instead.
+  private static Object wrap(Object value) {
+    return value == null ? ABSENT : value;
+  }
+
+  private static Object unwrap(Object value) {
+    return value == ABSENT ? null : value;
   }
 
   private static Object await(CompletableFuture<Object> shared) {
