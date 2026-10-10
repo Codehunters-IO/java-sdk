@@ -61,7 +61,7 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 | Key | Default | Notes |
 |---|---|---|
 | `publisher.type` | unset | Set to `kafka` only when `-rabbit` is also on the classpath |
-| `publisher.kafka.send-timeout` | `5s` | > 0. Startup fails unless `claim.ttl-ms > batch-size x send-timeout` (default 50 x 5 s < 300 s) |
+| `publisher.kafka.send-timeout` | `5s` | > 0. Startup fails unless `claim.ttl > batch-size x send-timeout` (default 50 x 5 s < 300 s) |
 | `publisher.legacy-traceparent-header` | `false` | `true` also sends the stored context as `x-traceparent` |
 
 Producer settings come from `spring.kafka.producer.*` / `spring.kafka.*`, except the forced ones
@@ -82,7 +82,10 @@ or a `MessagePublisherPort` to replace the publisher.
 ## Migrating from 8.x
 
 Each record now carries the `traceparent` stored with its row (add the `traceparent` column before
-deploying); the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
+deploying); the family moves to PostgreSQL only and drops the old `outbox.*` keys. The adapter reads
+`OutboxMessage` through record accessors, so a custom `MessagePublisherPort` must switch from
+`getTopic()` to `topic()` and so on. Records are now sent right after their transaction commits, and
+the outbox no longer turns on application-wide scheduling. See
 [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 7.x
@@ -99,5 +102,6 @@ Only imports change; see [MIGRATION-8.0.md](../MIGRATION-8.0.md), then
 | Application value serializer applied to the payload | `StringSerializer`, payload sent as stored |
 | `outbox.publisher.kafka.send-timeout` default `10s` | `codehunters.outbox.publisher.kafka.send-timeout` default `5s` |
 
-If you raised `batch-size` or `send-timeout`, check that `claim.ttl-ms` still exceeds their product.
+If you raised `batch-size` or `send-timeout`, check that `claim.ttl` (`claim.ttl-ms` before 9.0)
+still exceeds their product.
 Full guide: [MIGRATION-6.0.md](../MIGRATION-6.0.md).

@@ -10,6 +10,41 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 - `codehunters.outbox.claim.dialect` and `EventMessagingProperties.Claim#dialect()`: the outbox
   supports PostgreSQL only.
 - The dependency on `sdk-support`.
+- `OutboxRepositoryPort`: split into `OutboxWriter` and `OutboxDispatchStore`.
+- The positional factory methods `OutboxEventFactory.create(topic, traceId, aggregate, eventName,
+  eventType, payload)` and both `createRoutingKey(...)`, the `EventMessageFactory.create(traceId,
+  [locale,] ...)` overloads, and the constructors `OutboxEventFactory(origin, ...)`,
+  `EventMessageFactory(origin)` and `EventMessageFactory(origin, traceIdSource)`.
+- The Lombok getters, setters and builders of `EventMessage`, `Header`, `Body` and
+  `OutboxMessage`, and Lombok from the build.
+- The nine- and ten-argument `SendOutboxMessagesUseCase` constructors.
+- `codehunters.outbox.claim.ttl-ms`, `backoff.base-delay-ms` and `backoff.max-delay-ms`, with
+  `Claim#ttlMs()`, `Backoff#baseDelayMs()` and `Backoff#maxDelayMs()`. No aliases: the metadata
+  marks the old keys deprecated at error level, naming the new key.
+- The `@ConditionalOnMissingBean(Clock.class)` outbox clock: an application `Clock` no longer
+  replaces it.
+
+### Changed
+- `EventMessage`, `EventMessage.Header`, `EventMessage.Body` and `OutboxMessage` are immutable
+  records with accessors (`id()`, `header().traceId()`). `Header.timestamp` is an `Instant` (was a
+  `String`; still an ISO-8601 string on the wire) and the `OutboxMessage` times are `Instant`s (were
+  UTC `LocalDateTime`s). `OutboxMessage` keeps `builder()` / `toBuilder()` and gains state
+  transitions (`sendStarted`, `published`, `attemptFailed`, `retryAt`, `failed`, `released`).
+- `OutboxEventFactory.create(OutboxEvent)` and `EventMessageFactory.create(OutboxEvent)` replace the
+  positional methods; `new OutboxEventFactory(eventMessageFactory)`,
+  `new EventMessageFactory(origin, traceIdSource, clock)`.
+- `SendOutboxMessagesUseCase(OutboxDispatchStore, MessagePublisherPort, DispatchSettings)`, and
+  `SendOutboxMessagesPort.execute()` returns `boolean`: `true` when the claim came back full.
+- `OutboxDispatchStore.claim(ClaimRequest)` replaces `claimPendingMessages(origin, batchSize,
+  claimedBy, claimTtl)`; `markSendStarted` returns `Optional<OutboxMessage<String>>` (was
+  `boolean`); `purgePublished` takes an `Instant` cutoff.
+- Every timing property is a `Duration`: `claim.ttl` (`5m`), `backoff.base-delay` (`30s`),
+  `backoff.max-delay` (`1h`), `task.fixed-delay` (`5s`), `task.lock-at-most` (`5m`),
+  `task.lock-at-least`, `purge.fixed-delay` (`1h`), `purge.initial-delay` (`1m`),
+  `purge.lock-at-most` (`10m`), `purge.lock-at-least` (`30s`). A plain number still means
+  milliseconds. Lock windows are validated (lock-at-least ≤ lock-at-most).
+- The outbox clock is the bean `outboxClock` (`Clock.systemUTC()`, not a default candidate),
+  injected by qualifier everywhere; define a bean with that name to replace it.
 
 ### Added
 - `OutboxMessage.traceparent`: the W3C trace context of the work that created the row.
@@ -26,10 +61,29 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
   the transports and `TracedMessagePublisher` share (exactly 55 lowercase-hex characters, version
   not `ff`, trace and span ids not all zeros). `parse`, `isValid`, `validOrNull`, `sampled`,
   `value`.
+- `OutboxEvent`: an immutable event description built in stages,
+  `OutboxEvent.to(topic).key(key).type(name).payload(payload)`, with copy methods `routingKey`,
+  `eventType`, `locale`, `traceId` and `schemaVersion`.
+- `OutboxWriter` (`save`) for applications and `OutboxDispatchStore` (`claim`, `markSendStarted`,
+  `update`, `purgePublished`, `countFailed`, `requeue(ids)`, `requeueFailed(key)`) for the
+  dispatcher, the purge and operators; `ClaimRequest(origin, claimedBy, batchSize, claimTtl,
+  maxPerKey)`.
+- `dispatch.RetryPolicy(maxAttempts, baseDelay, maxDelay)` and
+  `dispatch.DispatchSettings(claim, retry, clock)`.
+- `OutboxDispatchTrigger` (with `none()`) and `dispatch.CoalescingDispatchTrigger`, which runs a
+  dispatch on an executor, coalesces concurrent requests and reruns while the claim comes back full.
+- `codehunters.outbox.claim.max-per-key` (default `10`, ≥ 1): rows of one `(topic, key)` claimed
+  together, in order. The use case releases a key's later rows unsent once one of its rows is not
+  published.
+- `codehunters.outbox.scheduling.dispatch-on-commit` (default `true`), read by `-jdbc`.
+- `EventMessage.Header.DEFAULT_VERSION` (`1.0.0`).
 
 ### Fixed
 - Outbox messages lost the request's trace: only the trace id reached the envelope, and the
   dispatch published under the scheduler's context. The full context is now stored and continued.
+- `codehunters.outbox.task.lock-name` and `purge.lock-name` defaulted to an unresolved placeholder
+  (`outbox-${spring.application.name:unknown}`). They now have no default, and the tasks use
+  `outbox-<application>` / `outbox-purge-<application>` when unset.
 
 ### Behaviour changes
 - With Micrometer Tracing present, logs written while a row is published carry the trace id of the
@@ -41,6 +95,12 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
   characters in the current context instead of continuing it.
 - Without a Micrometer tracer bridge, the envelope `traceId` and the stored `traceparent` are empty:
   `sdk-tracing` 3.0 no longer writes the trace into the MDC its fallback port reads.
+- The envelope locale no longer defaults to `"es"`: it is null unless `OutboxEvent.locale(...)` sets
+  it.
+- `task.lock-at-least` defaults to `0` (was `10000` ms), so a poll can start again right after the
+  previous one.
+- A claim may hold several rows of one key (`claim.max-per-key`); `1` keeps the 8.x behaviour.
+- An application `Clock` bean no longer drives outbox timestamps, backoff or purge cut-offs.
 
 ## 8.0.0
 

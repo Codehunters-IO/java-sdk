@@ -10,6 +10,11 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
   tests.
 - The dialect selection: `OutboxDialect`, `OutboxDialectResolver`, `PostgresOutboxDialect`,
   `GenericOutboxDialect`, the `OutboxDialect` bean and `codehunters.outbox.claim.dialect`.
+- `@EnableScheduling` and `@EnableSchedulerLock` (with its `60s` default lock-at-most): the module
+  no longer turns on application-wide scheduling, and `OutboxScheduler` / `OutboxPurgeScheduler`
+  carry no `@Scheduled` / `@SchedulerLock`.
+- The `outboxRepositoryPort` bean (typed `OutboxRepositoryPort`), replaced by `outboxJdbcAdapter`.
+- Lombok from the build.
 
 ### Added
 - A startup check: the outbox data source must report PostgreSQL as its product, or startup fails
@@ -17,6 +22,44 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 - Column `traceparent VARCHAR(55)` (nullable) in the reference DDL, and the idempotent upgrade
   script `postgresql/outbox_message_add_traceparent.sql` for tables created by 6.x to 8.x.
   `save` stores `OutboxMessage.traceparent` and the claim returns it.
+- Private scheduling: bean `outboxTaskScheduler` (`ThreadPoolTaskScheduler`, 3 threads `outbox-*`,
+  not a default candidate) and `outboxSchedulingLifecycle` (`OutboxSchedulingLifecycle`), which
+  schedules every `OutboxScheduledTask` bean (`outboxDispatchTask`, `outboxPurgeTask`) and wraps
+  each run in ShedLock through the `LockProvider` bean. New records `OutboxScheduledTask`,
+  `OutboxTaskSchedule` and `OutboxTaskLock`. A replacement `outboxTaskScheduler` must also be an
+  `Executor` while dispatch on commit is on.
+- Dispatch on commit: `OutboxAdapterSettings(origin, clock, trigger)`; `save` asks the trigger for
+  a dispatch after the transaction commits (once per transaction), or right away outside one. Bean
+  `outboxDispatchTrigger` (a `CoalescingDispatchTrigger` on `outboxTaskScheduler`), registered while
+  `scheduling.enabled` and `scheduling.dispatch-on-commit` are on. `OutboxScheduler(port, trigger)`
+  requests another dispatch when a poll's claim comes back full.
+- Per-key batched claim: up to `claim.max-per-key` consecutive rows of one key per claim; a row
+  skipped because another claimer holds it still blocks its successors.
+- `requeue(ids)` and `requeueFailed(key)`: `FAILED` rows of the origin back to `PENDING`, due now,
+  with no attempts, error, claim or send mark; a dispatch is requested after the commit. `requeue`
+  binds the ids into one `IN (...)` list, so chunk very large lists.
+- `OutboxMetricsAutoConfiguration`, which now registers `OutboxFailedGauge`.
+
+### Changed
+- `OutboxJdbcAdapter` implements `OutboxWriter` and `OutboxDispatchStore`. The auto-configured
+  bean is `outboxJdbcAdapter`, typed `OutboxJdbcAdapter`, and backs off when the application
+  defines either port.
+- `OutboxScheduler` and `OutboxPurgeScheduler` are `Runnable`s (`run()` replaces
+  `processOutboxMessages()` and `purgePublished()`); they, `OutboxFailedGauge` and the purge take an
+  `OutboxDispatchStore` and an `Instant` cutoff. `outboxPurgeScheduler` moved to
+  `OutboxDispatchSchedulerAutoConfiguration`.
+- Every SDK bean injects the `outboxClock` by qualifier.
+- `outboxJsonMapper` is built from the application's `JsonMapper.Builder` when Boot's Jackson
+  auto-configuration provides one, with indented output and date timestamps forced off; a plain
+  `JsonMapper` otherwise.
+- `OutboxJdbcAdapter` issues the PostgreSQL claim and purge itself. `OutboxAdapterSettings` is
+  `(origin, clock, trigger)` and `defaults(origin)` no longer reads the database metadata and leaves
+  dispatch to the poll.
+- The adapter tests run on PostgreSQL Testcontainers instead of H2.
+
+### Fixed
+- The task and purge lock names no longer depend on a property default that was never resolved;
+  unset names fall back to `outbox-<application>` / `outbox-purge-<application>`.
 
 ### Behaviour changes
 - Saving and claiming reference `traceparent`: apply the upgrade script **before** deploying 9.0,
@@ -24,11 +67,19 @@ Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 - `save` stores `NULL` for a `traceparent` that is not a valid `W3cTraceParent` (for example a
   hand-built row with a value longer than the 55-character column), instead of failing the
   business transaction.
-
-### Changed
-- `OutboxJdbcAdapter` issues the PostgreSQL claim and purge itself. `OutboxAdapterSettings` is
-  `(origin, clock)` and `defaults(origin)` no longer reads the database metadata.
-- The adapter tests run on PostgreSQL Testcontainers instead of H2.
+- Application `@Scheduled` / `@SchedulerLock` methods that ran only because this module enabled
+  scheduling stop running until the application adds `@EnableScheduling` /
+  `@EnableSchedulerLock` itself.
+- Messages are dispatched right after their transaction commits instead of on the next poll.
+  Measured on PostgreSQL 17 with a 4-connection pool and an in-memory publisher: about 2.5 ms from
+  commit to publish, and a 2000-row backlog at about 1100 msg/s (`max-per-key=1`) or 1490 msg/s
+  (`max-per-key=10`), against at most about 10 msg/s from 8.x polling. With a real broker the rate
+  is about one message per acknowledgement latency per instance.
+- Commit-triggered runs do not take the ShedLock dispatch lock; concurrent claimers receive
+  disjoint rows and updates stay fenced.
+- `task.lock-at-least` defaults to `0` (was `10000` ms).
+- A global Jackson customisation (naming strategy, modules) now applies to the stored message,
+  envelope included.
 
 ## 8.0.0
 
