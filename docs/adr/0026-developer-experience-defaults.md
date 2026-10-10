@@ -47,8 +47,24 @@ client interceptor.
   on PostgreSQL 17 with an in-memory publisher, a 2000-row backlog drains at about 1100 msg/s
   (`max-per-key=1`) and 1490 msg/s (`max-per-key=10`). With a real broker the rate is bounded by
   the acknowledgement latency, because sends stay sequential per instance.
-- Because the outbox JSON mapper now follows the application's Jackson setup, an application-wide
-  naming strategy renames envelope fields on the wire unless the application defines its own
-  `outboxJsonMapper`.
+- The outbox JSON mapper follows the application's Jackson setup for the payload only: a mixin
+  registered on `outboxJsonMapper` pins the envelope's field names and inclusion, so a global
+  naming strategy or `non_null` inclusion does not change the envelope on the wire.
+- Per-key ordering needs one writer per key at a time (for example by locking the aggregate row);
+  the optional `codehunters.outbox.claim.commit-grace` holds back keyed rows younger than the grace
+  so a slower earlier transaction can commit first.
+- The outbox drains stop cleanly on shutdown: the commit trigger stops, `outboxTaskScheduler`
+  waits for the running batch, and an interrupted publish releases its row without charging an
+  attempt. `requeueFailed` takes the topic and the key; `requeue(ids)` is chunked. The 8.x
+  `*-ms` keys fail startup and name their `Duration` replacement.
+- `ForwardedClientIpFilter` runs right after Spring's ordering slot and refuses to start next to
+  `ForwardedHeaderFilter` (`server.forward-headers-strategy=framework`); it hides only the `for=`
+  part of `Forwarded`, `X-Forwarded-For` and `X-Real-IP`, including on error dispatches.
+- Opt-in defaults are not silent: startup warns when introspection credentials are set but
+  introspection is off, and when `AuditableEntity` subclasses exist without active JPA auditing.
+- sdk-file-share always builds its own authorized-client manager unless the application declares
+  `fileShareAuthorizedClientManager`, and fails a call that gets no token instead of sending it.
+- The Caffeine-backed caches detect a loader that reads its own key and fail instead of
+  deadlocking; audit startup checks also reject `#variables` that are not method parameters.
 - Audit expressions that call methods (`#order.getId()`) must be rewritten as property reads
   (`#order.id`).

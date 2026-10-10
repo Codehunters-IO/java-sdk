@@ -46,6 +46,13 @@ Developer experience and throughput (architecture review, block 4,
 - `sdk-audit-log` 5.0.0: read-only SpEL sandbox; JSON mapper from Boot's builder.
 - `sdk-file-share` 4.0.0: Spring Security's OAuth2 interceptor, signed `upload` helper, in-memory
   test fake.
+- Review fixes: outbox envelope names pinned against the application's Jackson setup, optional
+  `claim.commit-grace`, graceful shutdown, `requeueFailed(topic, key)` and chunked requeue,
+  startup failure on the 8.x `*-ms` keys; `ForwardedClientIpFilter` guarded against Spring's
+  `ForwardedHeaderFilter`; startup warnings for unused introspection credentials and for auditable
+  entities without JPA auditing; a dedicated file-share client manager
+  (`fileShareAuthorizedClientManager`); re-entrant cache loads fail instead of deadlocking; audit
+  rejects unknown `#variables` at startup.
 - `sdk-parameter` 4.0.0 and `sdk-jasper` 2.1.0: Caffeine caches with metrics; parameter cache
   invalidation.
 

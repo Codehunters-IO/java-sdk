@@ -152,8 +152,8 @@ service has to look at when moving to `sdk-bom` 5.0.0:
 15. **Audit expressions** run in a read-only SpEL sandbox: write `#order.id`, not `#order.getId()`
     ([MIGRATION-5.0](sdk-audit-log/MIGRATION-5.0.md)).
 16. **Outbox writes** use `OutboxEvent.to(topic).key(k).type(t).payload(p)` and `OutboxWriter`;
-    dispatch starts on commit and timing properties are `Duration`s
-    ([MIGRATION-9.0](messaging/MIGRATION-9.0.md)).
+    dispatch starts on commit and timing properties are `Duration`s. Per-key ordering needs one
+    writer per key at a time ([MIGRATION-9.0](messaging/MIGRATION-9.0.md)).
 
 ## Build
 

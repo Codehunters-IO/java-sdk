@@ -1666,3 +1666,20 @@ integradas en un solo PR. Las versiones se pliegan en las majors sin publicar.
   opcional de IP, introspección opt-in.
 - `sdk-jpa` 3.0.0, `sdk-file-share` 4.0.0 y `sdk-audit-log` 5.0.0: auditoría JPA opt-in,
   interceptor OAuth2 de Spring con `upload` y fake en memoria, sandbox de SpEL.
+
+### Fase 29 — arreglos de la revisión
+
+Revisión del PR #34 sin hallazgos HIGH; siete MEDIUM y varios LOW aplicados en cuatro ramas:
+
+- messaging: nombres del envelope fijados frente a los customizers de Jackson, `claim.commit-grace`
+  opcional y la regla de un escritor por clave, apagado ordenado (trigger detenido, scheduler que
+  espera, publicación interrumpida sin cobrar intento), errores de escritura por mensaje, filas
+  IN_FLIGHT sin `claimed_at` reclamables, `requeueFailed(topic, key)` y requeue en tandas, fallo
+  al arrancar con las claves `*-ms` de la 8.x.
+- web: `ForwardedClientIpFilter` en `HIGHEST_PRECEDENCE + 1`, falla al arrancar junto a
+  `ForwardedHeaderFilter`, oculta solo `for=`, `X-Forwarded-For` y `X-Real-IP`, aplica a `/error`;
+  los fallos del parser de user-agent no se cachean.
+- user-security, jpa, file-share: WARN por credenciales de introspección sin usar y por entidades
+  auditables sin auditoría; manager propio de file-share salvo `fileShareAuthorizedClientManager`.
+- parameter, jasper, audit: cargas re-entrantes fallan en vez de bloquear, `Error` uniforme en el
+  cache de jasper, validación de `#variables` en audit.

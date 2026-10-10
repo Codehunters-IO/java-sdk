@@ -58,9 +58,10 @@
 - The `actor_id` of servlet calls that recorded no actor is now the authenticated user's name;
   reports or queries that read a `null` actor as "unknown user" see it filled.
 
-### Known risk
-- Expressions still run in a full `StandardEvaluationContext`. Moving to `SimpleEvaluationContext`
-  would break expressions that call methods, so it is an open item for a major version.
+### Known limits
+- Expressions run in a read-only `SimpleEvaluationContext` sandbox (see Breaking): property reads,
+  indexes and operators only. The 4.1.0 note that they ran in a full `StandardEvaluationContext`
+  no longer applies.
 
 ## 4.0.0
 
