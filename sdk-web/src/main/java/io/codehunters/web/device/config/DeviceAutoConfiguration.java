@@ -12,6 +12,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.binder.MeterBinder;
 import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
@@ -22,6 +23,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Registers, in servlet applications, the {@link ClientIpResolver}, a {@link UserAgentParser}
@@ -87,15 +89,22 @@ public class DeviceAutoConfiguration {
   }
 
   /**
-   * Rewrites the remote address to the resolved client, when enabled.
+   * Rewrites the remote address to the resolved client, when enabled. Fails startup when Spring's
+   * {@code ForwardedHeaderFilter} is registered too ({@code
+   * server.forward-headers-strategy=framework} or a bean of the application's): it would trust
+   * client-written addresses.
    *
    * @param ipResolver the client address resolver
-   * @return the filter, registered by Spring Boot first in the chain
+   * @param environment the application environment
+   * @param beans the bean factory, searched for a {@code ForwardedHeaderFilter}
+   * @return the filter, registered by Spring Boot right after the highest precedence
    */
   @Bean
   @ConditionalOnMissingBean
   @ConditionalOnBooleanProperty(name = "codehunters.web.device.forwarded-request-filter.enabled")
-  public ForwardedClientIpFilter forwardedClientIpFilter(ClientIpResolver ipResolver) {
+  public ForwardedClientIpFilter forwardedClientIpFilter(
+      ClientIpResolver ipResolver, Environment environment, ListableBeanFactory beans) {
+    ForwardedHeaderFilterConflict.check(environment, beans);
     return new ForwardedClientIpFilter(ipResolver);
   }
 
