@@ -106,7 +106,7 @@ class OutboxFailedGaugeTest {
     }
 
     @Override
-    public int requeueFailed(String key) {
+    public int requeueFailed(String topic, String key) {
       throw new UnsupportedOperationException();
     }
   }

@@ -76,13 +76,72 @@ class CoalescingDispatchTriggerTest {
   }
 
   @Test
-  void should_rerun_while_claims_come_back_full() {
+  void should_rerun_when_claims_come_back_full() {
     dispatch.returns(true, true, false);
     trigger.requestDispatch();
 
     executor.runAll();
 
     assertThat(dispatch.runs()).isEqualTo(3);
+  }
+
+  @Test
+  void should_stop_draining_full_claims_when_stopped_during_run() {
+    dispatch.returns(true, true, false);
+    dispatch.duringFirstRun(trigger::stop);
+    trigger.requestDispatch();
+
+    executor.runAll();
+
+    assertThat(dispatch.runs()).isEqualTo(1);
+  }
+
+  @Test
+  void should_skip_owed_rerun_when_stopped_during_run() {
+    dispatch.duringFirstRun(
+        () -> {
+          trigger.requestDispatch();
+          trigger.stop();
+        });
+    trigger.requestDispatch();
+
+    executor.runAll();
+
+    assertThat(dispatch.runs()).isEqualTo(1);
+  }
+
+  @Test
+  void should_not_submit_drain_when_requested_after_stop() {
+    trigger.stop();
+
+    trigger.requestDispatch();
+
+    assertThat(executor.submitted()).isZero();
+  }
+
+  @Test
+  void should_stop_draining_and_keep_interrupt_when_drain_thread_is_interrupted() {
+    dispatch.returns(true, true, false);
+    dispatch.duringFirstRun(() -> Thread.currentThread().interrupt());
+    trigger.requestDispatch();
+
+    executor.runAll();
+
+    assertThat(Thread.interrupted()).isTrue();
+    assertThat(dispatch.runs()).isEqualTo(1);
+  }
+
+  @Test
+  void should_drain_again_when_requested_after_interrupted_drain() {
+    dispatch.duringFirstRun(() -> Thread.currentThread().interrupt());
+    trigger.requestDispatch();
+    executor.runAll();
+    Thread.interrupted();
+
+    trigger.requestDispatch();
+    executor.runAll();
+
+    assertThat(dispatch.runs()).isEqualTo(2);
   }
 
   @Test

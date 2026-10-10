@@ -125,6 +125,35 @@ class SendOutboxMessagesUseCaseKeyOrderTest {
   }
 
   @Test
+  void should_release_later_rows_of_key_and_go_on_with_other_keys_when_update_fails() {
+    OutboxMessage<String> a1 = claimed(ORDERS, "A", 0);
+    OutboxMessage<String> a2 = claimed(ORDERS, "A", 0);
+    OutboxMessage<String> b1 = claimed(ORDERS, "B", 0);
+    store.willClaim(List.of(a1, a2, b1));
+    store.failUpdate(a1, new IllegalStateException("connection reset"));
+
+    useCase.execute();
+
+    assertThat(publisher.publishedIds()).containsExactly(a1.id(), b1.id());
+    assertThat(store.updatedIds()).containsExactly(a2.id(), b1.id());
+    assertReleased(store.updated().getFirst());
+  }
+
+  @Test
+  void should_go_on_with_other_keys_when_release_update_fails() {
+    OutboxMessage<String> a1 = claimed(ORDERS, "A", 0);
+    OutboxMessage<String> a2 = claimed(ORDERS, "A", 0);
+    OutboxMessage<String> b1 = claimed(ORDERS, "B", 0);
+    store.willClaim(List.of(a1, a2, b1));
+    publisher.failFor(a1);
+    store.failUpdate(a2, new IllegalStateException("connection reset"));
+
+    useCase.execute();
+
+    assertThat(publisher.publishedIds()).containsExactly(b1.id());
+  }
+
+  @Test
   void should_publish_every_row_of_key_in_order_when_all_succeed() {
     OutboxMessage<String> a1 = claimed(ORDERS, "A", 0);
     OutboxMessage<String> a2 = claimed(ORDERS, "A", 0);

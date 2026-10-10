@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 class ClaimRequestTest {
 
   private static final Duration TTL = Duration.ofMinutes(5);
+  private static final Duration GRACE = Duration.ofSeconds(2);
 
   @Test
   void should_keep_components_when_valid() {
@@ -52,5 +53,27 @@ class ClaimRequestTest {
     assertThatThrownBy(() -> new ClaimRequest(null, "orders@1", 1, TTL, 1))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("origin");
+  }
+
+  @Test
+  void should_default_commit_grace_to_zero_when_not_given() {
+    ClaimRequest request = new ClaimRequest("orders", "orders@1", 10, TTL, 3);
+
+    assertThat(request.commitGrace()).isZero();
+  }
+
+  @Test
+  void should_keep_commit_grace_when_given() {
+    ClaimRequest request = new ClaimRequest("orders", "orders@1", 10, TTL, 3, GRACE);
+
+    assertThat(request.commitGrace()).isEqualTo(GRACE);
+  }
+
+  @Test
+  void should_reject_request_when_commit_grace_is_negative() {
+    assertThatThrownBy(
+            () -> new ClaimRequest("orders", "orders@1", 1, TTL, 1, Duration.ofSeconds(-1)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("commitGrace");
   }
 }

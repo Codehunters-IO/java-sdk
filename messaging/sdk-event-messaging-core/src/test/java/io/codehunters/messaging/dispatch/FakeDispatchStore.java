@@ -28,6 +28,7 @@ final class FakeDispatchStore implements OutboxDispatchStore {
   private final List<OutboxMessage<String>> started = new ArrayList<>();
   private final Map<UUID, Function<OutboxMessage<String>, Optional<OutboxMessage<String>>>>
       markOutcomes = new HashMap<>();
+  private final Map<UUID, RuntimeException> updateFailures = new HashMap<>();
   private List<OutboxMessage<String>> toClaim = List.of();
   private Duration claimDuration = Duration.ZERO;
 
@@ -54,6 +55,10 @@ final class FakeDispatchStore implements OutboxDispatchStore {
         ignored -> {
           throw failure;
         });
+  }
+
+  void failUpdate(OutboxMessage<String> message, RuntimeException failure) {
+    updateFailures.put(message.id(), failure);
   }
 
   List<ClaimRequest> claimRequests() {
@@ -89,6 +94,10 @@ final class FakeDispatchStore implements OutboxDispatchStore {
   @Override
   public void update(OutboxMessage<String> outboxMessage) {
     calls.add("update " + outboxMessage.id());
+    RuntimeException failure = updateFailures.get(outboxMessage.id());
+    if (failure != null) {
+      throw failure;
+    }
     updated.add(outboxMessage);
   }
 
@@ -108,7 +117,7 @@ final class FakeDispatchStore implements OutboxDispatchStore {
   }
 
   @Override
-  public int requeueFailed(String key) {
+  public int requeueFailed(String topic, String key) {
     throw new UnsupportedOperationException();
   }
 

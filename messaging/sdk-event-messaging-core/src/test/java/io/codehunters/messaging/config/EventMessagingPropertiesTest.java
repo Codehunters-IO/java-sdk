@@ -21,6 +21,7 @@ class EventMessagingPropertiesTest {
   private static final Duration CLAIM_TTL = Duration.ofMinutes(5);
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(5);
+  private static final Duration LONG_CONFIRM_TIMEOUT = Duration.ofSeconds(9);
   private static final Duration TTL_BELOW_BUDGET = Duration.ofSeconds(250);
   private static final Duration SHORT_TTL = Duration.ofSeconds(1);
   private static final Task TASK = task(Duration.ofMinutes(5), Duration.ZERO);
@@ -53,7 +54,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_max_per_key_when_below_one() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new Claim(CLAIM_TTL, 0))
+        .isThrownBy(() -> new Claim(CLAIM_TTL, 0, Duration.ZERO))
         .withMessageContaining("codehunters.outbox.claim.max-per-key");
   }
 
@@ -363,6 +364,39 @@ class EventMessagingPropertiesTest {
         .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
   }
 
+  @Test
+  void should_reject_commit_grace_when_negative() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new Claim(CLAIM_TTL, 10, Duration.ofSeconds(-1)))
+        .withMessageContaining("codehunters.outbox.claim.commit-grace");
+  }
+
+  @Test
+  void should_bound_dispatch_run_by_half_ttl_and_kafka_timeout_when_publisher_is_kafka() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), kafka());
+
+    assertThat(properties.maxDispatchRun()).isEqualTo(CLAIM_TTL.dividedBy(2).plus(SEND_TIMEOUT));
+  }
+
+  @Test
+  void should_bound_dispatch_run_by_longest_transport_timeout_when_publisher_type_unset() {
+    EventMessagingProperties properties =
+        new EventMessagingProperties(
+            true,
+            BATCH_SIZE,
+            MAX_ATTEMPTS,
+            TASK,
+            claim(CLAIM_TTL),
+            BACKOFF,
+            new Publisher(null, new Kafka(SEND_TIMEOUT), new Rabbit(LONG_CONFIRM_TIMEOUT), false),
+            PURGE,
+            SCHEDULING);
+
+    assertThat(properties.maxDispatchRun())
+        .isEqualTo(CLAIM_TTL.dividedBy(2).plus(LONG_CONFIRM_TIMEOUT));
+  }
+
   private static EventMessagingProperties scheduled(
       Task task, Scheduling scheduling, Publisher publisher) {
     return new EventMessagingProperties(
@@ -392,7 +426,7 @@ class EventMessagingPropertiesTest {
   }
 
   private static Claim claim(Duration ttl) {
-    return new Claim(ttl, 10);
+    return new Claim(ttl, 10, Duration.ZERO);
   }
 
   private static Purge purge(Duration retention, int batchSize) {

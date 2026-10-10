@@ -30,6 +30,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
@@ -206,22 +208,6 @@ class EventMessagingCoreAutoConfigurationTest {
   }
 
   @Test
-  void should_ignore_removed_millisecond_keys_when_only_they_are_set() {
-    contextRunner
-        .withPropertyValues(
-            "codehunters.outbox.claim.ttl-ms=1000",
-            "codehunters.outbox.backoff.base-delay-ms=1",
-            "codehunters.outbox.backoff.max-delay-ms=2")
-        .run(
-            context -> {
-              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
-              assertThat(props.claim().ttl()).isEqualTo(Duration.ofMinutes(5));
-              assertThat(props.backoff().baseDelay()).isEqualTo(Duration.ofSeconds(30));
-              assertThat(props.backoff().maxDelay()).isEqualTo(Duration.ofHours(1));
-            });
-  }
-
-  @Test
   void should_fail_startup_naming_lock_key_when_lock_at_most_shorter_than_dispatch_run() {
     contextRunner
         .withPropertyValues(
@@ -299,6 +285,59 @@ class EventMessagingCoreAutoConfigurationTest {
               context.getBean(SendOutboxMessagesPort.class).execute();
               verify(store).claim(argThat(request -> request.maxPerKey() == 7));
             });
+  }
+
+  @Test
+  void should_claim_with_configured_commit_grace_when_dispatching() {
+    OutboxDispatchStore store = mock(OutboxDispatchStore.class);
+
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.commit-grace=2s")
+        .withBean(OutboxDispatchStore.class, () -> store)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              context.getBean(SendOutboxMessagesPort.class).execute();
+              verify(store)
+                  .claim(argThat(request -> request.commitGrace().equals(Duration.ofSeconds(2))));
+            });
+  }
+
+  @Test
+  void should_bind_zero_commit_grace_when_nothing_configured() {
+    contextRunner.run(
+        context ->
+            assertThat(context.getBean(EventMessagingProperties.class).claim().commitGrace())
+                .isZero());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "codehunters.outbox.claim.ttl-ms, codehunters.outbox.claim.ttl",
+    "codehunters.outbox.backoff.base-delay-ms, codehunters.outbox.backoff.base-delay",
+    "codehunters.outbox.backoff.max-delay-ms, codehunters.outbox.backoff.max-delay"
+  })
+  void should_fail_startup_naming_replacement_when_renamed_8x_key_is_set(
+      String oldKey, String newKey) {
+    contextRunner
+        .withPropertyValues(oldKey + "=1000")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining(oldKey)
+                    .hasMessageContaining(newKey));
+  }
+
+  @Test
+  void should_fail_startup_when_renamed_8x_key_is_set_in_relaxed_form() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.ttlMs=1000")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.claim.ttl-ms"));
   }
 
   @Test

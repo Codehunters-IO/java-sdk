@@ -1,11 +1,14 @@
 package io.codehunters.messaging.dispatch;
 
+import io.codehunters.messaging.MessagePublishException;
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxMessage;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -22,6 +25,7 @@ final class RecordingPublisher implements MessagePublisherPort {
   private Duration publishTime = Duration.ZERO;
   private final Set<UUID> failing = new HashSet<>();
   private RuntimeException failure;
+  private final Map<UUID, Boolean> interrupting = new HashMap<>();
 
   RecordingPublisher(MutableClock clock, List<String> calls) {
     this.clock = clock;
@@ -34,6 +38,10 @@ final class RecordingPublisher implements MessagePublisherPort {
 
   void failWith(RuntimeException failure) {
     this.failure = failure;
+  }
+
+  void interruptOn(OutboxMessage<String> message, boolean keepsFlag) {
+    interrupting.put(message.id(), keepsFlag);
   }
 
   void failFor(OutboxMessage<String> message) {
@@ -65,9 +73,20 @@ final class RecordingPublisher implements MessagePublisherPort {
     if (failure != null) {
       throw failure;
     }
+    if (interrupting.containsKey(message.id())) {
+      interrupt(interrupting.get(message.id()));
+    }
     if (failing.contains(message.id())) {
       throw new IllegalStateException("broker refused " + message.id());
     }
     published.add(message);
+  }
+
+  // Kafka's adapter restores the interrupt flag; a client that swallows it leaves only the cause.
+  private static void interrupt(boolean keepsFlag) {
+    if (keepsFlag) {
+      Thread.currentThread().interrupt();
+    }
+    throw new MessagePublishException(new InterruptedException("shutting down"));
   }
 }
