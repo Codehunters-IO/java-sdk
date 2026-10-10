@@ -14,15 +14,24 @@ import java.util.Objects;
  * @param maxPerKey the maximum number of rows of one {@code (topic, key)} claimed together, in
  *     insertion order; at least 1. {@code 1} claims a key's next row only once every earlier row is
  *     resolved
+ * @param commitGrace how long a row with a key is held back after its {@code occurred_at}, so an
+ *     earlier row of the same key whose transaction commits late becomes visible first; zero or
+ *     positive, {@link Duration#ZERO} holds nothing back. Rows without a key are never held back
  */
 public record ClaimRequest(
-    String origin, String claimedBy, int batchSize, Duration claimTtl, int maxPerKey) {
+    String origin,
+    String claimedBy,
+    int batchSize,
+    Duration claimTtl,
+    int maxPerKey,
+    Duration commitGrace) {
 
   /** Validates the request. */
   public ClaimRequest {
     Objects.requireNonNull(origin, "origin");
     Objects.requireNonNull(claimedBy, "claimedBy");
     Objects.requireNonNull(claimTtl, "claimTtl");
+    Objects.requireNonNull(commitGrace, "commitGrace");
     if (batchSize < 1) {
       throw new IllegalArgumentException("batchSize must be at least 1");
     }
@@ -32,5 +41,22 @@ public record ClaimRequest(
     if (maxPerKey < 1) {
       throw new IllegalArgumentException("maxPerKey must be at least 1");
     }
+    if (commitGrace.isNegative()) {
+      throw new IllegalArgumentException("commitGrace must not be negative");
+    }
+  }
+
+  /**
+   * Creates a request that holds no row back.
+   *
+   * @param origin the origin of the rows to claim
+   * @param claimedBy the identifier of the claiming dispatcher
+   * @param batchSize the maximum number of rows claimed; at least 1
+   * @param claimTtl the time after which an in-flight claim is stale; positive
+   * @param maxPerKey the maximum number of rows of one {@code (topic, key)} claimed together
+   */
+  public ClaimRequest(
+      String origin, String claimedBy, int batchSize, Duration claimTtl, int maxPerKey) {
+    this(origin, claimedBy, batchSize, claimTtl, maxPerKey, Duration.ZERO);
   }
 }

@@ -15,9 +15,11 @@ public interface OutboxDispatchStore {
   /**
    * Atomically transitions up to {@code batchSize} eligible rows of the request's origin to
    * IN_FLIGHT and returns them in insertion order. Eligible rows are PENDING with {@code
-   * next_attempt_at <= now} OR IN_FLIGHT whose {@code claimed_at} is older than {@code claimTtl}
-   * (stale-claim recovery). A reclaimed row is charged one attempt only when its previous owner had
-   * started sending it (see {@link #markSendStarted}); every claim clears that mark.
+   * next_attempt_at <= now} OR IN_FLIGHT whose {@code claimed_at} is older than {@code claimTtl} or
+   * missing (stale-claim recovery). A row with a key whose {@code occurred_at} is less than the
+   * request's {@link ClaimRequest#commitGrace()} ago is held back. A reclaimed row is charged one
+   * attempt only when its previous owner had started sending it (see {@link #markSendStarted});
+   * every claim clears that mark.
    *
    * @param request the origin, claimer, batch size and claim TTL
    * @return the claimed messages, with their bodies serialized as {@link String}
@@ -74,11 +76,13 @@ public interface OutboxDispatchStore {
   int requeue(Collection<UUID> ids);
 
   /**
-   * Puts every FAILED row of this store's origin whose message key is {@code key}, in any topic,
-   * back to PENDING as {@link #requeue} does.
+   * Puts every FAILED row of this store's origin with message key {@code key} on {@code topic} back
+   * to PENDING as {@link #requeue} does. Ordering is per {@code (topic, key)}, so the same key on
+   * other topics is left alone.
    *
+   * @param topic the topic whose failed rows are requeued; never null
    * @param key the message key whose failed rows are requeued; never null
    * @return the number of rows requeued
    */
-  int requeueFailed(String key);
+  int requeueFailed(String topic, String key);
 }

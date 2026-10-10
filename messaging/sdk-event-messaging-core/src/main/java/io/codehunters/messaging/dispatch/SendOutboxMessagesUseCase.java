@@ -31,6 +31,12 @@ import org.slf4j.LoggerFactory;
  * over) is neither published nor updated. A mark that fails, for example on a transient database
  * error, skips only that message.
  *
+ * <p>A publish ended by an interrupt, as when the dispatch executor shuts down, is not charged as a
+ * failed attempt: the row is released back to {@code PENDING} unchanged, the thread's interrupt
+ * flag is kept, and the rest of the batch is released unsent. A write-back that fails is logged by
+ * exception class and leaves the row {@code IN_FLIGHT} for a reclaim after the TTL; the later rows
+ * of its key are released and the other keys go on.
+ *
  * <p>A claim may hold several rows of one {@code (topic, key)}, in insertion order. Once one of
  * them is not published (failed, given up, refused or released), every later row of that key in the
  * batch is released unsent, so a key is never delivered out of order; rows without a key are
@@ -76,13 +82,30 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   private void dispatchInKeyOrder(OutboxMessage<String> message, Batch batch) {
     Optional<OrderingKey> key = OrderingKey.of(message);
     if (key.filter(batch.stoppedKeys()::contains).isPresent()) {
-      store.update(releaseBehindKey(message));
+      write(releaseBehindKey(message));
       return;
     }
     Optional<OutboxMessage<String>> outcome = dispatch(message, batch.claimStart());
-    outcome.ifPresent(store::update);
-    if (outcome.filter(SendOutboxMessagesUseCase::isPublished).isEmpty()) {
+    boolean published = outcome.filter(SendOutboxMessagesUseCase::isPublished).isPresent();
+    boolean written = outcome.map(this::write).orElse(false);
+    if (!published || !written) {
       key.ifPresent(batch.stoppedKeys()::add);
+    }
+  }
+
+  // A failed write leaves the row IN_FLIGHT under this claim: later rows of its key are released
+  // and the row itself is reclaimed after the TTL, so the batch goes on with the other keys.
+  private boolean write(OutboxMessage<String> message) {
+    try {
+      store.update(message);
+      return true;
+    } catch (RuntimeException e) {
+      log.warn(
+          "Outbox message id={} left in flight: writing status {} failed with {}",
+          message.id(),
+          message.status(),
+          e.getClass().getName());
+      return false;
     }
   }
 
@@ -100,7 +123,7 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   // Returns the message's new state, or empty when the claim was lost and nothing may be written.
   private Optional<OutboxMessage<String>> dispatch(
       OutboxMessage<String> message, Instant claimStart) {
-    if (isBudgetExhausted(claimStart)) {
+    if (isBudgetExhausted(claimStart) || Thread.currentThread().isInterrupted()) {
       return Optional.of(release(message));
     }
     if (settings.retry().isExhausted(message.attempts())) {
@@ -133,7 +156,8 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   }
 
   private OutboxMessage<String> release(OutboxMessage<String> message) {
-    log.debug("Releasing outbox message id={}: claim time budget spent", message.id());
+    log.debug(
+        "Releasing outbox message id={}: claim time budget spent or shutting down", message.id());
     return message.released(settings.clock().instant());
   }
 
@@ -150,9 +174,33 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
       publisher.publish(message);
       return message.published(settings.clock().instant());
     } catch (RuntimeException e) {
-      log.error("Failed to publish outbox message id={}: {}", message.id(), e.getClass().getName());
-      return retryOrFail(message.attemptFailed(e.getClass().getName()));
+      return isInterruption(e) ? interrupted(message) : failed(message, e);
     }
+  }
+
+  private OutboxMessage<String> failed(OutboxMessage<String> message, RuntimeException e) {
+    log.error("Failed to publish outbox message id={}: {}", message.id(), e.getClass().getName());
+    return retryOrFail(message.attemptFailed(e.getClass().getName()));
+  }
+
+  // Shutdown, not the broker, ended the publish: the row goes back unchanged, and the flag is set
+  // again (a client may have swallowed it) so the rest of the batch is released too.
+  private OutboxMessage<String> interrupted(OutboxMessage<String> message) {
+    Thread.currentThread().interrupt();
+    log.info("Outbox message id={} released: its publish was interrupted", message.id());
+    return message.released(settings.clock().instant());
+  }
+
+  private static boolean isInterruption(Throwable failure) {
+    if (Thread.currentThread().isInterrupted()) {
+      return true;
+    }
+    for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+      if (cause instanceof InterruptedException) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private OutboxMessage<String> retryOrFail(OutboxMessage<String> failed) {

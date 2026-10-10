@@ -96,6 +96,26 @@ public record EventMessagingProperties(
     checkDispatchLock(task, scheduling, claim, timeout);
   }
 
+  /**
+   * Returns the longest a dispatch run keeps publishing: half the claim TTL, after which the rest
+   * of the batch is released, plus one message's transport timeout. With {@code publisher.type}
+   * unset, the longer of the Kafka and RabbitMQ timeouts is used.
+   *
+   * @return the bound of one dispatch run
+   */
+  public Duration maxDispatchRun() {
+    return claim.ttl().dividedBy(2).plus(transportTimeout());
+  }
+
+  private Duration transportTimeout() {
+    if (publisher.type() != null) {
+      return TransportTimeout.of(publisher, publisher.type()).value();
+    }
+    Duration kafka = publisher.kafka().sendTimeout();
+    Duration rabbit = publisher.rabbit().confirmTimeout();
+    return kafka.compareTo(rabbit) >= 0 ? kafka : rabbit;
+  }
+
   // A claimed batch must be published before its claim goes stale; otherwise another instance
   // reclaims rows that are still being sent and the broker receives them twice.
   private static void checkClaimBudget(int batchSize, Claim claim, TransportTimeout timeout) {
@@ -199,13 +219,21 @@ public record EventMessagingProperties(
    * @param maxPerKey the maximum number of rows of one {@code (topic, key)} a claim takes together,
    *     in insertion order; they are published one after the other and, after the first one that is
    *     not published, the rest are released. {@code 1} restores one row per key per claim
+   * @param commitGrace how long a row with a key is held back after its {@code occurred_at}, so an
+   *     earlier row of the same key whose transaction commits later still goes first; {@code 0}
+   *     (the default) holds nothing back. It must cover the time from {@code occurred_at} to commit
+   *     of the slowest writer of a key, and delays every keyed row by at least that long
    */
-  public record Claim(@DefaultValue("5m") Duration ttl, @DefaultValue("10") int maxPerKey) {
+  public record Claim(
+      @DefaultValue("5m") Duration ttl,
+      @DefaultValue("10") int maxPerKey,
+      @DefaultValue("0s") Duration commitGrace) {
 
-    /** Validates the claim TTL and the per-key batch. */
+    /** Validates the claim TTL, the per-key batch and the commit grace. */
     public Claim {
       requirePositive(ttl, CLAIM_TTL_KEY);
       requireAtLeastOne(maxPerKey, "claim.max-per-key");
+      requireNotNegative(commitGrace, "claim.commit-grace");
     }
   }
 

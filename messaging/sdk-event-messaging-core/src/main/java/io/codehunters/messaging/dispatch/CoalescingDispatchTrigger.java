@@ -21,6 +21,10 @@ import org.slf4j.LoggerFactory;
  * created before the dispatch use case that depends on it. A run without a port does nothing. A
  * failed run is logged by exception class only, since messages may carry payload data; a rejected
  * submission, for example during shutdown, leaves the trigger idle for the next request.
+ *
+ * <p>{@link #stop()} ends the trigger for good: later requests are dropped, and a drain in progress
+ * finishes its current run but starts no further one. A drain whose thread is interrupted, as an
+ * executor shutting down does, also stops after its current run and keeps the interrupt flag.
  */
 public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
 
@@ -33,6 +37,7 @@ public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
   private final AtomicInteger state = new AtomicInteger(IDLE);
   private final Executor executor;
   private final Supplier<SendOutboxMessagesPort> dispatch;
+  private volatile boolean stopped;
 
   /**
    * Creates the trigger.
@@ -47,10 +52,18 @@ public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
 
   @Override
   public void requestDispatch() {
+    if (stopped) {
+      return;
+    }
     int previous = state.getAndUpdate(current -> current == IDLE ? RUNNING : RERUN);
     if (previous == IDLE) {
       submit();
     }
+  }
+
+  /** Stops the trigger: drops later requests and lets a running drain end after its current run. */
+  public void stop() {
+    stopped = true;
   }
 
   private void submit() {
@@ -62,14 +75,11 @@ public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
     }
   }
 
-  // An Error escaping a run must not leave the trigger RUNNING forever.
+  // An Error escaping a run, a stop or an interrupt must not leave the trigger RUNNING forever.
   private void drain() {
     boolean finished = false;
     try {
-      do {
-        runWhileFull();
-      } while (!tryFinish());
-      finished = true;
+      finished = drainUntilIdle();
     } finally {
       if (!finished) {
         state.set(IDLE);
@@ -77,11 +87,26 @@ public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
     }
   }
 
+  // False when halted before the trigger went back to IDLE; true once tryFinish set it IDLE.
+  private boolean drainUntilIdle() {
+    do {
+      runWhileFull();
+      if (isHalted()) {
+        return false;
+      }
+    } while (!tryFinish());
+    return true;
+  }
+
   private void runWhileFull() {
     boolean full = runOnce();
-    while (full) {
+    while (full && !isHalted()) {
       full = runOnce();
     }
+  }
+
+  private boolean isHalted() {
+    return stopped || Thread.currentThread().isInterrupted();
   }
 
   // Only the drain leaves RERUN, so when RUNNING -> IDLE fails a request came in during the run

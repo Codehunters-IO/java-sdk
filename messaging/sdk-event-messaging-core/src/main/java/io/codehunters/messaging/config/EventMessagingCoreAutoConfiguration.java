@@ -31,6 +31,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
  * Spring Boot auto-configuration for the transport-neutral part of the transactional-outbox SDK.
@@ -71,8 +72,16 @@ public class EventMessagingCoreAutoConfiguration {
 
   private static final String OUTBOX_CLOCK = "outboxClock";
 
-  /** Creates the auto-configuration. Instantiated by the Spring container. */
-  public EventMessagingCoreAutoConfiguration() {}
+  /**
+   * Creates the auto-configuration. Instantiated by the Spring container. Fails startup when a
+   * timing key renamed in 9.0 ({@code claim.ttl-ms}, {@code backoff.base-delay-ms}, {@code
+   * backoff.max-delay-ms}) is still set, naming its replacement.
+   *
+   * @param environment the application environment
+   */
+  public EventMessagingCoreAutoConfiguration(Environment environment) {
+    RenamedOutboxProperties.reject(environment);
+  }
 
   /**
    * Provides the SDK's private UTC clock, used for outbox timestamps, backoff, claims and purge
@@ -153,7 +162,8 @@ public class EventMessagingCoreAutoConfiguration {
             resolveInstanceId(applicationName),
             properties.batchSize(),
             properties.claim().ttl(),
-            properties.claim().maxPerKey());
+            properties.claim().maxPerKey(),
+            properties.claim().commitGrace());
     RetryPolicy retry =
         new RetryPolicy(
             properties.maxAttempts(),
