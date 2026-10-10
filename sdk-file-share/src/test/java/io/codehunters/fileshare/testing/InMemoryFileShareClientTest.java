@@ -31,12 +31,12 @@ class InMemoryFileShareClientTest {
       new InMemoryFileShareClient(Clock.fixed(NOW, ZoneOffset.UTC));
 
   @Test
-  void should_be_a_file_share_client() {
+  void should_be_a_file_share_client_when_created() {
     assertThat(files).isInstanceOf(FileShareClient.class);
   }
 
   @Test
-  void should_issue_an_https_upload_ticket_for_a_pending_file() {
+  void should_issue_an_https_upload_ticket_when_a_file_is_pending() {
     var ticket = files.requestUpload(REQUEST);
 
     assertThat(ticket.file().status()).isEqualTo(FileStatus.PENDING_UPLOAD);
@@ -67,7 +67,7 @@ class InMemoryFileShareClientTest {
   }
 
   @Test
-  void should_serve_a_stored_file() {
+  void should_serve_the_content_when_a_file_is_stored() {
     var file = files.store(REQUEST, CONTENT);
     var target = new ByteArrayOutputStream();
 
@@ -79,7 +79,7 @@ class InMemoryFileShareClientTest {
   }
 
   @Test
-  void should_issue_a_download_ticket_for_a_completed_file() {
+  void should_issue_a_download_ticket_when_a_file_is_completed() {
     var file = files.store(REQUEST, CONTENT);
 
     var ticket = files.requestDownload("REF-1", file.id());
@@ -89,7 +89,7 @@ class InMemoryFileShareClientTest {
   }
 
   @Test
-  void should_refuse_to_download_a_file_still_waiting_for_its_content() {
+  void should_refuse_to_download_when_a_file_still_waits_for_its_content() {
     var ticket = files.requestUpload(REQUEST);
 
     assertThatThrownBy(() -> files.requestDownload("REF-1", ticket.file().id()))
@@ -99,7 +99,7 @@ class InMemoryFileShareClientTest {
   }
 
   @Test
-  void should_not_find_a_file_under_another_reference() {
+  void should_not_find_a_file_when_asked_under_another_reference() {
     var file = files.store(REQUEST, CONTENT);
 
     assertThatThrownBy(() -> files.getMetadata("REF-2", file.id()))
@@ -107,14 +107,14 @@ class InMemoryFileShareClientTest {
   }
 
   @Test
-  void should_not_find_an_unknown_file() {
+  void should_not_find_a_file_when_its_id_is_unknown() {
     assertThatThrownBy(() -> files.getMetadata("REF-1", WORKFLOW_ID))
         .isInstanceOf(FileShareNotFoundException.class);
     assertThat(files.content(WORKFLOW_ID)).isEmpty();
   }
 
   @Test
-  void should_reject_an_unsafe_reference_id() {
+  void should_reject_the_call_when_reference_id_is_unsafe() {
     assertThatIllegalArgumentException().isThrownBy(() -> files.getMetadata("..", WORKFLOW_ID));
   }
 }

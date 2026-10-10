@@ -143,7 +143,7 @@ class FileShareClientCredentialsTest {
   }
 
   @Test
-  void should_upload_without_the_service_token_or_application_interceptors() {
+  void should_omit_service_token_and_application_interceptors_when_uploading() {
     withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
         .withBean(
             FileShareRequestInterceptor.class,

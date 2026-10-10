@@ -203,7 +203,7 @@ class FileShareAutoConfigurationTest {
   }
 
   @Test
-  void should_not_follow_redirect_from_upload_url() {
+  void should_not_follow_redirect_when_upload_url_redirects() {
     runner
         .withPropertyValues("codehunters.file-share.base-url=" + server.url())
         .run(

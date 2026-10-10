@@ -97,7 +97,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_put_content_to_the_upload_url_with_the_signed_content_type() {
+  void should_put_content_with_the_signed_content_type_when_uploading() {
     server
         .expect(requestTo(SIGNED_URL))
         .andExpect(method(HttpMethod.PUT))
@@ -112,7 +112,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_send_no_more_than_content_length_bytes() {
+  void should_send_no_more_than_content_length_bytes_when_content_is_longer() {
     server
         .expect(requestTo(SIGNED_URL))
         .andExpect(content().bytes(new byte[] {1, 2}))
@@ -136,7 +136,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_report_upload_content_read_failure_as_caller_io_error() {
+  void should_report_caller_io_error_when_upload_content_cannot_be_read() {
     server.expect(requestTo(SIGNED_URL)).andRespond(withSuccess());
 
     assertThatThrownBy(() -> adapter.upload(uploadTicket(SIGNED_URL), new FailingInputStream(), 4))
@@ -146,7 +146,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_reject_upload_larger_than_max_upload_size_before_calling_storage() {
+  void should_reject_before_calling_storage_when_upload_exceeds_max_upload_size() {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
@@ -157,7 +157,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_reject_negative_content_length() {
+  void should_reject_upload_when_content_length_is_negative() {
     assertThatIllegalArgumentException()
         .isThrownBy(
             () ->
@@ -167,7 +167,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_reject_upload_url_outside_the_presigned_policy() {
+  void should_reject_upload_when_url_is_outside_the_presigned_policy() {
     assertThatThrownBy(
             () ->
                 adapter.upload(
@@ -180,7 +180,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_map_rejected_upload_to_unauthorized_without_the_storage_body() {
+  void should_map_to_unauthorized_without_storage_body_when_upload_is_rejected() {
     server
         .expect(requestTo(SIGNED_URL))
         .andRespond(withStatus(HttpStatus.FORBIDDEN).body("<Error>SignatureDoesNotMatch</Error>"));
@@ -195,7 +195,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_map_upload_storage_failure_to_unavailable() {
+  void should_map_to_unavailable_when_upload_storage_fails() {
     server.expect(requestTo(SIGNED_URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
 
     assertThatThrownBy(
@@ -206,7 +206,7 @@ class RestClientFileShareAdapterTest {
   }
 
   @Test
-  void should_map_upload_redirect_to_file_share_error() {
+  void should_map_to_file_share_error_when_upload_redirects() {
     server.expect(requestTo(SIGNED_URL)).andRespond(withStatus(HttpStatus.FOUND));
 
     assertThatThrownBy(
@@ -567,7 +567,7 @@ class RestClientFileShareAdapterTest {
 
   @ParameterizedTest
   @ValueSource(longs = {0, -1})
-  void should_reject_max_upload_size_that_is_not_positive(long maxUploadSize) {
+  void should_reject_max_upload_size_when_it_is_not_positive(long maxUploadSize) {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new TransferLimits(MAX_DOWNLOAD_SIZE, maxUploadSize))
         .withMessageContaining("max-upload-size");
