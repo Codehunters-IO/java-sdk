@@ -186,6 +186,10 @@ run *Publish* by hand (`workflow_dispatch`) with the tag; versions already uploa
 `./gradlew releaseCandidate` writes the tags a commit would draft to `build/release-candidates/`.
 Publishing locally needs `GH_PACKAGES_USERNAME` / `GH_PACKAGES_TOKEN`.
 
+The three workflows call the shared `java-library-*` workflows of `Codehunters-IO/ci-templates`
+([ADR 0027](docs/adr/0027-release-workflows-from-ci-templates.md)); the BOM check is
+`.github/scripts/verify-bom-release.sh`.
+
 ## Quality gates
 
 - Spotless (`googleJavaFormat`) — `./gradlew spotlessCheck` / `spotlessApply`

@@ -15,7 +15,8 @@ on:
         type: string
 
 # One publish at a time: uploads of the same version would race (409), and a BOM must find the
-# libraries it lists already uploaded.
+# libraries it lists already uploaded. The group holds one pending run, so publish releases one by
+# one, waiting for each run.
 concurrency:
   group: publish
   cancel-in-progress: false
@@ -24,63 +25,17 @@ permissions: {}
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    env:
-      TAG: ${{ github.event.release.tag_name || inputs.tag }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
-    steps:
-      # The base branch's history and every tag, to check the tag is on master.
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      # Checked before anything from the tagged tree runs: only merged code gets published.
-      - name: Check out the tag
-        run: |
-          if [[ ! "$TAG" =~ ^(sdk-[a-z0-9-]+|bom)/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::'$TAG' is not a release tag (sdk-<module>/vX.Y.Z or bom/vX.Y.Z)"
-            exit 1
-          fi
-          if ! git merge-base --is-ancestor "refs/tags/$TAG" "origin/$DEFAULT_BRANCH"; then
-            echo "::error::$TAG points at a commit that is not on the default branch"
-            exit 1
-          fi
-          git checkout --detach "refs/tags/$TAG"
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6.0.1
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6.3.0
-        with:
-          cache-read-only: true
-
-      - name: Resolve the module
-        id: module
-        env:
-          GH_PACKAGES_USERNAME: ${{ github.actor }}
-          GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: echo "path=$(.github/scripts/resolve-release.sh)" >> "$GITHUB_OUTPUT"
-
-      - name: Pull the integration-test images
-        run: .github/scripts/pull-test-images.sh
-
-      - name: Build and publish
-        env:
-          GRADLE_PATH: ${{ steps.module.outputs.path }}
-          GH_PACKAGES_USERNAME: ${{ github.actor }}
-          GH_PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew "$GRADLE_PATH:build" "$GRADLE_PATH:publish"
-
-      - name: Summary
-        env:
-          GRADLE_PATH: ${{ steps.module.outputs.path }}
-        run: echo "Published \`$GRADLE_PATH\` from \`$TAG\`." >> "$GITHUB_STEP_SUMMARY"
+    uses: Codehunters-IO/ci-templates/.github/workflows/java-library-publish.yml@v2
+    with:
+      tag: ${{ github.event.release.tag_name || inputs.tag }}
+      tag_pattern: '^(sdk-[a-z0-9-]+|bom)/v[0-9]+\.[0-9]+\.[0-9]+$'
+      verify_script: .github/scripts/verify-bom-release.sh
+      docker_images: |
+        testcontainers/ryuk:0.14.0
+        postgres:17-alpine
+        imresamu/postgis:17-3.5-alpine
+        rabbitmq:4.1-alpine
+        apache/kafka:4.1.1

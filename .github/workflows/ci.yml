@@ -24,52 +24,31 @@ concurrency:
 permissions: {}
 
 jobs:
-  build:
+  # Build (compile + Spotless), then `check` in the test job: every module's tests, coverage
+  # rules and convention checks gate the change. No artifact, deploy or release runs here.
+  validate:
     if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    runs-on: ubuntu-latest
+    # java-main-pipeline declares these for its deploy and release jobs; a caller must grant at
+    # least as much, even though java-pr-pipeline turns those jobs off.
     permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up JDK 21
-        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6  # v6.0.1
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      # Branch builds read the dependency cache that master builds write.
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@9c971963bec38e04b3d30dcc455b5382be2fdbfb  # v6.3.0
-        with:
-          cache-read-only: true
-
-      - name: Pull the integration-test images
-        run: .github/scripts/pull-test-images.sh
-
-      - name: Build, test, coverage, format check
-        run: ./gradlew build
-
-      - name: Build-logic plugin tests
-        run: ./gradlew -p build-logic test
-
-      - name: SonarCloud scan
-        if: ${{ env.SONAR_TOKEN != '' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: ./gradlew sonar
-
-  secrets-scan:
-    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
-    permissions:
-      contents: read
-    uses: Codehunters-IO/ci-templates/.github/workflows/security-trufflehog.yml@v2
-
-  commit-lint:
-    if: ${{ github.event_name == 'pull_request' }}
-    permissions:
-      contents: read
-    uses: Codehunters-IO/ci-templates/.github/workflows/shared-commit-lint.yml@v2
+      contents: write
+      packages: write
+      issues: write
+      id-token: write
+    uses: Codehunters-IO/ci-templates/.github/workflows/java-pr-pipeline.yml@v2
+    with:
+      run_commit_lint: ${{ github.event_name == 'pull_request' }}
+      run_trufflehog: true
+      run_test: true
+      test_tasks: check
+      # Coverage is gated per module by the build itself (90% line, 80% branch).
+      run_coverage: false
+      extra_gradle_commands: |
+        -p build-logic test
+      docker_images: |
+        testcontainers/ryuk:0.14.0
+        postgres:17-alpine
+        imresamu/postgis:17-3.5-alpine
+        rabbitmq:4.1-alpine
+        apache/kafka:4.1.1
+    secrets: inherit

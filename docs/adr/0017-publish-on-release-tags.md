@@ -1,6 +1,6 @@
 # 0017 — Publish packages only from published GitHub releases
 
-- Status: accepted
+- Status: accepted; the workflows moved to ci-templates in [0027](0027-release-workflows-from-ci-templates.md)
 - Date: 2026-10-08
 - Numbering: 0015 and 0016 belong to pull requests still open when this was written (geo-validation
   1.0 and the sdk-web / sdk-commons consolidation); this ADR takes 0017 so the three can merge in
