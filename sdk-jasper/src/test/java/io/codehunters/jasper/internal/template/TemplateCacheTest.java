@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import io.codehunters.jasper.ReportException;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 class TemplateCacheTest {
@@ -102,7 +104,8 @@ class TemplateCacheTest {
   }
 
   @Test
-  void should_release_waiting_callers_when_the_loader_throws_an_error() {
+  void
+      should_rethrow_the_same_raw_error_to_the_loader_and_its_waiters_when_the_loader_throws_one() {
     var loader = CountingLoader.blockingThenFailing(new StackOverflowError());
     var cache = new TemplateCache<>(2, loader);
     var first = CompletableFuture.supplyAsync(() -> cache.get("a"));
@@ -114,8 +117,39 @@ class TemplateCacheTest {
 
     assertThatThrownBy(
             () -> assertTimeoutPreemptively(Duration.ofSeconds(5), second.result()::join))
-        .hasCauseInstanceOf(ReportException.class);
+        .hasCauseInstanceOf(StackOverflowError.class);
     assertThatThrownBy(first::join).hasCauseInstanceOf(StackOverflowError.class);
+  }
+
+  @Test
+  void should_fail_fast_instead_of_deadlocking_when_the_loader_reads_its_own_template() {
+    var cache = new AtomicReference<TemplateCache<String>>();
+    cache.set(new TemplateCache<>(2, name -> cache.get().get(name)));
+
+    assertThatThrownBy(
+            () -> assertTimeoutPreemptively(Duration.ofSeconds(5), () -> cache.get().get("a")))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessage(
+            "re-entrant load of template 'a': a template loader must not read its own template");
+  }
+
+  @Test
+  void should_let_the_loader_read_another_template_when_the_cache_is_shared() {
+    var cache = new AtomicReference<TemplateCache<String>>();
+    cache.set(new TemplateCache<>(2, name -> name.equals("main") ? cache.get().get("sub") : name));
+
+    assertThat(cache.get().get("main")).isEqualTo("sub");
+  }
+
+  @Test
+  void should_fail_without_caching_when_the_loader_returns_no_template() {
+    var calls = new AtomicInteger();
+    var cache = new TemplateCache<String>(2, name -> calls.incrementAndGet() == 1 ? null : name);
+
+    assertThatThrownBy(() -> cache.get("a"))
+        .isInstanceOf(ReportException.class)
+        .hasMessage("the template loader returned no template for 'a'");
+    assertThat(cache.get("a")).isEqualTo("a");
   }
 
   @Test
