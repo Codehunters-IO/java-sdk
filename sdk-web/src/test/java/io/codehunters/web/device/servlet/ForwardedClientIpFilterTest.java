@@ -8,6 +8,8 @@ import io.codehunters.web.device.ip.ClientIpResolver;
 import io.codehunters.web.device.ip.ForwardingHeader;
 import io.codehunters.web.device.ip.TrustedProxies;
 import io.codehunters.web.device.useragent.UnknownUserAgentParser;
+import jakarta.servlet.DispatcherType;
+import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Collections;
 import java.util.List;
@@ -77,9 +79,94 @@ class ForwardedClientIpFilterTest {
   }
 
   @Test
-  void should_run_before_spring_security_and_the_framework_filters() {
+  void should_run_right_after_the_highest_precedence_when_ordered_with_other_filters() {
     assertThat(new ForwardedClientIpFilter(BEHIND_PROXY).getOrder())
-        .isEqualTo(Ordered.HIGHEST_PRECEDENCE);
+        .isEqualTo(Ordered.HIGHEST_PRECEDENCE + 1);
+  }
+
+  @Test
+  void should_hide_only_the_for_parameters_when_forwarded_carries_other_parameters() {
+    var original = request(PROXY, CLIENT);
+    original.addHeader(
+        "Forwarded",
+        "for=6.6.6.6;proto=https;host=example.com, for=\"[2001:db8::1]:4711\";by=10.0.0.2");
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(forwarded.getHeader("Forwarded"))
+        .isEqualTo("proto=https;host=example.com, by=10.0.0.2");
+    assertThat(Collections.list(forwarded.getHeaders("forwarded")))
+        .containsExactly("proto=https;host=example.com, by=10.0.0.2");
+    assertThat(Collections.list(forwarded.getHeaderNames())).contains("Forwarded");
+  }
+
+  @Test
+  void should_keep_a_quoted_comma_inside_a_parameter_when_hiding_the_for_parameters() {
+    var original = request(PROXY, CLIENT);
+    original.addHeader("Forwarded", "host=\"a,for=6.6.6.6\";for=6.6.6.7");
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(forwarded.getHeader("Forwarded")).isEqualTo("host=\"a,for=6.6.6.6\"");
+  }
+
+  @Test
+  void should_hide_a_forwarded_line_entirely_when_its_quotes_do_not_balance() {
+    var original = request(PROXY, CLIENT);
+    original.addHeader("Forwarded", "proto=\"https, for=6.6.6.6");
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(forwarded.getHeader("Forwarded")).isNull();
+    assertThat(Collections.list(forwarded.getHeaderNames())).doesNotContain("Forwarded");
+  }
+
+  @Test
+  void should_hide_x_real_ip_when_the_client_is_resolved() {
+    var original = request(PROXY, CLIENT);
+    original.addHeader("X-Real-IP", "6.6.6.6");
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(forwarded.getHeader("x-real-ip")).isNull();
+    assertThat(Collections.list(forwarded.getHeaders("X-Real-IP"))).isEmpty();
+    assertThat(Collections.list(forwarded.getHeaderNames())).doesNotContain("X-Real-IP");
+  }
+
+  @Test
+  void should_keep_the_forwarded_host_proto_and_port_when_the_client_is_resolved() {
+    var original = request(PROXY, CLIENT);
+    original.addHeader("X-Forwarded-Host", "example.com");
+    original.addHeader("X-Forwarded-Proto", "https");
+    original.addHeader("X-Forwarded-Port", "443");
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(Collections.list(forwarded.getHeaderNames()))
+        .containsExactly("X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port");
+    assertThat(forwarded.getHeader("X-Forwarded-Proto")).isEqualTo("https");
+  }
+
+  @Test
+  void should_expose_the_client_when_the_request_is_an_error_dispatch() {
+    var original = request(PROXY, CLIENT);
+    original.setDispatcherType(DispatcherType.ERROR);
+    original.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, "/orders");
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(forwarded.getRemoteAddr()).isEqualTo(CLIENT);
+  }
+
+  @Test
+  void should_expose_the_client_when_an_error_dispatch_is_nested_in_the_filtered_request() {
+    var original = request(PROXY, CLIENT);
+    original.setDispatcherType(DispatcherType.ERROR);
+    original.setAttribute(ForwardedClientIpFilter.class.getName() + ".FILTERED", Boolean.TRUE);
+
+    var forwarded = filter(BEHIND_PROXY, original);
+
+    assertThat(forwarded.getRemoteAddr()).isEqualTo(CLIENT);
   }
 
   @Test
