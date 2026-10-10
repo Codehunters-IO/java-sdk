@@ -46,7 +46,7 @@ class OutboxAdapterSettingsTest {
   }
 
   @Test
-  void should_reject_null_trigger() {
+  void should_reject_settings_when_trigger_is_null() {
     assertThatThrownBy(() -> new OutboxAdapterSettings("svc", CLOCK, null))
         .isInstanceOf(NullPointerException.class)
         .hasMessage("trigger");

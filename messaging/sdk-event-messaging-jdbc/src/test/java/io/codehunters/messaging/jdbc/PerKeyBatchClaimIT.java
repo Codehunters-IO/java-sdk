@@ -53,7 +53,7 @@ class PerKeyBatchClaimIT {
   }
 
   @Test
-  void should_claim_contiguous_rows_of_a_key_in_seq_order_up_to_max_per_key() {
+  void should_claim_contiguous_rows_of_key_in_seq_order_when_key_has_more_than_max_per_key() {
     saveAll("A1", "A2", "A3", "A4", "A5");
     save("B", "B1");
     save("B", "B2");
@@ -62,7 +62,7 @@ class PerKeyBatchClaimIT {
   }
 
   @Test
-  void should_claim_successors_in_next_claim_once_earlier_rows_are_published() {
+  void should_claim_successors_in_next_claim_when_earlier_rows_are_published() {
     saveAll("A1", "A2", "A3", "A4", "A5");
     claim("w1", 10, 3).forEach(message -> adapter.update(message.published(NOW)));
 
@@ -125,7 +125,8 @@ class PerKeyBatchClaimIT {
   }
 
   @Test
-  void should_hold_back_successors_of_a_row_locked_by_a_concurrent_claimer() throws Exception {
+  void should_hold_back_successors_when_earlier_row_is_locked_by_concurrent_claimer()
+      throws Exception {
     UUID head = save("A", "A1");
     save("A", "A2");
     save("A", "A3");
