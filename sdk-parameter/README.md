@@ -118,7 +118,11 @@ included) for that long, per method and arguments, in a Caffeine cache (`Paramet
 - It holds at most `cache-max-entries` answers; when full, Caffeine evicts the answers least
   likely to be used again (not strictly the least recently used one).
 - Concurrent misses for the same arguments share one database query, run on the first caller's
-  thread. A failure reaches every waiting caller and is not cached.
+  thread. A failure reaches every waiting caller and is not cached. Waiters block until the query
+  ends, with no timeout of their own.
+- The client being cached must not call back into the caching client with the same arguments while
+  it answers: that call fails with `IllegalStateException("re-entrant load of …")` rather than
+  waiting forever for itself. A `null` answer is cached as absence.
 - `asMap` and `asMapByName` are built from the cached `findByModule` answer, so the three agree.
 
 A change in the table is seen once the TTL runs out, or at once after an invalidation:

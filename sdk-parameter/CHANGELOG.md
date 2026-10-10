@@ -17,6 +17,11 @@ PostgreSQL only. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
   the least recently used answer. Time to live, one shared query per concurrent miss, failures
   reaching every waiting caller and never being cached are unchanged; the shared query still runs
   on the first caller's thread.
+- A load that reads its own answer from the same cache (a delegate that calls back into the
+  caching client with the same arguments) fails with `IllegalStateException("re-entrant load of
+  …")` instead of deadlocking on its own unfinished load. Reading another answer is still allowed.
+- A `null` answer from the delegate is cached as absence like any other answer, instead of being
+  dropped by Caffeine and counted as a failed load.
 
 ### Added
 - `ParameterCache`, the cache behind `CachingParameterClient`, registered as the `parameterCache`
