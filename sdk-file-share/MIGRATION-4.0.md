@@ -25,10 +25,13 @@ beans and the `codehunters.file-share.*` properties of 3.0 are kept.
    `FileShareClient`. `MAX_DOWNLOAD_SIZE_LIMIT` is now on `TransferLimits`.
 4. **Hand-rolled presigned uploads** can use `fileShare.upload(ticket, content, contentLength)`,
    which sends `ticket.requiredHeaders()` and never the service token.
-5. **Client credentials.** Nothing to change in configuration. If the application declares an
-   `OAuth2AuthorizedClientManager` bean (other than Spring Security's request-bound default), the SDK
-   now uses it: it must support `client_credentials` and, for calls outside HTTP requests, be an
-   `AuthorizedClientServiceOAuth2AuthorizedClientManager`. A 403 from file-share no longer evicts
-   the cached token; a 401 does.
+5. **Client credentials.** Nothing to change in configuration. The SDK builds its own
+   `AuthorizedClientServiceOAuth2AuthorizedClientManager` and ignores the application's manager
+   beans, unless one is named `fileShareAuthorizedClientManager`: that one must support
+   `client_credentials` and, for calls outside HTTP requests, be an
+   `AuthorizedClientServiceOAuth2AuthorizedClientManager`. A manager that returns no authorized
+   client now fails the call with `FileShareUnauthorizedException` (and logs a `WARN` once) instead
+   of sending it without a token. A 403 from file-share no longer evicts the cached token; a 401
+   does.
 6. **Dependency.** Bump `sdk-file-share` to 4.0.0, or the `sdk-bom` that manages it. It no longer
    brings `io.codehunters:sdk-support`.

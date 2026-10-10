@@ -18,17 +18,16 @@ import org.springframework.security.oauth2.core.http.converter.OAuth2AccessToken
 import org.springframework.web.client.RestClient;
 
 /**
- * Builds the client-credentials step from Spring Security's OAuth2 client: the application's {@link
- * OAuth2AuthorizedClientManager} when it has one that works outside an HTTP request, the SDK's own
- * otherwise.
+ * Builds the client-credentials step from Spring Security's OAuth2 client. The SDK always builds
+ * its own {@link AuthorizedClientServiceOAuth2AuthorizedClientManager}, which works outside an HTTP
+ * request (schedulers, listeners), unless the application provides an {@link
+ * OAuth2AuthorizedClientManager} bean named {@value #MANAGER_BEAN}. Any other manager bean of the
+ * application, such as Spring Security's request-bound servlet one, is left alone.
  */
 final class ClientCredentials {
 
-  /**
-   * Spring Security's servlet manager: it fails outside an HTTP request (schedulers, listeners).
-   */
-  private static final String REQUEST_BOUND_MANAGER =
-      "org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager";
+  /** Name of the application bean that replaces the SDK's authorized-client manager. */
+  static final String MANAGER_BEAN = "fileShareAuthorizedClientManager";
 
   private ClientCredentials() {}
 
@@ -70,9 +69,9 @@ final class ClientCredentials {
   }
 
   private static Optional<OAuth2AuthorizedClientManager> applicationManager(BeanFactory beans) {
-    return Optional.ofNullable(
-            beans.getBeanProvider(OAuth2AuthorizedClientManager.class).getIfUnique())
-        .filter(manager -> !REQUEST_BOUND_MANAGER.equals(manager.getClass().getName()));
+    return beans.containsBean(MANAGER_BEAN)
+        ? Optional.of(beans.getBean(MANAGER_BEAN, OAuth2AuthorizedClientManager.class))
+        : Optional.empty();
   }
 
   private static OAuth2AuthorizedClientManager sdkManager(

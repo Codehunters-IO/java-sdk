@@ -19,7 +19,8 @@ import org.springframework.web.client.ResourceAccessException;
  * Sends the client-credentials access token of one registration through Spring Security's {@link
  * OAuth2ClientHttpRequestInterceptor}. The token is cached under a fixed principal, not the
  * caller's user, and dropped when the service answers 401. Token failures become {@link
- * FileShareException}s.
+ * FileShareException}s. A manager that returns no authorized client fails the call as unauthorized
+ * instead of sending it without a token.
  */
 final class OAuth2ClientCredentialsInterceptor implements FileShareAuthInterceptor {
 
@@ -33,7 +34,9 @@ final class OAuth2ClientCredentialsInterceptor implements FileShareAuthIntercept
       OAuth2AuthorizedClientService clientService,
       FileShareProperties.Auth auth) {
     var principal = UsernamePasswordAuthenticationToken.unauthenticated(auth.principal(), null);
-    delegate = new OAuth2ClientHttpRequestInterceptor(manager);
+    delegate =
+        new OAuth2ClientHttpRequestInterceptor(
+            new RequiredClientManager(manager, auth.clientRegistrationId()));
     delegate.setClientRegistrationIdResolver(request -> auth.clientRegistrationId());
     delegate.setPrincipalResolver(request -> principal);
     delegate.setAuthorizationFailureHandler(

@@ -113,14 +113,16 @@ codehunters.file-share.auth.client-registration-id: file-share
 The token is sent by Spring Security's `OAuth2ClientHttpRequestInterceptor`, for the configured
 registration and cached under `auth.principal`, never under the signed-in user. It uses:
 
-- the application's `OAuth2AuthorizedClientManager` bean when there is exactly one, so its
-  providers, token client and storage apply. It must support `client_credentials` and work outside
-  an HTTP request if file-share is called from schedulers, listeners or async tasks
-  (`AuthorizedClientServiceOAuth2AuthorizedClientManager` does);
-- otherwise, and also when that bean is Spring Security's request-bound
-  `DefaultOAuth2AuthorizedClientManager` (the one `@EnableWebSecurity` registers), the SDK's own
-  `AuthorizedClientServiceOAuth2AuthorizedClientManager`, whose token calls use `connect-timeout`
-  and `read-timeout`.
+- the SDK's own `AuthorizedClientServiceOAuth2AuthorizedClientManager`, whose token calls use
+  `connect-timeout` and `read-timeout` and which works outside an HTTP request (schedulers,
+  listeners, async tasks). Other `OAuth2AuthorizedClientManager` beans of the application, such as
+  Spring Security's request-bound `DefaultOAuth2AuthorizedClientManager`, are ignored;
+- an `OAuth2AuthorizedClientManager` bean named `fileShareAuthorizedClientManager`, when the
+  application declares one, so its providers, token client and storage apply. It must support
+  `client_credentials` and work outside an HTTP request if file-share is called from one.
+
+If the manager returns no authorized client, the call fails with `FileShareUnauthorizedException`
+without reaching file-share, and the first miss logs a `WARN` naming the registration id.
 
 A 401 from file-share drops the cached token, so the next call fetches a new one. An unreachable or
 failing token endpoint is a `FileShareUnavailableException`; a rejected client is a

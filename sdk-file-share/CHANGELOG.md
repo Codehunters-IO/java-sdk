@@ -17,8 +17,10 @@
 
 ### Changed
 - Client credentials go through Spring Security's `OAuth2ClientHttpRequestInterceptor` instead of
-  a hand-written interceptor, with the application's `OAuth2AuthorizedClientManager` when it has
-  one that works outside an HTTP request, and the SDK's own otherwise.
+  a hand-written interceptor, with the SDK's own `AuthorizedClientServiceOAuth2AuthorizedClientManager`
+  unless the application declares an `OAuth2AuthorizedClientManager` bean named
+  `fileShareAuthorizedClientManager`. Other manager beans of the application are ignored, so an
+  application's request-bound or user-facing manager is never picked up by accident.
 
 ### Added
 - `FileShareClient.upload(ticket, content, contentLength)`: the signed `PUT` with the ticket's
@@ -33,6 +35,9 @@
 
 ### Behaviour changes
 - A 403 from file-share no longer drops the cached token; a 401 still does.
+- When the authorized-client manager returns no client, the call fails with
+  `FileShareUnauthorizedException` before reaching file-share, instead of being sent without a
+  token, and the first such miss logs a `WARN` naming the registration id.
 
 ### Removed
 - The dependency on `sdk-support`.
