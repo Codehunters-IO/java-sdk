@@ -127,8 +127,15 @@ task decorator).
 - **One client address.** If `getRemoteAddr()`, access logs or Spring Security must show the same
   client as `ClientContextResolver`, use `server.forward-headers-strategy=native` with
   `server.tomcat.remoteip.internal-proxies` (and empty `trusted-proxies`), or turn on
-  `codehunters.web.device.forwarded-request-filter.enabled`. See the README's "One client address
-  for the whole request".
+  `codehunters.web.device.forwarded-request-filter.enabled`, not both. See the README's "One client
+  address for the whole request". With the filter on, the service no longer starts when
+  `server.forward-headers-strategy=framework` is set or a `ForwardedHeaderFilter` (or a
+  `FilterRegistrationBean<ForwardedHeaderFilter>`) bean is defined: remove them, they trust any
+  client's address. Code behind the filter reads the scheme and host from `X-Forwarded-Proto`/
+  `-Host`/`-Port` or the `proto`/`host` parameters of `Forwarded` as before, but no longer sees
+  `X-Forwarded-For`, `X-Real-IP` or `Forwarded`'s `for=`: use `getRemoteAddr()`.
+- **User-Agent parser failures are not cached.** A parser exception still answers `UNKNOWN`, but
+  the next request with the same header parses it again instead of getting the cached `UNKNOWN`.
 
 ## Steps
 

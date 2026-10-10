@@ -387,18 +387,28 @@ codehunters:
         enabled: true
 ```
 
-`ForwardedClientIpFilter` runs first in the filter chain (`Ordered.HIGHEST_PRECEDENCE`, like Spring's
-`ForwardedHeaderFilter`) and wraps the request: `getRemoteAddr()` and `getRemoteHost()` answer the
-client resolved behind `trusted-proxies`, and `Forwarded` and `X-Forwarded-For` are hidden from
-every later reader, so nothing downstream can pick a different, client-written value. Spring
-Security, `ClientContextResolver` and your code then agree. The container's own access log is
-written outside the filter chain and still records the proxy; use `native` when it must not. Other
-forwarding headers (`X-Forwarded-Proto`, `-Host`, `-Port`) pass through untouched. A request whose
-remote address is not an IP literal is passed on unchanged.
+`ForwardedClientIpFilter` runs at the front of the filter chain (`Ordered.HIGHEST_PRECEDENCE + 1`)
+and wraps the request: `getRemoteAddr()` and `getRemoteHost()` answer the client resolved behind
+`trusted-proxies`, and the headers that name a client are hidden from every later reader, so nothing
+downstream can pick a different, client-written value: `X-Forwarded-For`, `X-Real-IP` and the
+`for=` parameters of `Forwarded`. The other `Forwarded` parameters (`proto`, `host`, `by`) stay, as
+do `X-Forwarded-Proto`, `-Host` and `-Port`; a `Forwarded` line whose quotes do not balance is
+hidden whole. Spring Security, `ClientContextResolver` and your code then agree. Error dispatches
+are filtered too, so `/error` and its problem details see the client. The container's own access
+log is written outside the filter chain and still records the proxy; use `native` when it must not.
+A request whose remote address is not an IP literal is passed on unchanged.
+
+**One or the other, not both.** Do not turn the filter on with `native` when Tomcat's resolved
+client can fall inside `trusted-proxies`: the filter would walk the hops Tomcat left in
+`X-Forwarded-For` a second time and could pick a client-written value. With `native`, leave
+`trusted-proxies` empty and the filter off.
 
 **Never `framework`.** `server.forward-headers-strategy=framework` (Spring's `ForwardedHeaderFilter`)
 takes the **leftmost** `Forwarded` or `X-Forwarded-For` value without any trust check, so any client
-can choose its address. With the SDK filter on, it no longer sees those headers.
+can choose its address. With the SDK filter on, startup fails when Spring's `ForwardedHeaderFilter`
+is registered (`framework`, or a `ForwardedHeaderFilter` or
+`FilterRegistrationBean<ForwardedHeaderFilter>` bean): both claim the front of the chain, and when
+Spring's ran first it would already have rewritten the address from the client's value.
 
 The resolution itself is plain Java (`io.codehunters.web.device.ip`), usable outside Spring:
 
@@ -428,7 +438,8 @@ Optional<InetAddress> client =
 - Without it, `UnknownUserAgentParser` answers `UserAgentInfo.UNKNOWN` (families `Other`, empty
   versions). The sanitized raw header is still available.
 - A parser exception, or a `null` answer from any parser including your own, gives `UNKNOWN`; it
-  never fails the request. An `Error` thrown while parsing (a `StackOverflowError` in the regex
+  never fails the request. A parser exception is not cached, so the next request with that header
+  parses it again. An `Error` thrown while parsing (a `StackOverflowError` in the regex
   engine, say) releases the requests waiting on that parse with `UNKNOWN` and is not cached.
 - Define your own `UserAgentParser` bean to use another library.
 

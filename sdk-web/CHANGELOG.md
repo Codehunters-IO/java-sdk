@@ -35,6 +35,9 @@
   batch jobs and consumers included. Outside servlet applications build them by hand (plain Java).
 - The `User-Agent` cache evicts with Caffeine's size-based policy (frequency and recency) instead of
   strict least-recently-used; `user-agent.cache-size` remains the bound.
+- A parser exception still answers `UNKNOWN` (to the caller and to the requests waiting on that
+  parse) but is no longer cached: the next request with the same header parses it again, so a
+  transient failure does not describe that header as unknown until it is evicted.
 - No SDK default locale: when no header resolves, the locale is `spring.web.locale`, else the
   container's (the JVM default without `Accept-Language`), as with Boot. 2.x answered `es`.
 - Bundles follow Boot's defaults: base name `messages` at the class path root (2.x:
@@ -80,10 +83,16 @@
 - `codehunters.web.i18n.mdc.enabled` (default `false`).
 - `codehunters.web.device.forwarded-request-filter.enabled` (default `false`) registers
   `ForwardedClientIpFilter`, which makes `getRemoteAddr()` answer the client resolved behind
-  `trusted-proxies` and hides `Forwarded`/`X-Forwarded-For` from the rest of the request, so Spring
-  Security, the SDK and application code see one address. The README now recommends
+  `trusted-proxies` and hides `X-Forwarded-For`, `X-Real-IP` and the `for=` parameters of
+  `Forwarded` from the rest of the request (`proto`, `host`, `by` and `X-Forwarded-Host`/`-Proto`/
+  `-Port` pass through), so Spring Security, the SDK and application code see one address. It runs
+  at `Ordered.HIGHEST_PRECEDENCE + 1`, on error dispatches too, so the error page sees the client.
+  Startup fails when it is enabled together with Spring's `ForwardedHeaderFilter`
+  (`server.forward-headers-strategy=framework`, or a `ForwardedHeaderFilter` or
+  `FilterRegistrationBean<ForwardedHeaderFilter>` bean): both claim the first place in the chain, and
+  Spring's, run first, would trust the client-written leftmost value. The README now recommends
   `server.forward-headers-strategy=native` with `server.tomcat.remoteip.internal-proxies` instead,
-  which also covers the container's access log.
+  which also covers the container's access log, and not combining the two.
 - `User-Agent` cache metrics: Micrometer's `cache.*` meters tagged
   `cache=codehunters.web.device.user-agent.cache`, through a `userAgentCacheMetrics` `MeterBinder`
   bean, when Micrometer is on the classpath (`compileOnly`).
