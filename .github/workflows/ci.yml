@@ -35,7 +35,7 @@ jobs:
       packages: write
       issues: write
       id-token: write
-    uses: Codehunters-IO/ci-templates/.github/workflows/java-pr-pipeline.yml@feature/java-test-tasks
+    uses: Codehunters-IO/ci-templates/.github/workflows/java-pr-pipeline.yml@v2
     with:
       run_commit_lint: ${{ github.event_name == 'pull_request' }}
       run_trufflehog: true
