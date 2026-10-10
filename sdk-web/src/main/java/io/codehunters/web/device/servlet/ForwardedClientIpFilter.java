@@ -10,21 +10,29 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.List;
 import org.springframework.core.Ordered;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Makes the rest of the request see one client address: {@code getRemoteAddr()} and {@code
  * getRemoteHost()} answer the client that {@link ClientIpResolver} found behind the trusted
- * proxies, and the {@code Forwarded} and {@code X-Forwarded-For} headers are hidden, so a later
- * reader (Spring Security, Spring's {@code ForwardedHeaderFilter}, application code) cannot pick a
- * different, client written one. A request whose remote address is not an IP literal is passed on
- * untouched.
+ * proxies, and the headers naming a client are hidden, so a later reader (Spring Security,
+ * application code) cannot pick a different, client written one: {@code X-Forwarded-For}, {@code
+ * X-Real-IP} and the {@code for} parameters of {@code Forwarded}. The other {@code Forwarded}
+ * parameters ({@code proto}, {@code host}, {@code by}) and {@code X-Forwarded-Host}, {@code -Proto}
+ * and {@code -Port} pass through. A request whose remote address is not an IP literal is passed on
+ * untouched. Error dispatches are filtered too, so the error page sees the client.
  *
- * <p>It runs inside the servlet container: container access logs still record the proxy. Use {@code
- * server.forward-headers-strategy=native} when they must record the client too.
+ * <p>It must not be combined with Spring's {@code ForwardedHeaderFilter}, which trusts the leftmost
+ * forwarded address from any client; the auto-configuration refuses to start when both are
+ * registered. It runs inside the servlet container: container access logs still record the proxy.
+ * Use {@code server.forward-headers-strategy=native} when they must record the client too.
  */
 public final class ForwardedClientIpFilter extends OncePerRequestFilter implements Ordered {
+
+  private static final List<String> CLIENT_HEADERS =
+      List.of(ServletProxyChains.X_FORWARDED_FOR, "X-Real-IP");
 
   private final ClientIpResolver resolver;
 
@@ -41,13 +49,18 @@ public final class ForwardedClientIpFilter extends OncePerRequestFilter implemen
   }
 
   /**
-   * First, like Spring's {@code ForwardedHeaderFilter}, so every other filter sees the client.
+   * Right after {@link Ordered#HIGHEST_PRECEDENCE}, so every other filter sees the client.
    *
-   * @return {@link Ordered#HIGHEST_PRECEDENCE}
+   * @return {@link Ordered#HIGHEST_PRECEDENCE} + 1
    */
   @Override
   public int getOrder() {
-    return Ordered.HIGHEST_PRECEDENCE;
+    return Ordered.HIGHEST_PRECEDENCE + 1;
+  }
+
+  @Override
+  protected boolean shouldNotFilterErrorDispatch() {
+    return false;
   }
 
   @Override
@@ -60,13 +73,26 @@ public final class ForwardedClientIpFilter extends OncePerRequestFilter implemen
         response);
   }
 
+  // An error dispatch nested in the request this filter already wrapped (Boot's ErrorPageFilter)
+  // may carry the unwrapped request.
+  @Override
+  protected void doFilterNestedErrorDispatch(
+      HttpServletRequest request, HttpServletResponse response, FilterChain chain)
+      throws ServletException, IOException {
+    doFilterInternal(request, response, chain);
+  }
+
   private static final class ClientRequest extends HttpServletRequestWrapper {
 
     private final String client;
+    private final List<String> forwarded;
 
     ClientRequest(HttpServletRequest request, String client) {
       super(request);
       this.client = client;
+      this.forwarded =
+          ForwardedForParameters.strip(
+              ServletProxyChains.headerLines(request, ServletProxyChains.FORWARDED));
     }
 
     @Override
@@ -81,24 +107,33 @@ public final class ForwardedClientIpFilter extends OncePerRequestFilter implemen
 
     @Override
     public String getHeader(String name) {
-      return isForwarding(name) ? null : super.getHeader(name);
+      if (isForwarded(name)) {
+        return forwarded.isEmpty() ? null : forwarded.getFirst();
+      }
+      return isClientHeader(name) ? null : super.getHeader(name);
     }
 
     @Override
     public Enumeration<String> getHeaders(String name) {
-      return isForwarding(name) ? Collections.emptyEnumeration() : super.getHeaders(name);
+      if (isForwarded(name)) {
+        return Collections.enumeration(forwarded);
+      }
+      return isClientHeader(name) ? Collections.emptyEnumeration() : super.getHeaders(name);
     }
 
     @Override
     public Enumeration<String> getHeaderNames() {
       var names = Collections.list(super.getHeaderNames());
-      names.removeIf(ClientRequest::isForwarding);
+      names.removeIf(name -> isClientHeader(name) || (isForwarded(name) && forwarded.isEmpty()));
       return Collections.enumeration(names);
     }
 
-    private static boolean isForwarding(String name) {
-      return ServletProxyChains.FORWARDED.equalsIgnoreCase(name)
-          || ServletProxyChains.X_FORWARDED_FOR.equalsIgnoreCase(name);
+    private static boolean isForwarded(String name) {
+      return ServletProxyChains.FORWARDED.equalsIgnoreCase(name);
+    }
+
+    private static boolean isClientHeader(String name) {
+      return CLIENT_HEADERS.stream().anyMatch(header -> header.equalsIgnoreCase(name));
     }
   }
 }

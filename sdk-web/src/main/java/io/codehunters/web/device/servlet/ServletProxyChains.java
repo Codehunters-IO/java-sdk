@@ -20,7 +20,7 @@ final class ServletProxyChains {
         headerLines(request, X_FORWARDED_FOR));
   }
 
-  private static List<String> headerLines(HttpServletRequest request, String name) {
+  static List<String> headerLines(HttpServletRequest request, String name) {
     var lines = request.getHeaders(name);
     return lines == null ? List.of() : Collections.list(lines);
   }
