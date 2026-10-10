@@ -26,7 +26,8 @@ implementation("com.github.ua-parser:uap-java:1.6.1")
 Web dependencies (Spring MVC, the servlet API, Spring Security, Jackson, `sdk-tracing`) are
 `compileOnly`: the parts that need them activate only when the application has them. So is
 `sdk-commons`: its `ClientInputException` is answered with 400 only when the application has it
-(see [Client input errors](#client-input-errors)).
+(see [Client input errors](#client-input-errors)), and so is Micrometer: cache metrics are published
+only when the application has it. Caffeine is a runtime dependency (the `User-Agent` cache).
 
 ## Errors — `io.codehunters.web.errors`
 
@@ -345,16 +346,69 @@ codehunters:
   (`::ffff:10.0.0.0/104` is `10.0.0.0/8`).
 - IPv6 addresses are returned in the JDK's full form (`2001:db8:0:0:0:0:0:1`).
 
-#### Container forward headers
+#### One client address for the whole request
 
-`server.forward-headers-strategy` rewrites the remote address before the SDK sees it:
+`trusted-proxies` alone is a second source of truth: the SDK resolves the client, but
+`request.getRemoteAddr()`, the container's access log and Spring Security
+(`WebAuthenticationDetails`) still see the proxy. Pick **one** resolver for the whole service.
 
-- **`native`** (Tomcat's `RemoteIpValve`) is equivalent to `trusted-proxies` only when
-  `server.tomcat.remoteip.internal-proxies` lists your proxies. Then leave `trusted-proxies` empty:
-  the remote address is already the resolved client.
-- **`framework`** (Spring's `ForwardedHeaderFilter`) takes the **leftmost** `Forwarded` or
-  `X-Forwarded-For` value without any trust check, so any client can choose its address. Turn it
-  off and configure `trusted-proxies` instead, or accept that the address can be spoofed.
+**Recommended: let Tomcat resolve it.** Tomcat's `RemoteIpValve` rewrites the remote address before
+any filter runs, so access logs, Spring Security, the SDK and your code all see the client:
+
+```yaml
+server:
+  forward-headers-strategy: native
+  tomcat:
+    remoteip:
+      # A regular expression matching your proxies only. Tomcat's default trusts every private and
+      # loopback range, which is too broad when clients can reach the service from inside them.
+      internal-proxies: 10\.\d{1,3}\.\d{1,3}\.\d{1,3}   # 10.0.0.0/8
+      remote-ip-header: x-forwarded-for
+codehunters:
+  web:
+    device:
+      trusted-proxies: []   # empty: the remote address already is the client
+```
+
+Leave `codehunters.web.device.trusted-proxies` empty with `native`: Tomcat removes the hops it
+trusted from `X-Forwarded-For`, and walking what is left a second time could pick a client-written
+value.
+
+**Alternative: the SDK filter.** When the container cannot do it (another server, or
+`internal-proxies` cannot express your ranges as CIDR blocks can), keep `trusted-proxies` and turn on
+the filter:
+
+```yaml
+codehunters:
+  web:
+    device:
+      trusted-proxies: 10.0.0.0/8
+      forwarded-request-filter:
+        enabled: true
+```
+
+`ForwardedClientIpFilter` runs at the front of the filter chain (`Ordered.HIGHEST_PRECEDENCE + 1`)
+and wraps the request: `getRemoteAddr()` and `getRemoteHost()` answer the client resolved behind
+`trusted-proxies`, and the headers that name a client are hidden from every later reader, so nothing
+downstream can pick a different, client-written value: `X-Forwarded-For`, `X-Real-IP` and the
+`for=` parameters of `Forwarded`. The other `Forwarded` parameters (`proto`, `host`, `by`) stay, as
+do `X-Forwarded-Proto`, `-Host` and `-Port`; a `Forwarded` line whose quotes do not balance is
+hidden whole. Spring Security, `ClientContextResolver` and your code then agree. Error dispatches
+are filtered too, so `/error` and its problem details see the client. The container's own access
+log is written outside the filter chain and still records the proxy; use `native` when it must not.
+A request whose remote address is not an IP literal is passed on unchanged.
+
+**One or the other, not both.** Do not turn the filter on with `native` when Tomcat's resolved
+client can fall inside `trusted-proxies`: the filter would walk the hops Tomcat left in
+`X-Forwarded-For` a second time and could pick a client-written value. With `native`, leave
+`trusted-proxies` empty and the filter off.
+
+**Never `framework`.** `server.forward-headers-strategy=framework` (Spring's `ForwardedHeaderFilter`)
+takes the **leftmost** `Forwarded` or `X-Forwarded-For` value without any trust check, so any client
+can choose its address. With the SDK filter on, startup fails when Spring's `ForwardedHeaderFilter`
+is registered (`framework`, or a `ForwardedHeaderFilter` or
+`FilterRegistrationBean<ForwardedHeaderFilter>` bean): both claim the front of the chain, and when
+Spring's ran first it would already have rewritten the address from the client's value.
 
 The resolution itself is plain Java (`io.codehunters.web.device.ip`), usable outside Spring:
 
@@ -371,14 +425,21 @@ Optional<InetAddress> client =
   `user-agent.max-length` (512) characters, so a crafted header cannot make the regex-based parser
   slow and never ends in half a surrogate pair.
 - With `uap-java` on the classpath, `UapUserAgentParser` reads browser, OS and device families and
-  versions; parses are kept in a bounded LRU cache (`user-agent.cache-size`, 1024; 0 disables it),
-  and concurrent requests with the same header share one parse. `max-length x cache-size` may not
-  exceed 33554432 characters (64 MB). The cache saves repeated parses only: clients sending a
+  versions; parses are kept in a bounded Caffeine cache (`CachingUserAgentParser`,
+  `user-agent.cache-size`, 1024; 0 disables it). Lookups take no global lock; concurrent requests
+  with the same header share one parse, and a slow parse never holds up other headers. Eviction is
+  Caffeine's size-based policy (frequency and recency), not strict LRU. `max-length x cache-size`
+  may not exceed 33554432 characters (64 MB). The cache saves repeated parses only: clients sending a
   different header each time still cost one parse of up to `max-length` characters per request.
+- With Micrometer and Spring Boot's metrics on, the cache publishes Micrometer's `cache.*` meters
+  (`cache.gets{result=hit|miss}`, `cache.evictions`, `cache.size`, ...) tagged
+  `cache=codehunters.web.device.user-agent.cache`, through the `userAgentCacheMetrics`
+  `MeterBinder` bean.
 - Without it, `UnknownUserAgentParser` answers `UserAgentInfo.UNKNOWN` (families `Other`, empty
   versions). The sanitized raw header is still available.
 - A parser exception, or a `null` answer from any parser including your own, gives `UNKNOWN`; it
-  never fails the request. An `Error` thrown while parsing (a `StackOverflowError` in the regex
+  never fails the request. A parser exception is not cached, so the next request with that header
+  parses it again. An `Error` thrown while parsing (a `StackOverflowError` in the regex
   engine, say) releases the requests waiting on that parse with `UNKNOWN` and is not cached.
 - Define your own `UserAgentParser` bean to use another library.
 
@@ -417,9 +478,13 @@ supported.
 | `codehunters.web.device.forwarding-header` | `x-forwarded-for` | Or `forwarded` |
 | `codehunters.web.device.user-agent.max-length` | `512` | 16 to 8192 |
 | `codehunters.web.device.user-agent.cache-size` | `1024` | 0 to 100000; 0 disables the cache; `max-length x cache-size` at most 33554432 |
+| `codehunters.web.device.forwarded-request-filter.enabled` | `false` | Rewrites `getRemoteAddr()` to the resolved client; see [One client address](#one-client-address-for-the-whole-request) |
 
-Every bean (`ClientIpResolver`, `UserAgentParser`, `ClientContextResolver`) backs off when the
-application defines its own. `ClientContextResolver` is registered in servlet applications only.
+Every bean (`ClientIpResolver`, `UserAgentParser`, `ClientContextResolver`,
+`ForwardedClientIpFilter`) backs off when the application defines its own. They are registered in
+servlet applications only: a batch job or message consumer has no request to resolve, and gets
+none of them. The core is plain Java, so such an application builds what it needs itself, e.g.
+`new ClientIpResolver(...)` as above, or `new CachingUserAgentParser(new UapUserAgentParser(), 1024)`.
 
 ### Known limits
 

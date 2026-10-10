@@ -1,2 +1,3 @@
 io.codehunters.messaging.jdbc.config.EventMessagingJdbcAutoConfiguration
 io.codehunters.messaging.jdbc.config.OutboxDispatchSchedulerAutoConfiguration
+io.codehunters.messaging.jdbc.config.OutboxMetricsAutoConfiguration

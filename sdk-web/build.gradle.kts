@@ -18,6 +18,7 @@ codehuntersPublishing {
 dependencies {
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
+    implementation("com.github.ben-manes.caffeine:caffeine")
     compileOnly("org.springframework:spring-context")
     compileOnly("org.springframework:spring-web")
     compileOnly("org.springframework:spring-webmvc")
@@ -32,6 +33,8 @@ dependencies {
     // Optional: ClientInputException is answered with 400 only when the application has sdk-commons.
     compileOnly(project(":sdk-commons"))
     compileOnly(libs.uap.java)
+    // Optional: User-Agent cache metrics are published only when the application has Micrometer.
+    compileOnly("io.micrometer:micrometer-core")
 
     testImplementation(project(":sdk-tracing"))
     testImplementation(project(":sdk-commons"))
@@ -48,6 +51,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-oauth2-resource-server")
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation(libs.uap.java)
+    testImplementation("io.micrometer:micrometer-core")
     testImplementation(libs.archunit.junit5)
     testImplementation("org.awaitility:awaitility")
     testImplementation("org.mockito:mockito-core")

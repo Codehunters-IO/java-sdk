@@ -20,10 +20,6 @@ dependencies {
     compileOnly("org.springframework:spring-context")
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("tools.jackson.core:jackson-databind")
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
-    testCompileOnly(libs.lombok)
-    testAnnotationProcessor(libs.lombok)
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.springframework.boot:spring-boot-jackson")
@@ -33,6 +29,7 @@ dependencies {
     testImplementation("org.mockito:mockito-core")
     testImplementation("io.micrometer:micrometer-core")
     testImplementation("org.testcontainers:testcontainers-postgresql")
+    testImplementation("com.zaxxer:HikariCP")
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testRuntimeOnly("org.postgresql:postgresql")
 }

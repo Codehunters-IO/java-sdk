@@ -100,29 +100,69 @@ which may be a secret.
 | `codehunters.parameter.enabled` | `true` | Turn the auto-configuration off |
 | `codehunters.parameter.table-name` | `parameters` | Table to read: `table`, `schema.table` or `database.schema.table` |
 | `codehunters.parameter.cache-ttl` | `0s` | How long answers are cached; `0s` disables the cache |
+| `codehunters.parameter.cache-max-entries` | `1024` | Most answers kept while the cache is on |
 
-An invalid table name or a negative TTL fails at startup. The table name is an unquoted
+An invalid table name, a negative TTL or a `cache-max-entries` below one fails at startup. The table name is an unquoted
 identifier, so PostgreSQL's rules for unquoted names apply: a reserved word such as `user` fails
 at query time, and the name is folded to lower case (a table created with a quoted mixed-case
 name is not found).
 
+The cache is off by default: every call reads the table, so a change is seen at once. Turn it on
+with a TTL that matches how stale a parameter may be (for example `cache-ttl: 5m`).
+
 With a positive `cache-ttl`, `CachingParameterClient` keeps each answer (absent parameters
-included) for that long, per method and arguments:
+included) for that long, per method and arguments, in a Caffeine cache (`ParameterCache`):
 
 - A blank submodule counts as the empty submodule, and module or submodule collections are
   compared as sorted sets, so order and repeats do not create new entries.
-- It holds at most 1024 answers and evicts the least recently used one when full.
-- Concurrent misses for the same arguments share one database query. A failure reaches every
-  waiting caller and is not cached.
+- It holds at most `cache-max-entries` answers; when full, Caffeine evicts the answers least
+  likely to be used again (not strictly the least recently used one).
+- Concurrent misses for the same arguments share one database query, run on the first caller's
+  thread. A failure reaches every waiting caller and is not cached. Waiters block until the query
+  ends, with no timeout of their own.
+- The client being cached must not call back into the caching client with the same arguments while
+  it answers: that call fails with `IllegalStateException("re-entrant load of …")` rather than
+  waiting forever for itself. A `null` answer is cached as absence.
 - `asMap` and `asMapByName` are built from the cached `findByModule` answer, so the three agree.
 
-A change in the table is seen once the TTL runs out.
+A change in the table is seen once the TTL runs out, or at once after an invalidation:
+
+```java
+@Service
+class ParameterAdmin {
+  private final ParameterCache cache;
+
+  ParameterAdmin(ParameterCache cache) {
+    this.cache = cache;
+  }
+
+  void afterUpdate(ParameterModule module) {
+    cache.invalidate(module); // every cached answer reading this module, multi-module queries too
+  }
+
+  void afterBulkLoad() {
+    cache.invalidateAll();
+  }
+}
+```
+
+The `ParameterCache` bean always exists; with the cache off it is disabled and invalidating it does
+nothing, so the code above needs no condition. Invalidation is local to the instance: other
+replicas keep their answers until their TTL runs out.
+
+### Metrics
+
+With Micrometer on the classpath and a single `MeterRegistry`, the enabled cache publishes
+Micrometer's standard cache meters (`cache.gets` with `result=hit|miss`, `cache.puts`,
+`cache.evictions`, `cache.size`, ...) tagged `cache=codehunters.parameter.cache`. Outside Spring,
+bind them with `new ParameterCacheMetrics(cache).bindTo(registry)`.
 
 ## Beans
 
 | Bean | Notes |
 |---|---|
 | `parameterClient` | Replaced by any `ParameterClient` bean of the application |
+| `parameterCache` | The `ParameterCache` the default client uses; disabled when `cache-ttl` is `0s`. Replaced by any `ParameterCache` bean of the application |
 | `parameterJdbcClient` | Not an autowiring candidate; inject it with `@Qualifier("parameterJdbcClient")`. A bean with that name replaces it |
 
 The auto-configuration backs off when there is no `DataSource`, or several with none primary.

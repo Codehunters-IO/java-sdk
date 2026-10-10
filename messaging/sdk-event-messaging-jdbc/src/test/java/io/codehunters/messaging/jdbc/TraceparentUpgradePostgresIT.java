@@ -2,10 +2,10 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.OutboxMessage;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,15 +36,15 @@ class TraceparentUpgradePostgresIT {
             .topic("t")
             .key("k")
             .message("p")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .traceparent(TRACEPARENT)
             .build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(new ClaimRequest(ORIGIN, "w1", 10, Duration.ofMinutes(5), 1));
 
     assertThat(claimed)
         .singleElement()
-        .extracting(OutboxMessage::getTraceparent)
+        .extracting(OutboxMessage::traceparent)
         .isEqualTo(TRACEPARENT);
   }
 }

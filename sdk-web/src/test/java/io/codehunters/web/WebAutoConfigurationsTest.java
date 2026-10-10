@@ -49,7 +49,7 @@ class WebAutoConfigurationsTest {
   }
 
   @Test
-  void should_keep_only_device_when_application_is_not_a_servlet_app() {
+  void should_register_nothing_when_application_is_not_a_servlet_app() {
     new ApplicationContextRunner()
         .withConfiguration(
             AutoConfigurations.of(
@@ -62,7 +62,7 @@ class WebAutoConfigurationsTest {
                     .doesNotHaveBean(WebErrorsExceptionHandler.class)
                     .doesNotHaveBean("localeResolver")
                     .doesNotHaveBean("localeMdcFilterRegistration")
-                    .hasSingleBean(ClientIpResolver.class));
+                    .doesNotHaveBean(ClientIpResolver.class));
   }
 
   @Test

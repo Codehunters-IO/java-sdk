@@ -66,7 +66,7 @@ Keys under `codehunters.outbox`; the rest are in the [core README](../sdk-event-
 | Key | Default | Notes |
 |---|---|---|
 | `publisher.type` | unset | Set to `rabbit` only when `-kafka` is also on the classpath |
-| `publisher.rabbit.confirm-timeout` | `5s` | > 0. Startup fails unless `claim.ttl-ms > batch-size x confirm-timeout` (default 50 x 5 s < 300 s) |
+| `publisher.rabbit.confirm-timeout` | `5s` | > 0. Startup fails unless `claim.ttl > batch-size x confirm-timeout` (default 50 x 5 s < 300 s) |
 | `publisher.legacy-traceparent-header` | `false` | `true` also sends the stored context as `x-traceparent` |
 
 ## Extension points
@@ -84,7 +84,10 @@ and a confirms-enabled factory), or a `MessagePublisherPort` to replace the publ
 ## Migrating from 8.x
 
 Each message now carries the `traceparent` stored with its row (add the `traceparent` column before
-deploying); the family moves to PostgreSQL only and drops the old `outbox.*` keys. See
+deploying); the family moves to PostgreSQL only and drops the old `outbox.*` keys. The adapter reads
+`OutboxMessage` through record accessors, so a custom `MessagePublisherPort` must switch from
+`getTopic()` to `topic()` and so on. Messages are now sent right after their transaction commits,
+and the outbox no longer turns on application-wide scheduling. See
 [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
 ## Migrating from 7.x

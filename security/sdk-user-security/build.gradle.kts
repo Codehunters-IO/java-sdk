@@ -17,6 +17,9 @@ dependencies {
     implementation("org.springframework:spring-web")
     implementation("org.slf4j:slf4j-api")
     implementation("tools.jackson.core:jackson-databind")
+    implementation("com.github.ben-manes.caffeine:caffeine")
+    // Optional: introspection metrics are published only when the application has Micrometer.
+    compileOnly("io.micrometer:micrometer-core")
     compileOnly("org.springframework:spring-webmvc")
     compileOnly("jakarta.servlet:jakarta.servlet-api")
 
@@ -29,6 +32,7 @@ dependencies {
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.assertj:assertj-core")
     testImplementation("org.mockito:mockito-core")
+    testImplementation("io.micrometer:micrometer-core")
     testImplementation("jakarta.servlet:jakarta.servlet-api")
     testImplementation("ch.qos.logback:logback-classic")
     testImplementation(project(":sdk-web"))

@@ -14,19 +14,22 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
+import java.net.URI;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
 /**
- * {@link FileShareClient} implementation backed by a Spring {@link RestClient}. Maps file-share
- * HTTP status codes, transport failures and unreadable responses onto the {@link
- * FileShareException} hierarchy.
+ * {@link FileShareClient} implementation backed by Spring {@link RestClient}s. Maps file-share HTTP
+ * status codes, transport failures and unreadable responses onto the {@link FileShareException}
+ * hierarchy. Built through {@link RestFileShareClients#client}.
  */
-public class RestClientFileShareAdapter implements FileShareClient {
+final class RestClientFileShareAdapter implements FileShareClient {
 
   private static final String UPLOAD_PATH =
       "/api/v1/shared/{referenceId}/documents/{workflowId}/presigned-url";
@@ -34,55 +37,15 @@ public class RestClientFileShareAdapter implements FileShareClient {
   private static final String DOCUMENT_CONTENT_PATH =
       "/api/v1/shared/{referenceId}/documents/{documentId}/content";
 
-  /**
-   * The largest {@code max-download-size}: one byte less than the biggest array the JVM reliably
-   * allocates, since one extra byte is read to detect oversized content.
-   */
-  public static final long MAX_DOWNLOAD_SIZE_LIMIT = Integer.MAX_VALUE - 9;
-
-  private final RestClient restClient;
-  private final RestClient contentRestClient;
+  private final RestFileShareClients clients;
   private final PresignedUrlPolicy presignedUrlPolicy;
-  private final long maxDownloadSize;
+  private final TransferLimits limits;
 
-  /**
-   * Creates an adapter that calls the file-share service through the given client.
-   *
-   * @param restClient the configured REST client targeting the file-share base URL
-   * @param presignedUrlPolicy decides which presigned URLs may reach the caller
-   * @param maxDownloadSize the largest content, in bytes, {@link #download(String, UUID)} buffers
-   * @throws IllegalArgumentException if {@code maxDownloadSize} is not positive or exceeds {@link
-   *     #MAX_DOWNLOAD_SIZE_LIMIT}
-   */
-  public RestClientFileShareAdapter(
-      RestClient restClient, PresignedUrlPolicy presignedUrlPolicy, long maxDownloadSize) {
-    if (maxDownloadSize <= 0 || maxDownloadSize > MAX_DOWNLOAD_SIZE_LIMIT) {
-      throw new IllegalArgumentException(
-          "max-download-size must be between 1 byte and " + MAX_DOWNLOAD_SIZE_LIMIT + " bytes");
-    }
-    this.restClient = restClient;
-    this.contentRestClient = restClient;
-    this.presignedUrlPolicy = presignedUrlPolicy;
-    this.maxDownloadSize = maxDownloadSize;
-  }
-
-  private RestClientFileShareAdapter(
-      RestClientFileShareAdapter base, RestClient contentRestClient) {
-    this.restClient = base.restClient;
-    this.contentRestClient = contentRestClient;
-    this.presignedUrlPolicy = base.presignedUrlPolicy;
-    this.maxDownloadSize = base.maxDownloadSize;
-  }
-
-  /**
-   * Returns a copy that downloads content through another client, typically one whose timeouts suit
-   * long transfers.
-   *
-   * @param contentRestClient the client for the content endpoint, targeting the same base URL
-   * @return a new adapter; this one is unchanged
-   */
-  public RestClientFileShareAdapter withContentClient(RestClient contentRestClient) {
-    return new RestClientFileShareAdapter(this, contentRestClient);
+  RestClientFileShareAdapter(
+      RestFileShareClients clients, PresignedUrlPolicy presignedUrlPolicy, TransferLimits limits) {
+    this.clients = Objects.requireNonNull(clients, "clients");
+    this.presignedUrlPolicy = Objects.requireNonNull(presignedUrlPolicy, "presignedUrlPolicy");
+    this.limits = Objects.requireNonNull(limits, "limits");
   }
 
   @Override
@@ -148,8 +111,57 @@ public class RestClientFileShareAdapter implements FileShareClient {
         "download", () -> exchangeContent(referenceId, fileId, body -> body.transferTo(guarded)));
   }
 
+  /**
+   * Sends the content with a {@code PUT} to the ticket's URL, with the headers the URL was signed
+   * for and a fixed {@code Content-Length}. The request carries no service token and follows no
+   * redirect.
+   *
+   * @throws IllegalArgumentException if {@code contentLength} is negative or above {@code
+   *     max-upload-size}, or {@code content} ends before {@code contentLength} bytes
+   * @throws UncheckedIOException if reading {@code content} fails; the storage is not at fault
+   */
+  @Override
+  public void upload(PresignedUploadTicket ticket, InputStream content, long contentLength) {
+    requireUploadable(contentLength);
+    URI url = presignedUrlPolicy.requireAllowed(ticket.uploadUrl().toString());
+    var body = new UploadContent(content, contentLength);
+    execute("upload", () -> put(url, ticket, body));
+  }
+
+  private void requireUploadable(long contentLength) {
+    if (contentLength < 0 || contentLength > limits.maxUploadSize()) {
+      throw new IllegalArgumentException(
+          "contentLength must be between 0 and max-upload-size=" + limits.maxUploadSize());
+    }
+  }
+
+  private Void put(URI url, PresignedUploadTicket ticket, UploadContent body) {
+    return clients
+        .upload()
+        .put()
+        .uri(url)
+        .headers(headers -> signedHeaders(headers, ticket, body.length()))
+        .body(body)
+        .exchange((req, res) -> requireStored(res));
+  }
+
+  private static void signedHeaders(
+      HttpHeaders headers, PresignedUploadTicket ticket, long contentLength) {
+    ticket.requiredHeaders().forEach(headers::set);
+    headers.setContentLength(contentLength);
+  }
+
+  private static Void requireStored(ClientHttpResponse response) throws IOException {
+    int status = response.getStatusCode().value();
+    if (!response.getStatusCode().is2xxSuccessful()) {
+      throw ErrorResponses.uploadRejected(status);
+    }
+    return null;
+  }
+
   private DocumentHttpResponse post(UploadRequest request, PresignedUrlHttpRequest body) {
-    return restClient
+    return clients
+        .api()
         .post()
         .uri(UPLOAD_PATH, request.referenceId(), request.workflowId())
         .body(body)
@@ -159,7 +171,8 @@ public class RestClientFileShareAdapter implements FileShareClient {
   }
 
   private DocumentHttpResponse fetchDocument(String referenceId, UUID fileId) {
-    return restClient
+    return clients
+        .api()
         .get()
         .uri(DOCUMENT_PATH, referenceId, fileId)
         .retrieve()
@@ -168,7 +181,8 @@ public class RestClientFileShareAdapter implements FileShareClient {
   }
 
   private <T> T exchangeContent(String referenceId, UUID fileId, BodyReader<T> reader) {
-    return contentRestClient
+    return clients
+        .content()
         .get()
         .uri(DOCUMENT_CONTENT_PATH, referenceId, fileId)
         .exchange(
@@ -181,8 +195,8 @@ public class RestClientFileShareAdapter implements FileShareClient {
   }
 
   private byte[] readBounded(InputStream body) throws IOException {
-    byte[] content = body.readNBytes((int) (maxDownloadSize + 1));
-    if (content.length > maxDownloadSize) {
+    byte[] content = body.readNBytes((int) (limits.maxDownloadSize() + 1));
+    if (content.length > limits.maxDownloadSize()) {
       throw new FileShareException(
           "Content is larger than max-download-size; use download(..., OutputStream)");
     }
@@ -211,6 +225,10 @@ public class RestClientFileShareAdapter implements FileShareClient {
     } catch (TargetOutputStream.WriteException e) {
       throw new UncheckedIOException(
           "Could not write file-share content to the target", e.getCause());
+    } catch (UploadContent.ReadException e) {
+      throw new UncheckedIOException("Could not read the upload content", e.getCause());
+    } catch (UploadContent.ShortContentException e) {
+      throw new IllegalArgumentException(e.getMessage(), e);
     } catch (ResourceAccessException | UncheckedIOException e) {
       throw new FileShareUnavailableException(
           "I/O error calling file-share operation=" + operation, e);

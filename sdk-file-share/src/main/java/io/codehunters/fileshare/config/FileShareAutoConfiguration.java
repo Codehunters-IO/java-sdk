@@ -3,7 +3,7 @@ package io.codehunters.fileshare.config;
 import io.codehunters.fileshare.FileShareClient;
 import io.codehunters.fileshare.FileShareRequestInterceptor;
 import io.codehunters.fileshare.http.PresignedUrlPolicy;
-import io.codehunters.fileshare.http.RestClientFileShareAdapter;
+import io.codehunters.fileshare.http.RestFileShareClients;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.http.HttpClient;
@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -25,10 +26,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
-import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -97,28 +95,56 @@ public class FileShareAutoConfiguration {
   }
 
   /**
+   * Builds the {@link RestClient} that sends content to presigned upload URLs. It starts from a
+   * plain builder, not the application's: no base URL, no authentication, no interceptors, and it
+   * never follows redirects, so nothing but the signed request reaches object storage.
+   *
+   * @param properties the file-share configuration
+   * @return a configured {@link RestClient}
+   */
+  @Bean(defaultCandidate = false)
+  @ConditionalOnMissingBean(name = "fileShareUploadRestClient")
+  public RestClient fileShareUploadRestClient(FileShareProperties properties) {
+    var factory =
+        new NoRedirectRequestFactory(properties.connectTimeout(), properties.uploadIdleTimeout());
+    return RestClient.builder().requestFactory(factory).build();
+  }
+
+  /**
+   * Groups the SDK's REST clients.
+   *
+   * @param api the REST client to call the file-share service
+   * @param content the REST client for content downloads
+   * @param upload the REST client for presigned uploads
+   * @return the clients
+   */
+  @Bean
+  @ConditionalOnMissingBean(RestFileShareClients.class)
+  public RestFileShareClients fileShareRestClients(
+      @Qualifier("fileShareRestClient") RestClient api,
+      @Qualifier("fileShareContentRestClient") RestClient content,
+      @Qualifier("fileShareUploadRestClient") RestClient upload) {
+    return new RestFileShareClients(api, content, upload);
+  }
+
+  /**
    * Builds the default {@link FileShareClient}.
    *
-   * @param fileShareRestClient the REST client to call the file-share service
-   * @param fileShareContentRestClient the REST client for content downloads
+   * @param clients the SDK's REST clients
    * @param properties the file-share configuration
    * @return the REST-backed {@link FileShareClient}
    */
   @Bean
   @ConditionalOnMissingBean(FileShareClient.class)
   public FileShareClient fileShareClient(
-      @Qualifier("fileShareRestClient") RestClient fileShareRestClient,
-      @Qualifier("fileShareContentRestClient") RestClient fileShareContentRestClient,
-      FileShareProperties properties) {
+      RestFileShareClients clients, FileShareProperties properties) {
     var policy = new PresignedUrlPolicy(properties.presigned().allowedHosts());
     if (policy.allowsAnyHost()) {
       LOG.warn(
           "codehunters.file-share.presigned.allowed-hosts is empty:"
               + " presigned URLs from the service may point at any https host");
     }
-    return new RestClientFileShareAdapter(
-            fileShareRestClient, policy, properties.maxDownloadSize().toBytes())
-        .withContentClient(fileShareContentRestClient);
+    return clients.client(policy, properties.transferLimits());
   }
 
   private static RestClient restClient(
@@ -195,20 +221,8 @@ public class FileShareAutoConfiguration {
 
     @Bean
     FileShareAuthInterceptor fileShareClientCredentialsInterceptor(
-        FileShareProperties properties,
-        ObjectProvider<ClientRegistrationRepository> repositories,
-        ObjectProvider<OAuth2AuthorizedClientService> clientServices) {
-      ClientRegistrationRepository repository = repositories.getIfAvailable();
-      if (repository == null) {
-        throw new IllegalStateException(
-            "codehunters.file-share.auth.client-registration-id needs a"
-                + " ClientRegistrationRepository bean (spring.security.oauth2.client.registration)");
-      }
-      return ClientCredentialsRequestInterceptor.create(
-          repository,
-          clientServices.getIfAvailable(
-              () -> new InMemoryOAuth2AuthorizedClientService(repository)),
-          properties);
+        FileShareProperties properties, BeanFactory beans) {
+      return ClientCredentials.interceptor(properties, beans);
     }
   }
 }

@@ -18,50 +18,58 @@ class EventMessagingPropertiesTest {
 
   private static final int BATCH_SIZE = 50;
   private static final int MAX_ATTEMPTS = 5;
-  private static final long CLAIM_TTL_MS = 300_000L;
+  private static final Duration CLAIM_TTL = Duration.ofMinutes(5);
   private static final Duration SEND_TIMEOUT = Duration.ofSeconds(5);
   private static final Duration CONFIRM_TIMEOUT = Duration.ofSeconds(5);
-  private static final long TTL_BELOW_BUDGET_MS = 250_000L;
-  private static final Task TASK = new Task("5000", "300000", "10000", "outbox-app");
-  private static final Scheduling SCHEDULING = new Scheduling(true);
+  private static final Duration LONG_CONFIRM_TIMEOUT = Duration.ofSeconds(9);
+  private static final Duration TTL_BELOW_BUDGET = Duration.ofSeconds(250);
+  private static final Duration SHORT_TTL = Duration.ofSeconds(1);
+  private static final Task TASK = task(Duration.ofMinutes(5), Duration.ZERO);
+  private static final Scheduling SCHEDULING = new Scheduling(true, true);
   private static final String LOCK_KEY = "codehunters.outbox.task.lock-at-most";
-  private static final Backoff BACKOFF = new Backoff(30_000L, 3_600_000L);
-  private static final Purge PURGE =
-      new Purge(Duration.ofDays(7), 500, "3600000", "60000", "purge", "PT10M", "PT30S");
+  private static final Backoff BACKOFF = new Backoff(Duration.ofSeconds(30), Duration.ofHours(1));
+  private static final Purge PURGE = purge(Duration.ofDays(7), 500);
 
   @Test
   void should_reject_batch_size_when_below_one() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> properties(0, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), rabbit()))
+        .isThrownBy(() -> properties(0, MAX_ATTEMPTS, claim(CLAIM_TTL), rabbit()))
         .withMessageContaining("codehunters.outbox.batch-size");
   }
 
   @Test
   void should_reject_max_attempts_when_below_one() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> properties(BATCH_SIZE, 0, claim(CLAIM_TTL_MS), rabbit()))
+        .isThrownBy(() -> properties(BATCH_SIZE, 0, claim(CLAIM_TTL), rabbit()))
         .withMessageContaining("codehunters.outbox.max-attempts");
   }
 
   @Test
   void should_reject_claim_ttl_when_not_positive() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> claim(0))
-        .withMessageContaining("codehunters.outbox.claim.ttl-ms");
+        .isThrownBy(() -> claim(Duration.ZERO))
+        .withMessageContaining("codehunters.outbox.claim.ttl");
+  }
+
+  @Test
+  void should_reject_max_per_key_when_below_one() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new Claim(CLAIM_TTL, 0, Duration.ZERO))
+        .withMessageContaining("codehunters.outbox.claim.max-per-key");
   }
 
   @Test
   void should_reject_base_backoff_when_not_positive() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new Backoff(0, 1000))
-        .withMessageContaining("codehunters.outbox.backoff.base-delay-ms");
+        .isThrownBy(() -> new Backoff(Duration.ZERO, Duration.ofSeconds(1)))
+        .withMessageContaining("codehunters.outbox.backoff.base-delay");
   }
 
   @Test
   void should_reject_max_backoff_when_not_positive() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> new Backoff(1000, -1))
-        .withMessageContaining("codehunters.outbox.backoff.max-delay-ms");
+        .isThrownBy(() -> new Backoff(Duration.ofSeconds(1), Duration.ofMillis(-1)))
+        .withMessageContaining("codehunters.outbox.backoff.max-delay");
   }
 
   @Test
@@ -127,15 +135,15 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_claim_ttl_explaining_duplicates_when_kafka_batch_budget_exceeds_it() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(TTL_BELOW_BUDGET_MS), kafka()))
-        .withMessageContaining("codehunters.outbox.claim.ttl-ms")
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(TTL_BELOW_BUDGET), kafka()))
+        .withMessageContaining("codehunters.outbox.claim.ttl ")
         .withMessageContaining("duplicate");
   }
 
   @Test
   void should_accept_kafka_publisher_when_claim_ttl_exceeds_batch_budget() {
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), kafka());
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), kafka());
 
     assertThat(properties.publisher().type()).isEqualTo("kafka");
   }
@@ -157,9 +165,8 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_claim_ttl_naming_confirm_timeout_when_rabbit_batch_budget_exceeds_it() {
     assertThatIllegalArgumentException()
-        .isThrownBy(
-            () -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(TTL_BELOW_BUDGET_MS), rabbit()))
-        .withMessageContaining("codehunters.outbox.claim.ttl-ms")
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(TTL_BELOW_BUDGET), rabbit()))
+        .withMessageContaining("codehunters.outbox.claim.ttl ")
         .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout")
         .withMessageContaining("duplicate");
   }
@@ -167,7 +174,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_accept_rabbit_publisher_when_claim_ttl_exceeds_batch_budget() {
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), rabbit());
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), rabbit());
 
     assertThat(properties.publisher().type()).isEqualTo("rabbit");
   }
@@ -178,15 +185,15 @@ class EventMessagingPropertiesTest {
         new Publisher("rabbit", new Kafka(Duration.ofHours(1)), new Rabbit(CONFIRM_TIMEOUT), false);
 
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher);
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), publisher);
 
-    assertThat(properties.claim().ttlMs()).isEqualTo(CLAIM_TTL_MS);
+    assertThat(properties.claim().ttl()).isEqualTo(CLAIM_TTL);
   }
 
   @Test
   void should_defer_claim_budget_when_publisher_type_unset() {
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), publisher(null));
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(SHORT_TTL), publisher(null));
 
     assertThat(properties.publisher().type()).isNull();
   }
@@ -194,7 +201,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_claim_ttl_when_budget_of_resolved_rabbit_transport_exceeds_it() {
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), publisher(null));
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(SHORT_TTL), publisher(null));
 
     assertThatIllegalArgumentException()
         .isThrownBy(() -> properties.requireClaimBudget("rabbit"))
@@ -204,7 +211,7 @@ class EventMessagingPropertiesTest {
   @Test
   void should_reject_claim_ttl_when_budget_of_resolved_kafka_transport_exceeds_it() {
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(1_000L), publisher(null));
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(SHORT_TTL), publisher(null));
 
     assertThatIllegalArgumentException()
         .isThrownBy(() -> properties.requireClaimBudget("kafka"))
@@ -221,7 +228,7 @@ class EventMessagingPropertiesTest {
             false);
 
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher))
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), publisher))
         .withMessageContaining("codehunters.outbox.publisher.kafka.send-timeout");
   }
 
@@ -235,67 +242,159 @@ class EventMessagingPropertiesTest {
             false);
 
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher))
+        .isThrownBy(() -> properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), publisher))
         .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
   }
 
   @Test
   void should_accept_resolved_transport_when_claim_ttl_exceeds_its_budget() {
     EventMessagingProperties properties =
-        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL_MS), publisher(null));
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), publisher(null));
 
     properties.requireClaimBudget("kafka");
 
-    assertThat(properties.claim().ttlMs()).isEqualTo(CLAIM_TTL_MS);
+    assertThat(properties.claim().ttl()).isEqualTo(CLAIM_TTL);
   }
 
   @Test
   void should_reject_lock_at_most_naming_keys_when_shorter_than_dispatch_run() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> scheduled(lockAtMost("60000"), SCHEDULING, kafka()))
+        .isThrownBy(() -> scheduled(lockAtMost(Duration.ofSeconds(60)), SCHEDULING, kafka()))
         .withMessageContaining(LOCK_KEY)
-        .withMessageContaining("codehunters.outbox.claim.ttl-ms")
+        .withMessageContaining("codehunters.outbox.claim.ttl ")
         .withMessageContaining("codehunters.outbox.publisher.kafka.send-timeout");
   }
 
   @Test
-  void should_accept_lock_at_most_when_iso_duration_exceeds_dispatch_run() {
-    EventMessagingProperties properties = scheduled(lockAtMost("PT3M"), SCHEDULING, rabbit());
+  void should_accept_lock_at_most_when_it_exceeds_dispatch_run() {
+    EventMessagingProperties properties =
+        scheduled(lockAtMost(Duration.ofMinutes(3)), SCHEDULING, rabbit());
 
-    assertThat(properties.task().lockAtMost()).isEqualTo("PT3M");
-  }
-
-  @Test
-  void should_accept_lock_at_most_when_simple_duration_exceeds_dispatch_run() {
-    EventMessagingProperties properties = scheduled(lockAtMost("4m"), SCHEDULING, kafka());
-
-    assertThat(properties.task().lockAtMost()).isEqualTo("4m");
+    assertThat(properties.task().lockAtMost()).isEqualTo(Duration.ofMinutes(3));
   }
 
   @Test
   void should_skip_lock_check_when_scheduling_disabled() {
     EventMessagingProperties properties =
-        scheduled(lockAtMost("60000"), new Scheduling(false), kafka());
+        scheduled(lockAtMost(Duration.ofSeconds(60)), new Scheduling(false, true), kafka());
 
     assertThat(properties.scheduling().enabled()).isFalse();
   }
 
   @Test
-  void should_reject_lock_at_most_naming_key_when_not_a_duration() {
+  void should_reject_task_fixed_delay_when_not_positive() {
     assertThatIllegalArgumentException()
-        .isThrownBy(() -> scheduled(lockAtMost("soon"), SCHEDULING, kafka()))
+        .isThrownBy(() -> new Task(Duration.ZERO, Duration.ofMinutes(5), Duration.ZERO, "lock"))
+        .withMessageContaining("codehunters.outbox.task.fixed-delay");
+  }
+
+  @Test
+  void should_reject_task_lock_at_most_when_not_positive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> task(Duration.ZERO, Duration.ZERO))
         .withMessageContaining(LOCK_KEY);
+  }
+
+  @Test
+  void should_reject_task_lock_at_least_when_negative() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> task(Duration.ofMinutes(5), Duration.ofSeconds(-1)))
+        .withMessageContaining("codehunters.outbox.task.lock-at-least");
+  }
+
+  @Test
+  void should_reject_task_lock_at_least_when_longer_than_lock_at_most() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> task(Duration.ofSeconds(10), Duration.ofSeconds(11)))
+        .withMessageContaining("codehunters.outbox.task.lock-at-least")
+        .withMessageContaining(LOCK_KEY);
+  }
+
+  @Test
+  void should_accept_zero_task_lock_at_least_when_configured() {
+    assertThat(task(Duration.ofMinutes(5), Duration.ZERO).lockAtLeast()).isZero();
+  }
+
+  @Test
+  void should_reject_purge_fixed_delay_when_not_positive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> purgeTiming(Duration.ZERO, Duration.ZERO, Duration.ZERO))
+        .withMessageContaining("codehunters.outbox.purge.fixed-delay");
+  }
+
+  @Test
+  void should_reject_purge_initial_delay_when_negative() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> purgeTiming(Duration.ofHours(1), Duration.ofMillis(-1), Duration.ZERO))
+        .withMessageContaining("codehunters.outbox.purge.initial-delay");
+  }
+
+  @Test
+  void should_reject_purge_lock_at_least_when_longer_than_lock_at_most() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> purgeTiming(Duration.ofHours(1), Duration.ZERO, Duration.ofMinutes(11)))
+        .withMessageContaining("codehunters.outbox.purge.lock-at-least")
+        .withMessageContaining("codehunters.outbox.purge.lock-at-most");
+  }
+
+  @Test
+  void should_reject_purge_lock_at_most_when_not_positive() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                new Purge(
+                    Duration.ofDays(7),
+                    500,
+                    Duration.ofHours(1),
+                    Duration.ZERO,
+                    "purge",
+                    Duration.ZERO,
+                    Duration.ZERO))
+        .withMessageContaining("codehunters.outbox.purge.lock-at-most");
   }
 
   @Test
   void should_reject_lock_at_most_when_budget_of_resolved_transport_exceeds_it() {
     EventMessagingProperties properties =
-        scheduled(lockAtMost("60000"), SCHEDULING, publisher(null));
+        scheduled(lockAtMost(Duration.ofSeconds(60)), SCHEDULING, publisher(null));
 
     assertThatIllegalArgumentException()
         .isThrownBy(() -> properties.requireClaimBudget("rabbit"))
         .withMessageContaining(LOCK_KEY)
         .withMessageContaining("codehunters.outbox.publisher.rabbit.confirm-timeout");
+  }
+
+  @Test
+  void should_reject_commit_grace_when_negative() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new Claim(CLAIM_TTL, 10, Duration.ofSeconds(-1)))
+        .withMessageContaining("codehunters.outbox.claim.commit-grace");
+  }
+
+  @Test
+  void should_bound_dispatch_run_by_half_ttl_and_kafka_timeout_when_publisher_is_kafka() {
+    EventMessagingProperties properties =
+        properties(BATCH_SIZE, MAX_ATTEMPTS, claim(CLAIM_TTL), kafka());
+
+    assertThat(properties.maxDispatchRun()).isEqualTo(CLAIM_TTL.dividedBy(2).plus(SEND_TIMEOUT));
+  }
+
+  @Test
+  void should_bound_dispatch_run_by_longest_transport_timeout_when_publisher_type_unset() {
+    EventMessagingProperties properties =
+        new EventMessagingProperties(
+            true,
+            BATCH_SIZE,
+            MAX_ATTEMPTS,
+            TASK,
+            claim(CLAIM_TTL),
+            BACKOFF,
+            new Publisher(null, new Kafka(SEND_TIMEOUT), new Rabbit(LONG_CONFIRM_TIMEOUT), false),
+            PURGE,
+            SCHEDULING);
+
+    assertThat(properties.maxDispatchRun())
+        .isEqualTo(CLAIM_TTL.dividedBy(2).plus(LONG_CONFIRM_TIMEOUT));
   }
 
   private static EventMessagingProperties scheduled(
@@ -305,15 +404,19 @@ class EventMessagingPropertiesTest {
         BATCH_SIZE,
         MAX_ATTEMPTS,
         task,
-        claim(CLAIM_TTL_MS),
+        claim(CLAIM_TTL),
         BACKOFF,
         publisher,
         PURGE,
         scheduling);
   }
 
-  private static Task lockAtMost(String lockAtMost) {
-    return new Task("5000", lockAtMost, "10000", "outbox-app");
+  private static Task lockAtMost(Duration lockAtMost) {
+    return task(lockAtMost, Duration.ZERO);
+  }
+
+  private static Task task(Duration lockAtMost, Duration lockAtLeast) {
+    return new Task(Duration.ofSeconds(5), lockAtMost, lockAtLeast, "outbox-app");
   }
 
   private static EventMessagingProperties properties(
@@ -322,12 +425,31 @@ class EventMessagingPropertiesTest {
         true, batchSize, maxAttempts, TASK, claim, BACKOFF, publisher, PURGE, SCHEDULING);
   }
 
-  private static Claim claim(long ttlMs) {
-    return new Claim(ttlMs);
+  private static Claim claim(Duration ttl) {
+    return new Claim(ttl, 10, Duration.ZERO);
   }
 
   private static Purge purge(Duration retention, int batchSize) {
-    return new Purge(retention, batchSize, "3600000", "60000", "purge", "PT10M", "PT30S");
+    return new Purge(
+        retention,
+        batchSize,
+        Duration.ofHours(1),
+        Duration.ofMinutes(1),
+        "purge",
+        Duration.ofMinutes(10),
+        Duration.ofSeconds(30));
+  }
+
+  private static Purge purgeTiming(
+      Duration fixedDelay, Duration initialDelay, Duration lockAtLeast) {
+    return new Purge(
+        Duration.ofDays(7),
+        500,
+        fixedDelay,
+        initialDelay,
+        "purge",
+        Duration.ofMinutes(10),
+        lockAtLeast);
   }
 
   private static Publisher publisher(String type) {

@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -21,8 +22,11 @@ import io.codehunters.fileshare.FileShareValidationException;
 import io.codehunters.fileshare.UploadRequest;
 import io.codehunters.fileshare.model.FileRefFixtures;
 import io.codehunters.fileshare.model.FileStatus;
+import io.codehunters.fileshare.model.PresignedUploadTicket;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
@@ -50,6 +54,9 @@ class RestClientFileShareAdapterTest {
   private static final String SIGNED_URL =
       "https://bucket.s3.amazonaws.com/f.pdf?X-Amz-Signature=s";
   private static final long MAX_DOWNLOAD_SIZE = 8;
+  private static final long MAX_UPLOAD_SIZE = 16;
+  private static final byte[] UPLOAD_CONTENT = {1, 2, 3, 4};
+  private static final Instant EXPIRY = Instant.parse("2030-01-01T00:00:00Z");
   private static final JsonMapper JSON = JsonMapper.builder().build();
   private static final Map<String, Object> DOCUMENT =
       Map.of(
@@ -81,11 +88,133 @@ class RestClientFileShareAdapterTest {
   void setUp() {
     var builder = RestClient.builder().baseUrl("http://file-share");
     server = MockRestServiceServer.bindTo(builder).build();
+    var client = builder.build();
     adapter =
         new RestClientFileShareAdapter(
-            builder.build(),
+            new RestFileShareClients(client, client, client),
             new PresignedUrlPolicy(List.of("*.s3.amazonaws.com")),
-            MAX_DOWNLOAD_SIZE);
+            new TransferLimits(MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE));
+  }
+
+  @Test
+  void should_put_content_with_the_signed_content_type_when_uploading() {
+    server
+        .expect(requestTo(SIGNED_URL))
+        .andExpect(method(HttpMethod.PUT))
+        .andExpect(header("Content-Type", "application/pdf"))
+        .andExpect(header("Content-Length", "4"))
+        .andExpect(content().bytes(UPLOAD_CONTENT))
+        .andRespond(withSuccess());
+
+    adapter.upload(uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 4);
+
+    server.verify();
+  }
+
+  @Test
+  void should_send_no_more_than_content_length_bytes_when_content_is_longer() {
+    server
+        .expect(requestTo(SIGNED_URL))
+        .andExpect(content().bytes(new byte[] {1, 2}))
+        .andRespond(withSuccess());
+
+    adapter.upload(uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 2);
+
+    server.verify();
+  }
+
+  @Test
+  void should_fail_when_upload_content_ends_before_content_length() {
+    server.expect(requestTo(SIGNED_URL)).andRespond(withSuccess());
+
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 6))
+        .withMessageContaining("contentLength");
+  }
+
+  @Test
+  void should_report_caller_io_error_when_upload_content_cannot_be_read() {
+    server.expect(requestTo(SIGNED_URL)).andRespond(withSuccess());
+
+    assertThatThrownBy(() -> adapter.upload(uploadTicket(SIGNED_URL), new FailingInputStream(), 4))
+        .isExactlyInstanceOf(UncheckedIOException.class)
+        .hasMessageContaining("content")
+        .hasRootCauseMessage("disk unreadable");
+  }
+
+  @Test
+  void should_reject_before_calling_storage_when_upload_exceeds_max_upload_size() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 17))
+        .withMessageContaining("max-upload-size");
+    server.verify();
+  }
+
+  @Test
+  void should_reject_upload_when_content_length_is_negative() {
+    assertThatIllegalArgumentException()
+        .isThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), -1))
+        .withMessageContaining("contentLength");
+  }
+
+  @Test
+  void should_reject_upload_when_url_is_outside_the_presigned_policy() {
+    assertThatThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket("https://evil.example.com/f.pdf"),
+                    new ByteArrayInputStream(UPLOAD_CONTENT),
+                    4))
+        .isInstanceOf(FileShareException.class)
+        .hasMessageContaining("host");
+    server.verify();
+  }
+
+  @Test
+  void should_map_to_unauthorized_without_storage_body_when_upload_is_rejected() {
+    server
+        .expect(requestTo(SIGNED_URL))
+        .andRespond(withStatus(HttpStatus.FORBIDDEN).body("<Error>SignatureDoesNotMatch</Error>"));
+
+    assertThatThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 4))
+        .isInstanceOf(FileShareUnauthorizedException.class)
+        .hasMessageContaining("403")
+        .hasMessageNotContaining("SignatureDoesNotMatch");
+  }
+
+  @Test
+  void should_map_to_unavailable_when_upload_storage_fails() {
+    server.expect(requestTo(SIGNED_URL)).andRespond(withStatus(HttpStatus.SERVICE_UNAVAILABLE));
+
+    assertThatThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 4))
+        .isInstanceOf(FileShareUnavailableException.class);
+  }
+
+  @Test
+  void should_map_to_file_share_error_when_upload_redirects() {
+    server.expect(requestTo(SIGNED_URL)).andRespond(withStatus(HttpStatus.FOUND));
+
+    assertThatThrownBy(
+            () ->
+                adapter.upload(
+                    uploadTicket(SIGNED_URL), new ByteArrayInputStream(UPLOAD_CONTENT), 4))
+        .isExactlyInstanceOf(FileShareException.class)
+        .hasMessageContaining("302");
   }
 
   @Test
@@ -432,11 +561,16 @@ class RestClientFileShareAdapterTest {
   @ValueSource(longs = {0, -1, Integer.MAX_VALUE})
   void should_reject_max_download_size_outside_array_bounds(long maxDownloadSize) {
     assertThatIllegalArgumentException()
-        .isThrownBy(
-            () ->
-                new RestClientFileShareAdapter(
-                    RestClient.create(), new PresignedUrlPolicy(List.of()), maxDownloadSize))
+        .isThrownBy(() -> new TransferLimits(maxDownloadSize, MAX_UPLOAD_SIZE))
         .withMessageContaining("max-download-size");
+  }
+
+  @ParameterizedTest
+  @ValueSource(longs = {0, -1})
+  void should_reject_max_upload_size_when_it_is_not_positive(long maxUploadSize) {
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> new TransferLimits(MAX_DOWNLOAD_SIZE, maxUploadSize))
+        .withMessageContaining("max-upload-size");
   }
 
   @Test
@@ -447,11 +581,12 @@ class RestClientFileShareAdapterTest {
 
   @Test
   void should_map_io_error_to_unavailable() {
+    var client = RestClient.builder().baseUrl("http://localhost:1").build();
     var offline =
         new RestClientFileShareAdapter(
-            RestClient.builder().baseUrl("http://localhost:1").build(),
+            new RestFileShareClients(client, client, client),
             new PresignedUrlPolicy(List.of()),
-            MAX_DOWNLOAD_SIZE);
+            new TransferLimits(MAX_DOWNLOAD_SIZE, MAX_UPLOAD_SIZE));
 
     assertThatThrownBy(() -> offline.getMetadata(REFERENCE_ID, FILE_ID))
         .isInstanceOf(FileShareUnavailableException.class)
@@ -463,6 +598,17 @@ class RestClientFileShareAdapterTest {
     public void write(int b) throws IOException {
       throw new IOException("disk full");
     }
+  }
+
+  private static final class FailingInputStream extends InputStream {
+    @Override
+    public int read() throws IOException {
+      throw new IOException("disk unreadable");
+    }
+  }
+
+  private static PresignedUploadTicket uploadTicket(String url) {
+    return new PresignedUploadTicket(FileRefFixtures.fileRef(), URI.create(url), EXPIRY);
   }
 
   private static UploadRequest uploadRequest() {

@@ -3,8 +3,8 @@
 `io.codehunters:sdk-web` 3.0.0 moves the properties of its three parts under the artifact's own
 prefix, `codehunters.web`, and builds the i18n part on Spring Boot's own message source and locale
 resolver (see [i18n on Spring Boot](#i18n-on-spring-boot)). Packages and class names are those of
-2.0.0. The old prefixes are not read any more: a service that keeps them starts with the defaults,
-silently.
+2.0.0, except `CachingUserAgentParser` (see [Device](#device)). The old prefixes are not read any
+more: a service that keeps them starts with the defaults, silently.
 
 ## Properties
 
@@ -114,6 +114,28 @@ task decorator).
 
 **Spring Security.** 401 and 403 problem details now follow `X-Locale`: `ProblemWriter` asks the
 `localeResolver` bean instead of reading `Accept-Language`.
+
+## Device
+
+- **`CachingUserAgentParser`** moved to `io.codehunters.web.device.cache` and is backed by Caffeine:
+  change the import if you build it yourself. Its constructor is the same. Eviction is no longer
+  strict LRU but Caffeine's size-based policy; the bound is still `user-agent.cache-size`.
+- **Servlet applications only.** `ClientIpResolver` and `UserAgentParser` are no longer registered
+  in non-web applications. A batch job or consumer that injected them builds them instead:
+  `new ClientIpResolver(TrustedProxies.of(...), ForwardingHeader.X_FORWARDED_FOR)`,
+  `new CachingUserAgentParser(new UapUserAgentParser(), 1024)`.
+- **One client address.** If `getRemoteAddr()`, access logs or Spring Security must show the same
+  client as `ClientContextResolver`, use `server.forward-headers-strategy=native` with
+  `server.tomcat.remoteip.internal-proxies` (and empty `trusted-proxies`), or turn on
+  `codehunters.web.device.forwarded-request-filter.enabled`, not both. See the README's "One client
+  address for the whole request". With the filter on, the service no longer starts when
+  `server.forward-headers-strategy=framework` is set or a `ForwardedHeaderFilter` (or a
+  `FilterRegistrationBean<ForwardedHeaderFilter>`) bean is defined: remove them, they trust any
+  client's address. Code behind the filter reads the scheme and host from `X-Forwarded-Proto`/
+  `-Host`/`-Port` or the `proto`/`host` parameters of `Forwarded` as before, but no longer sees
+  `X-Forwarded-For`, `X-Real-IP` or `Forwarded`'s `for=`: use `getRemoteAddr()`.
+- **User-Agent parser failures are not cached.** A parser exception still answers `UNKNOWN`, but
+  the next request with the same header parses it again instead of getting the cached `UNKNOWN`.
 
 ## Steps
 

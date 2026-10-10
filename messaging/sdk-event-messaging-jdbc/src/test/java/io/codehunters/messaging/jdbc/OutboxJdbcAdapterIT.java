@@ -7,9 +7,11 @@ import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxStatus;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.UUID;
@@ -62,7 +64,7 @@ class OutboxJdbcAdapterIT {
             .routingKey("payment.RAFFLE")
             .key("key-1")
             .message("{\"data\":1}")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build();
 
     adapter.save(message);
@@ -90,7 +92,7 @@ class OutboxJdbcAdapterIT {
             .topic("test-topic")
             .key("key-3")
             .message("{\"data\":3}")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build();
 
     adapter.save(message);
@@ -111,7 +113,7 @@ class OutboxJdbcAdapterIT {
             .topic("test-topic")
             .key("key-2")
             .message("{\"data\":2}")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build();
 
     adapter.save(message);
@@ -131,7 +133,7 @@ class OutboxJdbcAdapterIT {
             .topic("test-topic")
             .key("key-default")
             .message("{\"data\":4}")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build();
 
     adapter.save(message);
@@ -153,7 +155,7 @@ class OutboxJdbcAdapterIT {
             .topic("test-topic")
             .key("key-1")
             .message(new TestPayload("test"))
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build();
 
     adapter.save(message);
@@ -165,7 +167,7 @@ class OutboxJdbcAdapterIT {
   @Test
   void should_update_outbox_message_status() {
     var id = UUID.randomUUID();
-    var now = LocalDateTime.now(ZoneOffset.UTC);
+    var now = Instant.now();
 
     var message =
         OutboxMessage.<String>builder()
@@ -185,7 +187,7 @@ class OutboxJdbcAdapterIT {
             .message("p")
             .status(OutboxStatus.PUBLISHED)
             .attempts(1)
-            .publishedAt(LocalDateTime.now(ZoneOffset.UTC))
+            .publishedAt(Instant.now())
             .build();
     adapter.update(updated);
 
@@ -200,14 +202,14 @@ class OutboxJdbcAdapterIT {
 
   @Test
   void should_claim_pending_messages_in_insertion_order_regardless_of_occurred_at() {
-    var now = LocalDateTime.now(ZoneOffset.UTC);
+    var now = Instant.now();
 
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("topic-1")
             .key("k1")
             .message("oldest")
-            .occurredAt(now.minusMinutes(10))
+            .occurredAt(now.minus(Duration.ofMinutes(10)))
             .build());
 
     adapter.save(
@@ -223,26 +225,26 @@ class OutboxJdbcAdapterIT {
             .topic("topic-3")
             .key("k3")
             .message("middle")
-            .occurredAt(now.minusMinutes(5))
+            .occurredAt(now.minus(Duration.ofMinutes(5)))
             .build());
 
-    var result = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var result = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(result)
-        .extracting(OutboxMessage::getMessage)
+        .extracting(OutboxMessage::message)
         .containsExactly("oldest", "newest", "middle");
   }
 
   @Test
   void should_return_empty_list_when_no_pending_messages() {
-    var result = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var result = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(result).isEmpty();
   }
 
   @Test
   void should_respect_batch_size_on_claim() {
-    var now = LocalDateTime.now(ZoneOffset.UTC);
+    var now = Instant.now();
     for (int i = 0; i < 5; i++) {
       adapter.save(
           OutboxMessage.<String>builder()
@@ -253,7 +255,7 @@ class OutboxJdbcAdapterIT {
               .build());
     }
 
-    var result = adapter.claimPendingMessages(ORIGIN, 3, "instance-1", Duration.ofMinutes(5));
+    var result = adapter.claim(claimOf(3, "instance-1"));
 
     assertThat(result).hasSize(3);
   }
@@ -261,7 +263,7 @@ class OutboxJdbcAdapterIT {
   @Test
   void should_only_claim_pending_messages_not_published() {
     var id = UUID.randomUUID();
-    var now = LocalDateTime.now(ZoneOffset.UTC);
+    var now = Instant.now();
 
     adapter.save(
         OutboxMessage.<String>builder()
@@ -291,15 +293,15 @@ class OutboxJdbcAdapterIT {
             .occurredAt(now)
             .build());
 
-    var result = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var result = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(result).hasSize(1);
-    assertThat(result.get(0).getMessage()).isEqualTo("pending-msg");
+    assertThat(result.get(0).message()).isEqualTo("pending-msg");
   }
 
   @Test
   void should_filter_pending_messages_by_origin() {
-    var now = LocalDateTime.now(ZoneOffset.UTC);
+    var now = Instant.now();
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("t")
@@ -317,15 +319,15 @@ class OutboxJdbcAdapterIT {
             .occurredAt(now)
             .build());
 
-    var result = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var result = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(result).hasSize(1);
-    assertThat(result.get(0).getMessage()).isEqualTo("mine-payload");
+    assertThat(result.get(0).message()).isEqualTo("mine-payload");
   }
 
   @Test
   void should_filter_claim_by_origin() {
-    var now = LocalDateTime.now(ZoneOffset.UTC);
+    var now = Instant.now();
     adapter.save(
         OutboxMessage.<String>builder()
             .topic("t")
@@ -343,17 +345,17 @@ class OutboxJdbcAdapterIT {
             .occurredAt(now)
             .build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(claimed).hasSize(1);
-    assertThat(claimed.get(0).getMessage()).isEqualTo("mine-payload");
-    assertThat(claimed.get(0).getOrigin()).isEqualTo(ORIGIN);
+    assertThat(claimed.get(0).message()).isEqualTo("mine-payload");
+    assertThat(claimed.get(0).origin()).isEqualTo(ORIGIN);
   }
 
   @Test
   void should_map_all_fields_from_row() {
     var id = UUID.randomUUID();
-    var now = LocalDateTime.of(2026, 4, 27, 12, 0, 0);
+    var now = Instant.parse("2026-04-27T12:00:00Z");
 
     adapter.save(
         OutboxMessage.<String>builder()
@@ -364,23 +366,23 @@ class OutboxJdbcAdapterIT {
             .key("user-123")
             .message("{\"name\":\"test\"}")
             .occurredAt(now)
-            .nextAttemptAt(now.plusMinutes(5))
+            .nextAttemptAt(now.plus(Duration.ofMinutes(5)))
             .build());
 
-    var result = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var result = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(result).hasSize(1);
     var msg = result.get(0);
-    assertThat(msg.getId()).isEqualTo(id);
-    assertThat(msg.getOrigin()).isEqualTo(ORIGIN);
-    assertThat(msg.getRoutingKey()).isEqualTo("custom-rk");
-    assertThat(msg.getTopic()).isEqualTo("events.user");
-    assertThat(msg.getKey()).isEqualTo("user-123");
-    assertThat(msg.getMessage()).isEqualTo("{\"name\":\"test\"}");
-    assertThat(msg.getStatus()).isEqualTo(OutboxStatus.IN_FLIGHT);
-    assertThat(msg.getAttempts()).isZero();
-    assertThat(msg.getOccurredAt()).isEqualTo(now);
-    assertThat(msg.getNextAttemptAt()).isEqualTo(now.plusMinutes(5));
+    assertThat(msg.id()).isEqualTo(id);
+    assertThat(msg.origin()).isEqualTo(ORIGIN);
+    assertThat(msg.routingKey()).isEqualTo("custom-rk");
+    assertThat(msg.topic()).isEqualTo("events.user");
+    assertThat(msg.key()).isEqualTo("user-123");
+    assertThat(msg.message()).isEqualTo("{\"name\":\"test\"}");
+    assertThat(msg.status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+    assertThat(msg.attempts()).isZero();
+    assertThat(msg.occurredAt()).isEqualTo(now);
+    assertThat(msg.nextAttemptAt()).isEqualTo(now.plus(Duration.ofMinutes(5)));
   }
 
   @Test
@@ -391,7 +393,7 @@ class OutboxJdbcAdapterIT {
             .routingKey("")
             .key("k")
             .message("data")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build());
 
     var routingKey =
@@ -412,7 +414,7 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message("data")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build());
 
     var savedId = jdbcClient.sql("SELECT id FROM outbox_message").query(UUID.class).single();
@@ -426,15 +428,15 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(claimed).hasSize(1);
-    assertThat(claimed.get(0).getStatus()).isEqualTo(OutboxStatus.IN_FLIGHT);
-    assertThat(claimed.get(0).getClaimedBy()).startsWith("instance-1:");
-    assertThat(claimed.get(0).getClaimedAt()).isNotNull();
+    assertThat(claimed.get(0).status()).isEqualTo(OutboxStatus.IN_FLIGHT);
+    assertThat(claimed.get(0).claimedBy()).startsWith("instance-1:");
+    assertThat(claimed.get(0).claimedAt()).isNotNull();
   }
 
   @Test
@@ -444,13 +446,13 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build());
 
-    var firstClaim = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var firstClaim = adapter.claim(claimOf(10, "instance-1"));
     assertThat(firstClaim).hasSize(1);
 
-    var secondClaim = adapter.claimPendingMessages(ORIGIN, 10, "instance-2", Duration.ofMinutes(5));
+    var secondClaim = adapter.claim(claimOf(10, "instance-2"));
 
     assertThat(secondClaim).isEmpty();
   }
@@ -464,7 +466,7 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build());
 
     var oldClaimAt = LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10);
@@ -475,11 +477,10 @@ class OutboxJdbcAdapterIT {
         .param("id", id)
         .update();
 
-    var reclaimed =
-        adapter.claimPendingMessages(ORIGIN, 10, "live-instance", Duration.ofMinutes(5));
+    var reclaimed = adapter.claim(claimOf(10, "live-instance"));
 
     assertThat(reclaimed).hasSize(1);
-    assertThat(reclaimed.get(0).getClaimedBy()).startsWith("live-instance:");
+    assertThat(reclaimed.get(0).claimedBy()).startsWith("live-instance:");
   }
 
   @Test
@@ -491,11 +492,11 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
-            .nextAttemptAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(1))
+            .occurredAt(Instant.now())
+            .nextAttemptAt(Instant.now().plus(Duration.ofHours(1)))
             .build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(claimed).isEmpty();
   }
@@ -507,11 +508,11 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message("payload")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
-            .nextAttemptAt(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(1))
+            .occurredAt(Instant.now())
+            .nextAttemptAt(Instant.now().minus(Duration.ofMinutes(1)))
             .build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "instance-1"));
 
     assertThat(claimed).hasSize(1);
   }
@@ -519,35 +520,34 @@ class OutboxJdbcAdapterIT {
   @Test
   void should_keep_claim_columns_when_updated_in_flight_by_claim_owner() {
     adapter.save(OutboxMessage.<String>builder().topic("t").key("k").message("p").build());
-    var claimed =
-        adapter.claimPendingMessages(ORIGIN, 10, "instance-x", Duration.ofMinutes(5)).get(0);
+    var claimed = adapter.claim(claimOf(10, "instance-x")).get(0);
 
-    claimed.setAttempts(1);
-    adapter.update(claimed);
+    adapter.update(claimed.toBuilder().attempts(1).build());
 
     var claimedBy =
         jdbcClient
             .sql("SELECT claimed_by FROM outbox_message WHERE id=:id")
-            .param("id", claimed.getId())
+            .param("id", claimed.id())
             .query(String.class)
             .single();
-    assertThat(claimedBy).isEqualTo(claimed.getClaimedBy());
+    assertThat(claimedBy).isEqualTo(claimed.claimedBy());
   }
 
   @Test
   void should_ignore_update_when_claim_marker_does_not_match() {
     adapter.save(OutboxMessage.<String>builder().topic("t").key("k").message("p").build());
-    var claimed =
-        adapter.claimPendingMessages(ORIGIN, 10, "instance-x", Duration.ofMinutes(5)).get(0);
+    var claimed = adapter.claim(claimOf(10, "instance-x")).get(0);
 
-    claimed.setClaimedBy("instance-stale:marker");
-    claimed.setStatus(OutboxStatus.PUBLISHED);
-    adapter.update(claimed);
+    adapter.update(
+        claimed.toBuilder()
+            .claimedBy("instance-stale:marker")
+            .status(OutboxStatus.PUBLISHED)
+            .build());
 
     var status =
         jdbcClient
             .sql("SELECT status FROM outbox_message WHERE id=:id")
-            .param("id", claimed.getId())
+            .param("id", claimed.id())
             .query(String.class)
             .single();
     assertThat(status).isEqualTo("IN_FLIGHT");
@@ -559,9 +559,9 @@ class OutboxJdbcAdapterIT {
     adapter.save(OutboxMessage.<String>builder().topic("t").key("A").message("A2").build());
     adapter.save(OutboxMessage.<String>builder().topic("t").key("B").message("B1").build());
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "instance-1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "instance-1"));
 
-    assertThat(claimed).extracting(OutboxMessage::getMessage).containsExactly("A1", "B1");
+    assertThat(claimed).extracting(OutboxMessage::message).containsExactly("A1", "B1");
   }
 
   @Test
@@ -583,7 +583,7 @@ class OutboxJdbcAdapterIT {
             .topic("t")
             .key("k")
             .message(unserializable)
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build();
 
     assertThatThrownBy(() -> adapterWithBrokenMapper.save(message))
@@ -599,9 +599,9 @@ class OutboxJdbcAdapterIT {
     markStaleInFlight(id);
     markSendStartedByDeadInstance(id);
 
-    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+    var reclaimed = adapter.claim(claimOf(10, "live"));
 
-    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(2);
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(2);
     assertThat(attemptsOf(id)).isEqualTo(2);
   }
 
@@ -611,9 +611,9 @@ class OutboxJdbcAdapterIT {
     adapter.save(unsent(id));
     recordOneFailedAttempt(id);
 
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "live"));
 
-    assertThat(claimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
+    assertThat(claimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
   }
 
@@ -624,9 +624,9 @@ class OutboxJdbcAdapterIT {
     recordOneFailedAttempt(id);
     markStaleInFlight(id);
 
-    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+    var reclaimed = adapter.claim(claimOf(10, "live"));
 
-    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getAttempts).isEqualTo(1);
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::attempts).isEqualTo(1);
     assertThat(attemptsOf(id)).isEqualTo(1);
   }
 
@@ -637,9 +637,9 @@ class OutboxJdbcAdapterIT {
     markStaleInFlight(id);
     markSendStartedByDeadInstance(id);
 
-    var reclaimed = adapter.claimPendingMessages(ORIGIN, 10, "live", Duration.ofMinutes(5));
+    var reclaimed = adapter.claim(claimOf(10, "live"));
 
-    assertThat(reclaimed).singleElement().extracting(OutboxMessage::getSendStartedAt).isNull();
+    assertThat(reclaimed).singleElement().extracting(OutboxMessage::sendStartedAt).isNull();
     assertThat(sendStartedAtOf(id)).isNull();
   }
 
@@ -647,25 +647,24 @@ class OutboxJdbcAdapterIT {
   void should_stamp_send_mark_when_claim_is_still_held() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    var claimed = adapter.claim(claimOf(10, "w1")).get(0);
 
-    boolean marked = adapter.markSendStarted(claimed);
+    var marked = adapter.markSendStarted(claimed);
 
-    assertThat(marked).isTrue();
+    assertThat(marked).hasValueSatisfying(m -> assertThat(m.sendStartedAt()).isNotNull());
     assertThat(sendStartedAtOf(id)).isNotNull();
-    assertThat(claimed.getSendStartedAt()).isNotNull();
   }
 
   @Test
   void should_refuse_send_mark_when_claim_was_taken_over() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
-    var stale = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    var stale = adapter.claim(claimOf(10, "w1")).get(0);
     markStaleInFlight(id);
 
-    boolean marked = adapter.markSendStarted(stale);
+    var marked = adapter.markSendStarted(stale);
 
-    assertThat(marked).isFalse();
+    assertThat(marked).isEmpty();
     assertThat(sendStartedAtOf(id)).isNull();
   }
 
@@ -673,11 +672,10 @@ class OutboxJdbcAdapterIT {
   void should_clear_send_mark_when_update_ends_the_claim() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
-    adapter.markSendStarted(claimed);
+    var claimed = adapter.claim(claimOf(10, "w1")).get(0);
+    var marked = adapter.markSendStarted(claimed).orElseThrow();
 
-    claimed.setStatus(OutboxStatus.PUBLISHED);
-    adapter.update(claimed);
+    adapter.update(marked.published(Instant.now()));
 
     assertThat(sendStartedAtOf(id)).isNull();
   }
@@ -688,7 +686,7 @@ class OutboxJdbcAdapterIT {
     UUID second = UUID.randomUUID();
     adapter.save(unsent(first));
     adapter.save(unsent(second, "other-key"));
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5));
+    var claimed = adapter.claim(claimOf(10, "w1"));
 
     inCallerTransaction(
         () -> {
@@ -708,11 +706,15 @@ class OutboxJdbcAdapterIT {
   void should_not_warn_when_send_mark_runs_outside_a_transaction() {
     UUID id = UUID.randomUUID();
     adapter.save(unsent(id));
-    var claimed = adapter.claimPendingMessages(ORIGIN, 10, "w1", Duration.ofMinutes(5)).get(0);
+    var claimed = adapter.claim(claimOf(10, "w1")).get(0);
 
     adapter.markSendStarted(claimed);
 
     assertThat(adapterLogs.list).noneMatch(event -> event.getLevel() == Level.WARN);
+  }
+
+  private static ClaimRequest claimOf(int batchSize, String claimedBy) {
+    return new ClaimRequest(ORIGIN, claimedBy, batchSize, Duration.ofMinutes(5), 1);
   }
 
   private void inCallerTransaction(Runnable work) {
@@ -772,7 +774,7 @@ class OutboxJdbcAdapterIT {
         .topic("t")
         .key(key)
         .message("p")
-        .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+        .occurredAt(Instant.now())
         .build();
   }
 }

@@ -11,11 +11,10 @@ import static org.mockito.Mockito.when;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.OutboxDispatchStore;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -31,9 +30,9 @@ class OutboxPurgeSchedulerTest {
   private static final Instant NOW = Instant.parse("2026-10-05T12:00:00Z");
   private static final Duration RETENTION = Duration.ofDays(7);
   private static final int BATCH = 500;
-  private static final LocalDateTime EXPECTED_CUTOFF = LocalDateTime.of(2026, 9, 28, 12, 0);
+  private static final Instant EXPECTED_CUTOFF = Instant.parse("2026-09-28T12:00:00Z");
 
-  @Mock private OutboxRepositoryPort repository;
+  @Mock private OutboxDispatchStore repository;
 
   private OutboxPurgeScheduler scheduler;
   private ListAppender<ILoggingEvent> logAppender;
@@ -61,7 +60,7 @@ class OutboxPurgeSchedulerTest {
   void should_loop_batches_with_retention_cutoff_when_batches_are_full() {
     when(repository.purgePublished(EXPECTED_CUTOFF, BATCH)).thenReturn(500, 500, 37);
 
-    scheduler.purgePublished();
+    scheduler.run();
 
     verify(repository, times(3)).purgePublished(EXPECTED_CUTOFF, BATCH);
   }
@@ -70,7 +69,7 @@ class OutboxPurgeSchedulerTest {
   void should_stop_after_one_call_when_first_batch_is_partial() {
     when(repository.purgePublished(EXPECTED_CUTOFF, BATCH)).thenReturn(0);
 
-    scheduler.purgePublished();
+    scheduler.run();
 
     verify(repository, times(1)).purgePublished(any(), anyInt());
   }
@@ -80,7 +79,7 @@ class OutboxPurgeSchedulerTest {
     when(repository.purgePublished(any(), anyInt()))
         .thenThrow(new RuntimeException("PII-SENTINEL"));
 
-    assertDoesNotThrow(() -> scheduler.purgePublished());
+    assertDoesNotThrow(() -> scheduler.run());
 
     assertThat(logAppender.list)
         .extracting(ILoggingEvent::getFormattedMessage)

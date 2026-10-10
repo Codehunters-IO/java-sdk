@@ -1,133 +1,56 @@
 package io.codehunters.messaging.factory;
 
 import io.codehunters.messaging.EventMessage;
+import io.codehunters.messaging.OutboxEvent;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.W3cTraceParent;
+import java.util.UUID;
 
 /**
- * Wraps an {@link EventMessage} into an {@link OutboxMessage} ready to persist, stamping the
- * configured origin, topic and key, and the current W3C {@code traceparent} from the event-message
- * factory's {@link TraceIdSource} when it is a valid {@link W3cTraceParent} and its trace id is the
- * one the event names. Build messages on the thread that does the work, so the stored context is
- * that work's.
+ * Turns an {@link OutboxEvent} into an {@link OutboxMessage} ready to save: a new id, the
+ * configured origin, the event's topic, routing key and key, the {@link EventMessage} envelope, the
+ * clock's time as {@code occurredAt}, and the current W3C {@code traceparent} from the
+ * event-message factory's {@link TraceIdSource} when it is a valid {@link W3cTraceParent} and its
+ * trace id is the one the envelope names. Build messages on the thread that does the work, so the
+ * stored context is that work's.
  */
 public class OutboxEventFactory {
 
-  private final String origin;
   private final EventMessageFactory eventMessageFactory;
 
   /**
    * Creates the factory.
    *
-   * @param origin the origin service identifier stamped on every outbox message
-   * @param eventMessageFactory the factory used to build the inner event payload
+   * @param eventMessageFactory the factory of the envelope, whose origin, clock and trace source
+   *     the outbox message shares
    */
-  public OutboxEventFactory(String origin, EventMessageFactory eventMessageFactory) {
-    this.origin = origin;
+  public OutboxEventFactory(EventMessageFactory eventMessageFactory) {
     this.eventMessageFactory = eventMessageFactory;
   }
 
   /**
-   * Creates the factory with its own event-message factory, which uses the current trace id when
-   * the caller passes none.
+   * Builds the outbox message of an event.
    *
-   * @param origin the origin service identifier stamped on every outbox message and event header
-   * @param traceIdSource supplies the trace id when the caller passes none
-   */
-  public OutboxEventFactory(String origin, TraceIdSource traceIdSource) {
-    this(origin, new EventMessageFactory(origin, traceIdSource));
-  }
-
-  /**
-   * Builds an outbox message with a routing key, defaulting the locale to {@code "es"}.
+   * <pre>{@code
+   * outboxWriter.save(
+   *     factory.create(OutboxEvent.to("orders").key(id).type("OrderPlaced").payload(placed)));
+   * }</pre>
    *
-   * @param topic the destination topic or exchange
-   * @param routingKey the routing key
-   * @param traceId the trace identifier propagated in the event header; null or blank uses the
-   *     current trace when the event-message factory has a {@link TraceIdSource}
-   * @param aggregate the aggregate identifier (also used as message key)
-   * @param eventName the event name
-   * @param eventType the event type
-   * @param payload the event body
+   * @param event the event to publish
    * @param <T> the payload type
-   * @return the outbox message wrapping the built event
+   * @return the outbox message wrapping the event's envelope
    */
-  public <T> OutboxMessage<EventMessage<T>> createRoutingKey(
-      String topic,
-      String routingKey,
-      String traceId,
-      String aggregate,
-      String eventName,
-      String eventType,
-      T payload) {
-    return createRoutingKey(
-        topic, routingKey, "es", traceId, aggregate, eventName, eventType, payload);
-  }
-
-  /**
-   * Builds an outbox message with a routing key and an explicit locale.
-   *
-   * @param topic the destination topic or exchange
-   * @param routingKey the routing key
-   * @param locale the locale propagated in the event header
-   * @param traceId the trace identifier propagated in the event header; null or blank uses the
-   *     current trace when the event-message factory has a {@link TraceIdSource}
-   * @param aggregate the aggregate identifier (also used as message key)
-   * @param eventName the event name
-   * @param eventType the event type
-   * @param payload the event body
-   * @param <T> the payload type
-   * @return the outbox message wrapping the built event
-   */
-  public <T> OutboxMessage<EventMessage<T>> createRoutingKey(
-      String topic,
-      String routingKey,
-      String locale,
-      String traceId,
-      String aggregate,
-      String eventName,
-      String eventType,
-      T payload) {
-    EventMessage<T> event =
-        eventMessageFactory.create(traceId, locale, aggregate, eventName, eventType, payload);
-    return outboxMessage(topic, routingKey, aggregate, event);
-  }
-
-  /**
-   * Builds an outbox message without a routing key.
-   *
-   * @param topic the destination topic or exchange
-   * @param traceId the trace identifier propagated in the event header; null or blank uses the
-   *     current trace when the event-message factory has a {@link TraceIdSource}
-   * @param aggregate the aggregate identifier (also used as message key)
-   * @param eventName the event name
-   * @param eventType the event type
-   * @param payload the event body
-   * @param <T> the payload type
-   * @return the outbox message wrapping the built event
-   */
-  public <T> OutboxMessage<EventMessage<T>> create(
-      String topic,
-      String traceId,
-      String aggregate,
-      String eventName,
-      String eventType,
-      T payload) {
-    EventMessage<T> event =
-        eventMessageFactory.create(traceId, "es", aggregate, eventName, eventType, payload);
-    return outboxMessage(topic, null, aggregate, event);
-  }
-
-  // Returns the built message, not Lombok's builder: javadoc runs on the undelomboked sources.
-  private <T> OutboxMessage<EventMessage<T>> outboxMessage(
-      String topic, String routingKey, String aggregate, EventMessage<T> event) {
+  public <T> OutboxMessage<EventMessage<T>> create(OutboxEvent<T> event) {
+    EventMessage<T> envelope = eventMessageFactory.create(event);
     return OutboxMessage.<EventMessage<T>>builder()
-        .origin(origin)
-        .topic(topic)
-        .routingKey(routingKey)
-        .key(aggregate)
-        .message(event)
-        .traceparent(traceParentOf(event.getHeader().getTraceId()))
+        .id(UUID.randomUUID())
+        .origin(eventMessageFactory.origin())
+        .topic(event.topic())
+        .routingKey(event.routingKey())
+        .key(event.key())
+        .message(envelope)
+        .occurredAt(envelope.header().timestamp())
+        .traceparent(traceParentOf(envelope.header().traceId()))
         .build();
   }
 

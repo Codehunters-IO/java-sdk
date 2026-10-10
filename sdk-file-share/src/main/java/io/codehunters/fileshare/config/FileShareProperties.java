@@ -1,6 +1,6 @@
 package io.codehunters.fileshare.config;
 
-import io.codehunters.fileshare.http.RestClientFileShareAdapter;
+import io.codehunters.fileshare.http.TransferLimits;
 import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -19,7 +19,10 @@ import org.springframework.util.unit.DataSize;
  * @param downloadIdleTimeout how long a content download may go without receiving a byte; there is
  *     no deadline for the whole download
  * @param maxDownloadSize the largest content {@code download(referenceId, fileId)} loads into
- *     memory, at most {@link RestClientFileShareAdapter#MAX_DOWNLOAD_SIZE_LIMIT} bytes
+ *     memory, at most {@link TransferLimits#MAX_DOWNLOAD_SIZE_LIMIT} bytes
+ * @param uploadIdleTimeout how long an upload to a presigned URL waits for the storage's answer
+ *     once the content is sent; there is no deadline for the whole upload
+ * @param maxUploadSize the largest content {@code upload(ticket, content, contentLength)} sends
  * @param presigned rules for the presigned URLs handed to callers
  * @param auth how calls to the service authenticate
  */
@@ -31,23 +34,32 @@ public record FileShareProperties(
     @DefaultValue("30s") Duration readTimeout,
     @DefaultValue("30s") Duration downloadIdleTimeout,
     @DefaultValue("50MB") DataSize maxDownloadSize,
+    @DefaultValue("30s") Duration uploadIdleTimeout,
+    @DefaultValue("5GB") DataSize maxUploadSize,
     @DefaultValue Presigned presigned,
     @DefaultValue Auth auth) {
 
   /**
-   * Rejects a {@code maxDownloadSize} that cannot be buffered.
+   * Rejects transfer sizes that cannot be applied.
    *
-   * @throws IllegalArgumentException if {@code maxDownloadSize} is not positive or too large
+   * @throws IllegalArgumentException if {@code maxDownloadSize} is not positive or too large, or
+   *     {@code maxUploadSize} is not positive
    */
   public FileShareProperties {
-    long bytes = maxDownloadSize.toBytes();
-    if (bytes <= 0 || bytes > RestClientFileShareAdapter.MAX_DOWNLOAD_SIZE_LIMIT) {
-      throw new IllegalArgumentException(
-          "codehunters.file-share.max-download-size must be between 1B and "
-              + RestClientFileShareAdapter.MAX_DOWNLOAD_SIZE_LIMIT
-              + "B, was "
-              + maxDownloadSize);
-    }
+    limits(maxDownloadSize, maxUploadSize);
+  }
+
+  /**
+   * The transfer size limits.
+   *
+   * @return the download and upload limits in bytes
+   */
+  public TransferLimits transferLimits() {
+    return limits(maxDownloadSize, maxUploadSize);
+  }
+
+  private static TransferLimits limits(DataSize maxDownloadSize, DataSize maxUploadSize) {
+    return new TransferLimits(maxDownloadSize.toBytes(), maxUploadSize.toBytes());
   }
 
   /**

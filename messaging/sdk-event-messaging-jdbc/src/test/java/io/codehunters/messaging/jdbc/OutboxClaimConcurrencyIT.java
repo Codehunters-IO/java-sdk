@@ -2,6 +2,8 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
+import io.codehunters.messaging.OutboxDispatchTrigger;
 import io.codehunters.messaging.OutboxMessage;
 import java.time.Clock;
 import java.time.Duration;
@@ -40,7 +42,7 @@ class OutboxClaimConcurrencyIT {
   void setUp() {
     dataSource = PostgresTestSupport.dataSource();
     PostgresTestSupport.truncate();
-    var settings = new OutboxAdapterSettings(ORIGIN, CLOCK);
+    var settings = new OutboxAdapterSettings(ORIGIN, CLOCK, OutboxDispatchTrigger.none());
     adapter = new OutboxJdbcAdapter(dataSource, JsonMapper.builder().build(), settings);
   }
 
@@ -93,10 +95,11 @@ class OutboxClaimConcurrencyIT {
   private List<UUID> drain(String worker, CountDownLatch startGate) throws InterruptedException {
     startGate.await();
     var claimed = new ArrayList<UUID>();
-    List<OutboxMessage<String>> batch = adapter.claimPendingMessages(ORIGIN, BATCH, worker, TTL);
+    List<OutboxMessage<String>> batch =
+        adapter.claim(new ClaimRequest(ORIGIN, worker, BATCH, TTL, 10));
     while (!batch.isEmpty()) {
-      batch.forEach(message -> claimed.add(message.getId()));
-      batch = adapter.claimPendingMessages(ORIGIN, BATCH, worker, TTL);
+      batch.forEach(message -> claimed.add(message.id()));
+      batch = adapter.claim(new ClaimRequest(ORIGIN, worker, BATCH, TTL, 10));
     }
     return claimed;
   }

@@ -91,8 +91,12 @@ byte[] pdf = renderer.toBytes(request);                     // capped at max-out
     </detail>
   </jasperReport>
   ```
-- **The cache** keeps `cache-size` compiled templates, least recently used first. Requests that arrive
-  together for a template not yet loaded share one compilation; a failure is not cached.
+- **The cache** keeps up to `cache-size` compiled templates in a Caffeine cache; when full, it evicts
+  the templates least likely to be used again. Requests that arrive together for a template not yet
+  loaded share one compilation, run on the first request's thread; a failure is not cached and
+  reaches every waiting request as the same exception (an `Error` too, unwrapped). Waiters block
+  until the compilation ends. A template loader must not read its own template through the cache:
+  that fails with `IllegalStateException("re-entrant load of template …")` instead of deadlocking.
 - **Templates are code.** Their expressions run as Java with the application's permissions. Load only
   templates shipped with the application; never one a user uploaded or named freely.
 
@@ -143,8 +147,11 @@ which times every render in `report.render`, tagged `template`, `format` (`pdf`,
 once that template has rendered successfully, and `unknown` for failures of a template that never
 did, so a name taken from a request that matches no template adds no tag value: the tag's
 cardinality stays the number of templates the application ships. Dashboards that sum
-`report.render` across tags are unaffected, those that match the exact tag set need the new tag. It
-backs off when the application defines its own `ReportRenderer`, without
+`report.render` across tags are unaffected, those that match the exact tag set need the new tag.
+The template cache publishes Micrometer's standard cache meters (`cache.gets` with
+`result=hit|miss`, `cache.puts`, `cache.evictions`, `cache.size`, ...) tagged
+`cache=codehunters.jasper.template.cache`, unless `cache-size` is 0. Outside Spring, bind them with
+`new TemplateCacheMetrics(renderer).bindTo(registry)`. The auto-configuration backs off when the application defines its own `ReportRenderer`, without
 JasperReports on the classpath, and with `codehunters.jasper.enabled=false`.
 
 | Property | Default | |

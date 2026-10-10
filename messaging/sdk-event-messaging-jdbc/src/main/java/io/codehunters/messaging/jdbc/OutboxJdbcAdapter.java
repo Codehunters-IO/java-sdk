@@ -1,78 +1,122 @@
 package io.codehunters.messaging.jdbc;
 
+import io.codehunters.messaging.ClaimRequest;
+import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxMessage;
-import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.OutboxStatus;
+import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.W3cTraceParent;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.time.Duration;
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.sql.DataSource;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * PostgreSQL-backed {@link OutboxRepositoryPort}. Claims a batch of claimable rows with {@code FOR
- * UPDATE SKIP LOCKED}, so concurrent dispatch workers receive disjoint rows and a row is held back
- * while an earlier row with the same {@code (origin, topic, message_key)} is unresolved. Updates of
- * a claimed row, including the send mark written before each publish, are fenced by its claim
- * marker, so a worker whose claim was taken over after the TTL cannot overwrite the new owner's
- * state. The {@code traceparent} captured with each message is stored and returned by the claim, so
- * the publisher can continue the trace that created the row. A value that is not a valid {@link
- * W3cTraceParent} is stored as null instead of failing the business transaction.
+ * PostgreSQL-backed {@link OutboxWriter} and {@link OutboxDispatchStore}. Claims a batch of
+ * claimable rows with {@code FOR UPDATE SKIP LOCKED}, so concurrent dispatch workers receive
+ * disjoint rows; up to {@link ClaimRequest#maxPerKey()} contiguous rows of one {@code (origin,
+ * topic, message_key)} are claimed together, in insertion order, and a row is held back while an
+ * earlier row of its key is unresolved outside the claim. With a {@link
+ * ClaimRequest#commitGrace()}, a keyed row is also held back until that long after its {@code
+ * occurred_at}, so an earlier row of its key still being committed is claimed first. A save asks
+ * the settings' {@link io.codehunters.messaging.OutboxDispatchTrigger} for a dispatch once the
+ * surrounding transaction commits, or right away without one; so does a requeue of FAILED rows.
+ * Updates of a claimed row, including the send mark written before each publish, are fenced by its
+ * claim marker, so a worker whose claim was taken over after the TTL cannot overwrite the new
+ * owner's state. The {@code traceparent} captured with each message is stored and returned by the
+ * claim, so the publisher can continue the trace that created the row. A value that is not a valid
+ * {@link W3cTraceParent} is stored as null instead of failing the business transaction.
  */
-@Slf4j
-public class OutboxJdbcAdapter implements OutboxRepositoryPort {
+public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
+
+  private static final Logger log = LoggerFactory.getLogger(OutboxJdbcAdapter.class);
 
   private static final String INSERT_SQL =
       """
       INSERT INTO outbox_message (id, origin, routing_key, topic, message_key, payload, status,
-          attempts, error, occurred_at, next_attempt_at, published_at, claimed_at, claimed_by,
-          traceparent)
-      VALUES (:id, :origin, :routingKey, :topic, :messageKey, :payload, :status, :attempts,
-          :error, :occurredAt, :nextAttemptAt, :publishedAt, :claimedAt, :claimedBy, :traceparent)
+          attempts, occurred_at, next_attempt_at, traceparent)
+      VALUES (:id, :origin, :routingKey, :topic, :messageKey, :payload, 'PENDING', 0,
+          :occurredAt, :nextAttemptAt, :traceparent)
       """;
 
   // Locks the candidate rows, skips rows locked by a concurrent claimer, marks them IN_FLIGHT and
-  // returns them in one statement. Only the candidate scan is locked; the per-key subquery is a
-  // plain snapshot read, so an earlier same-key row being claimed by another dispatcher still
-  // blocks later rows. A stale IN_FLIGHT row is charged an attempt only when send_started_at is
-  // set: only then may the previous dispatcher have published it before dying.
-  private static final String CLAIM_SQL =
+  // returns them in one statement. A key's rows are claimed in seq order, up to :perKey of them:
+  // a candidate qualifies while no earlier row of its (origin, topic, message_key) is unresolved
+  // and unclaimable (FAILED, PENDING not yet due, IN_FLIGHT under a live claim) and fewer than
+  // :perKey earlier rows are unresolved. The claimability predicate stays in the locking scan, so
+  // PostgreSQL rechecks it on rows updated concurrently. Only that scan is locked; the per-key
+  // subqueries are plain snapshot reads. The admitted step then drops every candidate with an
+  // earlier unresolved row outside this claim, so a row skipped because another claimer holds it
+  // blocks its successors. Rows without a key are unordered. An IN_FLIGHT row is stale once its
+  // claimed_at is older than the TTL or missing. A stale IN_FLIGHT row is charged an attempt only
+  // when send_started_at is set: only then may the previous dispatcher have published it before
+  // dying. {commitGrace} is empty, or the clause that holds back fresh keyed rows.
+  private static final String CLAIM_TEMPLATE =
       """
       WITH candidates AS (
-        SELECT o.id
+        SELECT o.id, o.seq, o.topic, o.message_key
         FROM outbox_message o
         WHERE o.origin = :origin
           AND ((o.status = 'PENDING' AND (o.next_attempt_at IS NULL OR o.next_attempt_at <= :now))
-            OR (o.status = 'IN_FLIGHT' AND o.claimed_at <= :ttlBoundary))
-          AND NOT EXISTS (
+            OR (o.status = 'IN_FLIGHT' AND (o.claimed_at IS NULL OR o.claimed_at <= :ttlBoundary)))
+          {commitGrace}AND NOT EXISTS (
             SELECT 1 FROM outbox_message p
             WHERE p.origin = o.origin AND p.topic = o.topic AND p.message_key = o.message_key
-              AND p.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
-              AND p.seq < o.seq)
+              AND p.seq < o.seq
+              AND (p.status = 'FAILED'
+                OR (p.status = 'PENDING' AND p.next_attempt_at > :now)
+                OR (p.status = 'IN_FLIGHT' AND p.claimed_at > :ttlBoundary)))
+          AND (SELECT COUNT(*) FROM (
+                SELECT 1 FROM outbox_message q
+                WHERE q.origin = o.origin AND q.topic = o.topic AND q.message_key = o.message_key
+                  AND q.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
+                  AND q.seq < o.seq
+                LIMIT :perKey) earlier) < :perKey
         ORDER BY o.seq
         LIMIT :limit
         FOR UPDATE OF o SKIP LOCKED
+      ),
+      admitted AS (
+        SELECT c.id
+        FROM candidates c
+        WHERE NOT EXISTS (
+          SELECT 1 FROM outbox_message p
+          WHERE p.origin = :origin AND p.topic = c.topic AND p.message_key = c.message_key
+            AND p.status IN ('PENDING', 'IN_FLIGHT', 'FAILED')
+            AND p.seq < c.seq
+            AND p.id NOT IN (SELECT id FROM candidates))
       )
       UPDATE outbox_message m
       SET attempts = CASE WHEN status = 'IN_FLIGHT' AND send_started_at IS NOT NULL THEN attempts + 1 ELSE attempts END,
           status = 'IN_FLIGHT', claimed_at = :now, claimed_by = :claimedBy, send_started_at = NULL
-      FROM candidates c
-      WHERE m.id = c.id
+      FROM admitted a
+      WHERE m.id = a.id
       RETURNING m.id, m.origin, m.routing_key, m.topic, m.message_key, m.payload, m.status,
           m.attempts, m.error, m.occurred_at, m.next_attempt_at, m.published_at, m.claimed_at,
           m.claimed_by, m.seq, m.send_started_at, m.traceparent
       """;
+
+  // A writer that inserted an earlier row of the key may still be committing: a keyed row is held
+  // back until :graceBoundary (now - commit grace) has passed its occurred_at.
+  private static final String COMMIT_GRACE_CLAUSE =
+      "AND (o.message_key IS NULL OR o.occurred_at <= :graceBoundary)\n    ";
+
+  private static final String CLAIM_SQL = CLAIM_TEMPLATE.replace("{commitGrace}", "");
+
+  private static final String CLAIM_WITH_GRACE_SQL =
+      CLAIM_TEMPLATE.replace("{commitGrace}", COMMIT_GRACE_CLAUSE);
 
   private static final String PURGE_PUBLISHED_SQL =
       """
@@ -112,30 +156,26 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
   private static final String COUNT_FAILED_SQL =
       "SELECT COUNT(*) FROM outbox_message WHERE origin = :origin AND status = 'FAILED'";
 
-  private static final RowMapper<OutboxMessage<String>> ROW_MAPPER =
-      (rs, rowNum) ->
-          OutboxMessage.<String>builder()
-              .id(rs.getObject("id", UUID.class))
-              .origin(rs.getString("origin"))
-              .routingKey(rs.getString("routing_key"))
-              .topic(rs.getString("topic"))
-              .key(rs.getString("message_key"))
-              .message(rs.getString("payload"))
-              .status(OutboxStatus.valueOf(rs.getString("status")))
-              .attempts(rs.getInt("attempts"))
-              .error(rs.getString("error"))
-              .occurredAt(rs.getObject("occurred_at", LocalDateTime.class))
-              .nextAttemptAt(rs.getObject("next_attempt_at", LocalDateTime.class))
-              .publishedAt(rs.getObject("published_at", LocalDateTime.class))
-              .claimedAt(rs.getObject("claimed_at", LocalDateTime.class))
-              .claimedBy(rs.getString("claimed_by"))
-              .seq(readSeq(rs))
-              .sendStartedAt(rs.getObject("send_started_at", LocalDateTime.class))
-              .traceparent(rs.getString("traceparent"))
-              .build();
+  // Puts FAILED rows of the origin back to PENDING, due now, as if never attempted: no error, no
+  // claim, no send mark. Callers append the row filter.
+  private static final String REQUEUE_SQL =
+      """
+      UPDATE outbox_message
+      SET status = 'PENDING', attempts = 0, error = NULL, next_attempt_at = :now,
+          claimed_at = NULL, claimed_by = NULL, send_started_at = NULL
+      WHERE origin = :origin AND status = 'FAILED'
+      """;
+
+  private static final String REQUEUE_BY_ID_SQL = REQUEUE_SQL + "  AND id IN (:ids)";
+
+  private static final String REQUEUE_BY_KEY_SQL =
+      REQUEUE_SQL + "  AND topic = :topic AND message_key = :key";
+
+  // Ids per requeue statement, far below PostgreSQL's 65,535 bind parameters.
+  private static final int REQUEUE_CHUNK = 1_000;
 
   private static final Comparator<OutboxMessage<String>> BY_SEQ =
-      Comparator.comparing(OutboxMessage::getSeq, Comparator.nullsLast(Comparator.naturalOrder()));
+      Comparator.comparing(OutboxMessage::seq, Comparator.nullsLast(Comparator.naturalOrder()));
 
   private final JdbcClient jdbcClient;
   private final JsonMapper outboxJsonMapper;
@@ -175,65 +215,75 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
 
   @Override
   public <T> void save(OutboxMessage<T> outboxMessage) {
-    log.debug("[START] - save outbox message for topic: {}", outboxMessage.getTopic());
-    var id = outboxMessage.getId() != null ? outboxMessage.getId() : UUID.randomUUID();
+    UUID id = outboxMessage.id() != null ? outboxMessage.id() : UUID.randomUUID();
     jdbcClient
         .sql(INSERT_SQL)
         .param("id", id)
-        .param("origin", resolveOrigin(outboxMessage.getOrigin()))
-        .param("routingKey", outboxMessage.getRoutingKey())
-        .param("topic", outboxMessage.getTopic())
-        .param("messageKey", outboxMessage.getKey())
-        .param("payload", serializePayload(outboxMessage.getMessage()))
-        .param("status", OutboxStatus.PENDING.name())
-        .param("attempts", 0)
-        .param("error", null)
-        .param("occurredAt", outboxMessage.getOccurredAt())
-        .param("nextAttemptAt", outboxMessage.getNextAttemptAt())
-        .param("publishedAt", null)
-        .param("claimedAt", null)
-        .param("claimedBy", null)
-        .param("traceparent", W3cTraceParent.validOrNull(outboxMessage.getTraceparent()))
+        .param("origin", resolveOrigin(outboxMessage.origin()))
+        .param("routingKey", outboxMessage.routingKey())
+        .param("topic", outboxMessage.topic())
+        .param("messageKey", outboxMessage.key())
+        .param("payload", serializePayload(outboxMessage.message()))
+        .param("occurredAt", OutboxRows.utc(occurredAt(outboxMessage)))
+        .param("nextAttemptAt", OutboxRows.utc(outboxMessage.nextAttemptAt()))
+        .param("traceparent", W3cTraceParent.validOrNull(outboxMessage.traceparent()))
         .update();
-    log.debug("[END] - saved outbox message with id: {}", id);
+    log.debug("Saved outbox message id={} for topic {}", id, outboxMessage.topic());
+    requestDispatchAfterCommit();
+  }
+
+  // One synchronization per transaction, whatever the number of saves and requeues: they are equal
+  // per trigger.
+  private void requestDispatchAfterCommit() {
+    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+      settings.trigger().requestDispatch();
+      return;
+    }
+    var afterCommit = new DispatchAfterCommit(settings.trigger());
+    if (!TransactionSynchronizationManager.getSynchronizations().contains(afterCommit)) {
+      TransactionSynchronizationManager.registerSynchronization(afterCommit);
+    }
   }
 
   @Override
-  public List<OutboxMessage<String>> claimPendingMessages(
-      String origin, int batchSize, String claimedBy, Duration claimTtl) {
-    log.debug("[START] - claim pending outbox messages for origin={}", origin);
-    LocalDateTime now = LocalDateTime.now(settings.clock());
-    String claimMarker = claimedBy + ":" + UUID.randomUUID();
-    var claimed =
-        jdbcClient
-            .sql(CLAIM_SQL)
-            .param("origin", origin)
-            .param("now", now)
-            .param("ttlBoundary", now.minus(claimTtl))
-            .param("limit", batchSize)
+  public List<OutboxMessage<String>> claim(ClaimRequest request) {
+    Instant now = settings.clock().instant();
+    String claimMarker = request.claimedBy() + ":" + UUID.randomUUID();
+    List<OutboxMessage<String>> claimed =
+        claimStatement(request, now)
+            .param("origin", request.origin())
+            .param("now", OutboxRows.utc(now))
+            .param("ttlBoundary", OutboxRows.utc(now.minus(request.claimTtl())))
+            .param("limit", request.batchSize())
+            .param("perKey", request.maxPerKey())
             .param("claimedBy", claimMarker)
-            .query(ROW_MAPPER)
+            .query(OutboxRows.MAPPER)
             .list();
-    log.debug("[END] - claimed {} outbox messages", claimed.size());
+    log.debug("Claimed {} outbox messages for origin={}", claimed.size(), request.origin());
     return claimed.stream().sorted(BY_SEQ).toList();
   }
 
+  private JdbcClient.StatementSpec claimStatement(ClaimRequest request, Instant now) {
+    if (request.commitGrace().isZero()) {
+      return jdbcClient.sql(CLAIM_SQL);
+    }
+    return jdbcClient
+        .sql(CLAIM_WITH_GRACE_SQL)
+        .param("graceBoundary", OutboxRows.utc(now.minus(request.commitGrace())));
+  }
+
   @Override
-  public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+  public Optional<OutboxMessage<String>> markSendStarted(OutboxMessage<String> outboxMessage) {
     warnOnceIfInCallerTransaction();
-    LocalDateTime now = LocalDateTime.now(settings.clock());
+    Instant now = settings.clock().instant();
     int marked =
         jdbcClient
             .sql(MARK_SEND_STARTED_SQL)
-            .param("now", now)
-            .param("id", outboxMessage.getId())
-            .param("claimedBy", outboxMessage.getClaimedBy())
+            .param("now", OutboxRows.utc(now))
+            .param("id", outboxMessage.id())
+            .param("claimedBy", outboxMessage.claimedBy())
             .update();
-    if (marked == 0) {
-      return false;
-    }
-    outboxMessage.setSendStartedAt(now);
-    return true;
+    return marked == 0 ? Optional.empty() : Optional.of(outboxMessage.sendStarted(now));
   }
 
   // The mark must commit before the publish: inside a caller transaction it commits only after the
@@ -249,30 +299,24 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
 
   @Override
   public void update(OutboxMessage<String> outboxMessage) {
-    log.debug("[START] - update outbox message {}", outboxMessage.getId());
-    String expectedClaimedBy = outboxMessage.getClaimedBy();
+    String expectedClaimedBy = outboxMessage.claimedBy();
     var statement =
         expectedClaimedBy == null
             ? jdbcClient.sql(UPDATE_SQL)
             : jdbcClient.sql(UPDATE_FENCED_SQL).param("expectedClaimedBy", expectedClaimedBy);
-    int updated = bindUpdate(statement, outboxMessage).update();
-    if (updated == 0) {
+    if (bindUpdate(statement, outboxMessage).update() == 0) {
       log.warn(
-          "Outbox update fenced out id={} status={}",
-          outboxMessage.getId(),
-          outboxMessage.getStatus());
-      return;
+          "Outbox update fenced out id={} status={}", outboxMessage.id(), outboxMessage.status());
     }
-    log.debug("[END] - updated outbox message {}", outboxMessage.getId());
   }
 
   @Override
-  public int purgePublished(LocalDateTime cutoff, int batchSize) {
+  public int purgePublished(Instant cutoff, int batchSize) {
     int deleted =
         jdbcClient
             .sql(PURGE_PUBLISHED_SQL)
             .param("origin", settings.origin())
-            .param("cutoff", cutoff)
+            .param("cutoff", OutboxRows.utc(cutoff))
             .param("limit", batchSize)
             .update();
     log.debug("Purged {} published outbox messages for origin={}", deleted, settings.origin());
@@ -288,24 +332,58 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
         .single();
   }
 
-  private static JdbcClient.StatementSpec bindUpdate(
-      JdbcClient.StatementSpec statement, OutboxMessage<String> outboxMessage) {
-    boolean keepsClaim = outboxMessage.getStatus() == OutboxStatus.IN_FLIGHT;
-    return statement
-        .param("id", outboxMessage.getId())
-        .param("status", outboxMessage.getStatus().name())
-        .param("attempts", outboxMessage.getAttempts())
-        .param("error", outboxMessage.getError())
-        .param("publishedAt", outboxMessage.getPublishedAt())
-        .param("nextAttemptAt", outboxMessage.getNextAttemptAt())
-        .param("claimedAt", keepsClaim ? outboxMessage.getClaimedAt() : null)
-        .param("claimedBy", keepsClaim ? outboxMessage.getClaimedBy() : null)
-        .param("sendStartedAt", keepsClaim ? outboxMessage.getSendStartedAt() : null);
+  @Override
+  public int requeue(Collection<UUID> ids) {
+    List<UUID> distinct = List.copyOf(new LinkedHashSet<>(ids));
+    int requeued = 0;
+    for (int from = 0; from < distinct.size(); from += REQUEUE_CHUNK) {
+      List<UUID> chunk = distinct.subList(from, Math.min(from + REQUEUE_CHUNK, distinct.size()));
+      requeued += requeueRows(jdbcClient.sql(REQUEUE_BY_ID_SQL).param("ids", chunk));
+    }
+    return afterRequeue(requeued);
   }
 
-  private static Long readSeq(ResultSet rs) throws SQLException {
-    long seq = rs.getLong("seq");
-    return rs.wasNull() ? null : seq;
+  @Override
+  public int requeueFailed(String topic, String key) {
+    Objects.requireNonNull(topic, "topic");
+    Objects.requireNonNull(key, "key");
+    var statement = jdbcClient.sql(REQUEUE_BY_KEY_SQL).param("topic", topic).param("key", key);
+    return afterRequeue(requeueRows(statement));
+  }
+
+  private int requeueRows(JdbcClient.StatementSpec statement) {
+    return statement
+        .param("origin", settings.origin())
+        .param("now", OutboxRows.utc(settings.clock().instant()))
+        .update();
+  }
+
+  private int afterRequeue(int requeued) {
+    log.info("Requeued {} failed outbox messages for origin={}", requeued, settings.origin());
+    if (requeued > 0) {
+      requestDispatchAfterCommit();
+    }
+    return requeued;
+  }
+
+  private static JdbcClient.StatementSpec bindUpdate(
+      JdbcClient.StatementSpec statement, OutboxMessage<String> outboxMessage) {
+    boolean keepsClaim = outboxMessage.status() == OutboxStatus.IN_FLIGHT;
+    return statement
+        .param("id", outboxMessage.id())
+        .param("status", outboxMessage.status().name())
+        .param("attempts", outboxMessage.attempts())
+        .param("error", outboxMessage.error())
+        .param("publishedAt", OutboxRows.utc(outboxMessage.publishedAt()))
+        .param("nextAttemptAt", OutboxRows.utc(outboxMessage.nextAttemptAt()))
+        .param("claimedAt", keepsClaim ? OutboxRows.utc(outboxMessage.claimedAt()) : null)
+        .param("claimedBy", keepsClaim ? outboxMessage.claimedBy() : null)
+        .param("sendStartedAt", keepsClaim ? OutboxRows.utc(outboxMessage.sendStartedAt()) : null);
+  }
+
+  private Instant occurredAt(OutboxMessage<?> outboxMessage) {
+    Instant occurredAt = outboxMessage.occurredAt();
+    return occurredAt != null ? occurredAt : settings.clock().instant();
   }
 
   private String resolveOrigin(String messageOrigin) {
@@ -321,8 +399,8 @@ public class OutboxJdbcAdapter implements OutboxRepositoryPort {
     }
     try {
       return outboxJsonMapper.writeValueAsString(message);
-    } catch (Exception e) {
-      throw new RuntimeException("Failed to serialize outbox message payload", e);
+    } catch (RuntimeException e) {
+      throw new IllegalStateException("Failed to serialize outbox message payload", e);
     }
   }
 }

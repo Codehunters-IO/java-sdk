@@ -2,10 +2,15 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
 import io.codehunters.messaging.MessagePublisherPort;
 import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.dispatch.DispatchSettings;
+import io.codehunters.messaging.dispatch.RetryPolicy;
 import io.codehunters.messaging.dispatch.SendOutboxMessagesUseCase;
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -49,13 +54,13 @@ abstract class SendStartedReclaimContract {
     UUID started = save("k1");
     UUID notSentA = save("k2");
     UUID notSentB = save("k3");
-    var abandoned = adapter.claimPendingMessages(ORIGIN, 10, "dead", TTL);
-    boolean marked = adapter.markSendStarted(byId(abandoned, started));
+    var abandoned = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL, 1));
+    var marked = adapter.markSendStarted(byId(abandoned, started));
     ageClaims();
 
-    adapter.claimPendingMessages(ORIGIN, 10, "live", TTL);
+    adapter.claim(new ClaimRequest(ORIGIN, "live", 10, TTL, 1));
 
-    assertThat(marked).isTrue();
+    assertThat(marked).isPresent();
 
     assertThat(attemptsOf(started)).isEqualTo(1);
     assertThat(attemptsOf(notSentA)).isZero();
@@ -66,13 +71,13 @@ abstract class SendStartedReclaimContract {
   void should_mark_failed_without_publishing_when_started_row_reaches_max_attempts_on_reclaim() {
     UUID id = save("k1");
     setAttempts(id, MAX_ATTEMPTS - 1);
-    var abandoned = adapter.claimPendingMessages(ORIGIN, 10, "dead", TTL);
-    boolean marked = adapter.markSendStarted(byId(abandoned, id));
+    var abandoned = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL, 1));
+    var marked = adapter.markSendStarted(byId(abandoned, id));
     ageClaims();
 
     useCase().execute();
 
-    assertThat(marked).isTrue();
+    assertThat(marked).isPresent();
     assertThat(publisher.published).isEmpty();
     assertThat(rowOf(id))
         .containsEntry("status", "FAILED")
@@ -83,13 +88,13 @@ abstract class SendStartedReclaimContract {
   @Test
   void should_refuse_send_mark_when_claim_was_taken_over_by_another_dispatcher() {
     UUID id = save("k1");
-    var stale = adapter.claimPendingMessages(ORIGIN, 10, "dead", TTL).get(0);
+    var stale = adapter.claim(new ClaimRequest(ORIGIN, "dead", 10, TTL, 1)).get(0);
     ageClaims();
-    adapter.claimPendingMessages(ORIGIN, 10, "live", TTL);
+    adapter.claim(new ClaimRequest(ORIGIN, "live", 10, TTL, 1));
 
-    boolean marked = adapter.markSendStarted(stale);
+    var marked = adapter.markSendStarted(stale);
 
-    assertThat(marked).isFalse();
+    assertThat(marked).isEmpty();
     assertThat(rowOf(id).get("send_started_at")).isNull();
   }
 
@@ -99,7 +104,7 @@ abstract class SendStartedReclaimContract {
 
     useCase().execute();
 
-    assertThat(publisher.published).extracting(OutboxMessage::getId).containsExactly(id);
+    assertThat(publisher.published).extracting(OutboxMessage::id).containsExactly(id);
     assertThat(rowOf(id)).containsEntry("status", "PUBLISHED").containsEntry("attempts", 0);
     assertThat(rowOf(id).get("send_started_at")).isNull();
   }
@@ -130,15 +135,16 @@ abstract class SendStartedReclaimContract {
   }
 
   private SendOutboxMessagesUseCase useCase(MessagePublisherPort sender) {
-    return new SendOutboxMessagesUseCase(
-        adapter, sender, 10, MAX_ATTEMPTS, "live", ORIGIN, TTL.toMillis(), 1_000L, 60_000L);
+    DispatchSettings settings =
+        new DispatchSettings(
+            new ClaimRequest(ORIGIN, "live", 10, TTL, 1),
+            new RetryPolicy(MAX_ATTEMPTS, Duration.ofSeconds(1), Duration.ofMinutes(1)),
+            Clock.systemUTC());
+    return new SendOutboxMessagesUseCase(adapter, sender, settings);
   }
 
   private static OutboxMessage<String> byId(List<OutboxMessage<String>> messages, UUID id) {
-    return messages.stream()
-        .filter(message -> id.equals(message.getId()))
-        .findFirst()
-        .orElseThrow();
+    return messages.stream().filter(message -> id.equals(message.id())).findFirst().orElseThrow();
   }
 
   private UUID save(String key) {
@@ -149,7 +155,7 @@ abstract class SendStartedReclaimContract {
             .topic("t")
             .key(key)
             .message("p")
-            .occurredAt(LocalDateTime.now(ZoneOffset.UTC))
+            .occurredAt(Instant.now())
             .build());
     return id;
   }

@@ -8,8 +8,29 @@ PostgreSQL only. See [MIGRATION-4.0.md](MIGRATION-4.0.md).
 - `ParameterModule` defines no constants: `GENERAL`, `AUTH`, `CONFIG_SERVER`, `FILE_SHARE`,
   `MANAGEMENT`, `NOTIFICATIONS`, `PAYMENT` and `RAFFLES` are gone. `ParameterModule.of(code)`
   takes any code and always returns a new instance, so compare modules with `equals`.
+- `CachingParameterClient.DEFAULT_MAX_ENTRIES` moved to `ParameterCache.DEFAULT_MAX_ENTRIES` (still
+  1024), and the cache is Caffeine instead of a hand-written map; `caffeine` is a new runtime
+  dependency.
+
+### Behaviour changes
+- A full cache evicts by Caffeine's frequency-and-recency policy (W-TinyLFU) instead of strictly
+  the least recently used answer. Time to live, one shared query per concurrent miss, failures
+  reaching every waiting caller and never being cached are unchanged; the shared query still runs
+  on the first caller's thread.
+- A load that reads its own answer from the same cache (a delegate that calls back into the
+  caching client with the same arguments) fails with `IllegalStateException("re-entrant load of
+  …")` instead of deadlocking on its own unfinished load. Reading another answer is still allowed.
+- A `null` answer from the delegate is cached as absence like any other answer, instead of being
+  dropped by Caffeine and counted as a failed load.
 
 ### Added
+- `ParameterCache`, the cache behind `CachingParameterClient`, registered as the `parameterCache`
+  bean (disabled when `cache-ttl` is `0s`). `invalidate(module)` drops every answer reading a
+  module, multi-module queries included; `invalidateAll()` drops everything.
+- `CachingParameterClient(ParameterClient, ParameterCache)`, to share a cache the caller keeps.
+- `codehunters.parameter.cache-max-entries` (default `1024`, at least `1`).
+- Cache metrics: with Micrometer and a single `MeterRegistry`, Micrometer's standard cache meters
+  tagged `cache=codehunters.parameter.cache` (`ParameterCacheMetrics`, also usable outside Spring).
 - Reference PostgreSQL DDL for the parameters table, in the jar at
   `db/migration/parameter/postgresql/parameter_create.sql` and in the README.
 

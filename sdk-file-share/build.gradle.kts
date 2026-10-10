@@ -23,4 +23,6 @@ dependencies {
     testImplementation("tools.jackson.core:jackson-databind")
     testImplementation("org.springframework.security:spring-security-oauth2-client")
     testImplementation("org.mockito:mockito-core")
+    // Spring Security's request-bound OAuth2AuthorizedClientManager needs the servlet API to load.
+    testImplementation("jakarta.servlet:jakarta.servlet-api")
 }

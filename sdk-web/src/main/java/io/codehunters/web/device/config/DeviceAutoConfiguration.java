@@ -1,12 +1,19 @@
 package io.codehunters.web.device.config;
 
+import io.codehunters.web.device.cache.CachingUserAgentParser;
 import io.codehunters.web.device.ip.ClientIpResolver;
 import io.codehunters.web.device.ip.TrustedProxies;
 import io.codehunters.web.device.servlet.ClientContextResolver;
+import io.codehunters.web.device.servlet.ForwardedClientIpFilter;
 import io.codehunters.web.device.uap.UapUserAgentParser;
-import io.codehunters.web.device.useragent.CachingUserAgentParser;
 import io.codehunters.web.device.useragent.UnknownUserAgentParser;
 import io.codehunters.web.device.useragent.UserAgentParser;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tags;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import io.micrometer.core.instrument.binder.cache.CaffeineCacheMetrics;
+import org.springframework.beans.factory.ListableBeanFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -16,16 +23,28 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
 
 /**
- * Registers the {@link ClientIpResolver}, a {@link UserAgentParser} (uap-java when present, cached)
- * and, in servlet applications, the {@link ClientContextResolver}. Every bean backs off when the
- * application defines its own; {@code codehunters.web.device.enabled=false} disables the SDK.
+ * Registers, in servlet applications, the {@link ClientIpResolver}, a {@link UserAgentParser}
+ * (uap-java when present, behind a Caffeine cache), the {@link ClientContextResolver} and, when
+ * enabled, the {@link ForwardedClientIpFilter}. Other applications get nothing: the plain-Java core
+ * is constructed by hand there. Every bean backs off when the application defines its own; {@code
+ * codehunters.web.device.enabled=false} disables the SDK.
  */
 @AutoConfiguration
+@ConditionalOnWebApplication(type = Type.SERVLET)
+@ConditionalOnClass(
+    name = {
+      "jakarta.servlet.http.HttpServletRequest",
+      "org.springframework.web.context.request.RequestContextHolder"
+    })
 @ConditionalOnBooleanProperty(name = "codehunters.web.device.enabled", matchIfMissing = true)
 @EnableConfigurationProperties(DeviceProperties.class)
 public class DeviceAutoConfiguration {
+
+  /** Name of the User-Agent cache in the {@code cache.*} metrics. */
+  public static final String USER_AGENT_CACHE_NAME = "codehunters.web.device.user-agent.cache";
 
   /** Creates the auto-configuration. Instantiated by the Spring container. */
   public DeviceAutoConfiguration() {}
@@ -54,6 +73,41 @@ public class DeviceAutoConfiguration {
     return new UnknownUserAgentParser();
   }
 
+  /**
+   * Resolves the client context of servlet requests.
+   *
+   * @param ipResolver the client address resolver
+   * @param parser the User-Agent parser
+   * @param properties the SDK configuration
+   * @return the resolver
+   */
+  @Bean
+  @ConditionalOnMissingBean
+  public ClientContextResolver clientContextResolver(
+      ClientIpResolver ipResolver, UserAgentParser parser, DeviceProperties properties) {
+    return new ClientContextResolver(ipResolver, parser, properties.userAgent().maxLength());
+  }
+
+  /**
+   * Rewrites the remote address to the resolved client, when enabled. Fails startup when Spring's
+   * {@code ForwardedHeaderFilter} is registered too ({@code
+   * server.forward-headers-strategy=framework} or a bean of the application's): it would trust
+   * client-written addresses.
+   *
+   * @param ipResolver the client address resolver
+   * @param environment the application environment
+   * @param beans the bean factory, searched for a {@code ForwardedHeaderFilter}
+   * @return the filter, registered by Spring Boot right after the highest precedence
+   */
+  @Bean
+  @ConditionalOnMissingBean
+  @ConditionalOnBooleanProperty(name = "codehunters.web.device.forwarded-request-filter.enabled")
+  public ForwardedClientIpFilter forwardedClientIpFilter(
+      ClientIpResolver ipResolver, Environment environment, ListableBeanFactory beans) {
+    ForwardedHeaderFilterConflict.check(environment, beans);
+    return new ForwardedClientIpFilter(ipResolver);
+  }
+
   /** Parses with uap-java, behind a bounded cache, when the library is on the classpath. */
   @Configuration(proxyBeanMethods = false)
   @ConditionalOnClass(name = "ua_parser.Parser")
@@ -67,21 +121,27 @@ public class DeviceAutoConfiguration {
     }
   }
 
-  /** Resolves the client context of servlet requests. */
+  /** Publishes the User-Agent cache statistics when Micrometer is on the classpath. */
   @Configuration(proxyBeanMethods = false)
-  @ConditionalOnWebApplication(type = Type.SERVLET)
-  @ConditionalOnClass(
-      name = {
-        "jakarta.servlet.http.HttpServletRequest",
-        "org.springframework.web.context.request.RequestContextHolder"
-      })
-  static class ServletConfiguration {
+  @ConditionalOnClass(name = "io.micrometer.core.instrument.binder.MeterBinder")
+  static class MetricsConfiguration {
 
+    /**
+     * Binds {@code cache.*} meters tagged {@code cache=codehunters.web.device.user-agent.cache} to
+     * every registry Spring Boot hands it; binds nothing when the parser keeps no cache.
+     */
     @Bean
-    @ConditionalOnMissingBean
-    ClientContextResolver clientContextResolver(
-        ClientIpResolver ipResolver, UserAgentParser parser, DeviceProperties properties) {
-      return new ClientContextResolver(ipResolver, parser, properties.userAgent().maxLength());
+    MeterBinder userAgentCacheMetrics(ObjectProvider<UserAgentParser> parser) {
+      return registry -> parser.ifUnique(candidate -> bind(candidate, registry));
+    }
+
+    private static void bind(UserAgentParser parser, MeterRegistry registry) {
+      if (parser instanceof CachingUserAgentParser caching) {
+        caching
+            .cache()
+            .map(cache -> new CaffeineCacheMetrics<>(cache, USER_AGENT_CACHE_NAME, Tags.empty()))
+            .ifPresent(metrics -> metrics.bindTo(registry));
+      }
     }
   }
 }

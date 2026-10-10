@@ -1,5 +1,7 @@
 package io.codehunters.jpa.pagination;
 
+import static io.codehunters.jpa.internal.Checks.require;
+
 import io.codehunters.jpa.internal.PropertyWhitelist;
 import java.util.HashSet;
 import java.util.Map;
@@ -115,14 +117,10 @@ public final class SortWhitelist {
   private Sort.Order translate(Sort.Order order, Set<String> seen) {
     var property = properties.get(order.getProperty());
     require(
-        property != null, "sort property is not allowed; allowed: " + String.join(", ", allowed()));
-    require(seen.add(property), "a sort property may appear only once");
+        property != null,
+        "sort property is not allowed; allowed: " + String.join(", ", allowed()),
+        InvalidSortException::new);
+    require(seen.add(property), "a sort property may appear only once", InvalidSortException::new);
     return order.withProperty(property);
-  }
-
-  private static void require(boolean condition, String message) {
-    if (!condition) {
-      throw new InvalidSortException(message);
-    }
   }
 }

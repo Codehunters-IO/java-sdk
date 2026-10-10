@@ -13,6 +13,7 @@ dependencies {
     // InvalidSortException and InvalidSearchException are ClientInputExceptions: part of the API.
     api(project(":sdk-commons"))
     implementation("org.springframework.boot:spring-boot-autoconfigure")
+    implementation("org.slf4j:slf4j-api")
     compileOnly("jakarta.persistence:jakarta.persistence-api")
     compileOnly("org.hibernate.orm:hibernate-core")
     compileOnly("org.springframework.data:spring-data-commons")

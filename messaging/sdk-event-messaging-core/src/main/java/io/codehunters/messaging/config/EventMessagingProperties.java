@@ -1,12 +1,10 @@
 package io.codehunters.messaging.config;
 
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Locale;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
-import org.springframework.boot.convert.DurationStyle;
 
 /**
  * Configuration for the event-messaging SDK, bound from the {@code codehunters.outbox} prefix.
@@ -37,21 +35,24 @@ public record EventMessagingProperties(
   private static final String RABBIT = "rabbit";
   private static final String KAFKA = "kafka";
   private static final Set<String> PUBLISHER_TYPES = Set.of(RABBIT, KAFKA);
+  private static final String CLAIM_TTL_KEY = "claim.ttl";
+  private static final String LOCK_KEY = "task.lock-at-most";
   private static final String CLAIM_BUDGET_MESSAGE =
       PREFIX
-          + "claim.ttl-ms (%d) must exceed "
+          + CLAIM_TTL_KEY
+          + " (%s) must exceed "
           + PREFIX
           + "batch-size * "
           + PREFIX
           + "%s (%d ms): a batch still being sent when its claim expires is reclaimed by another"
           + " instance and published as duplicates";
-  private static final String LOCK_KEY = "task.lock-at-most";
   private static final String DISPATCH_LOCK_MESSAGE =
       PREFIX
           + LOCK_KEY
           + " (%s) must exceed half of "
           + PREFIX
-          + "claim.ttl-ms plus "
+          + CLAIM_TTL_KEY
+          + " plus "
           + PREFIX
           + "%s (%d ms): ShedLock would release the dispatch lock while a run is still publishing"
           + " and let another instance start a concurrent run; raise it, or set "
@@ -79,15 +80,15 @@ public record EventMessagingProperties(
    * Validates the dispatch timing of the transport that publishes the outbox. A claimed batch is
    * published sequentially, each send blocking for at most the per-message timeout of the transport
    * ({@code publisher.kafka.send-timeout} or {@code publisher.rabbit.confirm-timeout}); {@code
-   * claim.ttl-ms} must exceed {@code batch-size} times that timeout. A dispatch run stops starting
-   * sends once half of {@code claim.ttl-ms} has passed, so it lasts at most that half plus one
+   * claim.ttl} must exceed {@code batch-size} times that timeout. A dispatch run stops starting
+   * sends once half of {@code claim.ttl} has passed, so it lasts at most that half plus one
    * timeout; while {@code scheduling.enabled} is {@code true}, {@code task.lock-at-most} must
    * exceed it. Transport auto-configurations call it once the transport is resolved, which covers
    * an unset {@code publisher.type}.
    *
    * @param transport the resolved transport, {@code rabbit} or {@code kafka}
-   * @throws IllegalArgumentException when {@code claim.ttl-ms} does not exceed the batch budget, or
-   *     {@code task.lock-at-most} is not a duration or does not exceed a dispatch run
+   * @throws IllegalArgumentException when {@code claim.ttl} does not exceed the batch budget, or
+   *     {@code task.lock-at-most} does not exceed a dispatch run
    */
   public void requireClaimBudget(String transport) {
     TransportTimeout timeout = TransportTimeout.of(publisher, transport);
@@ -95,13 +96,33 @@ public record EventMessagingProperties(
     checkDispatchLock(task, scheduling, claim, timeout);
   }
 
+  /**
+   * Returns the longest a dispatch run keeps publishing: half the claim TTL, after which the rest
+   * of the batch is released, plus one message's transport timeout. With {@code publisher.type}
+   * unset, the longer of the Kafka and RabbitMQ timeouts is used.
+   *
+   * @return the bound of one dispatch run
+   */
+  public Duration maxDispatchRun() {
+    return claim.ttl().dividedBy(2).plus(transportTimeout());
+  }
+
+  private Duration transportTimeout() {
+    if (publisher.type() != null) {
+      return TransportTimeout.of(publisher, publisher.type()).value();
+    }
+    Duration kafka = publisher.kafka().sendTimeout();
+    Duration rabbit = publisher.rabbit().confirmTimeout();
+    return kafka.compareTo(rabbit) >= 0 ? kafka : rabbit;
+  }
+
   // A claimed batch must be published before its claim goes stale; otherwise another instance
   // reclaims rows that are still being sent and the broker receives them twice.
   private static void checkClaimBudget(int batchSize, Claim claim, TransportTimeout timeout) {
     long budgetMs = batchBudgetMs(batchSize, timeout);
-    if (claim.ttlMs() <= budgetMs) {
+    if (claim.ttl().toMillis() <= budgetMs) {
       throw new IllegalArgumentException(
-          CLAIM_BUDGET_MESSAGE.formatted(claim.ttlMs(), timeout.key(), budgetMs));
+          CLAIM_BUDGET_MESSAGE.formatted(claim.ttl(), timeout.key(), budgetMs));
     }
   }
 
@@ -123,8 +144,8 @@ public record EventMessagingProperties(
     if (task == null || scheduling == null || !scheduling.enabled()) {
       return;
     }
-    long runMs = saturatedAdd(claim.ttlMs() / 2, timeout.value().toMillis());
-    if (lockAtMostMs(task.lockAtMost()) <= runMs) {
+    long runMs = saturatedAdd(claim.ttl().toMillis() / 2, timeout.value().toMillis());
+    if (task.lockAtMost().toMillis() <= runMs) {
       throw new IllegalArgumentException(
           DISPATCH_LOCK_MESSAGE.formatted(task.lockAtMost(), timeout.key(), runMs));
     }
@@ -135,20 +156,6 @@ public record EventMessagingProperties(
       return Math.addExact(left, right);
     } catch (ArithmeticException e) {
       return Long.MAX_VALUE;
-    }
-  }
-
-  // Same formats ShedLock accepts: plain milliseconds, ISO-8601 (PT5M) or simple (5m).
-  private static long lockAtMostMs(String lockAtMost) {
-    try {
-      return DurationStyle.detectAndParse(lockAtMost, ChronoUnit.MILLIS).toMillis();
-    } catch (IllegalArgumentException | ArithmeticException e) {
-      throw new IllegalArgumentException(
-          PREFIX
-              + LOCK_KEY
-              + " must be a duration (ms, ISO-8601 or 5m) but was '"
-              + lockAtMost
-              + "'");
     }
   }
 
@@ -164,47 +171,85 @@ public record EventMessagingProperties(
     }
   }
 
+  private static void requireNotNegative(Duration value, String key) {
+    if (value == null || value.isNegative()) {
+      throw new IllegalArgumentException(PREFIX + key + " must be zero or a positive duration");
+    }
+  }
+
+  // ShedLock refuses a lock configuration whose minimum hold exceeds its maximum.
+  private static void requireLockWindow(LockWindow window, String prefix) {
+    requirePositive(window.atMost(), prefix + "lock-at-most");
+    requireNotNegative(window.atLeast(), prefix + "lock-at-least");
+    if (window.atLeast().compareTo(window.atMost()) > 0) {
+      throw new IllegalArgumentException(
+          PREFIX + prefix + "lock-at-least must not exceed " + PREFIX + prefix + "lock-at-most");
+    }
+  }
+
   /**
-   * Scheduler and ShedLock configuration.
+   * Dispatch scheduler and ShedLock configuration. Plain numbers are read as milliseconds; units
+   * ({@code 5s}, {@code 5m}) and ISO-8601 ({@code PT5M}) are accepted.
    *
-   * @param fixedDelay the fixed delay between scheduler ticks, in milliseconds
+   * @param fixedDelay the delay between the end of one dispatch poll and the start of the next
    * @param lockAtMost the maximum time a node may hold the dispatch lock; while scheduling is on,
-   *     it must exceed half of {@code claim.ttl-ms} plus the transport timeout
-   * @param lockAtLeast the minimum time a node holds the dispatch lock before releasing it
-   * @param lockName the ShedLock lock name; defaults to the current application name
+   *     it must exceed half of {@code claim.ttl} plus the transport timeout
+   * @param lockAtLeast the minimum time a node holds the dispatch lock after a run; {@code 0} (the
+   *     default) lets the next poll, on any node, start as soon as the previous run ends
+   * @param lockName the ShedLock lock name of the dispatch task; unset (the default) uses {@code
+   *     outbox-} followed by {@code spring.application.name}
    */
   public record Task(
-      @DefaultValue("5000") String fixedDelay,
-      @DefaultValue("300000") String lockAtMost,
-      @DefaultValue("10000") String lockAtLeast,
-      @DefaultValue("outbox-${spring.application.name:unknown}") String lockName) {}
+      @DefaultValue("5s") Duration fixedDelay,
+      @DefaultValue("5m") Duration lockAtMost,
+      @DefaultValue("0s") Duration lockAtLeast,
+      String lockName) {
+
+    /** Validates the delay and the lock window. */
+    public Task {
+      requirePositive(fixedDelay, "task.fixed-delay");
+      requireLockWindow(new LockWindow(lockAtMost, lockAtLeast), "task.");
+    }
+  }
 
   /**
    * Claim configuration.
    *
-   * @param ttlMs the time after which an in-flight claim is considered stale and reclaimable
+   * @param ttl the time after which an in-flight claim is considered stale and reclaimable
+   * @param maxPerKey the maximum number of rows of one {@code (topic, key)} a claim takes together,
+   *     in insertion order; they are published one after the other and, after the first one that is
+   *     not published, the rest are released. {@code 1} restores one row per key per claim
+   * @param commitGrace how long a row with a key is held back after its {@code occurred_at}, so an
+   *     earlier row of the same key whose transaction commits later still goes first; {@code 0}
+   *     (the default) holds nothing back. It must cover the time from {@code occurred_at} to commit
+   *     of the slowest writer of a key, and delays every keyed row by at least that long
    */
-  public record Claim(@DefaultValue("300000") long ttlMs) {
+  public record Claim(
+      @DefaultValue("5m") Duration ttl,
+      @DefaultValue("10") int maxPerKey,
+      @DefaultValue("0s") Duration commitGrace) {
 
-    /** Validates the claim TTL. */
+    /** Validates the claim TTL, the per-key batch and the commit grace. */
     public Claim {
-      requireAtLeastOne(ttlMs, "claim.ttl-ms");
+      requirePositive(ttl, CLAIM_TTL_KEY);
+      requireAtLeastOne(maxPerKey, "claim.max-per-key");
+      requireNotNegative(commitGrace, "claim.commit-grace");
     }
   }
 
   /**
    * Retry backoff configuration.
    *
-   * @param baseDelayMs the initial backoff delay in milliseconds (doubled on each retry)
-   * @param maxDelayMs the cap for the backoff delay in milliseconds
+   * @param baseDelay the initial backoff delay (doubled on each retry)
+   * @param maxDelay the cap for the backoff delay
    */
   public record Backoff(
-      @DefaultValue("30000") long baseDelayMs, @DefaultValue("3600000") long maxDelayMs) {
+      @DefaultValue("30s") Duration baseDelay, @DefaultValue("1h") Duration maxDelay) {
 
     /** Validates the delays. */
     public Backoff {
-      requireAtLeastOne(baseDelayMs, "backoff.base-delay-ms");
-      requireAtLeastOne(maxDelayMs, "backoff.max-delay-ms");
+      requirePositive(baseDelay, "backoff.base-delay");
+      requirePositive(maxDelay, "backoff.max-delay");
     }
   }
 
@@ -271,36 +316,47 @@ public record EventMessagingProperties(
    *
    * @param retention how long PUBLISHED rows are kept before the purge job deletes them
    * @param batchSize the maximum number of rows deleted per purge statement
-   * @param fixedDelay the fixed delay between purge runs, in milliseconds
-   * @param initialDelay the delay before the first purge run, in milliseconds
-   * @param lockName the ShedLock lock name of the purge job; defaults to the application name
-   * @param lockAtMost the maximum time a node may hold the purge lock (ISO-8601 duration)
-   * @param lockAtLeast the minimum time a node holds the purge lock (ISO-8601 duration)
+   * @param fixedDelay the delay between the end of one purge run and the start of the next
+   * @param initialDelay the delay before the first purge run
+   * @param lockName the ShedLock lock name of the purge job; unset (the default) uses {@code
+   *     outbox-purge-} followed by {@code spring.application.name}
+   * @param lockAtMost the maximum time a node may hold the purge lock
+   * @param lockAtLeast the minimum time a node holds the purge lock
    */
   public record Purge(
       @DefaultValue("7d") Duration retention,
       @DefaultValue("500") int batchSize,
-      @DefaultValue("3600000") String fixedDelay,
-      @DefaultValue("60000") String initialDelay,
-      @DefaultValue("outbox-purge-${spring.application.name:unknown}") String lockName,
-      @DefaultValue("PT10M") String lockAtMost,
-      @DefaultValue("PT30S") String lockAtLeast) {
+      @DefaultValue("1h") Duration fixedDelay,
+      @DefaultValue("1m") Duration initialDelay,
+      String lockName,
+      @DefaultValue("10m") Duration lockAtMost,
+      @DefaultValue("30s") Duration lockAtLeast) {
 
-    /** Validates the retention and batch size. */
+    /** Validates the retention, batch size, delays and lock window. */
     public Purge {
       requirePositive(retention, "purge.retention");
       requireAtLeastOne(batchSize, "purge.batch-size");
+      requirePositive(fixedDelay, "purge.fixed-delay");
+      requireNotNegative(initialDelay, "purge.initial-delay");
+      requireLockWindow(new LockWindow(lockAtMost, lockAtLeast), "purge.");
     }
   }
 
   /**
-   * Scheduling switch of {@code sdk-event-messaging-jdbc}.
+   * Scheduling switches of {@code sdk-event-messaging-jdbc}.
    *
-   * @param enabled {@code true} (the default) registers the ShedLock-protected dispatch and purge
-   *     schedulers and enables Spring scheduling; {@code false} leaves dispatch and purge to the
-   *     application, for example when another process runs them
+   * @param enabled {@code true} (the default) runs the ShedLock-protected dispatch and purge tasks
+   *     on the SDK's own scheduler; {@code false} leaves dispatch and purge to the application, for
+   *     example when another process runs them
+   * @param dispatchOnCommit {@code true} (the default) also dispatches right after a transaction
+   *     that saved outbox messages commits, without waiting for the next poll; only while {@code
+   *     enabled} is {@code true}
    */
-  public record Scheduling(@DefaultValue("true") boolean enabled) {}
+  public record Scheduling(
+      @DefaultValue("true") boolean enabled, @DefaultValue("true") boolean dispatchOnCommit) {}
+
+  // The hold bounds of one ShedLock lock.
+  private record LockWindow(Duration atMost, Duration atLeast) {}
 
   // The per-message timeout of the resolved transport and the key that configures it.
   private record TransportTimeout(Duration value, String key) {

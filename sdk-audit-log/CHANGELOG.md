@@ -13,8 +13,19 @@
 - With `sdk-web` on the classpath, use sdk-web 3.0.0: the client IP of audit events follows
   `codehunters.web.device.*`.
 
+- `@Auditable` expressions run in a read-only SpEL sandbox (`SimpleEvaluationContext`) instead of
+  a full `StandardEvaluationContext`: property reads, indexes and operators only; no method calls,
+  `T(...)`, constructors, bean references or assignments. Such expressions now record `null` and
+  are reported at startup. Rewrite `#order.getId()` as `#order.id` and `#map.get('k')` as
+  `#map['k']`; see [MIGRATION-5.0.md](MIGRATION-5.0.md).
+
 ### Removed
 - The dependency on `sdk-support`.
+
+### Changed
+- `auditJsonMapper` is built from Spring Boot's `JsonMapper.Builder` when the Jackson
+  auto-configuration provides one, so `spring.jackson.*`, modules and customizers apply to audit
+  payloads; Jackson's defaults otherwise.
 
 ### Added
 - Startup checks, run once every singleton exists. When a bean declares `@Auditable` methods but
@@ -22,8 +33,11 @@
   JDBC, Spring transactions or Jackson missing, or the JDBC auto-configuration excluded), the
   reason is logged at `ERROR`; until now every audited call went unrecorded without a word. A
   missing `aspectjweaver` is reported the same way. Every `@Auditable` expression is parsed at
-  startup; one that cannot be parsed is logged at `ERROR` naming `Class#method(Params)` and the
-  attribute, never evaluated values. Publishers and data sources of parent contexts count, data
+  startup; one that cannot be parsed, uses what the sandbox refuses, or reads a `#variable` that is
+  neither a parameter of the method nor `#result`, `#p0`/`#a0`/`#arg0`, `#root` or `#this`, is
+  logged at `ERROR` naming `Class#method(Params)` and the attribute, never evaluated values. When
+  the class was compiled without `-parameters`, a named variable is reported with a hint to compile
+  with `-parameters` or use `#p0`/`#a0`. Publishers and data sources of parent contexts count, data
   sources registered as plain singletons are handled, and annotations declared only on interface
   methods, which the aspect does not apply to, are not reported.
 - `codehunters.audit.startup-check.fail-fast` (default `false`) makes those problems fail startup
@@ -44,9 +58,10 @@
 - The `actor_id` of servlet calls that recorded no actor is now the authenticated user's name;
   reports or queries that read a `null` actor as "unknown user" see it filled.
 
-### Known risk
-- Expressions still run in a full `StandardEvaluationContext`. Moving to `SimpleEvaluationContext`
-  would break expressions that call methods, so it is an open item for a major version.
+### Known limits
+- Expressions run in a read-only `SimpleEvaluationContext` sandbox (see Breaking): property reads,
+  indexes and operators only. The 4.1.0 note that they ran in a full `StandardEvaluationContext`
+  no longer applies.
 
 ## 4.0.0
 

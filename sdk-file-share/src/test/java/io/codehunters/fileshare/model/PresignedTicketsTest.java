@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class PresignedTicketsTest {
@@ -19,6 +20,14 @@ class PresignedTicketsTest {
 
     assertThat(ticket.httpMethod()).isEqualTo("PUT");
     assertThat(ticket.expiresAt()).isEqualTo(EXPIRES_AT);
+  }
+
+  @Test
+  void should_require_the_signed_content_type_when_uploading() {
+    var ticket = new PresignedUploadTicket(FileRefFixtures.fileRef(), SIGNED_URL, EXPIRES_AT);
+
+    assertThat(ticket.requiredHeaders())
+        .containsExactly(Map.entry("Content-Type", FileRefFixtures.CONTENT_TYPE));
   }
 
   @Test

@@ -2,17 +2,20 @@ package io.codehunters.messaging.jdbc.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.codehunters.messaging.ClaimRequest;
+import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxMessage;
-import io.codehunters.messaging.OutboxRepositoryPort;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -66,7 +69,7 @@ class OutboxFailedGaugeTest {
     assertThat(repository.queries).isZero();
   }
 
-  private static final class FakeRepository implements OutboxRepositoryPort {
+  private static final class FakeRepository implements OutboxDispatchStore {
 
     private long failed;
     private int queries;
@@ -78,18 +81,12 @@ class OutboxFailedGaugeTest {
     }
 
     @Override
-    public <T> void save(OutboxMessage<T> outboxMessage) {
+    public List<OutboxMessage<String>> claim(ClaimRequest request) {
       throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<OutboxMessage<String>> claimPendingMessages(
-        String origin, int batchSize, String instanceId, Duration claimTtl) {
-      throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public boolean markSendStarted(OutboxMessage<String> outboxMessage) {
+    public Optional<OutboxMessage<String>> markSendStarted(OutboxMessage<String> outboxMessage) {
       throw new UnsupportedOperationException();
     }
 
@@ -99,7 +96,17 @@ class OutboxFailedGaugeTest {
     }
 
     @Override
-    public int purgePublished(LocalDateTime cutoff, int batchSize) {
+    public int purgePublished(Instant cutoff, int batchSize) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requeue(Collection<UUID> ids) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public int requeueFailed(String topic, String key) {
       throw new UnsupportedOperationException();
     }
   }

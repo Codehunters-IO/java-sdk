@@ -24,7 +24,7 @@ class AsyncOrderService {
     this.flux = flux;
   }
 
-  @Auditable(entityType = "ORDER", action = "PLACE", entityId = "#result?.get('id')")
+  @Auditable(entityType = "ORDER", action = "PLACE", entityId = "#result?.['id']")
   CompletableFuture<Map<String, Object>> placeOrder(String orderId) {
     return pending;
   }
@@ -39,7 +39,7 @@ class AsyncOrderService {
     return null;
   }
 
-  @Auditable(entityType = "ORDER", action = "READ", entityId = "#result?.get('id')")
+  @Auditable(entityType = "ORDER", action = "READ", entityId = "#result?.['id']")
   Mono<Map<String, Object>> readOrder(String orderId) {
     return mono;
   }

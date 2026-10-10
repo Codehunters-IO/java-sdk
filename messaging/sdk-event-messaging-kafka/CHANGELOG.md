@@ -6,6 +6,13 @@ Versioned with `-core` and `-jdbc` 9.0.0, which support PostgreSQL only, drop th
 keys and store the request's trace context with each row. Migration guide:
 [MIGRATION-9.0.md](../MIGRATION-9.0.md).
 
+### Removed
+- Lombok from the build.
+
+### Changed
+- The adapter reads `OutboxMessage` through record accessors (`topic()`, `key()`, `message()`,
+  `id()`, `traceparent()`); custom publishers written against the 8.x getters must do the same.
+
 ### Added
 - `KafkaMessagePublisherAdapter(…, boolean legacyTraceparentHeader)`, fed by
   `codehunters.outbox.publisher.legacy-traceparent-header` (default `false`).
@@ -18,6 +25,8 @@ keys and store the request's trace context with each row. Migration guide:
 - Every outbox record with a stored context carries a `traceparent` header, unchanged;
   `x-traceparent` only when the switch is on. A stored value that is not a valid `W3cTraceParent`
   (malformed, version `ff`, longer than 55 characters) is not sent in either header.
+- With `-jdbc` 9.0.0, records are sent right after their transaction commits, and the outbox no
+  longer turns on application-wide scheduling (`@EnableScheduling`).
 
 ## 8.0.0
 

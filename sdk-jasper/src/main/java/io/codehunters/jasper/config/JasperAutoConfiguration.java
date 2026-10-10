@@ -3,6 +3,7 @@ package io.codehunters.jasper.config;
 import io.codehunters.jasper.JasperReportRenderer;
 import io.codehunters.jasper.ReportRenderer;
 import io.codehunters.jasper.metrics.MeteredReportRenderer;
+import io.codehunters.jasper.metrics.TemplateCacheMetrics;
 import io.micrometer.core.instrument.MeterRegistry;
 import net.sf.jasperreports.engine.JasperReport;
 import org.springframework.beans.factory.BeanFactory;
@@ -16,9 +17,10 @@ import org.springframework.core.io.ResourceLoader;
 import org.springframework.util.ClassUtils;
 
 /**
- * Registers a {@link ReportRenderer} reading templates from the application's classpath, timed when
- * Micrometer and a single {@link MeterRegistry} are present. Backs off when the application defines
- * its own renderer; {@code codehunters.jasper.enabled=false} disables the SDK.
+ * Registers a {@link ReportRenderer} reading templates from the application's classpath, timed and
+ * with its template cache published when Micrometer and a single {@link MeterRegistry} are present.
+ * Backs off when the application defines its own renderer; {@code codehunters.jasper.enabled=false}
+ * disables the SDK.
  */
 @AutoConfiguration
 @ConditionalOnClass(JasperReport.class)
@@ -32,8 +34,9 @@ public class JasperAutoConfiguration {
   public JasperAutoConfiguration() {}
 
   /**
-   * The renderer, wrapped in a {@link MeteredReportRenderer} when Micrometer is on the classpath
-   * and a single {@link MeterRegistry} exists.
+   * The renderer, wrapped in a {@link MeteredReportRenderer} and with its template cache bound as
+   * {@link TemplateCacheMetrics} when Micrometer is on the classpath and a single {@link
+   * MeterRegistry} exists.
    *
    * @param properties the SDK configuration
    * @param resourceLoader supplies the application's class loader
@@ -44,7 +47,7 @@ public class JasperAutoConfiguration {
   @ConditionalOnMissingBean(ReportRenderer.class)
   public ReportRenderer reportRenderer(
       JasperProperties properties, ResourceLoader resourceLoader, BeanFactory beanFactory) {
-    ReportRenderer renderer = renderer(properties, resourceLoader);
+    JasperReportRenderer renderer = renderer(properties, resourceLoader);
     return ClassUtils.isPresent(METER_REGISTRY, resourceLoader.getClassLoader())
         ? Metering.wrap(renderer, beanFactory)
         : renderer;
@@ -63,9 +66,13 @@ public class JasperAutoConfiguration {
 
     private Metering() {}
 
-    static ReportRenderer wrap(ReportRenderer renderer, BeanFactory beanFactory) {
+    static ReportRenderer wrap(JasperReportRenderer renderer, BeanFactory beanFactory) {
       MeterRegistry meters = beanFactory.getBeanProvider(MeterRegistry.class).getIfUnique();
-      return meters == null ? renderer : new MeteredReportRenderer(renderer, meters);
+      if (meters == null) {
+        return renderer;
+      }
+      new TemplateCacheMetrics(renderer).bindTo(meters);
+      return new MeteredReportRenderer(renderer, meters);
     }
   }
 }

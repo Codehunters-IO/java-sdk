@@ -22,8 +22,22 @@
   constructors are `(headerName)` and `(headerName, supportedLocales)`, the default locale comes
   from `setDefaultLocale` (`spring.web.locale`), and `Accept-Language` without `supported-locales`
   is the container's parse of it.
+- `CachingUserAgentParser` moves from `io.codehunters.web.device.useragent` to
+  `io.codehunters.web.device.cache` and is backed by Caffeine: the synchronized `LinkedHashMap` LRU
+  made every request wait on one global lock. Lookups are now lock-free, concurrent callers of one
+  header still share one parse, and a slow parse no longer holds up other headers. The constructor
+  is unchanged; `cache()` exposes the Caffeine cache for metrics.
+- `com.github.ben-manes.caffeine:caffeine` is a runtime dependency (version managed by Spring Boot).
 
 ### Behaviour changes
+- The device beans (`ClientIpResolver`, `UserAgentParser`, `ClientContextResolver`) are registered in
+  servlet web applications only; 2.x registered the resolver and the parser in any application,
+  batch jobs and consumers included. Outside servlet applications build them by hand (plain Java).
+- The `User-Agent` cache evicts with Caffeine's size-based policy (frequency and recency) instead of
+  strict least-recently-used; `user-agent.cache-size` remains the bound.
+- A parser exception still answers `UNKNOWN` (to the caller and to the requests waiting on that
+  parse) but is no longer cached: the next request with the same header parses it again, so a
+  transient failure does not describe that header as unknown until it is evicted.
 - No SDK default locale: when no header resolves, the locale is `spring.web.locale`, else the
   container's (the JVM default without `Accept-Language`), as with Boot. 2.x answered `es`.
 - Bundles follow Boot's defaults: base name `messages` at the class path root (2.x:
@@ -67,6 +81,21 @@
   `BARCODE_CONTENT_REJECTED` (`sdk-barcode` 2.1.0). See the README's "Client input errors".
 - `sdk-commons` is `compileOnly`: without it on the classpath the handler behaves as in 2.0.0.
 - `codehunters.web.i18n.mdc.enabled` (default `false`).
+- `codehunters.web.device.forwarded-request-filter.enabled` (default `false`) registers
+  `ForwardedClientIpFilter`, which makes `getRemoteAddr()` answer the client resolved behind
+  `trusted-proxies` and hides `X-Forwarded-For`, `X-Real-IP` and the `for=` parameters of
+  `Forwarded` from the rest of the request (`proto`, `host`, `by` and `X-Forwarded-Host`/`-Proto`/
+  `-Port` pass through), so Spring Security, the SDK and application code see one address. It runs
+  at `Ordered.HIGHEST_PRECEDENCE + 1`, on error dispatches too, so the error page sees the client.
+  Startup fails when it is enabled together with Spring's `ForwardedHeaderFilter`
+  (`server.forward-headers-strategy=framework`, or a `ForwardedHeaderFilter` or
+  `FilterRegistrationBean<ForwardedHeaderFilter>` bean): both claim the first place in the chain, and
+  Spring's, run first, would trust the client-written leftmost value. The README now recommends
+  `server.forward-headers-strategy=native` with `server.tomcat.remoteip.internal-proxies` instead,
+  which also covers the container's access log, and not combining the two.
+- `User-Agent` cache metrics: Micrometer's `cache.*` meters tagged
+  `cache=codehunters.web.device.user-agent.cache`, through a `userAgentCacheMetrics` `MeterBinder`
+  bean, when Micrometer is on the classpath (`compileOnly`).
 - `ProblemWriter.withLocaleResolver(LocaleResolver)`.
 - A startup `WARN` when the SDK's error bundle does not resolve through the application context
   (probed with `error.INVALID_SORT`), e.g. with a `messageSource` that is not resource-based.

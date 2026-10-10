@@ -3,7 +3,8 @@ package io.codehunters.messaging.jdbc.config;
 import java.sql.DatabaseMetaData;
 import java.util.Optional;
 import javax.sql.DataSource;
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.jdbc.support.MetaDataAccessException;
 
@@ -17,8 +18,9 @@ import org.springframework.jdbc.support.MetaDataAccessException;
  * check but may fail at the first claim, which needs {@code FOR UPDATE ... SKIP LOCKED}. A vendor
  * driver that reports another name, such as EDB's ({@code EnterpriseDB}), is rejected.
  */
-@Slf4j
 final class OutboxDatabaseCheck {
+
+  private static final Logger log = LoggerFactory.getLogger(OutboxDatabaseCheck.class);
 
   private static final String POSTGRESQL = "PostgreSQL";
 

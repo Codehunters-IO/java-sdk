@@ -102,14 +102,19 @@ public class AuditJdbcAutoConfiguration {
   }
 
   /**
-   * Provides the {@link JsonMapper} that serializes audit payloads.
+   * Provides the {@link JsonMapper} that serializes audit payloads. It is built from the
+   * application's {@link JsonMapper.Builder} when Spring Boot's Jackson auto-configuration provides
+   * one (a fresh prototype per injection, so the application's {@code spring.jackson.*} settings,
+   * modules and customizers apply and nothing the SDK does reaches the application's mapper), and
+   * from Jackson's defaults otherwise.
    *
+   * @param builders the application's mapper builder, if any
    * @return a {@link JsonMapper}
    */
   @Bean(name = JSON_MAPPER, defaultCandidate = false)
   @ConditionalOnMissingBean(name = JSON_MAPPER)
-  public JsonMapper auditJsonMapper() {
-    return JsonMapper.builder().build();
+  public JsonMapper auditJsonMapper(ObjectProvider<JsonMapper.Builder> builders) {
+    return builders.getIfAvailable(JsonMapper::builder).build();
   }
 
   /**

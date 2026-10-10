@@ -15,10 +15,6 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     compileOnly("org.springframework.amqp:spring-rabbit")
     compileOnly("org.springframework:spring-context")
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
-    testCompileOnly(libs.lombok)
-    testAnnotationProcessor(libs.lombok)
 
     testImplementation(project(":sdk-event-messaging-jdbc"))
     testImplementation(project(":sdk-event-messaging-kafka"))

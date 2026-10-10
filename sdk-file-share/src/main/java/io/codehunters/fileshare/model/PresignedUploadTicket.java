@@ -2,6 +2,7 @@ package io.codehunters.fileshare.model;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -29,6 +30,17 @@ public record PresignedUploadTicket(FileRef file, URI uploadUrl, Instant expires
    */
   public String httpMethod() {
     return "PUT";
+  }
+
+  /**
+   * Headers the upload request must carry because {@link #uploadUrl()} was signed for them: the
+   * {@code Content-Type} declared when the upload was requested. Sending another value breaks the
+   * signature.
+   *
+   * @return header name to value, unmodifiable
+   */
+  public Map<String, String> requiredHeaders() {
+    return Map.of("Content-Type", file.contentType());
   }
 
   @Override

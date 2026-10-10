@@ -28,8 +28,18 @@ public Order createOrder(CreateOrderCommand command) { ... }
 SpEL expressions see the parameters by name (`#command`, needs `-parameters`), by position (`#p0`,
 `#a0`, `#arg0`) and the return value (`#result`). `#result` is reserved: it is `null` when the
 method throws, even if a parameter is called `result`; write `#result?.id` so the failure event
-records `null` cleanly. An expression that fails to evaluate, or calls a method that throws, leaves
-its field `null`; the event is still published, and the first failure of each method (overloads
+records `null` cleanly.
+
+Expressions run in a read-only sandbox (SpEL's `SimpleEvaluationContext`): they read properties,
+through getters or record components (`#order.id`, `#order.customer.name`), index lists and maps
+(`#items[0]`, `#tags['k']`, `#result?.['id']`) and use operators (`?:`, `?.`, comparisons,
+arithmetic). They call no method (`#order.getId()`, `#map.get('k')`), reference no type
+(`T(...)`), call no constructor (`new ...`), resolve no bean (`@name`) and assign nothing. Startup
+reports an expression that does any of these, as it does one that does not parse; at runtime it
+records `null`.
+
+An expression that fails to evaluate, or reads a property whose getter throws, leaves its field
+`null`; the event is still published, and the first failure of each method (overloads
 apart) and attribute is logged at `WARN` with the exception class or SpEL message code, never the
 message or the values. A `#result` expression that fails only because the method threw is not
 warned about. Expressions are parsed at startup; see
@@ -130,7 +140,10 @@ exception is thrown with the audit failure attached as suppressed.
 
 The `auditTaskExecutor` and `auditJsonMapper` beans are not autowiring candidates: they never
 replace Boot's `applicationTaskExecutor` or your `JsonMapper`. Inject them with `@Qualifier` if you
-need them. Define a bean with either name to replace it.
+need them. Define a bean with either name to replace it. `auditJsonMapper` is built from Boot's
+`JsonMapper.Builder` when the Jackson auto-configuration provides one, so `spring.jackson.*`,
+your modules and your `JsonMapperBuilderCustomizer`s shape payloads as they shape your API; it is
+its own instance, never your `JsonMapper`. Without Boot's builder it uses Jackson's defaults.
 
 ### Transactions
 
@@ -178,7 +191,7 @@ startup, so upgrading within 4.x never stops an application that starts today:
 | No `AuditEventPublisherPort` | A bean declares `@Auditable` methods, and you define no publisher while the JDBC one backs off: no `DataSource`, several `DataSource` beans with none `@Primary`, or Spring JDBC, Spring transactions or Jackson missing from the classpath. The message names the reason and one audited method |
 | No `AuditEventPublisherPort` (excluded) | The same, when the JDBC auto-configuration is excluded or its classes are missing: the message says "missing classes or auto-configuration excluded" |
 | No AspectJ weaver | A publisher exists but `org.aspectj:aspectjweaver` is not on the runtime classpath, so no AspectJ proxy is created |
-| Invalid expression | An `entityId`, `actorId`, `correlationId` or `payload` expression cannot be parsed. The message names `Class#method(Params)`, the attribute (`payload[key]` for a payload entry) and the parser's error, never evaluated values |
+| Invalid expression | An `entityId`, `actorId`, `correlationId` or `payload` expression cannot be parsed, uses what the sandbox refuses, or reads a `#variable` that is neither a parameter nor `#result`, `#p0`/`#a0`/`#arg0`, `#root` or `#this`. Without `-parameters` the parameter names are unknown, so a named variable is reported with a hint to compile with `-parameters` or write `#p0`/`#a0`. The message names `Class#method(Params)`, the attribute (`payload[key]` for a payload entry) and the parser's error, never evaluated values |
 | No AspectJ auto-proxy creator | A publisher exists but nothing applies the aspect (`spring.aop.auto=false` without `@EnableAspectJAutoProxy`). Logged at `WARN` |
 
 Beans are inspected through their target class, so proxies are seen through; lazy beans are
@@ -230,8 +243,6 @@ Invalid sizes fail at startup.
 - With `fail-on-error=true`, the cause of an `AuditPersistenceException` is redacted: it keeps
   the failure class, SQLState, vendor code and stack trace, never the database message, which can
   echo the row. Read them from `failureClass()`, `sqlState()` and `vendorCode()`.
-- Expressions run in a full SpEL `StandardEvaluationContext`: they may call any method of the
-  arguments and reach any type with `T(...)`. They come from your own annotations, never from
-  input, so this is accepted for now. A restricted `SimpleEvaluationContext` would break
-  expressions that call methods, so it is left for a major version. Keep expressions to property
-  reads and simple calls.
+- The startup check finds a refused construct only in expressions it can read: it cannot tell
+  whether a property exists on the runtime type, so a misspelled property is still `null` at
+  runtime, with one `WARN`.

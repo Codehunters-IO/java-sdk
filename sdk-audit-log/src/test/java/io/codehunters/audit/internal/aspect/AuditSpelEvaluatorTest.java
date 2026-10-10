@@ -20,6 +20,24 @@ class AuditSpelEvaluatorTest {
     public String echo(String result) {
       return result;
     }
+
+    public void place(Order order) {
+      // evaluated only
+    }
+  }
+
+  record Order(String id, Map<String, String> tags) {}
+
+  /** A bean-style type: properties come from getters. */
+  static class Customer {
+    public String getName() {
+      return "Ada";
+    }
+  }
+
+  private EvaluationContext orderContext() throws NoSuchMethodException {
+    Method place = Sample.class.getMethod("place", Order.class);
+    return evaluator.buildContext(place, new Object[] {new Order("A-1", Map.of("k", "v"))}, null);
   }
 
   private Method greetMethod() throws NoSuchMethodException {
@@ -167,5 +185,54 @@ class AuditSpelEvaluatorTest {
     EvaluationContext ctx = evaluator.buildContext(echo, new Object[] {"argument"}, null);
 
     assertThat(evaluator.evaluate("#result", ctx)).isNull();
+  }
+
+  @Test
+  void should_read_a_record_component_when_the_expression_names_it() throws Exception {
+    assertThat(evaluator.evaluate("#order.id", orderContext())).isEqualTo("A-1");
+  }
+
+  @Test
+  void should_read_a_bean_getter_when_the_expression_names_its_property() throws Exception {
+    EvaluationContext ctx =
+        evaluator.buildContext(greetMethod(), new Object[] {"x", 1}, new Customer());
+
+    assertThat(evaluator.evaluate("#result.name", ctx)).isEqualTo("Ada");
+  }
+
+  @Test
+  void should_read_a_map_entry_when_the_expression_indexes_it_by_key() throws Exception {
+    assertThat(evaluator.evaluate("#order.tags['k']", orderContext())).isEqualTo("v");
+  }
+
+  @Test
+  void should_evaluate_to_null_when_the_expression_calls_a_method() throws Exception {
+    assertThat(evaluator.evaluate("#order.id()", orderContext())).isNull();
+    assertThat(evaluator.evaluate("#order.tags.get('k')", orderContext())).isNull();
+  }
+
+  @Test
+  void should_evaluate_to_null_when_the_expression_references_a_type() throws Exception {
+    assertThat(evaluator.evaluate("T(java.lang.System).getProperty('user.home')", orderContext()))
+        .isNull();
+  }
+
+  @Test
+  void should_evaluate_to_null_when_the_expression_calls_a_constructor() throws Exception {
+    assertThat(evaluator.evaluateValue("new java.lang.StringBuilder('x')", orderContext()))
+        .isNull();
+  }
+
+  @Test
+  void should_evaluate_to_null_when_the_expression_references_a_bean() throws Exception {
+    assertThat(evaluator.evaluateValue("@dataSource", orderContext())).isNull();
+  }
+
+  @Test
+  void should_evaluate_to_null_when_the_expression_assigns_a_value() throws Exception {
+    EvaluationContext ctx = orderContext();
+
+    assertThat(evaluator.evaluate("#order = 'changed'", ctx)).isNull();
+    assertThat(evaluator.evaluate("#order.id", ctx)).isEqualTo("A-1");
   }
 }

@@ -9,22 +9,36 @@ import io.codehunters.fileshare.FileShareUnauthorizedException;
 import io.codehunters.fileshare.FileShareUnavailableException;
 import java.io.IOException;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.security.oauth2.client.InMemoryOAuth2AuthorizedClientService;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.registration.ClientRegistration;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.AuthenticatedPrincipalOAuth2AuthorizedClientRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
 
+@ExtendWith(OutputCaptureExtension.class)
 class FileShareClientCredentialsTest {
 
   private static final UUID FILE_ID = UUID.fromString(FakeFileShareServer.FILE_ID);
+  private static final String APP_TOKEN = "app-token";
+  private static final String MANAGER_BEAN = "fileShareAuthorizedClientManager";
+  private static final String NO_CLIENT_WARNING =
+      "returned no authorized client for registration file-share";
 
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
@@ -50,6 +64,100 @@ class FileShareClientCredentialsTest {
               context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
               assertThat(server.authorizations())
                   .containsExactly("Bearer " + FakeFileShareServer.ACCESS_TOKEN);
+            });
+  }
+
+  @Test
+  void should_use_the_dedicated_authorized_client_manager_when_the_application_names_one() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(
+            MANAGER_BEAN,
+            OAuth2AuthorizedClientManager.class,
+            () -> request -> authorizedClient(request.getClientRegistrationId()))
+        .run(
+            context -> {
+              context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
+              assertThat(server.authorizations()).containsExactly("Bearer " + APP_TOKEN);
+              assertThat(server.tokenRequests()).isZero();
+            });
+  }
+
+  @Test
+  void should_keep_its_own_manager_when_the_application_declares_an_unnamed_one() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(
+            OAuth2AuthorizedClientManager.class,
+            () -> request -> authorizedClient(request.getClientRegistrationId()))
+        .run(
+            context -> {
+              context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
+              assertThat(server.authorizations())
+                  .containsExactly("Bearer " + FakeFileShareServer.ACCESS_TOKEN);
+            });
+  }
+
+  @Test
+  void should_fail_as_unauthorized_without_calling_the_service_when_manager_returns_no_client() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(MANAGER_BEAN, OAuth2AuthorizedClientManager.class, () -> request -> null)
+        .run(
+            context ->
+                assertThatThrownBy(
+                        () -> context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID))
+                    .isInstanceOf(FileShareUnauthorizedException.class)
+                    .hasMessageContaining("file-share"));
+    assertThat(server.authorizations()).isEmpty();
+  }
+
+  @Test
+  void should_warn_once_when_manager_keeps_returning_no_client(CapturedOutput output) {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(MANAGER_BEAN, OAuth2AuthorizedClientManager.class, () -> request -> null)
+        .run(
+            context -> {
+              FileShareClient client = context.getBean(FileShareClient.class);
+              assertThatThrownBy(() -> client.getMetadata("REF-1", FILE_ID))
+                  .isInstanceOf(FileShareUnauthorizedException.class);
+              assertThatThrownBy(() -> client.getMetadata("REF-1", FILE_ID))
+                  .isInstanceOf(FileShareUnauthorizedException.class);
+            });
+    assertThat(output.getAll().split(NO_CLIENT_WARNING, -1)).hasSize(2);
+  }
+
+  @Test
+  void should_keep_its_own_manager_when_the_application_has_only_the_request_bound_one() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(
+            OAuth2AuthorizedClientManager.class,
+            () ->
+                new DefaultOAuth2AuthorizedClientManager(
+                    repository(),
+                    new AuthenticatedPrincipalOAuth2AuthorizedClientRepository(
+                        new InMemoryOAuth2AuthorizedClientService(repository()))))
+        .run(
+            context -> {
+              context.getBean(FileShareClient.class).getMetadata("REF-1", FILE_ID);
+              assertThat(server.authorizations())
+                  .containsExactly("Bearer " + FakeFileShareServer.ACCESS_TOKEN);
+            });
+  }
+
+  @Test
+  void should_omit_service_token_and_application_interceptors_when_uploading() {
+    withRegistration(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .withBean(
+            FileShareRequestInterceptor.class,
+            () ->
+                (request, body, execution) -> {
+                  request.getHeaders().add("X-Custom", "app");
+                  return execution.execute(request, body);
+                })
+        .run(
+            context -> {
+              FileShareAutoConfigurationTest.put(
+                  FileShareAutoConfigurationTest.uploadClient(context), server.url() + "/upload");
+              assertThat(server.uploadHeaders()).containsExactly("null|null");
+              assertThat(server.tokenRequests()).isZero();
             });
   }
 
@@ -228,6 +336,28 @@ class FileShareClientCredentialsTest {
                     .hasFailed()
                     .getFailure()
                     .hasMessageContaining("spring-security-oauth2-client"));
+  }
+
+  private OAuth2AuthorizedClient authorizedClient(String registrationId) {
+    var token =
+        new OAuth2AccessToken(
+            OAuth2AccessToken.TokenType.BEARER,
+            APP_TOKEN,
+            Instant.now(),
+            Instant.now().plusSeconds(300));
+    return new OAuth2AuthorizedClient(registration(registrationId), "app", token);
+  }
+
+  private ClientRegistrationRepository repository() {
+    return new InMemoryClientRegistrationRepository(registration("file-share"));
+  }
+
+  private ClientRegistration registration(String registrationId) {
+    return ClientRegistration.withRegistrationId(registrationId)
+        .clientId("app")
+        .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+        .tokenUri(server.url() + "/token")
+        .build();
   }
 
   private ApplicationContextRunner withRegistration(AuthorizationGrantType grantType) {

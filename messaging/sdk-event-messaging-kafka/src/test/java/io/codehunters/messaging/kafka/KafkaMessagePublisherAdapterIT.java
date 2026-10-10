@@ -4,14 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.MessagePublishException;
 import io.codehunters.messaging.MessagePublisherPort;
+import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxMessage;
-import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.kafka.config.EventMessagingKafkaAutoConfiguration;
@@ -26,6 +25,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -163,7 +163,7 @@ class KafkaMessagePublisherAdapterIT {
       Tracer tracer = otelTracer(provider);
       runner
           .withBean(ProducerFactory.class, () -> applicationProducers(StringSerializer.class))
-          .withBean(OutboxRepositoryPort.class, () -> claimingTraced(topic))
+          .withBean(OutboxDispatchStore.class, () -> claimingTraced(topic))
           .withBean(Tracer.class, () -> tracer)
           .run(
               context ->
@@ -190,13 +190,12 @@ class KafkaMessagePublisherAdapterIT {
         new OtelBaggageManager(current, List.of(), List.of()));
   }
 
-  private static OutboxRepositoryPort claimingTraced(String topic) {
+  private static OutboxDispatchStore claimingTraced(String topic) {
     OutboxMessage<String> stored =
         message(topic, UUID.randomUUID()).toBuilder().traceparent(STORED_TRACEPARENT).build();
-    OutboxRepositoryPort repository = mock(OutboxRepositoryPort.class);
-    when(repository.claimPendingMessages(any(), anyInt(), any(), any()))
-        .thenReturn(List.of(stored));
-    when(repository.markSendStarted(any())).thenReturn(true);
+    OutboxDispatchStore repository = mock(OutboxDispatchStore.class);
+    when(repository.claim(any())).thenReturn(List.of(stored));
+    when(repository.markSendStarted(any())).thenReturn(Optional.of(stored));
     return repository;
   }
 

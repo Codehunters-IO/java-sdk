@@ -46,7 +46,7 @@ public final class TracedMessagePublisher implements MessagePublisherPort {
 
   @Override
   public void publish(OutboxMessage<String> message) {
-    Optional<TraceContext> stored = storedContext(message.getTraceparent());
+    Optional<TraceContext> stored = storedContext(message.traceparent());
     if (stored.isEmpty()) {
       delegate.publish(message);
       return;

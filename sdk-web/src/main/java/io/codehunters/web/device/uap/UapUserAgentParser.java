@@ -11,8 +11,8 @@ import ua_parser.Parser;
 /**
  * {@link UserAgentParser} backed by {@code ua-parser} ({@code com.github.ua-parser:uap-java}).
  * Building it loads and compiles the bundled regex list, so create it once; parsing is thread-safe.
- * Wrap it in a {@link io.codehunters.web.device.useragent.CachingUserAgentParser} and feed it
- * headers cut by {@link io.codehunters.web.device.useragent.UserAgents#sanitize}.
+ * Wrap it in a {@link io.codehunters.web.device.cache.CachingUserAgentParser} and feed it headers
+ * cut by {@link io.codehunters.web.device.useragent.UserAgents#sanitize}.
  */
 public final class UapUserAgentParser implements UserAgentParser {
 

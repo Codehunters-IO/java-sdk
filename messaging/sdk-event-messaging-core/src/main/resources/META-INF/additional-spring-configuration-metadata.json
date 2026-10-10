@@ -1,0 +1,34 @@
+{
+  "properties": [
+    {
+      "name": "codehunters.outbox.claim.ttl-ms",
+      "type": "java.lang.Long",
+      "description": "Renamed in sdk-event-messaging 9.0.0; startup fails while it is set.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.outbox.claim.ttl",
+        "reason": "sdk-event-messaging 9.0.0 types the outbox timing properties as durations."
+      }
+    },
+    {
+      "name": "codehunters.outbox.backoff.base-delay-ms",
+      "type": "java.lang.Long",
+      "description": "Renamed in sdk-event-messaging 9.0.0; startup fails while it is set.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.outbox.backoff.base-delay",
+        "reason": "sdk-event-messaging 9.0.0 types the outbox timing properties as durations."
+      }
+    },
+    {
+      "name": "codehunters.outbox.backoff.max-delay-ms",
+      "type": "java.lang.Long",
+      "description": "Renamed in sdk-event-messaging 9.0.0; startup fails while it is set.",
+      "deprecation": {
+        "level": "error",
+        "replacement": "codehunters.outbox.backoff.max-delay",
+        "reason": "sdk-event-messaging 9.0.0 types the outbox timing properties as durations."
+      }
+    }
+  ]
+}

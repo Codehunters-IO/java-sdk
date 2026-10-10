@@ -2,18 +2,21 @@ package io.codehunters.messaging.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import io.codehunters.messaging.EventMessage;
 import io.codehunters.messaging.MessagePublisherDecorator;
 import io.codehunters.messaging.MessagePublisherPort;
+import io.codehunters.messaging.OutboxDispatchStore;
+import io.codehunters.messaging.OutboxEvent;
 import io.codehunters.messaging.OutboxMessage;
-import io.codehunters.messaging.OutboxRepositoryPort;
 import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.factory.EventMessageFactory;
 import io.codehunters.messaging.factory.OutboxEventFactory;
+import io.codehunters.messaging.factory.TraceIdSource;
 import io.codehunters.tracing.TraceContextPort;
 import io.codehunters.tracing.TraceParent;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -27,11 +30,20 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.FilteredClassLoader;
+import org.springframework.boot.test.context.assertj.AssertableApplicationContext;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class EventMessagingCoreAutoConfigurationTest {
+
+  private static final OutboxEvent<String> EVENT =
+      OutboxEvent.to("t").key("a").type("n").payload("p");
+  private static final String OUTBOX_CLOCK = "outboxClock";
+  private static final Instant FIXED_INSTANT = Instant.parse("2026-10-09T10:00:00Z");
 
   private final ApplicationContextRunner contextRunner =
       new ApplicationContextRunner()
@@ -50,7 +62,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_create_use_case_when_repository_and_publisher_present() {
     contextRunner
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(context -> assertThat(context).hasSingleBean(SendOutboxMessagesPort.class));
   }
@@ -58,7 +70,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_not_create_use_case_when_publisher_missing() {
     contextRunner
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .run(context -> assertThat(context).doesNotHaveBean(SendOutboxMessagesPort.class));
   }
 
@@ -80,7 +92,8 @@ class EventMessagingCoreAutoConfigurationTest {
 
   @Test
   void should_back_off_when_custom_beans_provided() {
-    var customFactory = new EventMessageFactory("custom-origin");
+    var customFactory =
+        new EventMessageFactory("custom-origin", TraceIdSource.none(), Clock.systemUTC());
 
     contextRunner
         .withBean(EventMessageFactory.class, () -> customFactory)
@@ -96,9 +109,8 @@ class EventMessagingCoreAutoConfigurationTest {
     contextRunner.run(
         context -> {
           EventMessageFactory factory = context.getBean(EventMessageFactory.class);
-          EventMessage<String> event =
-              factory.create("trace-1", "aggregate-1", "event.name", "EVENT_TYPE", "payload");
-          assertThat(event.getHeader().getOrigin()).isEqualTo("test-app");
+          EventMessage<String> event = factory.create(EVENT.traceId("trace-1"));
+          assertThat(event.header().origin()).isEqualTo("test-app");
         });
   }
 
@@ -109,9 +121,10 @@ class EventMessagingCoreAutoConfigurationTest {
           EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
           assertThat(props.batchSize()).isEqualTo(50);
           assertThat(props.maxAttempts()).isEqualTo(5);
-          assertThat(props.claim().ttlMs()).isEqualTo(300_000L);
-          assertThat(props.backoff().baseDelayMs()).isEqualTo(30_000L);
-          assertThat(props.backoff().maxDelayMs()).isEqualTo(3_600_000L);
+          assertThat(props.claim().ttl()).isEqualTo(Duration.ofMinutes(5));
+          assertThat(props.backoff().baseDelay()).isEqualTo(Duration.ofSeconds(30));
+          assertThat(props.backoff().maxDelay()).isEqualTo(Duration.ofHours(1));
+          assertThat(props.task().fixedDelay()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.publisher().type()).isNull();
           assertThat(props.publisher().rabbit().confirmTimeout()).isEqualTo(Duration.ofSeconds(5));
           assertThat(props.publisher().kafka().sendTimeout()).isEqualTo(Duration.ofSeconds(5));
@@ -141,10 +154,10 @@ class EventMessagingCoreAutoConfigurationTest {
         context -> {
           EventMessagingProperties.Purge purge =
               context.getBean(EventMessagingProperties.class).purge();
-          assertThat(purge.fixedDelay()).isEqualTo("3600000");
-          assertThat(purge.initialDelay()).isEqualTo("60000");
-          assertThat(purge.lockAtMost()).isEqualTo("PT10M");
-          assertThat(purge.lockAtLeast()).isEqualTo("PT30S");
+          assertThat(purge.fixedDelay()).isEqualTo(Duration.ofHours(1));
+          assertThat(purge.initialDelay()).isEqualTo(Duration.ofMinutes(1));
+          assertThat(purge.lockAtMost()).isEqualTo(Duration.ofMinutes(10));
+          assertThat(purge.lockAtLeast()).isEqualTo(Duration.ofSeconds(30));
         });
   }
 
@@ -153,7 +166,45 @@ class EventMessagingCoreAutoConfigurationTest {
     contextRunner.run(
         context ->
             assertThat(context.getBean(EventMessagingProperties.class).task().lockAtMost())
-                .isEqualTo("300000"));
+                .isEqualTo(Duration.ofMinutes(5)));
+  }
+
+  @Test
+  void should_bind_zero_dispatch_lock_at_least_when_nothing_configured() {
+    contextRunner.run(
+        context ->
+            assertThat(context.getBean(EventMessagingProperties.class).task().lockAtLeast())
+                .isZero());
+  }
+
+  @Test
+  void should_bind_duration_properties_when_configured_with_units() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.task.fixed-delay=2s",
+            "codehunters.outbox.task.lock-at-most=6m",
+            "codehunters.outbox.task.lock-at-least=1s",
+            "codehunters.outbox.claim.ttl=4m",
+            "codehunters.outbox.backoff.base-delay=10s",
+            "codehunters.outbox.backoff.max-delay=20m",
+            "codehunters.outbox.purge.fixed-delay=2h",
+            "codehunters.outbox.purge.initial-delay=0s",
+            "codehunters.outbox.purge.lock-at-most=15m",
+            "codehunters.outbox.purge.lock-at-least=1m")
+        .run(
+            context -> {
+              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+              assertThat(props.task().fixedDelay()).isEqualTo(Duration.ofSeconds(2));
+              assertThat(props.task().lockAtMost()).isEqualTo(Duration.ofMinutes(6));
+              assertThat(props.task().lockAtLeast()).isEqualTo(Duration.ofSeconds(1));
+              assertThat(props.claim().ttl()).isEqualTo(Duration.ofMinutes(4));
+              assertThat(props.backoff().baseDelay()).isEqualTo(Duration.ofSeconds(10));
+              assertThat(props.backoff().maxDelay()).isEqualTo(Duration.ofMinutes(20));
+              assertThat(props.purge().fixedDelay()).isEqualTo(Duration.ofHours(2));
+              assertThat(props.purge().initialDelay()).isZero();
+              assertThat(props.purge().lockAtMost()).isEqualTo(Duration.ofMinutes(15));
+              assertThat(props.purge().lockAtLeast()).isEqualTo(Duration.ofMinutes(1));
+            });
   }
 
   @Test
@@ -184,6 +235,109 @@ class EventMessagingCoreAutoConfigurationTest {
             context ->
                 assertThat(context.getBean(EventMessagingProperties.class).scheduling().enabled())
                     .isFalse());
+  }
+
+  @Test
+  void should_bind_per_key_batching_and_dispatch_on_commit_when_nothing_configured() {
+    contextRunner.run(
+        context -> {
+          EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+          assertThat(props.claim().maxPerKey()).isEqualTo(10);
+          assertThat(props.scheduling().dispatchOnCommit()).isTrue();
+        });
+  }
+
+  @Test
+  void should_bind_per_key_batching_and_dispatch_on_commit_when_configured() {
+    contextRunner
+        .withPropertyValues(
+            "codehunters.outbox.claim.max-per-key=3",
+            "codehunters.outbox.scheduling.dispatch-on-commit=false")
+        .run(
+            context -> {
+              EventMessagingProperties props = context.getBean(EventMessagingProperties.class);
+              assertThat(props.claim().maxPerKey()).isEqualTo(3);
+              assertThat(props.scheduling().dispatchOnCommit()).isFalse();
+            });
+  }
+
+  @Test
+  void should_fail_startup_naming_key_when_max_per_key_below_one() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.max-per-key=0")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.claim.max-per-key"));
+  }
+
+  @Test
+  void should_claim_with_configured_max_per_key_when_dispatching() {
+    OutboxDispatchStore store = mock(OutboxDispatchStore.class);
+
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.max-per-key=7")
+        .withBean(OutboxDispatchStore.class, () -> store)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              context.getBean(SendOutboxMessagesPort.class).execute();
+              verify(store).claim(argThat(request -> request.maxPerKey() == 7));
+            });
+  }
+
+  @Test
+  void should_claim_with_configured_commit_grace_when_dispatching() {
+    OutboxDispatchStore store = mock(OutboxDispatchStore.class);
+
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.commit-grace=2s")
+        .withBean(OutboxDispatchStore.class, () -> store)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              context.getBean(SendOutboxMessagesPort.class).execute();
+              verify(store)
+                  .claim(argThat(request -> request.commitGrace().equals(Duration.ofSeconds(2))));
+            });
+  }
+
+  @Test
+  void should_bind_zero_commit_grace_when_nothing_configured() {
+    contextRunner.run(
+        context ->
+            assertThat(context.getBean(EventMessagingProperties.class).claim().commitGrace())
+                .isZero());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "codehunters.outbox.claim.ttl-ms, codehunters.outbox.claim.ttl",
+    "codehunters.outbox.backoff.base-delay-ms, codehunters.outbox.backoff.base-delay",
+    "codehunters.outbox.backoff.max-delay-ms, codehunters.outbox.backoff.max-delay"
+  })
+  void should_fail_startup_naming_replacement_when_renamed_8x_key_is_set(
+      String oldKey, String newKey) {
+    contextRunner
+        .withPropertyValues(oldKey + "=1000")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining(oldKey)
+                    .hasMessageContaining(newKey));
+  }
+
+  @Test
+  void should_fail_startup_when_renamed_8x_key_is_set_in_relaxed_form() {
+    contextRunner
+        .withPropertyValues("codehunters.outbox.claim.ttlMs=1000")
+        .run(
+            context ->
+                assertThat(context.getStartupFailure())
+                    .rootCause()
+                    .hasMessageContaining("codehunters.outbox.claim.ttl-ms"));
   }
 
   @Test
@@ -224,13 +378,13 @@ class EventMessagingCoreAutoConfigurationTest {
         .withPropertyValues(
             "codehunters.outbox.publisher.type=kafka",
             "codehunters.outbox.batch-size=100",
-            "codehunters.outbox.claim.ttl-ms=60000")
+            "codehunters.outbox.claim.ttl=60s")
         .run(
             context -> {
               assertThat(context).hasFailed();
               assertThat(context.getStartupFailure())
                   .rootCause()
-                  .hasMessageContaining("codehunters.outbox.claim.ttl-ms")
+                  .hasMessageContaining("codehunters.outbox.claim.ttl ")
                   .hasMessageContaining("duplicate");
             });
   }
@@ -241,7 +395,7 @@ class EventMessagingCoreAutoConfigurationTest {
         .withPropertyValues(
             "codehunters.outbox.publisher.type=rabbit",
             "codehunters.outbox.publisher.rabbit.confirm-timeout=10s",
-            "codehunters.outbox.claim.ttl-ms=60000")
+            "codehunters.outbox.claim.ttl=60s")
         .run(
             context ->
                 assertThat(context.getStartupFailure())
@@ -266,7 +420,7 @@ class EventMessagingCoreAutoConfigurationTest {
     SimpleMeterRegistry registry = new SimpleMeterRegistry();
 
     contextRunner
-        .withBean(OutboxRepositoryPort.class, this::repositoryWithOneMessage)
+        .withBean(OutboxDispatchStore.class, this::repositoryWithOneMessage)
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .withBean(MeterRegistry.class, () -> registry)
         .run(
@@ -280,7 +434,7 @@ class EventMessagingCoreAutoConfigurationTest {
   @Test
   void should_not_decorate_publisher_when_no_meter_registry() {
     contextRunner
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(
             context -> {
@@ -293,7 +447,7 @@ class EventMessagingCoreAutoConfigurationTest {
   void should_create_use_case_when_micrometer_absent() {
     contextRunner
         .withClassLoader(new FilteredClassLoader(MeterRegistry.class))
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(context -> assertThat(context).hasSingleBean(SendOutboxMessagesPort.class));
   }
@@ -308,12 +462,11 @@ class EventMessagingCoreAutoConfigurationTest {
         .withBean(TraceContextPort.class, () -> port)
         .run(
             context -> {
-              EventMessage<String> event =
-                  context.getBean(EventMessageFactory.class).create(null, "a", "n", "T", "p");
+              EventMessage<String> event = context.getBean(EventMessageFactory.class).create(EVENT);
               OutboxMessage<EventMessage<String>> outbox =
-                  context.getBean(OutboxEventFactory.class).create("t", null, "a", "n", "T", "p");
-              assertThat(event.getHeader().getTraceId()).isEqualTo(current.traceId());
-              assertThat(outbox.getMessage().getHeader().getTraceId()).isEqualTo(current.traceId());
+                  context.getBean(OutboxEventFactory.class).create(EVENT);
+              assertThat(event.header().traceId()).isEqualTo(current.traceId());
+              assertThat(outbox.message().header().traceId()).isEqualTo(current.traceId());
             });
   }
 
@@ -327,11 +480,7 @@ class EventMessagingCoreAutoConfigurationTest {
         .withBean(TraceContextPort.class, () -> port)
         .run(
             context ->
-                assertThat(
-                        context
-                            .getBean(OutboxEventFactory.class)
-                            .create("t", null, "a", "n", "T", "p")
-                            .getTraceparent())
+                assertThat(context.getBean(OutboxEventFactory.class).create(EVENT).traceparent())
                     .isEqualTo(current.format()));
   }
 
@@ -352,7 +501,7 @@ class EventMessagingCoreAutoConfigurationTest {
   void should_create_use_case_when_micrometer_tracing_absent() {
     contextRunner
         .withClassLoader(new FilteredClassLoader(Tracer.class))
-        .withBean(OutboxRepositoryPort.class, () -> mock(OutboxRepositoryPort.class))
+        .withBean(OutboxDispatchStore.class, () -> mock(OutboxDispatchStore.class))
         .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .run(
             context -> {
@@ -368,36 +517,78 @@ class EventMessagingCoreAutoConfigurationTest {
         .run(
             context ->
                 assertThat(
-                        context
-                            .getBean(EventMessageFactory.class)
-                            .create(null, "a", "n", "T", "p")
-                            .getHeader()
-                            .getTraceId())
+                        context.getBean(EventMessageFactory.class).create(EVENT).header().traceId())
                     .isNull());
   }
 
   @Test
-  void should_provide_utc_clock_when_no_clock_defined() {
+  void should_provide_private_utc_outbox_clock_when_no_clock_defined() {
     contextRunner.run(
-        context -> assertThat(context.getBean(Clock.class).getZone()).isEqualTo(ZoneOffset.UTC));
+        context -> {
+          assertThat(context.getBean(OUTBOX_CLOCK, Clock.class).getZone())
+              .isEqualTo(ZoneOffset.UTC);
+          assertThat(definition(context, OUTBOX_CLOCK).isDefaultCandidate()).isFalse();
+        });
   }
 
   @Test
-  void should_use_user_clock_when_clock_bean_defined() {
+  void should_keep_application_clock_resolvable_by_type_when_clock_bean_defined() {
     Clock custom = Clock.fixed(Instant.EPOCH, ZoneId.of("Europe/Madrid"));
 
     contextRunner
         .withBean(Clock.class, () -> custom)
-        .run(context -> assertThat(context.getBean(Clock.class)).isSameAs(custom));
+        .run(
+            context -> {
+              assertThat(context.getBean(Clock.class)).isSameAs(custom);
+              assertThat(context.getBean(OUTBOX_CLOCK)).isNotSameAs(custom);
+            });
   }
 
-  private OutboxRepositoryPort repositoryWithOneMessage() {
-    OutboxRepositoryPort repository = mock(OutboxRepositoryPort.class);
+  @Test
+  void should_not_stamp_events_with_application_clock_when_clock_bean_defined() {
+    Clock custom = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+
+    contextRunner
+        .withBean(Clock.class, () -> custom)
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(EventMessageFactory.class)
+                            .create(EVENT)
+                            .header()
+                            .timestamp())
+                    .isAfter(Instant.EPOCH));
+  }
+
+  @Test
+  void should_stamp_events_with_outbox_clock_when_application_overrides_it_by_name() {
+    Clock outboxClock = Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
+
+    contextRunner
+        .withBean(OUTBOX_CLOCK, Clock.class, () -> outboxClock)
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(EventMessageFactory.class)
+                            .create(EVENT)
+                            .header()
+                            .timestamp())
+                    .isEqualTo(FIXED_INSTANT));
+  }
+
+  private static AbstractBeanDefinition definition(
+      AssertableApplicationContext context, String name) {
+    return (AbstractBeanDefinition) context.getBeanFactory().getBeanDefinition(name);
+  }
+
+  private OutboxDispatchStore repositoryWithOneMessage() {
+    OutboxDispatchStore repository = mock(OutboxDispatchStore.class);
     OutboxMessage<String> message =
         OutboxMessage.<String>builder().topic("events").key("k").message("{}").build();
-    when(repository.claimPendingMessages(any(), anyInt(), any(), any()))
-        .thenReturn(List.of(message));
-    when(repository.markSendStarted(message)).thenReturn(true);
+    when(repository.claim(any())).thenReturn(List.of(message));
+    when(repository.markSendStarted(message)).thenReturn(Optional.of(message));
     return repository;
   }
 }

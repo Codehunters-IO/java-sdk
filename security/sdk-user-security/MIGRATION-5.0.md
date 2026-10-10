@@ -25,6 +25,38 @@ Environment variables follow the same rename: `KEYCLOAK_SECURITY_URL` → `CODEH
 `io.codehunters.security.config.KeycloakSecurityLegacyProperties` (the environment post-processor
 that copied the old keys) and its `spring.factories` entry. Nothing replaces it.
 
+## Session introspection is opt-in
+
+4.x asked Keycloak about every uncached token by default and rejected the request when Keycloak
+could not answer (`fail-open: false`), so a Keycloak outage became an outage of every service once
+the cache expired. 5.0.0 does not introspect unless told to:
+
+| | 4.x | 5.0 |
+|---|---|---|
+| `codehunters.security.introspection.enabled` | `true` | `false` |
+| Token of a revoked session | 401 | accepted until it expires |
+| Keycloak down | 401 after `cache-ttl` | no effect |
+| `client-id` / `client-secret` | required | required only when enabled |
+
+To keep 4.x's behaviour, set it explicitly:
+
+```yaml
+codehunters:
+  security:
+    introspection:
+      enabled: true
+      client-id: my-service
+      client-secret: ${KEYCLOAK_CLIENT_SECRET}
+```
+
+Leaving it off is the right choice when access tokens are short-lived (minutes) and a revoked
+session may keep working until its token expires. Credentials left in the configuration without
+`enabled: true` are ignored, and startup logs a `WARN` naming the gap ("introspection credentials
+configured but introspection is disabled"); add `enabled: true` or remove the credentials to clear
+it. The result cache is now Caffeine (same `cache-ttl` and
+`cache-max-entries`), and its hits, misses and failures are published as Micrometer meters; see
+the README's "Session introspection".
+
 ## Behaviour
 
 5.0.0 also carries the principal changes listed in the [CHANGELOG](CHANGELOG.md):
@@ -62,3 +94,6 @@ for `KeycloakPrincipal`.
    `KEYCLOAK_SECURITY_`, and rename every hit with the table above.
 3. Search the code for casts to `UsernamePasswordAuthenticationToken` of the request's
    authentication and use `KeycloakAuthenticationToken` instead.
+4. Decide on introspection: services that set `introspection.client-id` relied on it being on.
+   Add `codehunters.security.introspection.enabled: true` to keep it, or remove the client
+   credentials.

@@ -73,7 +73,9 @@ final class CriteriaSpecification<T> implements Specification<T> {
       case GT -> cb.greaterThan(ordered(path), ordered(path, 0));
       case GTE -> cb.greaterThanOrEqualTo(ordered(path), ordered(path, 0));
       case LT -> cb.lessThan(ordered(path), ordered(path, 0));
-      default -> cb.lessThanOrEqualTo(ordered(path), ordered(path, 0));
+      case LTE -> cb.lessThanOrEqualTo(ordered(path), ordered(path, 0));
+      case IS_NULL, IS_NOT_NULL ->
+          throw new IllegalStateException("null checks are built without a value");
     };
   }
 

@@ -2,6 +2,7 @@ package io.codehunters.messaging.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -40,7 +41,7 @@ class OutboxPurgeIT {
     UUID pending = insert(ORIGIN, "PENDING", null);
     UUID otherOrigin = insert(OTHER_ORIGIN, "PUBLISHED", now.minusDays(8));
 
-    int deleted = adapter.purgePublished(now.minusDays(7), DEFAULT_BATCH);
+    int deleted = adapter.purgePublished(cutoff(), DEFAULT_BATCH);
 
     assertThat(deleted).isEqualTo(2);
     assertThat(remainingIds()).containsExactlyInAnyOrder(recent, failed, pending, otherOrigin);
@@ -50,9 +51,9 @@ class OutboxPurgeIT {
   void should_bound_each_purge_by_batch_size_when_many_rows_are_old() {
     IntStream.range(0, 5).forEach(i -> insert(ORIGIN, "PUBLISHED", now.minusDays(8)));
 
-    int first = adapter.purgePublished(now.minusDays(7), 2);
-    int second = adapter.purgePublished(now.minusDays(7), 2);
-    int third = adapter.purgePublished(now.minusDays(7), 2);
+    int first = adapter.purgePublished(cutoff(), 2);
+    int second = adapter.purgePublished(cutoff(), 2);
+    int third = adapter.purgePublished(cutoff(), 2);
 
     assertThat(new int[] {first, second, third}).containsExactly(2, 2, 1);
   }
@@ -81,6 +82,10 @@ class OutboxPurgeIT {
         .param("publishedAt", publishedAt)
         .update();
     return id;
+  }
+
+  private Instant cutoff() {
+    return now.minusDays(7).toInstant(ZoneOffset.UTC);
   }
 
   private List<UUID> remainingIds() {

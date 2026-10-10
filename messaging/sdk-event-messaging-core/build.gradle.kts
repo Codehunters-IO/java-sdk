@@ -20,8 +20,6 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.micrometer:micrometer-tracing")
     compileOnly(project(":sdk-tracing"))
-    compileOnly(libs.lombok)
-    annotationProcessor(libs.lombok)
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.mockito:mockito-core")
@@ -29,5 +27,6 @@ dependencies {
     testImplementation("io.micrometer:micrometer-tracing-bridge-otel")
     testImplementation("io.opentelemetry:opentelemetry-sdk-trace")
     testImplementation(project(":sdk-tracing"))
+    testImplementation("tools.jackson.core:jackson-databind")
     testImplementation(libs.archunit.junit5)
 }

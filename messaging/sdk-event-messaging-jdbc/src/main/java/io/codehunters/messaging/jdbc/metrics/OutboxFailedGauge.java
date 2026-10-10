@@ -1,6 +1,6 @@
 package io.codehunters.messaging.jdbc.metrics;
 
-import io.codehunters.messaging.OutboxRepositoryPort;
+import io.codehunters.messaging.OutboxDispatchStore;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
@@ -24,7 +24,7 @@ public class OutboxFailedGauge implements MeterBinder {
   /** How long a FAILED-row count is reused before the table is queried again. */
   public static final Duration CACHE_TTL = Duration.ofSeconds(30);
 
-  private final OutboxRepositoryPort repository;
+  private final OutboxDispatchStore repository;
   private final String origin;
   private final Clock clock;
   private long cachedCount;
@@ -37,7 +37,7 @@ public class OutboxFailedGauge implements MeterBinder {
    * @param origin the origin used as the {@code origin} tag
    * @param clock the clock that ages the cached count
    */
-  public OutboxFailedGauge(OutboxRepositoryPort repository, String origin, Clock clock) {
+  public OutboxFailedGauge(OutboxDispatchStore repository, String origin, Clock clock) {
     this.repository = repository;
     this.origin = origin;
     this.clock = clock;

@@ -4,8 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.codehunters.security.jwt.KeycloakJwtAuthenticationConverter;
 import io.codehunters.security.session.SessionIntrospector;
+import io.micrometer.core.instrument.binder.MeterBinder;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.ManagementWebSecurityAutoConfiguration;
@@ -14,6 +17,8 @@ import org.springframework.boot.security.oauth2.server.resource.autoconfigure.OA
 import org.springframework.boot.security.oauth2.server.resource.autoconfigure.web.OAuth2ResourceServerWebSecurityAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authorization.method.AuthorizationManagerBeforeMethodInterceptor;
@@ -22,7 +27,11 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+@ExtendWith(OutputCaptureExtension.class)
 class KeycloakSecurityAutoConfigurationTest {
+
+  private static final String UNUSED_CREDENTIALS_WARNING =
+      "introspection credentials configured but introspection is disabled";
 
   private final FakeKeycloak keycloak = new FakeKeycloak();
 
@@ -32,9 +41,13 @@ class KeycloakSecurityAutoConfigurationTest {
           .withPropertyValues(
               "codehunters.security.url=" + keycloak.url(),
               "codehunters.security.realm=" + FakeKeycloak.REALM,
-              "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
-              "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
-              "codehunters.security.introspection.client-secret=secret");
+              "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID);
+
+  private final WebApplicationContextRunner introspecting =
+      runner.withPropertyValues(
+          "codehunters.security.introspection.enabled=true",
+          "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
+          "codehunters.security.introspection.client-secret=secret");
 
   @AfterEach
   void tearDown() {
@@ -42,8 +55,8 @@ class KeycloakSecurityAutoConfigurationTest {
   }
 
   @Test
-  void should_register_decoder_introspector_and_filter_chains_when_configured() {
-    runner.run(
+  void should_register_decoder_introspector_and_filter_chains_when_introspection_enabled() {
+    introspecting.run(
         context -> {
           assertThat(context).hasNotFailed();
           assertThat(context).hasSingleBean(JwtDecoder.class);
@@ -55,17 +68,89 @@ class KeycloakSecurityAutoConfigurationTest {
   }
 
   @Test
-  void should_not_register_introspector_when_introspection_disabled() {
+  void should_not_register_introspector_when_introspection_is_left_off() {
+    runner.run(
+        context -> {
+          assertThat(context).hasNotFailed();
+          assertThat(context).doesNotHaveBean(SessionIntrospector.class);
+          assertThat(context).doesNotHaveBean("sessionIntrospectorMetrics");
+          assertThat(context).hasSingleBean(JwtDecoder.class);
+        });
+  }
+
+  @Test
+  void should_warn_when_introspection_credentials_are_set_but_introspection_is_left_off(
+      CapturedOutput output) {
+    runner
+        .withPropertyValues(
+            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID,
+            "codehunters.security.introspection.client-secret=secret")
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains(UNUSED_CREDENTIALS_WARNING).contains("set enabled=true");
+  }
+
+  @Test
+  void should_warn_when_introspection_credentials_are_set_but_introspection_is_disabled(
+      CapturedOutput output) {
     runner
         .withPropertyValues(
             "codehunters.security.introspection.enabled=false",
-            "codehunters.security.introspection.client-id=",
-            "codehunters.security.introspection.client-secret=")
+            "codehunters.security.introspection.client-id=" + FakeKeycloak.CLIENT_ID)
+        .run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).contains(UNUSED_CREDENTIALS_WARNING);
+  }
+
+  @Test
+  void should_not_warn_when_introspection_is_off_without_credentials(CapturedOutput output) {
+    runner.run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).doesNotContain(UNUSED_CREDENTIALS_WARNING);
+  }
+
+  @Test
+  void should_not_warn_when_introspection_is_enabled(CapturedOutput output) {
+    introspecting.run(context -> assertThat(context).hasNotFailed());
+
+    assertThat(output).doesNotContain(UNUSED_CREDENTIALS_WARNING);
+  }
+
+  @Test
+  void should_publish_introspection_cache_and_failure_metrics_when_micrometer_is_present() {
+    keycloak.introspectionFailsWith(503);
+    introspecting.run(
+        context -> {
+          var registry = new SimpleMeterRegistry();
+          context.getBean("sessionIntrospectorMetrics", MeterBinder.class).bindTo(registry);
+          context.getBean(SessionIntrospector.class).isActive(keycloak.token());
+
+          assertThat(
+                  registry
+                      .get("cache.gets")
+                      .tag("cache", "codehunters.security.introspection.cache")
+                      .tag("result", "miss")
+                      .functionCounter()
+                      .count())
+              .isEqualTo(1.0);
+          assertThat(
+                  registry
+                      .get("codehunters.security.introspection.failures")
+                      .functionCounter()
+                      .count())
+              .isEqualTo(1.0);
+        });
+  }
+
+  @Test
+  void should_skip_introspection_metrics_when_micrometer_is_absent() {
+    introspecting
+        .withClassLoader(new FilteredClassLoader("io.micrometer.core"))
         .run(
             context -> {
               assertThat(context).hasNotFailed();
-              assertThat(context).doesNotHaveBean(SessionIntrospector.class);
-              assertThat(context).hasSingleBean(JwtDecoder.class);
+              assertThat(context).hasSingleBean(SessionIntrospector.class);
+              assertThat(context).doesNotHaveBean("sessionIntrospectorMetrics");
             });
   }
 

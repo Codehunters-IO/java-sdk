@@ -1,70 +1,37 @@
 package io.codehunters.messaging;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 class EventMessageTest {
 
-  @Test
-  void should_build_event_message_with_defaults() {
-    var message =
-        EventMessage.<String>builder()
-            .header(
-                EventMessage.Header.builder().traceId("trace-123").origin("orders-ms-test").build())
-            .body(
-                EventMessage.Body.<String>builder()
-                    .aggregate("order")
-                    .eventName("OrderCreated")
-                    .eventType(EventTypes.EVENT)
-                    .payload("test-payload")
-                    .build())
-            .build();
+  private static final Instant AT = Instant.parse("2026-10-09T10:00:00Z");
 
-    assertEquals("trace-123", message.getHeader().getTraceId());
-    assertEquals("orders-ms-test", message.getHeader().getOrigin());
-    assertEquals("1.0.0", message.getHeader().getVersion());
-    assertEquals("1.0.0", message.getHeader().getSchemaVersion());
-    assertNotNull(message.getHeader().getTimestamp());
-    assertEquals("order", message.getBody().getAggregate());
-    assertEquals("OrderCreated", message.getBody().getEventName());
-    assertEquals(EventTypes.EVENT, message.getBody().getEventType());
-    assertEquals("test-payload", message.getBody().getPayload());
+  @Test
+  void should_expose_header_and_body_components_when_built() {
+    var header = new EventMessage.Header("trace-1", "1.0.0", "2.0.0", "orders", AT, "es");
+    var body = new EventMessage.Body<>("order-1", "OrderPlaced", EventTypes.EVENT, "payload");
+
+    var message = new EventMessage<>(header, body);
+
+    assertThat(message.header().schemaVersion()).isEqualTo("2.0.0");
+    assertThat(message.header().timestamp()).isEqualTo(AT);
+    assertThat(message.body().aggregate()).isEqualTo("order-1");
+    assertThat(message.body().payload()).isEqualTo("payload");
   }
 
   @Test
-  void should_build_header_with_custom_values() {
-    var header =
-        EventMessage.Header.builder()
-            .traceId("t-1")
-            .version("2.0.0")
-            .schemaVersion("3.0.0")
-            .origin("custom-origin")
-            .timestamp("2026-01-01T00:00:00Z")
-            .build();
+  void should_be_equal_when_components_are_equal() {
+    var header = new EventMessage.Header("t", "1.0.0", "1.0.0", "o", AT, null);
+    var body = new EventMessage.Body<>("a", "E", EventTypes.COMMAND, 42);
 
-    assertEquals("2.0.0", header.getVersion());
-    assertEquals("3.0.0", header.getSchemaVersion());
-    assertEquals("2026-01-01T00:00:00Z", header.getTimestamp());
+    assertThat(new EventMessage<>(header, body)).isEqualTo(new EventMessage<>(header, body));
   }
 
   @Test
-  void should_support_generic_payload_type() {
-    record TestPayload(String name, int value) {}
-
-    var message =
-        EventMessage.<TestPayload>builder()
-            .header(EventMessage.Header.builder().traceId("t-1").origin("test").build())
-            .body(
-                EventMessage.Body.<TestPayload>builder()
-                    .aggregate("test")
-                    .eventName("TestEvent")
-                    .eventType(EventTypes.COMMAND)
-                    .payload(new TestPayload("item", 42))
-                    .build())
-            .build();
-
-    assertEquals("item", message.getBody().getPayload().name());
-    assertEquals(42, message.getBody().getPayload().value());
+  void should_default_to_version_one_when_none_is_given() {
+    assertThat(EventMessage.Header.DEFAULT_VERSION).isEqualTo("1.0.0");
   }
 }

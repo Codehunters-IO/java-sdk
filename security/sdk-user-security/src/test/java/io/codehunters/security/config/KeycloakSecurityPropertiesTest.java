@@ -18,9 +18,7 @@ class KeycloakSecurityPropertiesTest {
       Map.of(
           "codehunters.security.url", "https://kc.example.com/",
           "codehunters.security.realm", "acme",
-          "codehunters.security.audiences[0]", "svc",
-          "codehunters.security.introspection.client-id", "svc",
-          "codehunters.security.introspection.client-secret", "secret");
+          "codehunters.security.audiences[0]", "svc");
 
   @Test
   void should_apply_secure_defaults_when_only_required_keys_are_set() {
@@ -28,7 +26,7 @@ class KeycloakSecurityPropertiesTest {
 
     assertThat(properties.enabled()).isTrue();
     assertThat(properties.allowAnyAudience()).isFalse();
-    assertThat(properties.introspection().enabled()).isTrue();
+    assertThat(properties.introspection().enabled()).isFalse();
     assertThat(properties.introspection().failOpen()).isFalse();
     assertThat(properties.introspection().cacheTtl()).isEqualTo(Duration.ofSeconds(30));
     assertThat(properties.introspection().cacheMaxEntries()).isEqualTo(10_000);
@@ -73,23 +71,29 @@ class KeycloakSecurityPropertiesTest {
   }
 
   @Test
-  void should_fail_when_introspection_enabled_without_client_credentials() {
-    assertThatThrownBy(() -> bind(without("codehunters.security.introspection.client-secret")))
+  void should_fail_when_introspection_enabled_without_client_id() {
+    assertThatThrownBy(() -> bind(with("codehunters.security.introspection.enabled", "true")))
+        .rootCause()
+        .hasMessageContaining("codehunters.security.introspection.client-id");
+  }
+
+  @Test
+  void should_fail_when_introspection_enabled_without_client_secret() {
+    Map<String, String> source = with("codehunters.security.introspection.enabled", "true");
+    source.put("codehunters.security.introspection.client-id", "svc");
+
+    assertThatThrownBy(() -> bind(source))
         .rootCause()
         .hasMessageContaining("codehunters.security.introspection.client-secret");
   }
 
   @Test
-  void should_not_require_client_credentials_when_introspection_disabled() {
-    Map<String, String> source =
-        new HashMap<>(
-            Map.of(
-                "codehunters.security.url", "https://kc.example.com",
-                "codehunters.security.realm", "acme",
-                "codehunters.security.allow-any-audience", "true",
-                "codehunters.security.introspection.enabled", "false"));
+  void should_bind_client_credentials_when_introspection_enabled() {
+    Map<String, String> source = with("codehunters.security.introspection.enabled", "true");
+    source.put("codehunters.security.introspection.client-id", "svc");
+    source.put("codehunters.security.introspection.client-secret", "secret");
 
-    assertThat(bind(source).introspection().enabled()).isFalse();
+    assertThat(bind(source).introspection().enabled()).isTrue();
   }
 
   @Test

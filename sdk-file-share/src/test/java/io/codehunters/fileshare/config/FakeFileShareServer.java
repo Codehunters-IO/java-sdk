@@ -35,6 +35,7 @@ final class FakeFileShareServer implements AutoCloseable {
   private final HttpServer server;
   private final List<String> authorizations = new CopyOnWriteArrayList<>();
   private final List<String> customHeaders = new CopyOnWriteArrayList<>();
+  private final List<String> uploadHeaders = new CopyOnWriteArrayList<>();
   private final AtomicInteger tokenRequests = new AtomicInteger();
   private volatile Duration documentDelay = Duration.ZERO;
   private volatile Duration tokenDelay = Duration.ZERO;
@@ -49,6 +50,8 @@ final class FakeFileShareServer implements AutoCloseable {
     server.createContext("/token", this::token);
     server.createContext(DOCUMENT_PATH + "/content", this::content);
     server.createContext("/elsewhere", this::elsewhere);
+    server.createContext("/upload", this::upload);
+    server.createContext("/moved-upload", this::movedUpload);
     server.createContext(DOCUMENT_PATH, this::document);
     server.setExecutor(Executors.newCachedThreadPool());
     server.start();
@@ -68,6 +71,11 @@ final class FakeFileShareServer implements AutoCloseable {
 
   List<String> customHeaders() {
     return customHeaders;
+  }
+
+  /** Authorization and X-Custom headers of each upload, as "authorization|custom". */
+  List<String> uploadHeaders() {
+    return uploadHeaders;
   }
 
   int tokenRequests() {
@@ -139,6 +147,20 @@ final class FakeFileShareServer implements AutoCloseable {
         out.flush();
       }
     }
+  }
+
+  private void upload(HttpExchange exchange) throws IOException {
+    var headers = exchange.getRequestHeaders();
+    uploadHeaders.add(headers.getFirst("Authorization") + "|" + headers.getFirst("X-Custom"));
+    exchange.getRequestBody().readAllBytes();
+    respond(exchange, 200, "");
+  }
+
+  private void movedUpload(HttpExchange exchange) throws IOException {
+    exchange.getRequestBody().readAllBytes();
+    exchange.getResponseHeaders().add("Location", url() + "/elsewhere");
+    exchange.sendResponseHeaders(307, -1);
+    exchange.close();
   }
 
   private void elsewhere(HttpExchange exchange) throws IOException {

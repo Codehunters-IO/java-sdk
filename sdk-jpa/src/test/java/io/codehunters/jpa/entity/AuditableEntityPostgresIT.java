@@ -22,7 +22,9 @@ class AuditableEntityPostgresIT {
   private final MovableClock clock = new MovableClock(CREATED);
 
   private final ApplicationContextRunner runner =
-      JpaFixtures.postgres().withBean(Clock.class, () -> clock);
+      JpaFixtures.postgres()
+          .withPropertyValues("codehunters.jpa.auditing.enabled=true")
+          .withBean(Clock.class, () -> clock);
 
   @AfterEach
   void clearSecurityContext() {

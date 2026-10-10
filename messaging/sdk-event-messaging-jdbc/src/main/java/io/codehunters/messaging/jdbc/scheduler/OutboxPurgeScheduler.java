@@ -1,20 +1,22 @@
 package io.codehunters.messaging.jdbc.scheduler;
 
-import io.codehunters.messaging.OutboxRepositoryPort;
-import java.time.LocalDateTime;
-import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
-import org.springframework.scheduling.annotation.Scheduled;
+import io.codehunters.messaging.OutboxDispatchStore;
+import java.time.Instant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Inbound scheduler that bounds outbox table growth by deleting PUBLISHED rows older than the
+ * One purge run that bounds outbox table growth by deleting PUBLISHED rows older than the
  * retention, in batches, for the adapter's origin. PENDING, IN_FLIGHT and FAILED rows are never
- * touched. Coordinated across instances by ShedLock so only one node purges at a time.
+ * touched. Run every {@code codehunters.outbox.purge.fixed-delay} by {@link
+ * OutboxSchedulingLifecycle} under the {@code purge.lock-name} ShedLock lock, so only one node
+ * purges at a time.
  */
-@Slf4j
-public class OutboxPurgeScheduler {
+public class OutboxPurgeScheduler implements Runnable {
 
-  private final OutboxRepositoryPort repository;
+  private static final Logger log = LoggerFactory.getLogger(OutboxPurgeScheduler.class);
+
+  private final OutboxDispatchStore repository;
   private final OutboxPurgeSettings settings;
 
   /**
@@ -23,7 +25,7 @@ public class OutboxPurgeScheduler {
    * @param repository the outbox repository scoped to one origin
    * @param settings the retention, batch size and clock
    */
-  public OutboxPurgeScheduler(OutboxRepositoryPort repository, OutboxPurgeSettings settings) {
+  public OutboxPurgeScheduler(OutboxDispatchStore repository, OutboxPurgeSettings settings) {
     this.repository = repository;
     this.settings = settings;
   }
@@ -32,17 +34,10 @@ public class OutboxPurgeScheduler {
    * Runs one purge cycle, deleting batches until a batch comes back short. Failures are logged by
    * exception class name only and never propagated, so the scheduler keeps running.
    */
-  @Scheduled(
-      fixedDelayString = "${codehunters.outbox.purge.fixed-delay:3600000}",
-      initialDelayString = "${codehunters.outbox.purge.initial-delay:60000}")
-  @SchedulerLock(
-      name =
-          "${codehunters.outbox.purge.lock-name:outbox-purge-${spring.application.name:unknown}}",
-      lockAtMostFor = "${codehunters.outbox.purge.lock-at-most:PT10M}",
-      lockAtLeastFor = "${codehunters.outbox.purge.lock-at-least:PT30S}")
-  public void purgePublished() {
+  @Override
+  public void run() {
     try {
-      LocalDateTime cutoff = LocalDateTime.now(settings.clock()).minus(settings.retention());
+      Instant cutoff = settings.clock().instant().minus(settings.retention());
       long total = purgeUntilShortBatch(cutoff);
       log.info("Outbox purge removed {} published messages older than {}", total, cutoff);
     } catch (RuntimeException e) {
@@ -50,7 +45,7 @@ public class OutboxPurgeScheduler {
     }
   }
 
-  private long purgeUntilShortBatch(LocalDateTime cutoff) {
+  private long purgeUntilShortBatch(Instant cutoff) {
     long total = 0;
     int deleted;
     do {

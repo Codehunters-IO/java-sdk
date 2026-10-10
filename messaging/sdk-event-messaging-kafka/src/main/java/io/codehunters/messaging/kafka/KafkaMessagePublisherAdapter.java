@@ -9,9 +9,10 @@ import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.KafkaException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 
 /**
@@ -29,12 +30,13 @@ import org.springframework.kafka.core.KafkaTemplate;
  *
  * <p>Every send, including any wait inside {@link KafkaTemplate#send} for metadata or buffer space,
  * blocks for at most {@code sendTimeout}. The dispatcher publishes a claimed batch sequentially, so
- * deployments MUST keep {@code batchSize × sendTimeout < claim.ttlMs}; otherwise another instance
+ * deployments MUST keep {@code batchSize × sendTimeout < claim.ttl}; otherwise another instance
  * re-claims rows still being published and publishes them twice. Failures, timeouts and interrupts
  * surface as {@link MessagePublishException}, whose message never carries broker text.
  */
-@Slf4j
 public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
+
+  private static final Logger log = LoggerFactory.getLogger(KafkaMessagePublisherAdapter.class);
 
   private static final String CONTENT_TYPE_HEADER = "content-type";
   private static final byte[] CONTENT_TYPE_JSON =
@@ -82,11 +84,10 @@ public class KafkaMessagePublisherAdapter implements MessagePublisherPort {
   @Override
   public void publish(OutboxMessage<String> message) {
     ProducerRecord<String, String> record =
-        jsonRecord(message.getTopic(), message.getKey(), message.getMessage());
-    record.headers().add(OUTBOX_ID_HEADER, utf8(message.getId().toString()));
-    addTraceHeaders(record, message.getTraceparent());
-    log.debug(
-        "Publishing outbox message to topic: {}, id: {}", message.getTopic(), message.getId());
+        jsonRecord(message.topic(), message.key(), message.message());
+    record.headers().add(OUTBOX_ID_HEADER, utf8(message.id().toString()));
+    addTraceHeaders(record, message.traceparent());
+    log.debug("Publishing outbox message to topic: {}, id: {}", message.topic(), message.id());
     send(record);
   }
 

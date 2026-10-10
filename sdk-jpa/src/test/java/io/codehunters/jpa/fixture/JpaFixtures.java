@@ -1,6 +1,7 @@
 package io.codehunters.jpa.fixture;
 
 import io.codehunters.jpa.config.JpaAuditingAutoConfiguration;
+import io.codehunters.jpa.fixture.plain.Note;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration;
 import org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration;
@@ -22,22 +23,32 @@ public final class JpaFixtures {
   @EnableJpaRepositories(basePackageClasses = Order.class)
   public static class FixtureApplication {}
 
+  /** Scans only entities that do not extend {@code AuditableEntity}. */
+  @Configuration(proxyBeanMethods = false)
+  @EntityScan(basePackageClasses = Note.class)
+  @EnableJpaRepositories(basePackageClasses = Note.class)
+  public static class PlainApplication {}
+
   public static ApplicationContextRunner h2() {
-    return runner()
+    return h2(FixtureApplication.class);
+  }
+
+  public static ApplicationContextRunner h2(Class<?> application) {
+    return runner(application)
         .withPropertyValues(
             "spring.datasource.url=jdbc:h2:mem:jpa-${random.uuid};DB_CLOSE_DELAY=-1",
             "spring.datasource.username=sa");
   }
 
   public static ApplicationContextRunner postgres() {
-    return runner()
+    return runner(FixtureApplication.class)
         .withPropertyValues(
             "spring.datasource.url=" + PostgresDatabase.jdbcUrl(),
             "spring.datasource.username=" + PostgresDatabase.username(),
             "spring.datasource.password=" + PostgresDatabase.password());
   }
 
-  private static ApplicationContextRunner runner() {
+  private static ApplicationContextRunner runner(Class<?> application) {
     return new ApplicationContextRunner()
         .withConfiguration(
             AutoConfigurations.of(
@@ -46,7 +57,7 @@ public final class JpaFixtures {
                 DataJpaRepositoriesAutoConfiguration.class,
                 TransactionAutoConfiguration.class,
                 JpaAuditingAutoConfiguration.class))
-        .withUserConfiguration(FixtureApplication.class)
+        .withUserConfiguration(application)
         .withPropertyValues("spring.jpa.hibernate.ddl-auto=create-drop");
   }
 }

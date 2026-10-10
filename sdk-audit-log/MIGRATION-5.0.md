@@ -1,6 +1,7 @@
 # Migrating sdk-audit-log 4.x to 5.0
 
-5.0.0 supports PostgreSQL only and reads only `codehunters.audit.*`. Packages, class names and the
+5.0.0 supports PostgreSQL only, reads only `codehunters.audit.*` and evaluates `@Auditable`
+expressions in a read-only sandbox. Packages, class names and the
 `audit_event` columns are those of 4.0.0.
 
 ## Steps
@@ -19,6 +20,25 @@
    `codehunters.device.trusted-proxies` and `codehunters.device.forwarding-header` to
    `codehunters.web.device.trusted-proxies` and `codehunters.web.device.forwarding-header`, or the
    recorded IP becomes the proxy's address. See [sdk-web's MIGRATION-3.0.md](../sdk-web/MIGRATION-3.0.md).
+5. **Expressions.** `@Auditable` expressions run in a read-only SpEL sandbox: they read properties
+   and index lists and maps, and nothing else. Rewrite every expression that calls a method, names
+   a type, builds an object, resolves a bean or assigns a value:
+
+   | 4.x | 5.0 |
+   |---|---|
+   | `#order.getId()` | `#order.id` |
+   | `#order.isPriority()` | `#order.priority` |
+   | `#result.get('id')`, `#result?.get('id')` | `#result['id']`, `#result?.['id']` |
+   | `#items.size()`, `#name.toUpperCase()`, `T(...)`, `new ...`, `@bean` | no equivalent: expose a property on the argument or return value, or move the logic into an `AuditContextProvider` |
+
+   Record components read as properties (`#command.amount` for `record Command(BigDecimal amount)`).
+   Every such expression is reported at startup (`ERROR`, or a failed startup with
+   `codehunters.audit.startup-check.fail-fast=true`) with the method, the attribute and what was
+   refused; left as is, it records `null`. Set `fail-fast` in a test profile to catch them all at
+   once.
+6. **Payload JSON.** `auditJsonMapper` now follows `spring.jackson.*` and your Jackson
+   customizers when Boot's Jackson auto-configuration is active. If audit payloads must keep
+   Jackson's defaults whatever the API uses, declare a bean named `auditJsonMapper`.
 
 ## New in 5.0
 

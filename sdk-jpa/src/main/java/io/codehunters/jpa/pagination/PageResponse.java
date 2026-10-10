@@ -1,5 +1,7 @@
 package io.codehunters.jpa.pagination;
 
+import static io.codehunters.jpa.internal.Checks.require;
+
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -25,10 +27,22 @@ public record PageResponse<T>(
 
   /** Validates the values and copies the lists. */
   public PageResponse {
-    require(content != null && sort != null, "content and sort must not be null");
-    require(content.stream().noneMatch(Objects::isNull), "content must not contain null");
-    require(page >= 0 && size >= 0, "page and size must not be negative");
-    require(totalElements >= 0 && totalPages >= 0, "totals must not be negative");
+    require(
+        content != null && sort != null,
+        "content and sort must not be null",
+        IllegalArgumentException::new);
+    require(
+        content.stream().noneMatch(Objects::isNull),
+        "content must not contain null",
+        IllegalArgumentException::new);
+    require(
+        page >= 0 && size >= 0,
+        "page and size must not be negative",
+        IllegalArgumentException::new);
+    require(
+        totalElements >= 0 && totalPages >= 0,
+        "totals must not be negative",
+        IllegalArgumentException::new);
     content = List.copyOf(content);
     sort = List.copyOf(sort);
   }
@@ -79,7 +93,7 @@ public record PageResponse<T>(
    */
   public static <E, T> PageResponse<T> from(
       Page<E> page, Function<? super E, ? extends T> mapper, SortWhitelist sorts) {
-    require(sorts != null, "sorts must not be null");
+    require(sorts != null, "sorts must not be null", IllegalArgumentException::new);
     PageResponse<T> response = from(page, mapper);
     return new PageResponse<>(
         response.content(),
@@ -88,12 +102,6 @@ public record PageResponse<T>(
         response.totalElements(),
         response.totalPages(),
         sorts.toApi(page.getSort()).stream().map(SortOrder::of).toList());
-  }
-
-  private static void require(boolean condition, String message) {
-    if (!condition) {
-      throw new IllegalArgumentException(message);
-    }
   }
 
   /**
@@ -106,8 +114,11 @@ public record PageResponse<T>(
 
     /** Validates the values. */
     public SortOrder {
-      require(property != null && !property.isBlank(), "property must not be blank");
-      require(direction != null, "direction must not be null");
+      require(
+          property != null && !property.isBlank(),
+          "property must not be blank",
+          IllegalArgumentException::new);
+      require(direction != null, "direction must not be null", IllegalArgumentException::new);
     }
 
     static SortOrder of(Sort.Order order) {
