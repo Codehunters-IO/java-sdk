@@ -33,8 +33,11 @@
   JDBC, Spring transactions or Jackson missing, or the JDBC auto-configuration excluded), the
   reason is logged at `ERROR`; until now every audited call went unrecorded without a word. A
   missing `aspectjweaver` is reported the same way. Every `@Auditable` expression is parsed at
-  startup; one that cannot be parsed, or uses what the sandbox refuses, is logged at `ERROR` naming `Class#method(Params)` and the
-  attribute, never evaluated values. Publishers and data sources of parent contexts count, data
+  startup; one that cannot be parsed, uses what the sandbox refuses, or reads a `#variable` that is
+  neither a parameter of the method nor `#result`, `#p0`/`#a0`/`#arg0`, `#root` or `#this`, is
+  logged at `ERROR` naming `Class#method(Params)` and the attribute, never evaluated values. When
+  the class was compiled without `-parameters`, a named variable is reported with a hint to compile
+  with `-parameters` or use `#p0`/`#a0`. Publishers and data sources of parent contexts count, data
   sources registered as plain singletons are handled, and annotations declared only on interface
   methods, which the aspect does not apply to, are not reported.
 - `codehunters.audit.startup-check.fail-fast` (default `false`) makes those problems fail startup
