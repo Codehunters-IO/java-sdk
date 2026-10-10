@@ -146,6 +146,36 @@ class CachingUserAgentParserTest {
   }
 
   @Test
+  void should_parse_the_header_again_when_the_delegate_threw_a_runtime_exception_before() {
+    var delegate = new FailingOnceParser(new IllegalStateException("boom"));
+    var parser = new CachingUserAgentParser(delegate, MAX_ENTRIES);
+
+    var failed = parser.parse("a");
+    var again = parser.parse("a");
+
+    assertThat(failed).isEqualTo(UserAgentInfo.UNKNOWN);
+    assertThat(again.browserFamily()).isEqualTo("a");
+  }
+
+  @Test
+  void should_release_waiting_callers_with_unknown_when_the_delegate_throws_a_runtime_exception() {
+    var delegate = CountingParser.blockingThenFailing(new IllegalStateException("boom"));
+    var parser = new CachingUserAgentParser(delegate, MAX_ENTRIES);
+    var first = CompletableFuture.supplyAsync(() -> parser.parse("a"));
+    delegate.awaitEntered();
+    var second = new CompletableFuture<UserAgentInfo>();
+    var waiter = Thread.ofPlatform().start(() -> second.complete(parser.parse("a")));
+    await().atMost(Duration.ofSeconds(5)).until(() -> waiter.getState() == Thread.State.WAITING);
+
+    delegate.release();
+
+    assertThat(assertTimeoutPreemptively(Duration.ofSeconds(5), second::join))
+        .isEqualTo(UserAgentInfo.UNKNOWN);
+    assertThat(first.join()).isEqualTo(UserAgentInfo.UNKNOWN);
+    assertThat(parser.cache().orElseThrow().getIfPresent("a")).isNull();
+  }
+
+  @Test
   void should_reject_a_negative_cache_size() {
     assertThatIllegalArgumentException()
         .isThrownBy(() -> new CachingUserAgentParser(CountingParser.immediate(), -1))
