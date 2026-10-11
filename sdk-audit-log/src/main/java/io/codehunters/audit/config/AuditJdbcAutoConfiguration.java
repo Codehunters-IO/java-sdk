@@ -23,6 +23,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnSingleCandidate;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -48,6 +49,9 @@ import tools.jackson.databind.json.JsonMapper;
  * caller's transaction when {@code fail-on-error} is {@code true}; otherwise it is written after
  * the transaction completes, marked {@code ROLLED_BACK} if it did not commit. See {@link
  * TransactionAwareAuditEventPublisher}.
+ *
+ * <p>This is the default sink: it backs off entirely, executor and mapper included, when {@code
+ * codehunters.audit.sink=outbox} selects {@link AuditOutboxAutoConfiguration} instead.
  */
 @AutoConfiguration(
     before = AuditAutoConfiguration.class,
@@ -60,6 +64,7 @@ import tools.jackson.databind.json.JsonMapper;
     })
 @ConditionalOnSingleCandidate(DataSource.class)
 @ConditionalOnBooleanProperty(name = AuditAutoConfiguration.ENABLED, matchIfMissing = true)
+@ConditionalOnProperty(name = "codehunters.audit.sink", havingValue = "jdbc", matchIfMissing = true)
 @EnableConfigurationProperties(AuditProperties.class)
 public class AuditJdbcAutoConfiguration {
 

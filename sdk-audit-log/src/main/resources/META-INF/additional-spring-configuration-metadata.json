@@ -11,6 +11,27 @@
       "type": "java.lang.Boolean",
       "defaultValue": false,
       "description": "Whether a failed startup check stops the application: @Auditable methods without a publisher or without aspectjweaver, or an @Auditable expression that cannot be parsed. When false, each problem is logged as an error. Independent of fail-on-error."
+    },
+    {
+      "name": "codehunters.audit.sink",
+      "type": "java.lang.String",
+      "defaultValue": "jdbc",
+      "description": "Where audit events are written: jdbc writes them to the audit_event table (asynchronously by default), outbox writes them through the transactional outbox of sdk-event-messaging in the caller's transaction, to codehunters.audit.outbox.topic. Any other value fails startup."
+    }
+  ],
+  "hints": [
+    {
+      "name": "codehunters.audit.sink",
+      "values": [
+        {
+          "value": "jdbc",
+          "description": "Write audit events to the audit_event table."
+        },
+        {
+          "value": "outbox",
+          "description": "Write audit events through the transactional outbox, in the caller's transaction."
+        }
+      ]
     }
   ]
 }
