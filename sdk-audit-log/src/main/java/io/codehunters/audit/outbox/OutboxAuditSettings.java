@@ -1,5 +1,6 @@
 package io.codehunters.audit.outbox;
 
+import java.util.Objects;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
@@ -17,9 +18,13 @@ public record OutboxAuditSettings(
   /**
    * Validates the topic.
    *
-   * @throws IllegalArgumentException when the topic is null or blank
+   * @throws NullPointerException when the topic is null
+   * @throws IllegalArgumentException when the topic is blank
    */
   public OutboxAuditSettings {
-    throw new UnsupportedOperationException("not implemented");
+    Objects.requireNonNull(topic, "topic");
+    if (topic.isBlank()) {
+      throw new IllegalArgumentException("topic must not be blank");
+    }
   }
 }

@@ -230,27 +230,42 @@ class OutboxAuditEventPublisherTest {
     }
   }
 
+  // Binds a marker resource like a real manager, so a nested NOT_SUPPORTED template suspends it.
   private static final class NoOpTransactionManager extends AbstractPlatformTransactionManager {
     @Override
     protected Object doGetTransaction() {
-      return new Object();
+      return this;
     }
 
     @Override
-    protected void doBegin(Object transaction, TransactionDefinition definition) {}
+    protected boolean isExistingTransaction(Object transaction) {
+      return TransactionSynchronizationManager.hasResource(this);
+    }
+
+    @Override
+    protected void doBegin(Object transaction, TransactionDefinition definition) {
+      TransactionSynchronizationManager.bindResource(this, Boolean.TRUE);
+    }
 
     @Override
     protected Object doSuspend(Object transaction) {
-      return transaction;
+      return TransactionSynchronizationManager.unbindResource(this);
     }
 
     @Override
-    protected void doResume(Object transaction, Object suspendedResources) {}
+    protected void doResume(Object transaction, Object suspendedResources) {
+      TransactionSynchronizationManager.bindResource(this, suspendedResources);
+    }
 
     @Override
     protected void doCommit(DefaultTransactionStatus status) {}
 
     @Override
     protected void doRollback(DefaultTransactionStatus status) {}
+
+    @Override
+    protected void doCleanupAfterCompletion(Object transaction) {
+      TransactionSynchronizationManager.unbindResourceIfPossible(this);
+    }
   }
 }
