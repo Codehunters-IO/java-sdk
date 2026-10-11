@@ -32,3 +32,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0026](0026-developer-experience-defaults.md) | Opt-in side effects, platform caches and a faster outbox | accepted |
 | [0027](0027-release-workflows-from-ci-templates.md) | Build, release drafts and publish come from ci-templates | accepted |
 | [0028](0028-error-contract-in-its-own-module.md) | The error contract lives in its own module, sdk-errors | accepted |
+| [0029](0029-audit-events-through-the-outbox.md) | Audit events through the transactional outbox | accepted |
