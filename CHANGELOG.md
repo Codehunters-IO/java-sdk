@@ -7,7 +7,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 5.0.0 | [below](#sdk-bom-500) | — |
+| `sdk-bom` | 6.0.0 | [below](#sdk-bom-600) | — |
 | `sdk-user-security` | 5.0.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | [4.0](security/sdk-user-security/MIGRATION-4.0.md) · [5.0](security/sdk-user-security/MIGRATION-5.0.md) |
 | `sdk-user-security-authz` | 5.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | [4.0](security/sdk-user-security-authz/MIGRATION-4.0.md) · [5.0](security/sdk-user-security-authz/MIGRATION-5.0.md) |
 | `sdk-tracing` | 3.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | [2.0](sdk-tracing/MIGRATION-2.0.md) · [3.0](sdk-tracing/MIGRATION-3.0.md) |
@@ -19,12 +19,25 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-audit-log` | 5.0.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) · [4.0](sdk-audit-log/MIGRATION-4.0.md) · [5.0](sdk-audit-log/MIGRATION-5.0.md) |
 | `sdk-measure-micrometer` | 4.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) · [4.0](sdk-measure-micrometer/MIGRATION-4.0.md) |
 | `sdk-parameter` | 4.0.0 | [CHANGELOG](sdk-parameter/CHANGELOG.md) | [2.0](sdk-parameter/MIGRATION-2.0.md) · [3.0](sdk-parameter/MIGRATION-3.0.md) · [4.0](sdk-parameter/MIGRATION-4.0.md) |
-| `sdk-commons` | 3.0.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [1.1](sdk-commons/MIGRATION-1.1.md) · [2.0](sdk-commons/MIGRATION-2.0.md) · [3.0](sdk-commons/MIGRATION-3.0.md) · [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
-| `sdk-web` | 3.0.0 | [CHANGELOG](sdk-web/CHANGELOG.md) | [1.0](sdk-web/MIGRATION-1.0.md) · [2.0](sdk-web/MIGRATION-2.0.md) · [3.0](sdk-web/MIGRATION-3.0.md) |
-| `sdk-barcode` | 2.1.0 | [CHANGELOG](sdk-barcode/CHANGELOG.md) | [2.0](sdk-barcode/MIGRATION-2.0.md) · [from commons-support](sdk-barcode/MIGRATION-from-commons-support.md) |
+| `sdk-errors` | 1.0.0 | [CHANGELOG](sdk-errors/CHANGELOG.md) | — |
+| `sdk-commons` | 4.0.0 | [CHANGELOG](sdk-commons/CHANGELOG.md) | [1.1](sdk-commons/MIGRATION-1.1.md) · [2.0](sdk-commons/MIGRATION-2.0.md) · [3.0](sdk-commons/MIGRATION-3.0.md) · [4.0](sdk-commons/MIGRATION-4.0.md) · [from commons-support](sdk-commons/MIGRATION-from-commons-support.md) |
+| `sdk-web` | 4.0.0 | [CHANGELOG](sdk-web/CHANGELOG.md) | [1.0](sdk-web/MIGRATION-1.0.md) · [2.0](sdk-web/MIGRATION-2.0.md) · [3.0](sdk-web/MIGRATION-3.0.md) · [4.0](sdk-web/MIGRATION-4.0.md) |
+| `sdk-barcode` | 3.0.0 | [CHANGELOG](sdk-barcode/CHANGELOG.md) | [2.0](sdk-barcode/MIGRATION-2.0.md) · [3.0](sdk-barcode/MIGRATION-3.0.md) · [from commons-support](sdk-barcode/MIGRATION-from-commons-support.md) |
 | `sdk-jasper` | 2.1.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [2.0](sdk-jasper/MIGRATION-2.0.md) · [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
-| `sdk-jpa` | 3.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [2.0](sdk-jpa/MIGRATION-2.0.md) · [3.0](sdk-jpa/MIGRATION-3.0.md) · [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
+| `sdk-jpa` | 4.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [2.0](sdk-jpa/MIGRATION-2.0.md) · [3.0](sdk-jpa/MIGRATION-3.0.md) · [4.0](sdk-jpa/MIGRATION-4.0.md) · [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-geo-validation` | 2.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [2.0](sdk-geo-validation/MIGRATION-2.0.md) |
+
+## sdk-bom 6.0.0
+
+Moves the error contract shared by the SDKs into its own module
+([ADR 0028](docs/adr/0028-error-contract-in-its-own-module.md)):
+
+- `sdk-errors` 1.0.0 (new): `io.codehunters.errors.ClientInputException`, moved from `sdk-commons`.
+- `sdk-commons` 4.0.0: the `error` package is gone.
+- `sdk-jpa` 4.0.0 and `sdk-barcode` 3.0.0: their exceptions extend the moved class, and they depend
+  on `sdk-errors` instead of bringing all of `sdk-commons`.
+- `sdk-web` 4.0.0: answers the moved class, through an `api` dependency on `sdk-errors` instead of
+  an optional `sdk-commons`.
 
 ## sdk-bom 5.0.0
 
