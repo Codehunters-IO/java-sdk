@@ -1,4 +1,4 @@
-package io.codehunters.commons.error;
+package io.codehunters.errors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

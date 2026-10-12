@@ -1,4 +1,4 @@
-package io.codehunters.commons.error;
+package io.codehunters.errors;
 
 import java.io.Serial;
 import java.util.regex.Pattern;
