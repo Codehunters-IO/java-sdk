@@ -3,7 +3,7 @@ package io.codehunters.barcode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;

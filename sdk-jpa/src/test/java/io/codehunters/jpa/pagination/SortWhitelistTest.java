@@ -3,7 +3,7 @@ package io.codehunters.jpa.pagination;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

@@ -15,7 +15,7 @@ class FrameworkFreeCoreTest {
           .importPackages("io.codehunters.barcode");
 
   @Test
-  void should_keep_the_core_on_the_jdk_zxing_and_commons_errors_so_any_stack_can_use_it() {
+  void should_keep_the_core_on_the_jdk_zxing_and_sdk_errors_so_any_stack_can_use_it() {
     classes()
         .that()
         .resideInAnyPackage(
@@ -29,7 +29,7 @@ class FrameworkFreeCoreTest {
             "java..",
             "javax.imageio..",
             "com.google.zxing..",
-            "io.codehunters.commons.error",
+            "io.codehunters.errors",
             "io.codehunters.barcode",
             "io.codehunters.barcode.internal.render",
             "io.codehunters.barcode.internal.read",

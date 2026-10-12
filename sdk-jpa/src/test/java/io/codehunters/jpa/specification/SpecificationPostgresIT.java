@@ -14,7 +14,7 @@ import static io.codehunters.jpa.specification.SearchOperation.NOT_EQUAL;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import io.codehunters.jpa.fixture.Customer;
 import io.codehunters.jpa.fixture.CustomerRepository;
 import io.codehunters.jpa.fixture.JpaFixtures;

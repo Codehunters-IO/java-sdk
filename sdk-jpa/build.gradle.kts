@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "4.0.0"
 description = "JPA building blocks: audited UUIDv7 entities, page responses, JSON converters, safe search specifications."
 
 codehuntersPackages {
@@ -11,7 +11,8 @@ codehuntersPackages {
 
 dependencies {
     // InvalidSortException and InvalidSearchException are ClientInputExceptions: part of the API.
-    api(project(":sdk-commons"))
+    // Its public exceptions extend ClientInputException, so the contract is part of the API.
+    api(project(":sdk-errors"))
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     implementation("org.slf4j:slf4j-api")
     compileOnly("jakarta.persistence:jakarta.persistence-api")
