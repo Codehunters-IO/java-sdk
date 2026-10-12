@@ -1,6 +1,6 @@
 package io.codehunters.web.errors.servlet.fixture;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import io.codehunters.web.errors.ApiException;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;

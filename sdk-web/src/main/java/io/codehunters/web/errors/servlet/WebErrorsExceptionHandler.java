@@ -44,7 +44,7 @@ import org.springframework.web.util.WebUtils;
  * Answers every exception that reaches Spring MVC with an RFC 9457 problem detail carrying a stable
  * {@code code}, a localized {@code detail}, the {@code traceId} and, for validation failures, the
  * {@code errors}. Rejected values, exception messages and stack traces never reach the client; the
- * one exception is the message of sdk-commons' {@code ClientInputException}, safe by its contract
+ * one exception is the message of sdk-errors' {@code ClientInputException}, safe by its contract
  * and used as the detail when the bundles have no {@code error.<code>} message.
  *
  * <p>Ordered last, so an application's own {@code @RestControllerAdvice} handles the exceptions it
@@ -69,11 +69,6 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
   private static final boolean BEAN_VALIDATION_PRESENT =
       ClassUtils.isPresent(
           "jakarta.validation.ConstraintViolationException",
-          WebErrorsExceptionHandler.class.getClassLoader());
-
-  private static final boolean CLIENT_INPUT_PRESENT =
-      ClassUtils.isPresent(
-          "io.codehunters.commons.error.ClientInputException",
           WebErrorsExceptionHandler.class.getClassLoader());
 
   private static final Comparator<FieldViolation> BY_FIELD_AND_CODE =
@@ -116,7 +111,7 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
   }
 
   /**
-   * Answers any exception no other handler maps: sdk-commons' {@code ClientInputException}, also as
+   * Answers any exception no other handler maps: sdk-errors' {@code ClientInputException}, also as
    * a cause, with 400 and its code; constraint violations with 400; exceptions annotated with
    * {@link ResponseStatus} with their status; everything else with a bare 500.
    *
@@ -210,11 +205,9 @@ public class WebErrorsExceptionHandler extends ResponseEntityExceptionHandler {
                 problems.violation(fieldOf(error, parameter), error, safeMessage(result, error)));
   }
 
-  /** A rejected client input anywhere in the cause chain, when sdk-commons is present. */
+  /** A rejected client input anywhere in the cause chain. */
   private static Optional<ProblemSpec> clientInput(Exception exception) {
-    return CLIENT_INPUT_PRESENT
-        ? ClientInputs.problem(exception, MAX_CAUSE_DEPTH)
-        : Optional.empty();
+    return ClientInputs.problem(exception, MAX_CAUSE_DEPTH);
   }
 
   private ResponseEntity<Object> constraintViolations(Exception exception, WebRequest request) {

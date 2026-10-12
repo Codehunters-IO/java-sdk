@@ -1,5 +1,17 @@
 # Changelog — sdk-web
 
+## 4.0.0
+
+### Breaking
+- The handler answers `io.codehunters.errors.ClientInputException` from the new `sdk-errors`
+  module (was `io.codehunters.commons.error.ClientInputException` from `sdk-commons`). Mapping,
+  status, codes and bundle keys are unchanged. See [MIGRATION-4.0.md](MIGRATION-4.0.md) and
+  [ADR 0028](../docs/adr/0028-error-contract-in-its-own-module.md).
+
+### Changed
+- `sdk-errors` is an `api` dependency, so the 400 mapping no longer depends on what else is on the
+  class path. The optional `sdk-commons` dependency and its class-presence check are gone.
+
 ## 3.0.0
 
 2.1.0 was never released; its changes ship in 3.0.0.

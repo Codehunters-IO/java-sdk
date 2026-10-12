@@ -14,7 +14,8 @@ the parts were three artifacts, `sdk-web-errors`, `sdk-device` and `sdk-i18n`
 ([ADR 0016](../docs/adr/0016-consolidate-web-and-commons-artifacts.md));
 [MIGRATION-1.0.md](MIGRATION-1.0.md) covers the switch. In 2.0.0 the packages moved under
 `io.codehunters.web`: [MIGRATION-2.0.md](MIGRATION-2.0.md). In 3.0.0 the properties moved under
-`codehunters.web.*`: [MIGRATION-3.0.md](MIGRATION-3.0.md).
+`codehunters.web.*`: [MIGRATION-3.0.md](MIGRATION-3.0.md). In 4.0.0 `ClientInputException` comes from
+`sdk-errors`: [MIGRATION-4.0.md](MIGRATION-4.0.md).
 
 ```kotlin
 implementation(platform("io.codehunters:sdk-bom:<version>"))
@@ -25,9 +26,9 @@ implementation("com.github.ua-parser:uap-java:1.6.1")
 
 Web dependencies (Spring MVC, the servlet API, Spring Security, Jackson, `sdk-tracing`) are
 `compileOnly`: the parts that need them activate only when the application has them. So is
-`sdk-commons`: its `ClientInputException` is answered with 400 only when the application has it
-(see [Client input errors](#client-input-errors)), and so is Micrometer: cache metrics are published
-only when the application has it. Caffeine is a runtime dependency (the `User-Agent` cache).
+Micrometer: cache metrics are published only when the application has it. Caffeine is a runtime
+dependency (the `User-Agent` cache), and `sdk-errors` an API one: one dependency-free class,
+`ClientInputException`, always answered with 400 (see [Client input errors](#client-input-errors)).
 
 ## Errors — `io.codehunters.web.errors`
 
@@ -107,8 +108,8 @@ throw new ApiException(OrderErrorCode.ORDER_NOT_FOUND, List.of(orderId));
 
 ### Client input errors
 
-Other SDK modules reject bad client input with `io.codehunters.commons.error.ClientInputException`
-from `sdk-commons`: an `IllegalArgumentException` with a stable `code()`. The handler answers it with
+Other SDK modules reject bad client input with `io.codehunters.errors.ClientInputException` from
+`sdk-errors`: an `IllegalArgumentException` with a stable `code()`. The handler answers it with
 `400` when it is thrown directly or reached only through exceptions that merely wrap it:
 `InvalidDataAccessApiUsageException` (Spring Data wraps exceptions raised while a query is built in
 it), `CompletionException`, `ExecutionException`, `UndeclaredThrowableException` and
@@ -159,7 +160,7 @@ A plain `IllegalArgumentException` is still a programming error and answers `500
 | Exception | Status | `code` |
 |---|---|---|
 | `ApiException` | the code's status | the code |
-| `ClientInputException` (sdk-commons), also as a cause, e.g. inside `InvalidDataAccessApiUsageException` | 400 | the exception's `code()` |
+| `ClientInputException` (sdk-errors), also as a cause, e.g. inside `InvalidDataAccessApiUsageException` | 400 | the exception's `code()` |
 | `MethodArgumentNotValidException` (`@Valid @RequestBody`, `@ModelAttribute` binding) | 400 | `VALIDATION_FAILED` + `errors` |
 | `HandlerMethodValidationException` (constraints on `@RequestParam`, `@PathVariable`…) | 400 | `VALIDATION_FAILED` + `errors` |
 | `HandlerMethodValidationException` for a controller's return value | 500 | `INTERNAL_ERROR`, no `errors` |
