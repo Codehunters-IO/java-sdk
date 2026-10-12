@@ -1,5 +1,14 @@
 # Changelog — sdk-commons
 
+## 4.0.0
+
+### Breaking
+- `ClientInputException` moved to the new `sdk-errors` module as
+  `io.codehunters.errors.ClientInputException`; the `io.codehunters.commons.error` package is gone.
+  `sdk-jpa`, `sdk-barcode` and `sdk-web` depend on `sdk-errors` instead, so they no longer bring
+  `sdk-commons` with them. See [MIGRATION-4.0.md](MIGRATION-4.0.md) and
+  [ADR 0028](../docs/adr/0028-error-contract-in-its-own-module.md).
+
 ## 3.0.0
 
 ### Breaking

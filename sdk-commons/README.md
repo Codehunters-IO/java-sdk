@@ -26,7 +26,6 @@ its replacement. Why the module is not called `sdk-utils`:
 | `time` | `CronExpressions` | `quartzAt(LocalDateTime)`: a Quartz expression that fires once |
 | `file` | `FileNames` | `extension(name)` as `Optional`, `withBaseName(name, base)` |
 | `stream` | `Predicates` | `distinctByKey(keyExtractor)` |
-| `error` | `ClientInputException` | Input a client got wrong, with a stable code; answered with 400 by `sdk-web` |
 | `io.codehunters.commons.totp` | `TotpGenerator`, `TotpSecret`, `TotpConfig` | RFC 6238 codes: generate, verify once, key URI ([below](#totp--iocodehunterscommonstotp)) |
 
 ## Usage
@@ -80,20 +79,6 @@ FileNames.withBaseName("photo.JPG", "avatar");             // "avatar.JPG"
   format characters, and a trailing dot or space.
 - **`Predicates.distinctByKey`** is stateful: create one per stream. In a parallel stream "first"
   means first to be tested.
-- **`ClientInputException`** says "the client sent something this code cannot accept". It is an
-  `IllegalArgumentException`, so existing `catch` blocks keep working, with a stable `code()`
-  matching `[A-Z][A-Z0-9_]*` (anything else, and a blank message, is rejected). The message may be
-  sent to the client as the problem detail, so it must state the rule that was broken and never
-  repeat the input or other secret, personal or internal data: "sort property is not allowed;
-  allowed: created, name", not "cannot sort by passwordHash". `sdk-web` answers it with 400 and the
-  code, also when it is the cause of another exception, and localizes the detail with the bundle
-  key `error.<CODE>`. Programming errors (a `null` argument, a misconfigured whitelist) stay plain
-  `IllegalArgumentException`s. Codes thrown by the SDK: `INVALID_SORT`, `INVALID_SEARCH`
-  (`sdk-jpa`), `BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED` (`sdk-barcode`).
-
-  ```java
-  throw new ClientInputException("INVALID_DATE_RANGE", "the range may span at most 31 days");
-  ```
 
 ## TOTP — `io.codehunters.commons.totp`
 
