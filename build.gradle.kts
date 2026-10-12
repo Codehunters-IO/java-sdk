@@ -24,8 +24,9 @@ sonar {
     }
 }
 
-// OWASP dependency check over every module's dependencies, in one report at
-// build/reports/dependency-check-report.json. The shared java-owasp workflow runs
+// OWASP dependency check over every module's dependencies, in one report under
+// build/reports/dependency-check/ (plugin 13; earlier versions wrote build/reports/). The shared
+// java-owasp workflow runs
 // `dependencyCheckAnalyze` at the root, so that task delegates to the aggregate one: the root
 // project has no dependencies of its own to analyze.
 dependencyCheck {
