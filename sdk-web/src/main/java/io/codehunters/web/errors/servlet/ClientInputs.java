@@ -1,6 +1,6 @@
 package io.codehunters.web.errors.servlet;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -13,8 +13,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 /**
- * Reads sdk-commons' {@link ClientInputException}. Only loaded when sdk-commons is on the
- * classpath, so the handler works without it; no other class of sdk-web references sdk-commons.
+ * Reads sdk-errors' {@link ClientInputException}, the error contract sdk-web depends on.
  *
  * <p>The exception is answered when it is thrown directly or reached only through exceptions that
  * merely wrap it: Spring's {@code InvalidDataAccessApiUsageException}, {@code CompletionException},

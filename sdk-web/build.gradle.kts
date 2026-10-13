@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "3.0.0"
+version = "4.0.0"
 description = "Servlet web toolkit: RFC 9457 problem details, client IP and User-Agent, X-Locale i18n."
 
 codehuntersPackages {
@@ -16,6 +16,8 @@ codehuntersPublishing {
 }
 
 dependencies {
+    // The handler answers ClientInputException with 400; the contract has no dependencies.
+    api(project(":sdk-errors"))
     implementation("org.slf4j:slf4j-api")
     implementation("org.springframework.boot:spring-boot-autoconfigure")
     implementation("com.github.ben-manes.caffeine:caffeine")
@@ -30,14 +32,11 @@ dependencies {
     compileOnly("org.springframework.security:spring-security-oauth2-resource-server")
     compileOnly("tools.jackson.core:jackson-databind")
     compileOnly(project(":sdk-tracing"))
-    // Optional: ClientInputException is answered with 400 only when the application has sdk-commons.
-    compileOnly(project(":sdk-commons"))
     compileOnly(libs.uap.java)
     // Optional: User-Agent cache metrics are published only when the application has Micrometer.
     compileOnly("io.micrometer:micrometer-core")
 
     testImplementation(project(":sdk-tracing"))
-    testImplementation(project(":sdk-commons"))
     testImplementation("org.springframework:spring-tx")
     testImplementation("org.springframework.boot:spring-boot-webmvc")
     testImplementation("org.springframework.boot:spring-boot-http-converter")

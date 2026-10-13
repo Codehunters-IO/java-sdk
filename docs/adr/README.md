@@ -31,3 +31,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0025](0025-i18n-on-boot-message-source.md) | Build sdk-web i18n on Boot's message source and locale resolver | accepted |
 | [0026](0026-developer-experience-defaults.md) | Opt-in side effects, platform caches and a faster outbox | accepted |
 | [0027](0027-release-workflows-from-ci-templates.md) | Build, release drafts and publish come from ci-templates | accepted |
+| [0028](0028-error-contract-in-its-own-module.md) | The error contract lives in its own module, sdk-errors | accepted |

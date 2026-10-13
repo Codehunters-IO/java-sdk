@@ -119,7 +119,7 @@ PageResponse<OrderView> list(Pageable pageable) {
   handling, and rejects anything else, and the same name twice, with an `InvalidSortException`
   (code `INVALID_SORT`) that lists the allowed names without repeating the request. Clients cannot
   sort by internal columns or make the query fail. It is a `ClientInputException` from
-  `sdk-commons`, and still an `IllegalArgumentException`; `sdk-web` answers it with 400. An invalid
+  `sdk-errors`, and still an `IllegalArgumentException`; `sdk-web` answers it with 400. An invalid
   whitelist (`SortWhitelist.of(...)`) is a programming error: a plain `IllegalArgumentException`.
 - **Page size.** The cap is Spring Data's: `spring.data.web.pageable.max-page-size` (2000 by
   default). Set it to what your queries can afford.
@@ -203,7 +203,7 @@ orders.findAll(SEARCH.allOf(List.of(
 - **Combining.** `allOf` (AND) and `anyOf` (OR) take up to 32 criteria; none means no restriction.
   Compose further with `Specification.and`/`or`.
 - **Errors.** `InvalidSearchException` (code `INVALID_SEARCH`) never repeats the client's input. It
-  is a `ClientInputException` from `sdk-commons`, and still an `IllegalArgumentException`.
+  is a `ClientInputException` from `sdk-errors`, and still an `IllegalArgumentException`.
   Whitelist and value-count errors are thrown when the specification is built; conversion and
   unsupported-operation errors when the query runs, where Spring wraps them in
   `InvalidDataAccessApiUsageException`. `sdk-web` 3.0.0 finds it in the cause chain and answers

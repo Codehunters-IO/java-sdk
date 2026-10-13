@@ -3,7 +3,7 @@ package io.codehunters.jpa.specification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import io.codehunters.jpa.fixture.Order;
 import java.util.Collections;
 import java.util.Map;

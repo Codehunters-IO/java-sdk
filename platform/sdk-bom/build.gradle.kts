@@ -2,7 +2,7 @@ plugins {
     id("codehunters.bom")
 }
 
-version = "5.0.0"
+version = "6.0.0"
 description = "Bill of materials aligning the versions of every io.codehunters SDK module."
 
 // Every released library, and nothing else: `verifyBomConstraints` (part of `check`) fails when a
@@ -13,6 +13,7 @@ dependencies {
         api(project(":sdk-audit-log"))
         api(project(":sdk-barcode"))
         api(project(":sdk-commons"))
+        api(project(":sdk-errors"))
         api(project(":sdk-event-messaging-core"))
         api(project(":sdk-event-messaging-jdbc"))
         api(project(":sdk-event-messaging-kafka"))

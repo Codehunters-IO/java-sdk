@@ -1,5 +1,15 @@
 # Changelog — sdk-barcode
 
+## 3.0.0
+
+### Breaking
+- `BarcodeRejectedException` extends `io.codehunters.errors.ClientInputException` from the new
+  `sdk-errors` module (was `io.codehunters.commons.error.ClientInputException`). Codes, messages and
+  the `IllegalArgumentException` supertype are unchanged.
+- The module depends on `sdk-errors` instead of `sdk-commons`, which it no longer brings. See
+  [MIGRATION-3.0.md](MIGRATION-3.0.md) and
+  [ADR 0028](../docs/adr/0028-error-contract-in-its-own-module.md).
+
 ## 2.1.0
 
 ### Added

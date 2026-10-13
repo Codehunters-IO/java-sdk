@@ -28,11 +28,12 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 | `sdk-audit-log` | `io.codehunters.audit` | 5.0.0 | [README](sdk-audit-log/README.md) · [MIGRATION 5.0](sdk-audit-log/MIGRATION-5.0.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 4.0.0 | [README](sdk-measure-micrometer/README.md) · [MIGRATION 4.0](sdk-measure-micrometer/MIGRATION-4.0.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | 4.0.0 | [README](sdk-parameter/README.md) · [MIGRATION 4.0](sdk-parameter/MIGRATION-4.0.md) |
-| `sdk-commons` (includes the former `sdk-totp`) | `io.codehunters.commons` (TOTP in `io.codehunters.commons.totp`) | 3.0.0 | [README](sdk-commons/README.md) · [MIGRATION 3.0](sdk-commons/MIGRATION-3.0.md) |
-| `sdk-web` (former `sdk-web-errors`, `sdk-device`, `sdk-i18n`) | `io.codehunters.web.errors`, `io.codehunters.web.device`, `io.codehunters.web.i18n` | 3.0.0 | [README](sdk-web/README.md) · [MIGRATION 3.0](sdk-web/MIGRATION-3.0.md) |
-| `sdk-barcode` | `io.codehunters.barcode` | 2.1.0 | [README](sdk-barcode/README.md) · [MIGRATION 2.0](sdk-barcode/MIGRATION-2.0.md) |
+| `sdk-errors` | `io.codehunters.errors` | 1.0.0 | [README](sdk-errors/README.md) |
+| `sdk-commons` (includes the former `sdk-totp`) | `io.codehunters.commons` (TOTP in `io.codehunters.commons.totp`) | 4.0.0 | [README](sdk-commons/README.md) · [MIGRATION 4.0](sdk-commons/MIGRATION-4.0.md) |
+| `sdk-web` (former `sdk-web-errors`, `sdk-device`, `sdk-i18n`) | `io.codehunters.web.errors`, `io.codehunters.web.device`, `io.codehunters.web.i18n` | 4.0.0 | [README](sdk-web/README.md) · [MIGRATION 4.0](sdk-web/MIGRATION-4.0.md) |
+| `sdk-barcode` | `io.codehunters.barcode` | 3.0.0 | [README](sdk-barcode/README.md) · [MIGRATION 3.0](sdk-barcode/MIGRATION-3.0.md) |
 | `sdk-jasper` | `io.codehunters.jasper` | 2.1.0 | [README](sdk-jasper/README.md) · [MIGRATION 2.0](sdk-jasper/MIGRATION-2.0.md) |
-| `sdk-jpa` | `io.codehunters.jpa` | 3.0.0 | [README](sdk-jpa/README.md) · [MIGRATION 3.0](sdk-jpa/MIGRATION-3.0.md) |
+| `sdk-jpa` | `io.codehunters.jpa` | 4.0.0 | [README](sdk-jpa/README.md) · [MIGRATION 4.0](sdk-jpa/MIGRATION-4.0.md) |
 | `sdk-geo-validation` | `io.codehunters.geo` | 2.0.0 | [README](sdk-geo-validation/README.md) · [MIGRATION 2.0](sdk-geo-validation/MIGRATION-2.0.md) |
 
 Packages follow one layout ([ADR 0020](docs/adr/0020-package-by-capability.md)): the module's root
@@ -118,11 +119,13 @@ service has to look at when moving to `sdk-bom` 5.0.0:
 8. **Dashboards.** `sdk-measure-micrometer` renames its meters
    ([table](sdk-measure-micrometer/MIGRATION-3.0.md)); audit `errorMessage` holds exception class
    names.
-9. **Client input errors.** An exception extending `sdk-commons`' `ClientInputException` answers
+9. **Client input errors.** An exception extending `sdk-errors`' `ClientInputException` answers
    400 with its stable `code`, also behind known wrappers such as
    `InvalidDataAccessApiUsageException`: `INVALID_SORT`, `INVALID_SEARCH` (`sdk-jpa`),
    `BARCODE_IMAGE_REJECTED`, `BARCODE_CONTENT_REJECTED` (`sdk-barcode`). Rejections raised while
-   Spring binds the request keep the framework's generic 400 ([sdk-web](sdk-web/README.md)).
+   Spring binds the request keep the framework's generic 400 ([sdk-web](sdk-web/README.md)). Until
+   `sdk-commons` 3.0.0 the class was `io.codehunters.commons.error.ClientInputException`
+   ([ADR 0028](docs/adr/0028-error-contract-in-its-own-module.md)).
 10. **Audit startup checks.** `@Auditable` methods with no publisher or no `aspectjweaver`, or with
     an unparseable expression, log an ERROR at startup, or fail it with
     `codehunters.audit.startup-check.fail-fast=true`; on servlet apps the actor defaults to the

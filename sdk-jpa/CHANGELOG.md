@@ -1,5 +1,16 @@
 # Changelog — sdk-jpa
 
+## 4.0.0
+
+### Breaking
+- `InvalidSortException` and `InvalidSearchException` extend
+  `io.codehunters.errors.ClientInputException` from the new `sdk-errors` module (was
+  `io.codehunters.commons.error.ClientInputException`). Codes, messages and the
+  `IllegalArgumentException` supertype are unchanged.
+- The module depends on `sdk-errors` instead of `sdk-commons`, which it no longer brings. See
+  [MIGRATION-4.0.md](MIGRATION-4.0.md) and
+  [ADR 0028](../docs/adr/0028-error-contract-in-its-own-module.md).
+
 ## 3.0.0
 
 Unreleased 2.1.0 became 3.0.0: dropping SQL Server support and making JPA auditing opt-in are

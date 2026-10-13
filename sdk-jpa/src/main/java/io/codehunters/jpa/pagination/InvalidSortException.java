@@ -1,6 +1,6 @@
 package io.codehunters.jpa.pagination;
 
-import io.codehunters.commons.error.ClientInputException;
+import io.codehunters.errors.ClientInputException;
 import java.io.Serial;
 
 /**

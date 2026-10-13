@@ -9,7 +9,7 @@ implementation(platform("io.codehunters:sdk-bom:<version>"))
 implementation("io.codehunters:sdk-barcode")
 ```
 
-Since 2.1.0 it brings `sdk-commons` (JDK-only) for `ClientInputException`; see [Errors](#errors).
+Since 3.0.0 it brings `sdk-errors` (JDK-only, one class) for `ClientInputException`; see [Errors](#errors).
 
 ## Formats
 
@@ -106,7 +106,7 @@ found.map(DecodedBarcode::content);
 ## Errors
 
 Everything the reader or renderer refuses because of what it was given throws
-`BarcodeRejectedException`, a `ClientInputException` from `sdk-commons` and therefore still an
+`BarcodeRejectedException`, a `ClientInputException` from `sdk-errors` and therefore still an
 `IllegalArgumentException`. `sdk-web` 3.0.0 answers it with 400 and its code:
 
 | `code()` | Constant | When |
