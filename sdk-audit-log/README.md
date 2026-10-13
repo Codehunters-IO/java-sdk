@@ -2,7 +2,10 @@
 
 Declarative audit trail: annotate a method with `@Auditable` and every call, successful or not,
 becomes an `AuditEvent` handed to an `AuditEventPublisherPort`. With a `DataSource` on the
-context, the SDK writes the events to an `audit_event` table off the caller's thread.
+context, the SDK writes the events to an `audit_event` table off the caller's thread. With
+`codehunters.audit.sink=outbox` it writes them through the transactional outbox of
+`sdk-event-messaging` instead, in the caller's transaction (see
+[Publishing through the outbox](#publishing-through-the-outbox)).
 
 ```kotlin
 implementation(platform("io.codehunters:sdk-bom:<version>"))
@@ -118,6 +121,7 @@ for a `Flux`).
 | One `DataSource`, default settings | Written to `audit_event` on `auditTaskExecutor`; the call does not wait |
 | `codehunters.audit.async.enabled=false` | Written on the caller's thread |
 | `codehunters.audit.fail-on-error=true` | Written on the caller's thread; a failure throws `AuditPersistenceException` |
+| `codehunters.audit.sink=outbox` | Written to the outbox on the caller's thread, in its transaction; see [below](#publishing-through-the-outbox) |
 
 The JDBC publisher needs a single `DataSource` candidate: one bean, or one marked `@Primary`. With
 several and no primary, or none, there is no publisher and nothing is audited; startup says so
@@ -179,6 +183,50 @@ Keep `codehunters.audit.order` at its default, or higher than the order of
 `@EnableTransactionManagement`. With `fail-on-error=true` and the aspect outside the transaction, a
 call whose commit succeeded could still fail on the audit insert, and a client might retry it.
 
+The tables above describe the JDBC sink. With `codehunters.audit.sink=outbox` every event, failed
+calls included, joins the caller's transaction; see below.
+
+### Publishing through the outbox
+
+```yaml
+codehunters:
+  outbox:
+    enabled: true
+  audit:
+    sink: outbox
+    outbox:
+      topic: audit.events
+```
+
+`codehunters.audit.sink=outbox` (since 5.1.0) hands every event to the transactional outbox of
+`sdk-event-messaging`, which publishes it to `codehunters.audit.outbox.topic` on RabbitMQ or Kafka.
+It needs `io.codehunters:sdk-event-messaging-jdbc` on the classpath and
+`codehunters.outbox.enabled=true`: without the first, startup fails naming the artifact; without an
+`OutboxWriter`, it fails naming `codehunters.outbox.enabled`. Your own `AuditEventPublisherPort`
+bean still wins.
+
+- **Synchronous, in the caller's transaction.** `OutboxWriter` writes the event on the caller's
+  thread, inside the transaction the audited method runs in: no executor, no `REQUIRES_NEW`. It
+  commits or rolls back with the business write, so the audit trail records what committed. A
+  write failure propagates to the caller.
+- **Detached events.** The completion event of a `CompletionStage`, `Mono` or `Flux`
+  (`publishDetached`) is written outside the transaction bound to the completing thread: with one
+  (or a primary) transaction manager the SDK suspends it (`NOT_SUPPORTED`), otherwise it writes
+  directly.
+- **The JDBC chain is off.** The `auditEventPublisher`, `auditTaskExecutor` and `auditJsonMapper`
+  beans are not created and the `audit_event` table is not used; the `async.*` settings have no
+  effect.
+- **PII-safe by default.** `ipAddress`, `userAgent` and `responseSummary` are dropped, and
+  `errorMessage` is kept only as an exception class name (or `ROLLED_BACK` / `UNKNOWN`).
+  `AuditEvent` has no request-body component; `payload` holds only the expressions you list.
+- **Ordering.** The outbox `message_key` is the `entityId`, so the events of one entity are
+  published in order on their own topic. An event without `entityId` is written without a key and
+  is not ordered; its envelope `aggregate` reads `unkeyed`.
+- **Wire shape.** The payload is the sanitized `AuditEvent` inside the `EventMessage` envelope; the
+  event name is the action (`AUDIT` when blank, `OutboxAuditEventPublisher.FALLBACK_TYPE`) and
+  `schemaVersion` is `1.0.0`. Payload values are copied to JSON with the `outboxJsonMapper` bean
+  when the messaging SDK provides one, Jackson's defaults otherwise.
+
 ## Startup checks
 
 Once every singleton exists, the SDK checks that `@Auditable` methods will actually be audited.
@@ -212,6 +260,8 @@ has no Flyway version prefix, so the SDK never runs it. It needs PostgreSQL 13 o
 | Property | Default | Meaning |
 |---|---|---|
 | `codehunters.audit.enabled` | `true` | Turns the SDK off: no aspect, publisher, context provider or startup check |
+| `codehunters.audit.sink` | `jdbc` | `jdbc` writes to `audit_event`; `outbox` writes through the [transactional outbox](#publishing-through-the-outbox). Any other value fails startup |
+| `codehunters.audit.outbox.topic` | — | Destination of audit events; required with `sink=outbox`, blank fails startup |
 | `codehunters.audit.fail-on-error` | `false` | Publish synchronously, inside the caller's transaction, and propagate failures |
 | `codehunters.audit.startup-check.fail-fast` | `false` | A failed [startup check](#startup-checks) stops the application instead of logging an `ERROR` |
 | `codehunters.audit.order` | `2147483647` | Precedence of the audit aspect; the lowest runs it inside `@Transactional` |
@@ -231,6 +281,9 @@ Invalid sizes fail at startup.
 
 ## Known limits
 
+- With `sink=outbox`, events of `@Auditable` calls that fail roll back together with the caller's
+  transaction: the outbox sink records what committed. Use the JDBC sink where failed attempts must
+  survive the rollback.
 - Events still in the queue when the process is killed, or when `await-termination` runs out,
   are lost. Use `fail-on-error=true` where every event must be durable.
 - An event held until its transaction completes is lost if the process dies before the

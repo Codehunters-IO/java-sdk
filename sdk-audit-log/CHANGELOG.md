@@ -1,5 +1,24 @@
 # Changelog — sdk-audit-log
 
+## 5.1.0
+
+### Added
+- `codehunters.audit.sink` selects where events go: `jdbc` (default, the 5.0 behavior: the
+  `audit_event` table) or `outbox`. Any other value fails startup.
+- `OutboxAuditEventPublisher`: with `sink=outbox`, every event is written through
+  `sdk-event-messaging`'s `OutboxWriter`, synchronously in the caller's transaction, so the audit
+  trail records what committed. The payload is the sanitized `AuditEvent` (no IP address, user
+  agent or response summary; error messages only as class names) in the `EventMessage` envelope,
+  with the action as event name (`FALLBACK_TYPE` = `AUDIT` when blank), `schemaVersion` 1.0.0 and
+  the entity id as message key. Completion events of asynchronous calls are written outside the
+  bound transaction. See [Publishing through the outbox](README.md#publishing-through-the-outbox)
+  and [ADR 0029](../docs/adr/0029-audit-events-through-the-outbox.md).
+- `codehunters.audit.outbox.topic`: destination of audit events, required with `sink=outbox`.
+- Sink validation at startup: `sink=outbox` without `sdk-event-messaging-jdbc` fails naming the
+  artifact, without an `OutboxWriter` it fails naming `codehunters.outbox.enabled`, and a blank
+  topic fails naming the property. With `sink=outbox` the JDBC publisher, executor and mapper are
+  not created.
+
 ## 5.0.0
 
 4.1.0 was never released; its changes ship in 5.0.0.

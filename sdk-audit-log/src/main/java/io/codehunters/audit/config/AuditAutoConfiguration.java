@@ -53,8 +53,17 @@ public class AuditAutoConfiguration {
   /** The property that makes a failed startup check stop the application instead of logging. */
   static final String STARTUP_FAIL_FAST = "codehunters.audit.startup-check.fail-fast";
 
-  /** Creates the auto-configuration. Instantiated by the Spring container. */
-  public AuditAutoConfiguration() {}
+  /**
+   * Creates the auto-configuration and rejects an unknown {@code codehunters.audit.sink}.
+   * Instantiated by the Spring container.
+   *
+   * @param environment the application environment
+   * @throws IllegalStateException when {@code codehunters.audit.sink} is neither {@code jdbc} nor
+   *     {@code outbox}
+   */
+  public AuditAutoConfiguration(Environment environment) {
+    AuditSinkCheck.validate(environment);
+  }
 
   /** Reads the client IP and {@code User-Agent} from the device SDK when it is present. */
   @Configuration(proxyBeanMethods = false)

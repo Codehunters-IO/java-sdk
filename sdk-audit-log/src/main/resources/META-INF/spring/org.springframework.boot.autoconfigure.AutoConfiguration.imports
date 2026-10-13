@@ -1,2 +1,3 @@
 io.codehunters.audit.config.AuditJdbcAutoConfiguration
+io.codehunters.audit.config.AuditOutboxAutoConfiguration
 io.codehunters.audit.config.AuditAutoConfiguration
