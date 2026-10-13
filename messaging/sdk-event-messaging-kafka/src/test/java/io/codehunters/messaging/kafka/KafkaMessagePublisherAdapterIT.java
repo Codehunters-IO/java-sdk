@@ -50,7 +50,9 @@ class KafkaMessagePublisherAdapterIT {
   static final String KAFKA_IMAGE = "apache/kafka:4.1.1";
 
   private static final KafkaContainer KAFKA = new KafkaContainer(KAFKA_IMAGE);
-  private static final Duration RECEIVE_TIMEOUT = Duration.ofSeconds(10);
+  // An upper bound only: consumeAll stops polling at the first record. On a CI runner busy with
+  // other containers, auto-creating the topic and joining the group took more than 10 s.
+  private static final Duration RECEIVE_TIMEOUT = Duration.ofSeconds(30);
   private static final Duration DRAIN_WINDOW = Duration.ofSeconds(2);
   private static final String UNREACHABLE = "localhost:1";
   private static final Duration UNREACHABLE_BOUND = Duration.ofSeconds(4);
