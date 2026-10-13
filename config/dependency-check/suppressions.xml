@@ -1,4 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- False positives accepted after review. Each entry carries a <notes> line saying why. -->
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
+  <suppress>
+    <notes><![CDATA[
+      CVE-2025-10492 (Java deserialisation, CVSS 9.8) affects the Community JasperReports Library
+      before 7.0.4 and is fixed in 7.0.4 (GHSA-7c3f-cg9x-f3gr; GitLab advisory "affected_range
+      [,7.0.4)"). This build uses the Community library from Maven Central at 7.0.8. It is
+      flagged because the jar's CPE carries no edition, and NVD also lists the commercial
+      Professional edition as affected up to 9.0.2. The regex keeps the suppression to 7.0.4 and
+      later, so a downgrade below the fix brings the finding back. sdk-jasper loads templates
+      from the classpath only (ReportRequest rejects URL, URI, File, Path, streams and readers).
+      Reviewed 2026-10-12.
+    ]]></notes>
+    <packageUrl regex="true">^pkg:maven/net\.sf\.jasperreports/jasperreports@(7\.0\.([4-9]|[1-9][0-9]+)|7\.([1-9]|[1-9][0-9]+)\.[0-9]+|([89]|[1-9][0-9]+)\.[0-9]+\.[0-9]+)$</packageUrl>
+    <cve>CVE-2025-10492</cve>
+  </suppress>
 </suppressions>
