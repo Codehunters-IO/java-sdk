@@ -32,7 +32,7 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 - `sdk-audit-log` 5.1.0: `codehunters.audit.sink=outbox` writes audit events through the
   transactional outbox, synchronously in the caller's transaction, with PII-safe payloads and the
   entity id as message key; `jdbc` stays the default
-  ([ADR 0028](docs/adr/0028-audit-events-through-the-outbox.md)).
+  ([ADR 0029](docs/adr/0029-audit-events-through-the-outbox.md)).
 
 ## sdk-bom 6.0.0
 

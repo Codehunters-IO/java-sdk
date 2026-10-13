@@ -12,7 +12,7 @@
   with the action as event name (`FALLBACK_TYPE` = `AUDIT` when blank), `schemaVersion` 1.0.0 and
   the entity id as message key. Completion events of asynchronous calls are written outside the
   bound transaction. See [Publishing through the outbox](README.md#publishing-through-the-outbox)
-  and [ADR 0028](../docs/adr/0028-audit-events-through-the-outbox.md).
+  and [ADR 0029](../docs/adr/0029-audit-events-through-the-outbox.md).
 - `codehunters.audit.outbox.topic`: destination of audit events, required with `sink=outbox`.
 - Sink validation at startup: `sink=outbox` without `sdk-event-messaging-jdbc` fails naming the
   artifact, without an `OutboxWriter` it fails naming `codehunters.outbox.enabled`, and a blank
