@@ -21,5 +21,7 @@ jobs:
     uses: Codehunters-IO/ci-templates/.github/workflows/java-owasp.yml@v2
     with:
       owasp_fail_on_cvss: 7
+      # A run with no cached NVD database downloads it whole: two hours when the NVD API is slow.
+      timeout_minutes: 180
     secrets:
       NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
