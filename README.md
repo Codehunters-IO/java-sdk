@@ -171,16 +171,17 @@ Integration tests (`*IT`) use Testcontainers, so `./gradlew build` needs a runni
 
 Packages go to GitHub Packages (`https://maven.pkg.github.com/Codehunters-IO/java-sdk`) only when a
 GitHub release is published ([ADR 0017](docs/adr/0017-publish-on-release-tags.md)). Merging to
-`master` publishes nothing.
+`develop` or `main` publishes nothing.
 
-1. **Merge.** The pull request bumps the module's version and its `CHANGELOG.md` (and `sdk-bom`).
-2. **Draft.** `release-drafts.yml` builds the merge and drafts one release per module version that
+1. **Merge.** The pull request to `develop` bumps the module's version and its `CHANGELOG.md` (and
+   `sdk-bom`). A release pull request then merges `develop` into `main` with a merge commit.
+2. **Draft.** `release-drafts.yml` builds the merge to `main` and drafts one release per module version that
    has no tag yet: `sdk-<module>/vX.Y.Z`, or `bom/vX.Y.Z`. The notes are that version's section of
    the module's `CHANGELOG.md`. A later merge moves an unpublished draft to the newer commit.
    `-SNAPSHOT` versions get no draft.
 3. **Review and publish.** Under *Releases*, check the draft's notes and target, then
    *Publish release*. That creates the tag.
-4. **Upload.** `publish.yml` checks the tag is on `master`, finds the module that declares that
+4. **Upload.** `publish.yml` checks the tag is on `main`, finds the module that declares that
    version, and builds and publishes that module only.
 
 Publish libraries before the BOM: `publish.yml` refuses a `bom/vX.Y.Z` while any version in
