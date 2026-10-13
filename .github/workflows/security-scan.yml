@@ -1,10 +1,9 @@
 name: Security scan
 
-# OWASP dependency check of every module, weekly and on demand. It downloads the NVD database, so
-# it stays out of the pull-request build; pull requests get the faster dependency review instead.
+# OWASP dependency check of every module, on demand only: run it before a release. A run without a
+# cached NVD database downloads it whole, which took two hours when the NVD API was slow, so a
+# weekly schedule mostly spent runner time.
 on:
-  schedule:
-    - cron: '0 6 * * 1'
   workflow_dispatch:
 
 concurrency:
