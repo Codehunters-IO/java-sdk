@@ -21,6 +21,7 @@ class AuditAspectCancellationRaceTest {
   private static final Map<String, Object> ORDER = Map.of("id", "ORD-1");
   private static final Duration SETTLE = Duration.ofMillis(300);
   private static final Duration RACE = Duration.ofMillis(5);
+  private static final Duration ARRIVAL = Duration.ofSeconds(5);
 
   private final InMemoryAuditEventPublisher published = new InMemoryAuditEventPublisher();
 
@@ -30,7 +31,7 @@ class AuditAspectCancellationRaceTest {
 
     orders.readOrder("ORD-1").timeout(RACE).onErrorResume(ex -> Mono.empty()).block();
 
-    await().during(SETTLE).untilAsserted(() -> assertThat(published.getEvents()).hasSize(1));
+    assertRecordedOnce();
     assertThat(published.getLastEvent().status()).isEqualTo("CANCELLED");
   }
 
@@ -40,7 +41,7 @@ class AuditAspectCancellationRaceTest {
 
     orders.readOrder("ORD-1").timeout(RACE).onErrorResume(ex -> Mono.empty()).block();
 
-    await().during(SETTLE).untilAsserted(() -> assertThat(published.getEvents()).hasSize(1));
+    assertRecordedOnce();
   }
 
   @Test
@@ -49,7 +50,7 @@ class AuditAspectCancellationRaceTest {
 
     orders.listOrders("CUST-1").take(2).blockLast();
 
-    await().during(SETTLE).untilAsserted(() -> assertThat(published.getEvents()).hasSize(1));
+    assertRecordedOnce();
     assertThat(published.getLastEvent().status()).isEqualTo("CANCELLED");
   }
 
@@ -59,7 +60,7 @@ class AuditAspectCancellationRaceTest {
 
     orders.listOrders("CUST-1").take(2).blockLast();
 
-    await().during(SETTLE).untilAsserted(() -> assertThat(published.getEvents()).hasSize(1));
+    assertRecordedOnce();
   }
 
   private AsyncOrderService proxied(Mono<Map<String, Object>> mono, Flux<String> flux) {
@@ -70,5 +71,18 @@ class AuditAspectCancellationRaceTest {
         new AuditAspect(
             published, new NoOpAuditContextProvider(), new AuditAspect.Options(FIXED, false, 0)));
     return factory.getProxy();
+  }
+
+  /**
+   * The event is published asynchronously, possibly after the caller's {@code block()} returned:
+   * wait for it to arrive, then check no second one follows. {@code during} alone required the
+   * single event from the very first poll, so the test failed whenever it was a little late.
+   */
+  private void assertRecordedOnce() {
+    await().atMost(ARRIVAL).until(() -> !published.getEvents().isEmpty());
+    await()
+        .during(SETTLE)
+        .atMost(SETTLE.plus(ARRIVAL))
+        .untilAsserted(() -> assertThat(published.getEvents()).hasSize(1));
   }
 }
