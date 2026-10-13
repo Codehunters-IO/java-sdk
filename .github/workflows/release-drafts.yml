@@ -1,12 +1,11 @@
 name: Release drafts
 
-# Merging to master publishes nothing. This workflow builds the merge and drafts one GitHub release
+# Merging to main publishes nothing. This workflow builds the merge and drafts one GitHub release
 # per module version that has no tag yet (`sdk-<module>/vX.Y.Z`, `bom/vX.Y.Z`). A person reviews a
 # draft and publishes it; that creates the tag and runs publish.yml for that module only.
 on:
   push:
     branches:
-      - master
       - main
   workflow_dispatch:
 
