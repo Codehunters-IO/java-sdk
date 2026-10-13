@@ -1,7 +1,7 @@
 name: Publish
 
 # Uploads one module to GitHub Packages when its release is published. Releases are drafted by
-# release-drafts.yml on every merge to master; publishing a draft creates its tag
+# release-drafts.yml on every merge to main; publishing a draft creates its tag
 # (`sdk-<module>/vX.Y.Z` or `bom/vX.Y.Z`) and starts this workflow. Run it by hand with the tag to
 # retry a failed upload: versions already in GitHub Packages are skipped.
 on:
@@ -32,6 +32,8 @@ jobs:
     with:
       tag: ${{ github.event.release.tag_name || inputs.tag }}
       tag_pattern: '^(sdk-[a-z0-9-]+|bom)/v[0-9]+\.[0-9]+\.[0-9]+$'
+      # The default branch is develop; releases are tagged on main, which is never merged back.
+      release_branch: main
       verify_script: .github/scripts/verify-bom-release.sh
       docker_images: |
         testcontainers/ryuk:0.14.0

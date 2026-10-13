@@ -4,26 +4,28 @@ Discuss a change with the repository owners (issue or message) before starting o
 
 ## Branches and pull requests
 
-- Branch from the target branch with a prefix: `feature/`, `fix/`, `refactor/`, `docs/` or `chore/`.
-  CI builds every push to those branches and every pull request to `master`, `main` and `develop`.
-  `master` is the base branch; merging to it drafts releases but publishes nothing
+- Branch from `develop` with a prefix: `feature/`, `fix/`, `refactor/`, `docs/` or `chore/`.
+  CI builds every push to those branches and every pull request to `develop` and `main`.
+- `develop` is the default branch and receives every change, **squash merged**.
+- `main` is the release branch. It only receives a release pull request from `develop`, **merge
+  commit**, and is never merged back. Merging to `main` drafts releases but publishes nothing
   (see [README](README.md#releasing)).
 - One concern per pull request. A change that needs another one first is stacked on that branch and
   merged after it, in order.
-- `master` only receives reviewed pull requests.
+- `develop` and `main` only receive reviewed pull requests.
 
 ### Stacked pull requests
 
 A stack is a chain of pull requests, each one based on the branch of the previous one. GitHub does
 not retarget a pull request when its base is merged unless that base branch is deleted, so merging
-them one after another in table order leaves everything above the first one outside `master`.
+them one after another in table order leaves everything above the first one outside `develop`.
 
 - Either merge top-down: the top pull request into its base, then the next one down, and so on, and
-  the bottom one into `master` last. Only that last merge drafts the releases, once, with the final versions.
-- Or, after each merge into `master`, delete the merged branch (GitHub then retargets the next pull
-  request to `master`) or retarget it by hand before merging it.
+  the bottom one into `develop` last.
+- Or, after each merge into `develop`, delete the merged branch (GitHub then retargets the next pull
+  request to `develop`) or retarget it by hand before merging it.
 - Use **merge commits** for stack pull requests, not squash. A squash creates a commit unrelated to
-  the branch history, so every pull request above it conflicts with `master` and has to be
+  the branch history, so every pull request above it conflicts with `develop` and has to be
   reconciled.
 
 ## Commits
@@ -77,7 +79,7 @@ A change is done when, on its branch:
   3. Publish the libraries first and the BOM last: a BOM release fails while a version it lists is
      not in GitHub Packages.
   4. A failed upload is retried with *Actions → Publish → Run workflow* and the tag.
-- Never push release tags by hand, and never create a release on a commit that is not on `master`:
+- Never push release tags by hand, and never create a release on a commit that is not on `main`:
   the publish workflow rejects it.
 - Commit messages are linted on pull requests (`commitlint.config.js`): Conventional Commits,
   header and body lines up to 120 characters.
