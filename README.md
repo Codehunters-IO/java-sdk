@@ -203,12 +203,13 @@ The three workflows call the shared `java-library-*` workflows of `Codehunters-I
   library version changes while the BOM version doesn't: bump `sdk-bom` and run
   `./gradlew :sdk-bom:updateBomLock`, which records the versions in
   `platform/sdk-bom/bom-lock.properties`.
-- SonarCloud — single project `codehunters_java-sdk`, org `codehunters`
 - Pull requests also run the shared TruffleHog secret scan and commit lint (`commitlint.config.js`)
   from `Codehunters-IO/ci-templates@v2`. GitHub dependency review is not used: on a private
-  repository it needs GitHub Advanced Security; the weekly OWASP scan covers known CVEs.
+  repository it needs GitHub Advanced Security; the OWASP scan covers known CVEs.
 - OWASP dependency check — `./gradlew dependencyCheckAnalyze` (aggregate report in
-  `build/reports/`, fails on CVSS ≥ 7, suppressions in `config/dependency-check/suppressions.xml`).
-  `security-scan.yml` runs it weekly; set the `NVD_API_KEY` secret to keep it fast.
+  `build/reports/dependency-check/`, fails on CVSS ≥ 7, suppressions in
+  `config/dependency-check/suppressions.xml`). `security-scan.yml` runs it on demand (*Run workflow*):
+  run it before a release. It needs the `NVD_API_KEY` secret; a run with no cached NVD database can
+  take two hours.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for branches, commits and the definition of done.
