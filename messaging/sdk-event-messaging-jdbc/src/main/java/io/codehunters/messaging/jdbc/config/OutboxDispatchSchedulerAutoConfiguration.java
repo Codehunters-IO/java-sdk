@@ -6,6 +6,7 @@ import io.codehunters.messaging.SendOutboxMessagesPort;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.config.EventMessagingProperties;
 import io.codehunters.messaging.dispatch.CoalescingDispatchTrigger;
+import io.codehunters.messaging.dispatch.SendOutboxMessagesUseCase;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeScheduler;
 import io.codehunters.messaging.jdbc.scheduler.OutboxPurgeSettings;
 import io.codehunters.messaging.jdbc.scheduler.OutboxScheduledTask;
@@ -73,8 +74,9 @@ public class OutboxDispatchSchedulerAutoConfiguration {
    * must also be an {@link Executor} while {@code scheduling.dispatch-on-commit} is on.
    *
    * <p>On shutdown it waits for a running dispatch to end, up to {@link
-   * EventMessagingProperties#maxDispatchRun()} (half the claim TTL plus one transport timeout), so
-   * a batch is published and written back rather than cut off mid-send and reclaimed later.
+   * EventMessagingProperties#maxDispatchRun()} (half the claim TTL plus one transport timeout). The
+   * {@link OutboxSchedulingLifecycle} stops the SDK's dispatch use case first, so a running batch
+   * ends after the message being sent, normally well within a container's grace period.
    *
    * @param properties the messaging configuration
    * @return a {@link ThreadPoolTaskScheduler}
@@ -207,14 +209,17 @@ public class OutboxDispatchSchedulerAutoConfiguration {
 
   /**
    * Registers every {@link OutboxScheduledTask} bean on the outbox scheduler when the context
-   * starts, and stops the {@code outboxDispatchTrigger}, when it is the SDK's {@link
-   * CoalescingDispatchTrigger}, when the context stops: no new commit-time drain starts, and one in
-   * progress ends after its current run.
+   * starts. When the context stops it stops the {@code outboxDispatchTrigger}, when it is the SDK's
+   * {@link CoalescingDispatchTrigger}, so no new commit-time drain starts, and the dispatch port,
+   * when it is the SDK's {@link SendOutboxMessagesUseCase}, so a running batch releases its unsent
+   * rows after the current send instead of finishing the whole batch. The run then ends and its
+   * dispatch lock is released before the scheduler shuts down.
    *
    * @param scheduler the SDK's {@code outboxTaskScheduler}
    * @param lockProvider the ShedLock provider
    * @param tasks the scheduled tasks
    * @param dispatchTrigger the commit-time dispatch trigger, if any
+   * @param sendOutboxMessagesPort the dispatch port, if any
    * @return an {@link OutboxSchedulingLifecycle}
    */
   @Bean
@@ -223,11 +228,16 @@ public class OutboxDispatchSchedulerAutoConfiguration {
       @Qualifier(OUTBOX_TASK_SCHEDULER) TaskScheduler scheduler,
       LockProvider lockProvider,
       ObjectProvider<OutboxScheduledTask> tasks,
-      @Qualifier(DISPATCH_TRIGGER) ObjectProvider<OutboxDispatchTrigger> dispatchTrigger) {
+      @Qualifier(DISPATCH_TRIGGER) ObjectProvider<OutboxDispatchTrigger> dispatchTrigger,
+      ObjectProvider<SendOutboxMessagesPort> sendOutboxMessagesPort) {
     var lifecycle =
         new OutboxSchedulingLifecycle(scheduler, lockProvider, tasks.orderedStream().toList());
-    return dispatchTrigger.getIfAvailable() instanceof CoalescingDispatchTrigger coalescing
-        ? lifecycle.onStop(coalescing::stop)
-        : lifecycle;
+    if (dispatchTrigger.getIfAvailable() instanceof CoalescingDispatchTrigger coalescing) {
+      lifecycle = lifecycle.onStop(coalescing::stop);
+    }
+    if (sendOutboxMessagesPort.getIfAvailable() instanceof SendOutboxMessagesUseCase useCase) {
+      lifecycle = lifecycle.onStop(useCase::stop);
+    }
+    return lifecycle;
   }
 }

@@ -15,6 +15,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -134,6 +135,20 @@ class OutboxSchedulingLifecycleTest {
     lifecycle.stop();
 
     assertThat(stops).hasValue(1);
+  }
+
+  @Test
+  void should_run_every_stop_hook_in_order_when_several_are_added() {
+    List<String> stops = new ArrayList<>();
+    OutboxSchedulingLifecycle lifecycle =
+        lifecycle(RecordingLockProvider.granting())
+            .onStop(() -> stops.add("trigger"))
+            .onStop(() -> stops.add("dispatch"));
+    lifecycle.start();
+
+    lifecycle.stop();
+
+    assertThat(stops).containsExactly("trigger", "dispatch");
   }
 
   @Test
