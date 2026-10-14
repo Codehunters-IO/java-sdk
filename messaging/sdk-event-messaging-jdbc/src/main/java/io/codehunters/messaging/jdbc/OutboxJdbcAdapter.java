@@ -1,6 +1,7 @@
 package io.codehunters.messaging.jdbc;
 
 import io.codehunters.messaging.ClaimRequest;
+import io.codehunters.messaging.OutboxBacklog;
 import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxMessage;
 import io.codehunters.messaging.OutboxStatus;
@@ -155,6 +156,18 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
 
   private static final String COUNT_FAILED_SQL =
       "SELECT COUNT(*) FROM outbox_message WHERE origin = :origin AND status = 'FAILED'";
+
+  // Both parts read idx_outbox_claimable; the lowest seq stands for the oldest row, since rows are
+  // numbered as they are inserted.
+  private static final String BACKLOG_SQL =
+      """
+      SELECT
+          (SELECT COUNT(*) FROM outbox_message
+            WHERE origin = :origin AND status IN ('PENDING', 'IN_FLIGHT')) AS pending,
+          (SELECT occurred_at FROM outbox_message
+            WHERE origin = :origin AND status IN ('PENDING', 'IN_FLIGHT')
+            ORDER BY seq LIMIT 1) AS oldest_occurred_at
+      """;
 
   // Puts FAILED rows of the origin back to PENDING, due now, as if never attempted: no error, no
   // claim, no send mark. Callers append the row filter.
@@ -330,6 +343,20 @@ public class OutboxJdbcAdapter implements OutboxWriter, OutboxDispatchStore {
         .param("origin", settings.origin())
         .query(Long.class)
         .single();
+  }
+
+  @Override
+  public Optional<OutboxBacklog> backlog() {
+    return Optional.of(
+        jdbcClient
+            .sql(BACKLOG_SQL)
+            .param("origin", settings.origin())
+            .query(
+                (rs, row) ->
+                    new OutboxBacklog(
+                        rs.getLong("pending"),
+                        Optional.ofNullable(OutboxRows.instant(rs, "oldest_occurred_at"))))
+            .single());
   }
 
   @Override

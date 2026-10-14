@@ -1,5 +1,17 @@
 # Changelog — sdk-event-messaging-core
 
+## 9.1.0
+
+### Added
+- `OutboxDispatchStore#backlog()` and `OutboxBacklog`: the messages of the store's origin still
+  waiting (PENDING or IN_FLIGHT) and when the oldest was written. A default method returning empty,
+  so other implementations keep compiling.
+- `SendOutboxMessagesUseCase#stop()`: a running batch ends after the message being sent and
+  releases the rest unsent; later runs claim nothing.
+- A startup check for an outbox that is written to but never dispatched (an application
+  `OutboxWriter` made the JDBC store back off, or no transport registered a publisher). It warns,
+  or fails startup when `codehunters.outbox.publisher.type` is set.
+
 ## 9.0.0
 
 Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).
