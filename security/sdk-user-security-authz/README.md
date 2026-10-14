@@ -5,7 +5,7 @@ It wires Keycloak's official policy enforcer (`org.keycloak:keycloak-policy-enfo
 Spring Security filter chain and configures it from `codehunters.security.authz.*`.
 
 ```kotlin
-implementation("io.codehunters:sdk-user-security-authz:5.0.0")
+implementation("io.codehunters:sdk-user-security-authz:6.0.0")
 ```
 
 It brings `sdk-user-security` and `keycloak-policy-enforcer` (with its `keycloak-authz-client` and
@@ -194,10 +194,17 @@ under a mapped pattern.
   its paths in `skip-paths`; otherwise its requests are denied (403).
 - Calls to Keycloak go through the `keycloakPolicyEnforcerHttpClient` bean (Apache HttpClient 4),
   closed with the context. It is not a default candidate, so it never becomes the application's
-  `HttpClient`.
+  `HttpClient`. Define a `CloseableHttpClient` bean under that name to replace it (a proxy, mTLS
+  towards Keycloak); `keycloakPolicyEnforcerCustomizer`, `keycloakPolicyEnforcerFilterRegistration`
+  and the `EnforcerFailureCounter` back off the same way.
 - To replace the enforcer, define a `KeycloakPolicyEnforcerFilter` bean; the auto-configuration
   then places yours in the chain. `KeycloakPolicyEnforcerFilter.Options` sets its skipped paths,
   retry backoff, first-build wait, clock and failure listener.
+
+## Migrating from 5.x
+
+6.0 needs `sdk-user-security` 6.0, which rejects a plain `http` Keycloak URL unless
+`codehunters.security.allow-insecure-http: true`. See [MIGRATION-6.0.md](MIGRATION-6.0.md).
 
 ## Migrating from 4.x
 

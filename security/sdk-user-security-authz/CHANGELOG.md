@@ -1,5 +1,17 @@
 # Changelog — sdk-user-security-authz
 
+
+## 6.0.0
+
+### Breaking
+- Requires `sdk-user-security` 6.0.0, which rejects a plain `http` Keycloak URL unless
+  `codehunters.security.allow-insecure-http=true`. See [MIGRATION-6.0.md](MIGRATION-6.0.md).
+
+### Added
+- The `keycloakPolicyEnforcerHttpClient`, `keycloakPolicyEnforcerFilterRegistration`,
+  `keycloakPolicyEnforcerCustomizer` and `EnforcerFailureCounter` beans back off when the
+  application defines its own, e.g. an HTTP client with a proxy or mTLS towards Keycloak.
+
 ## 5.0.0
 
 ### Breaking

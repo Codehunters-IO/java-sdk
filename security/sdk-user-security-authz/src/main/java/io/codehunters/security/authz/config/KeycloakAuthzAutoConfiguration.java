@@ -100,13 +100,15 @@ public class KeycloakAuthzAutoConfiguration {
    * becomes the application's {@code HttpClient}.
    *
    * <p>Keycloak's enforcer only accepts an Apache HttpClient 4; its default one has no timeouts and
-   * two connections per route, too few for one authorization call per request.
+   * two connections per route, too few for one authorization call per request. An application that
+   * needs a proxy or mTLS towards Keycloak defines its own bean under this name.
    *
    * @param properties timeouts and connection bound
    * @param counters the failure counter, present when Micrometer is
    * @return the client
    */
   @Bean(name = HTTP_CLIENT, defaultCandidate = false, destroyMethod = "close")
+  @ConditionalOnMissingBean(name = HTTP_CLIENT)
   public CloseableHttpClient keycloakPolicyEnforcerHttpClient(
       KeycloakPolicyEnforcerProperties properties,
       ObjectProvider<EnforcerFailureCounter> counters) {
@@ -132,6 +134,7 @@ public class KeycloakAuthzAutoConfiguration {
    * @return a disabled registration
    */
   @Bean
+  @ConditionalOnMissingBean(name = "keycloakPolicyEnforcerFilterRegistration")
   public FilterRegistrationBean<KeycloakPolicyEnforcerFilter>
       keycloakPolicyEnforcerFilterRegistration(KeycloakPolicyEnforcerFilter filter) {
     var registration = new FilterRegistrationBean<>(filter);
@@ -146,6 +149,7 @@ public class KeycloakAuthzAutoConfiguration {
    * @return the customizer Spring Security applies to each {@link HttpSecurity}
    */
   @Bean
+  @ConditionalOnMissingBean(name = "keycloakPolicyEnforcerCustomizer")
   public Customizer<HttpSecurity> keycloakPolicyEnforcerCustomizer(
       KeycloakPolicyEnforcerFilter filter) {
     return http -> http.addFilterAfter(filter, AuthorizationFilter.class);
@@ -192,6 +196,7 @@ public class KeycloakAuthzAutoConfiguration {
   static class EnforcerMetricsConfiguration {
 
     @Bean
+    @ConditionalOnMissingBean
     EnforcerFailureCounter keycloakPolicyEnforcerFailureCounter(
         ObjectProvider<MeterRegistry> registries) {
       return new EnforcerFailureCounter(
