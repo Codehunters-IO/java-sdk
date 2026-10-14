@@ -276,6 +276,7 @@ AspectJ on the classpath); the SDK does not enable proxying itself. With `spring
 enable AspectJ proxying in your configuration or `@Auditable` has no effect. Startup checks for
 an AspectJ auto-proxy creator: without one it logs a warning, or fails when
 `codehunters.audit.fail-on-error=true`. See [Startup checks](#startup-checks) for the others.
+An application that defines its own `AuditAspect` bean replaces the SDK's (since 5.2.0).
 
 Invalid sizes fail at startup.
 

@@ -92,7 +92,8 @@ as a bean in a test configuration (the SDK's `FileShareClient` steps aside), see
 | `codehunters.file-share.max-download-size` | `50MB` | Limit of the in-memory `download`; between `1B` and about 2 GB, checked at startup |
 | `codehunters.file-share.max-upload-size` | `5GB` | Largest `contentLength` `upload` accepts; at least `1B`, checked at startup |
 | `codehunters.file-share.upload-idle-timeout` | `30s` | How long `upload` waits for the storage's answer; the upload as a whole has no deadline |
-| `codehunters.file-share.presigned.allowed-hosts` | empty (any) | Hosts presigned URLs may point at, exact or `*.domain`, on port 443; URLs must always be `https`. Empty is allowed so a first setup works, but it logs a warning at startup: set it in production |
+| `codehunters.file-share.presigned.allowed-hosts` | — | **Required** unless `allow-any-host`: hosts presigned URLs may point at, exact or `*.domain`. URLs must always be `https` on port 443 |
+| `codehunters.file-share.presigned.allow-any-host` | `false` | `true` accepts presigned URLs on any https host when `allowed-hosts` is empty, and logs a warning at startup |
 | `codehunters.file-share.auth.client-registration-id` | — | Spring Security client registration (`client_credentials`) used for the bearer token; blank means none |
 | `codehunters.file-share.auth.principal` | `codehunters-file-share` | Name the token is cached under |
 | `codehunters.file-share.auth.allow-insecure-http` | `false` | Allows sending the token to an `http` base URL (for example inside a mesh that adds mTLS) |
@@ -152,7 +153,7 @@ in your own interceptor.
 
 ## Known limits
 
-- An `allowed-hosts` list is not enforced when empty; startup only warns. Set it in production.
+- Presigned URLs on a port other than 443 are rejected, even with `allow-any-host`.
 - `http` presigned URLs (for example a local MinIO without TLS) are rejected; front it with TLS or
   provide your own `FileShareClient`.
 - Expiry timestamps without an offset are read as UTC.
@@ -165,5 +166,6 @@ in your own interceptor.
   Unicode format characters (for example bidi overrides), line separators and look-alike slashes
   pass; the service must not trust the name for paths or headers.
 
-Upgrading from 1.x: see [MIGRATION-2.0.md](MIGRATION-2.0.md), [MIGRATION-3.0.md](MIGRATION-3.0.md)
-and [MIGRATION-4.0.md](MIGRATION-4.0.md).
+Upgrading from 1.x: see [MIGRATION-2.0.md](MIGRATION-2.0.md), [MIGRATION-3.0.md](MIGRATION-3.0.md),
+[MIGRATION-4.0.md](MIGRATION-4.0.md) and [MIGRATION-5.0.md](MIGRATION-5.0.md) (presigned hosts are
+required).

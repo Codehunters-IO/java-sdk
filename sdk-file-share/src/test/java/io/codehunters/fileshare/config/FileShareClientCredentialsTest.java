@@ -42,7 +42,8 @@ class FileShareClientCredentialsTest {
 
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
-          .withConfiguration(AutoConfigurations.of(FileShareAutoConfiguration.class));
+          .withConfiguration(AutoConfigurations.of(FileShareAutoConfiguration.class))
+          .withPropertyValues("codehunters.file-share.presigned.allowed-hosts=files.example.com");
 
   private FakeFileShareServer server;
 

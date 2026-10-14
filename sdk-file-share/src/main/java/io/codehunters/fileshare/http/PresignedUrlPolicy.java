@@ -8,8 +8,8 @@ import java.util.Locale;
 
 /**
  * Decides whether a presigned URL handed out by the file-share service may reach the caller: it
- * must be an absolute {@code https} URL and, when hosts are configured, point at one of them on the
- * default port. An entry such as {@code *.s3.amazonaws.com} matches any subdomain, not the domain
+ * must be an absolute {@code https} URL on the default port and, when hosts are configured, point
+ * at one of them. An entry such as {@code *.s3.amazonaws.com} matches any subdomain, not the domain
  * itself.
  */
 public final class PresignedUrlPolicy {
@@ -43,7 +43,7 @@ public final class PresignedUrlPolicy {
     if (url.getHost() == null || !isAllowed(url.getHost().toLowerCase(Locale.ROOT))) {
       throw new FileShareException("presignedUrl host is not allowed: " + url.getHost());
     }
-    if (!allowedHosts.isEmpty() && !isDefaultHttpsPort(url.getPort())) {
+    if (!isDefaultHttpsPort(url.getPort())) {
       throw new FileShareException("presignedUrl port is not allowed: " + url.getPort());
     }
     return url;

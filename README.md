@@ -16,16 +16,16 @@ artifact is `io.codehunters:sdk-*`. Build conventions live in `build-logic/` and
 
 | Module | Package | Version | Docs |
 |---|---|---|---|
-| `sdk-bom` | — (BOM, `java-platform`) | 6.1.0 | [below](#using-the-bom) |
-| `sdk-user-security` | `io.codehunters.security` | 5.0.0 | [README](security/sdk-user-security/README.md) · [MIGRATION 5.0](security/sdk-user-security/MIGRATION-5.0.md) |
-| `sdk-user-security-authz` | `io.codehunters.security.authz` | 5.0.0 | [README](security/sdk-user-security-authz/README.md) · [MIGRATION 5.0](security/sdk-user-security-authz/MIGRATION-5.0.md) |
+| `sdk-bom` | — (BOM, `java-platform`) | 7.0.0 | [below](#using-the-bom) |
+| `sdk-user-security` | `io.codehunters.security` | 6.0.0 | [README](security/sdk-user-security/README.md) · [MIGRATION 6.0](security/sdk-user-security/MIGRATION-6.0.md) |
+| `sdk-user-security-authz` | `io.codehunters.security.authz` | 6.0.0 | [README](security/sdk-user-security-authz/README.md) · [MIGRATION 6.0](security/sdk-user-security-authz/MIGRATION-6.0.md) |
 | `sdk-tracing` | `io.codehunters.tracing` | 3.0.0 | [README](sdk-tracing/README.md) · [MIGRATION 3.0](sdk-tracing/MIGRATION-3.0.md) |
 | `sdk-event-messaging-core` | `io.codehunters.messaging` | 9.0.0 | [README](messaging/sdk-event-messaging-core/README.md) · [MIGRATION 9.0](messaging/MIGRATION-9.0.md) |
 | `sdk-event-messaging-jdbc` | `io.codehunters.messaging.jdbc` | 9.0.0 | [README](messaging/sdk-event-messaging-jdbc/README.md) |
 | `sdk-event-messaging-rabbit` | `io.codehunters.messaging.rabbit` | 9.0.0 | [README](messaging/sdk-event-messaging-rabbit/README.md) |
 | `sdk-event-messaging-kafka` | `io.codehunters.messaging.kafka` | 9.0.0 | [README](messaging/sdk-event-messaging-kafka/README.md) |
-| `sdk-file-share` | `io.codehunters.fileshare` | 4.0.0 | [README](sdk-file-share/README.md) · [MIGRATION 4.0](sdk-file-share/MIGRATION-4.0.md) |
-| `sdk-audit-log` | `io.codehunters.audit` | 5.1.0 | [README](sdk-audit-log/README.md) · [MIGRATION 5.0](sdk-audit-log/MIGRATION-5.0.md) |
+| `sdk-file-share` | `io.codehunters.fileshare` | 5.0.0 | [README](sdk-file-share/README.md) · [MIGRATION 5.0](sdk-file-share/MIGRATION-5.0.md) |
+| `sdk-audit-log` | `io.codehunters.audit` | 5.2.0 | [README](sdk-audit-log/README.md) · [MIGRATION 5.0](sdk-audit-log/MIGRATION-5.0.md) |
 | `sdk-measure-micrometer` | `io.codehunters.measure` | 4.0.0 | [README](sdk-measure-micrometer/README.md) · [MIGRATION 4.0](sdk-measure-micrometer/MIGRATION-4.0.md) |
 | `sdk-parameter` | `io.codehunters.parameter` | 4.0.0 | [README](sdk-parameter/README.md) · [MIGRATION 4.0](sdk-parameter/MIGRATION-4.0.md) |
 | `sdk-errors` | `io.codehunters.errors` | 1.0.0 | [README](sdk-errors/README.md) |
@@ -53,7 +53,7 @@ Gradle:
 
 ```kotlin
 dependencies {
-    implementation(platform("io.codehunters:sdk-bom:6.1.0"))
+    implementation(platform("io.codehunters:sdk-bom:7.0.0"))
     implementation("io.codehunters:sdk-user-security")
     implementation("io.codehunters:sdk-event-messaging-jdbc")
     implementation("io.codehunters:sdk-event-messaging-rabbit")
@@ -68,7 +68,7 @@ Maven:
     <dependency>
       <groupId>io.codehunters</groupId>
       <artifactId>sdk-bom</artifactId>
-      <version>6.1.0</version>
+      <version>7.0.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>

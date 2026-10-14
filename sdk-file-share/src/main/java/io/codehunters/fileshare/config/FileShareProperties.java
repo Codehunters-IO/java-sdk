@@ -65,10 +65,12 @@ public record FileShareProperties(
   /**
    * Rules for presigned URLs.
    *
-   * @param allowedHosts hosts a presigned URL may point at, exact or as {@code *.domain}; empty
-   *     allows any host. URLs must always use https.
+   * @param allowedHosts hosts a presigned URL may point at, exact or as {@code *.domain}. Required
+   *     unless {@code allowAnyHost} is set. URLs must always use https on port 443.
+   * @param allowAnyHost accept presigned URLs on any https host when {@code allowedHosts} is empty
    */
-  public record Presigned(@DefaultValue List<String> allowedHosts) {}
+  public record Presigned(
+      @DefaultValue List<String> allowedHosts, @DefaultValue("false") boolean allowAnyHost) {}
 
   /**
    * Outbound authentication.

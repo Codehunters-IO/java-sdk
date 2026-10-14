@@ -90,7 +90,8 @@ public class AuditAutoConfiguration {
   }
 
   /**
-   * Registers the auditing aspect.
+   * Registers the auditing aspect, unless the application defines its own: two aspects would audit
+   * every call twice.
    *
    * @param publisher the audit event publisher
    * @param contextProvider the audit context provider
@@ -101,6 +102,7 @@ public class AuditAutoConfiguration {
   @Bean
   @ConditionalOnClass(name = "org.aspectj.weaver.Advice")
   @ConditionalOnBean(AuditEventPublisherPort.class)
+  @ConditionalOnMissingBean(AuditAspect.class)
   public AuditAspect auditAspect(
       AuditEventPublisherPort publisher,
       AuditContextProvider contextProvider,
