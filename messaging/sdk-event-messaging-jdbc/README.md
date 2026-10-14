@@ -5,8 +5,8 @@ and the ShedLock-protected dispatch poll and purge, run on a private scheduler. 
 semantics are described in [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:9.0.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.1.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.1.0") // or -kafka
 ```
 
 Brings `-core` and ShedLock (`shedlock-spring`, `shedlock-provider-jdbc-template`). The application
@@ -26,6 +26,7 @@ Jackson 3 (`tools.jackson`).
 | `outboxPurgeScheduler` (`OutboxPurgeScheduler`), `outboxPurgeTask` | `scheduling.enabled` | Purge every `purge.fixed-delay` |
 | `outboxSchedulingLifecycle` | `scheduling.enabled` | Schedules every `OutboxScheduledTask` bean on `outboxTaskScheduler`, each run under its ShedLock lock |
 | `OutboxFailedGauge` | Micrometer on the classpath and an `OutboxDispatchStore` | `outbox_failed_messages{origin}`; the count is cached for 30 s (`outboxClock`), so scrapes do not each query the table |
+| `OutboxBacklogGauges` | Micrometer on the classpath and an `OutboxDispatchStore` | `outbox_pending_messages{origin}` and `outbox_oldest_pending_age_seconds{origin}`, one query cached for 30 s |
 
 The scheduler, task and lifecycle beans need an `OutboxDispatchStore` and a `LockProvider`. Every
 bean backs off when the application defines its own.
@@ -50,12 +51,14 @@ poll stays as a safety net. A commit-triggered run claims only rows that no othe
 when an earlier row of the key is `IN_FLIGHT` under another dispatcher's claim (or was just released
 with a backoff), the new row waits for a later run, which may be the next poll.
 
-**Shutdown.** When the context stops, `outboxSchedulingLifecycle` cancels the poll and the purge and
-stops the `CoalescingDispatchTrigger`: later requests are dropped and a running drain ends after its
-current claim. `outboxTaskScheduler` then waits for running tasks up to half of `claim.ttl` plus one
-transport timeout (`EventMessagingProperties#maxDispatchRun()`, 155 s with the defaults). A publish
-interrupted past that point is not charged as an attempt: the row and the rest of its batch go back
-to `PENDING` unchanged.
+**Shutdown.** When the context stops, `outboxSchedulingLifecycle` cancels the poll and the purge,
+stops the `CoalescingDispatchTrigger` (later requests are dropped) and stops the SDK's
+`SendOutboxMessagesUseCase`: a running batch finishes the message being sent and releases the rest
+to `PENDING` unsent, so the run ends and frees its dispatch lock within about one transport timeout.
+`outboxTaskScheduler` waits for running tasks up to half of `claim.ttl` plus one transport timeout
+(`EventMessagingProperties#maxDispatchRun()`, 155 s with the defaults), a bound now reached only by
+a send that hangs. A publish interrupted past that point is not charged as an attempt: the row and
+the rest of its batch go back to `PENDING` unchanged.
 
 To replace the scheduler, define a bean named `outboxTaskScheduler`: a `TaskScheduler` that, while
 `scheduling.dispatch-on-commit` is on, is also an `Executor` (`ThreadPoolTaskScheduler` is both).
@@ -195,6 +198,7 @@ are never touched.
 | Instance dies with a claimed batch | Rows are reclaimed after `claim.ttl`; only rows whose send had started count one attempt |
 | A commit-time dispatch request is lost | The next poll picks the rows up |
 | Writing a row's outcome fails | Logged with the exception class only; the row stays `IN_FLIGHT` until reclaimed after `claim.ttl`, the later rows of its key are released, other keys go on |
+| Context stops mid-batch | The message being sent finishes; the rest of the batch goes back to `PENDING` unsent, without an attempt |
 | Shutdown interrupts a publish | The row and the rest of the batch go back to `PENDING`; no attempt is charged |
 | `outbox_message` lacks `seq` | Every claim fails until the DDL is applied |
 

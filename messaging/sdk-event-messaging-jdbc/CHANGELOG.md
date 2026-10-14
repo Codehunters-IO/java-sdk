@@ -1,5 +1,19 @@
 # Changelog — sdk-event-messaging-jdbc
 
+## 9.1.0
+
+### Added
+- `outbox_pending_messages{origin}` and `outbox_oldest_pending_age_seconds{origin}` gauges
+  (`OutboxBacklogGauges`), read in one query and cached for 30 s like `outbox_failed_messages`.
+- `OutboxJdbcAdapter#backlog()`, through `idx_outbox_claimable`.
+
+### Changed
+- On context stop, `outboxSchedulingLifecycle` also stops the SDK's dispatch use case: a running
+  batch releases its unsent rows after the current send instead of finishing the whole batch, so a
+  shutdown no longer waits up to `claim.ttl / 2` (or gets killed mid-batch, leaving claims and the
+  dispatch lock held until they expire).
+- `OutboxSchedulingLifecycle#onStop` adds to the hooks registered before instead of replacing them.
+
 ## 9.0.0
 
 Migration guide: [MIGRATION-9.0.md](../MIGRATION-9.0.md).

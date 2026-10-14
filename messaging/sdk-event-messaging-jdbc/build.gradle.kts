@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "9.0.0"
+version = "9.1.0"
 description = "PostgreSQL outbox store and ShedLock-protected dispatch and purge schedulers."
 
 codehuntersPackages {
