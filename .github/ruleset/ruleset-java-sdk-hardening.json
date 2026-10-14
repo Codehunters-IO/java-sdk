@@ -1,0 +1,46 @@
+{
+  "name": "java-sdk • Hardening (develop + main)",
+  "target": "branch",
+  "enforcement": "active",
+  "conditions": {
+    "ref_name": {
+      "include": [
+        "refs/heads/develop",
+        "refs/heads/main"
+      ],
+      "exclude": []
+    }
+  },
+  "rules": [
+    {
+      "type": "required_signatures"
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "required_status_checks": [
+          {
+            "context": "validate / PR Quality Gates / Build / Build"
+          },
+          {
+            "context": "validate / PR Quality Gates / Test / Test"
+          },
+          {
+            "context": "validate / PR Quality Gates / Security Scan / TruffleHog Secret Scan"
+          },
+          {
+            "context": "validate / PR Quality Gates / Commit Lint / Lint Commit Messages"
+          }
+        ]
+      }
+    }
+  ],
+  "bypass_actors": [
+    {
+      "actor_id": 5,
+      "actor_type": "RepositoryRole",
+      "bypass_mode": "pull_request"
+    }
+  ]
+}
