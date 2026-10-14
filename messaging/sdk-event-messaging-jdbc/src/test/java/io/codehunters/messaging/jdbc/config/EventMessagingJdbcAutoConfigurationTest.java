@@ -149,9 +149,24 @@ class EventMessagingJdbcAutoConfigurationTest {
   }
 
   @Test
+  void should_stop_dispatch_use_case_when_context_stops() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              Object useCase = context.getBean(SendOutboxMessagesPort.class);
+              context.getSourceApplicationContext(ConfigurableApplicationContext.class).stop();
+
+              assertThat(ReflectionTestUtils.getField(useCase, "stopped")).isEqualTo(true);
+            });
+  }
+
+  @Test
   void should_wait_for_running_dispatch_up_to_its_bound_when_scheduler_shuts_down() {
     contextRunner
         .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
         .withPropertyValues("codehunters.outbox.publisher.type=kafka")
         .run(
             context -> {
