@@ -54,14 +54,22 @@ public final class OutboxSchedulingLifecycle implements SmartLifecycle {
   }
 
   /**
-   * Returns a copy of this lifecycle that also runs {@code hook} when it stops; this one is left
-   * unchanged.
+   * Returns a copy of this lifecycle that also runs {@code hook} when it stops, after the hooks
+   * added before; this one is left unchanged.
    *
    * @param hook what to run on stop, after the tasks are cancelled
    * @return the new lifecycle
    */
   public OutboxSchedulingLifecycle onStop(Runnable hook) {
-    return new OutboxSchedulingLifecycle(scheduler, executor, tasks, hook);
+    Runnable previous = stopHook;
+    return new OutboxSchedulingLifecycle(
+        scheduler,
+        executor,
+        tasks,
+        () -> {
+          previous.run();
+          hook.run();
+        });
   }
 
   /** Schedules every task with its initial and fixed delay. */

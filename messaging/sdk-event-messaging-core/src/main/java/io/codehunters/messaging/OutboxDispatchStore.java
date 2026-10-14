@@ -65,6 +65,17 @@ public interface OutboxDispatchStore {
   long countFailed();
 
   /**
+   * Reads the messages of this store's origin still waiting to be published, for monitoring. A
+   * growing count or an aging oldest message means dispatch is stuck: a held lock, a blocked key or
+   * a broker that refuses.
+   *
+   * @return the backlog, or empty when this store cannot tell
+   */
+  default Optional<OutboxBacklog> backlog() {
+    return Optional.empty();
+  }
+
+  /**
    * Puts the listed FAILED rows of this store's origin back to PENDING, due now, with zero attempts
    * and no error, claim or send mark, so the dispatcher publishes them again and their keys are no
    * longer blocked. Rows of other origins or in any other status are left untouched. When at least

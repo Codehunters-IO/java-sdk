@@ -20,7 +20,9 @@ import io.micrometer.tracing.Tracer;
 import java.lang.management.ManagementFactory;
 import java.time.Clock;
 import java.util.Optional;
+import org.springframework.beans.factory.ListableBeanFactory;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -152,6 +154,20 @@ public class EventMessagingCoreAutoConfiguration {
         outboxDispatchStore,
         decorate(messagePublisherPort, decorators),
         dispatchSettings(properties, applicationName, clock));
+  }
+
+  /**
+   * Warns at startup, or fails when {@code codehunters.outbox.publisher.type} is set, when outbox
+   * messages can be written but nothing dispatches them.
+   *
+   * @param beanFactory the application's bean factory
+   * @param environment the application environment
+   * @return the startup check
+   */
+  @Bean
+  public static SmartInitializingSingleton outboxDispatchCheck(
+      ListableBeanFactory beanFactory, Environment environment) {
+    return new OutboxDispatchCheck(beanFactory, environment);
   }
 
   private static DispatchSettings dispatchSettings(

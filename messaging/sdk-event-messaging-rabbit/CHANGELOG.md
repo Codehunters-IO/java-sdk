@@ -1,5 +1,11 @@
 # Changelog — sdk-event-messaging-rabbit
 
+## 9.1.0
+
+### Changed
+- Released with `sdk-event-messaging-core` 9.1.0, so the messaging modules keep one version. No
+  change in this module.
+
 ## 9.0.0
 
 Versioned with `-core` and `-jdbc` 9.0.0, which support PostgreSQL only, drop the old `outbox.*`

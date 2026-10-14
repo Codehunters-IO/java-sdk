@@ -26,6 +26,7 @@ final class RecordingPublisher implements MessagePublisherPort {
   private final Set<UUID> failing = new HashSet<>();
   private RuntimeException failure;
   private final Map<UUID, Boolean> interrupting = new HashMap<>();
+  private final Map<UUID, Runnable> sideEffects = new HashMap<>();
 
   RecordingPublisher(MutableClock clock, List<String> calls) {
     this.clock = clock;
@@ -42,6 +43,10 @@ final class RecordingPublisher implements MessagePublisherPort {
 
   void interruptOn(OutboxMessage<String> message, boolean keepsFlag) {
     interrupting.put(message.id(), keepsFlag);
+  }
+
+  void whilePublishing(OutboxMessage<String> message, Runnable sideEffect) {
+    sideEffects.put(message.id(), sideEffect);
   }
 
   void failFor(OutboxMessage<String> message) {
@@ -70,6 +75,7 @@ final class RecordingPublisher implements MessagePublisherPort {
   public void publish(OutboxMessage<String> message) {
     calls.add("publish " + message.id());
     clock.advance(publishTime);
+    sideEffects.getOrDefault(message.id(), () -> {}).run();
     if (failure != null) {
       throw failure;
     }

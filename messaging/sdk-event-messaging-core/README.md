@@ -5,8 +5,8 @@ the shared configuration. It sends nothing on its own; add `sdk-event-messaging-
 transport.
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.0.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:9.0.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.1.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.1.0") // or -kafka
 ```
 
 Depend on `-core` alone only to build events without storing or sending them.
@@ -134,14 +134,28 @@ dispatch lock `task.lock-at-most` must also exceed one dispatch run, `claim.ttl 
 transport timeout (155 s with the defaults); otherwise ShedLock frees the lock mid-run and startup
 fails naming the keys. Raise the lock when you raise `claim.ttl`.
 
+Startup also checks that written messages get dispatched. When an `OutboxWriter` exists but no
+`SendOutboxMessagesPort` does (an application `OutboxWriter` made the JDBC store back off, or no
+transport registered a `MessagePublisherPort`), rows would be committed and never sent: startup
+logs a warning naming what is missing, or fails when `publisher.type` is set. Ignore the warning
+when another service dispatches the table.
+
+`SendOutboxMessagesUseCase#stop()` ends dispatching: a running batch finishes the message being
+sent and releases the rest to `PENDING` unsent, and later runs claim nothing. `-jdbc` calls it when
+the context stops.
+
 ## Metrics
 
 | Meter | Type | Tags | Source |
 |---|---|---|---|
 | `outbox.publish` | Timer, one sample per send | `outcome` (`success`/`failure`), `exception` (simple class name or `none`) | `-core`, when Micrometer and a `MeterRegistry` bean are present |
 | `outbox_failed_messages` | Gauge, `FAILED` rows of this origin | `origin` | `-jdbc`; counts at most once per 30 s, scrapes in between reuse the last count |
+| `outbox_pending_messages` | Gauge, `PENDING` and `IN_FLIGHT` rows of this origin | `origin` | `-jdbc`; read with the age below in one query, cached 30 s |
+| `outbox_oldest_pending_age_seconds` | Gauge, age of the oldest waiting row, 0 when none | `origin` | `-jdbc`, same query |
 
-Alert on `outbox_failed_messages > 0`: those rows block their key.
+Alert on `outbox_failed_messages > 0`: those rows block their key. Alert on
+`outbox_oldest_pending_age_seconds` staying above a few poll intervals (`task.fixed-delay`, 5 s by
+default): dispatch is stuck behind a held lock, a blocked key or a broker that refuses.
 
 ## Configuration
 
