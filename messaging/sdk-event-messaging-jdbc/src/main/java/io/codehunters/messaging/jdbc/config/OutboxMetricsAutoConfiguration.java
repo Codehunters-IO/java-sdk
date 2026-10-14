@@ -2,6 +2,7 @@ package io.codehunters.messaging.jdbc.config;
 
 import io.codehunters.messaging.OutboxDispatchStore;
 import io.codehunters.messaging.OutboxWriter;
+import io.codehunters.messaging.jdbc.metrics.OutboxBacklogGauges;
 import io.codehunters.messaging.jdbc.metrics.OutboxFailedGauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
@@ -15,7 +16,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 
 /**
- * Spring Boot auto-configuration for the {@code outbox_failed_messages} gauge. Active when
+ * Spring Boot auto-configuration for the {@code outbox_failed_messages}, {@code
+ * outbox_pending_messages} and {@code outbox_oldest_pending_age_seconds} gauges. Active when
  * Micrometer is on the classpath and {@code codehunters.outbox.enabled} is {@code true} (the
  * default).
  *
@@ -52,5 +54,24 @@ public class OutboxMetricsAutoConfiguration {
       @Value("${spring.application.name:unknown}") String origin,
       @Qualifier("outboxClock") Clock clock) {
     return new OutboxFailedGauge(outboxDispatchStore, origin, clock);
+  }
+
+  /**
+   * Provides the {@code outbox_pending_messages} and {@code outbox_oldest_pending_age_seconds}
+   * gauges for this origin.
+   *
+   * @param outboxDispatchStore the outbox store
+   * @param origin the originating application name
+   * @param clock the SDK's private {@code outboxClock}, which ages the cached values
+   * @return an {@link OutboxBacklogGauges}
+   */
+  @Bean
+  @ConditionalOnMissingBean(OutboxBacklogGauges.class)
+  @ConditionalOnBean(OutboxDispatchStore.class)
+  public OutboxBacklogGauges outboxBacklogGauges(
+      OutboxDispatchStore outboxDispatchStore,
+      @Value("${spring.application.name:unknown}") String origin,
+      @Qualifier("outboxClock") Clock clock) {
+    return new OutboxBacklogGauges(outboxDispatchStore, origin, clock);
   }
 }

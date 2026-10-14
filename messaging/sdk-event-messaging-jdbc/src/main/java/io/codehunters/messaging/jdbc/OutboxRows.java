@@ -46,7 +46,7 @@ final class OutboxRows {
         .build();
   }
 
-  private static Instant instant(ResultSet rs, String column) throws SQLException {
+  static Instant instant(ResultSet rs, String column) throws SQLException {
     LocalDateTime value = rs.getObject(column, LocalDateTime.class);
     return value == null ? null : value.toInstant(ZoneOffset.UTC);
   }
