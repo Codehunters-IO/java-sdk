@@ -17,6 +17,9 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *     when the service reaches Keycloak through another host than the one in the tokens
  * @param jwkSetUri where the realm's signing keys are fetched; defaults to the realm's certs
  *     endpoint under {@code url}
+ * @param allowInsecureHttp accept a plain {@code http} {@code url} or {@code jwkSetUri}. The
+ *     signing keys and the client secrets then travel in clear, so anyone on the path can forge
+ *     tokens
  * @param audiences accepted {@code aud} values; at least one is required unless {@code
  *     allowAnyAudience} is set
  * @param allowAnyAudience accept tokens issued to any client of the realm
@@ -38,6 +41,7 @@ public record KeycloakSecurityProperties(
     String realm,
     String issuerUri,
     String jwkSetUri,
+    @DefaultValue("false") boolean allowInsecureHttp,
     @DefaultValue List<String> audiences,
     boolean allowAnyAudience,
     @DefaultValue("true") boolean requireAccessTokenType,
@@ -62,6 +66,13 @@ public record KeycloakSecurityProperties(
     issuerUri = hasText(issuerUri) ? issuerUri : realmUrl(url, realm);
     jwkSetUri =
         hasText(jwkSetUri) ? jwkSetUri : realmUrl(url, realm) + "/protocol/openid-connect/certs";
+    require(
+        allowInsecureHttp || (isHttps(url) && isHttps(jwkSetUri)),
+        PREFIX
+            + "url and jwk-set-uri must use https, or the signing keys and client secrets travel in"
+            + " clear; set "
+            + PREFIX
+            + "allow-insecure-http=true to accept that");
     roleClients = List.copyOf(roleClients);
     publicPaths = List.copyOf(publicPaths);
     excludedPaths = List.copyOf(excludedPaths);
@@ -78,6 +89,10 @@ public record KeycloakSecurityProperties(
 
   private static String realmUrl(String url, String realm) {
     return url.replaceAll("/+$", "") + "/realms/" + realm;
+  }
+
+  private static boolean isHttps(String uri) {
+    return uri.regionMatches(true, 0, "https://", 0, "https://".length());
   }
 
   private static boolean hasText(String value) {

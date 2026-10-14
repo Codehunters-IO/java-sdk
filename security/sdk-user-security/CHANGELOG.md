@@ -1,5 +1,21 @@
 # Changelog — sdk-user-security
 
+
+## 6.0.0
+
+See [MIGRATION-6.0.md](MIGRATION-6.0.md).
+
+### Breaking
+- `codehunters.security.url` and an explicit `jwk-set-uri` must use `https`. A plain `http` URL
+  fails startup unless `codehunters.security.allow-insecure-http=true`: the realm's signing keys
+  are fetched from there, and the introspection and authorization client secrets are sent there, so
+  anyone on that network path could forge tokens or collect the secrets.
+- `KeycloakSecurityProperties` gains the `allowInsecureHttp` component, so its canonical
+  constructor changes.
+
+### Added
+- `codehunters.security.allow-insecure-http` (default `false`).
+
 ## 5.0.0
 
 Unreleased 4.1.0 became 5.0.0: removing the aliases below is breaking. See

@@ -3,7 +3,7 @@
 Request authentication for Spring Boot 4 servlet applications behind Keycloak.
 
 ```kotlin
-implementation("io.codehunters:sdk-user-security:5.0.0")
+implementation("io.codehunters:sdk-user-security:6.0.0")
 ```
 
 ## Trust model
@@ -70,10 +70,11 @@ rejects a token without `sub` as an invalid bearer token (401).
 | Key | Default | Notes |
 |---|---|---|
 | `codehunters.security.enabled` | `true` | `false` registers nothing |
-| `codehunters.security.url` | — | **Required.** Keycloak base URL, `http(s)://…` |
+| `codehunters.security.url` | — | **Required.** Keycloak base URL, `https://…` |
 | `codehunters.security.realm` | — | **Required** |
 | `codehunters.security.issuer-uri` | `<url>/realms/<realm>` | Set when the service reaches Keycloak through another host than the one in the tokens' `iss` |
 | `codehunters.security.jwk-set-uri` | `<url>/realms/<realm>/protocol/openid-connect/certs` | |
+| `codehunters.security.allow-insecure-http` | `false` | `true` accepts a plain `http` `url` or `jwk-set-uri`; the signing keys and client secrets then travel in clear. Otherwise startup fails |
 | `codehunters.security.audiences` | — | **Required**: accepted `aud` values, normally this service's client id |
 | `codehunters.security.allow-any-audience` | `false` | `true` accepts tokens issued to any client of the realm; avoid in shared realms |
 | `codehunters.security.require-access-token-type` | `true` | Accept only tokens with `typ` = `Bearer` (Keycloak access tokens); ID and refresh tokens of the realm are rejected |
@@ -157,6 +158,11 @@ Every bean backs off when the application defines its own: `JwtDecoder`,
 replaces both SDK chains; wire `GatewayHeadersFilter` after `BearerTokenAuthenticationFilter`
 yourself if you still want the header checks, passing your `AuthenticationEntryPoint` to its
 constructor so its 401 matches the others.
+
+## Migrating from 5.x
+
+6.0 fails startup when `url` or `jwk-set-uri` is plain `http`, unless
+`codehunters.security.allow-insecure-http: true`. See [MIGRATION-6.0.md](MIGRATION-6.0.md).
 
 ## Migrating from 4.x
 
