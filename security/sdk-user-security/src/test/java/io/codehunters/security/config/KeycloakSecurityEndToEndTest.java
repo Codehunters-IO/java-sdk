@@ -40,6 +40,7 @@ class KeycloakSecurityEndToEndTest {
           .withUserConfiguration(WebApp.class)
           .withPropertyValues(
               "codehunters.security.url=" + keycloak.url(),
+              "codehunters.security.allow-insecure-http=true",
               "codehunters.security.realm=" + FakeKeycloak.REALM,
               "codehunters.security.audiences[0]=" + FakeKeycloak.CLIENT_ID,
               "codehunters.security.public-paths[0]=/public/**",

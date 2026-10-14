@@ -30,9 +30,13 @@ class FileShareAutoConfigurationTest {
   private static final long CONTENT_SIZE =
       (long) FakeFileShareServer.CONTENT_CHUNKS * FakeFileShareServer.CONTENT_CHUNK_SIZE;
 
-  private final ApplicationContextRunner runner =
+  private final ApplicationContextRunner unrestricted =
       new ApplicationContextRunner()
           .withConfiguration(AutoConfigurations.of(FileShareAutoConfiguration.class));
+
+  private final ApplicationContextRunner runner =
+      unrestricted.withPropertyValues(
+          "codehunters.file-share.presigned.allowed-hosts=files.example.com");
 
   private FakeFileShareServer server;
 
@@ -253,12 +257,27 @@ class FileShareAutoConfigurationTest {
   }
 
   @Test
-  void should_warn_when_presigned_hosts_are_not_restricted(CapturedOutput output) {
-    runner
+  void should_fail_startup_when_presigned_hosts_are_not_restricted() {
+    unrestricted
         .withPropertyValues("codehunters.file-share.base-url=" + server.url())
+        .run(
+            context ->
+                assertThat(context)
+                    .getFailure()
+                    .rootCause()
+                    .hasMessageContaining("codehunters.file-share.presigned.allowed-hosts")
+                    .hasMessageContaining("allow-any-host"));
+  }
+
+  @Test
+  void should_warn_when_any_presigned_host_is_allowed_explicitly(CapturedOutput output) {
+    unrestricted
+        .withPropertyValues(
+            "codehunters.file-share.base-url=" + server.url(),
+            "codehunters.file-share.presigned.allow-any-host=true")
         .run(context -> assertThat(context).hasSingleBean(FileShareClient.class));
 
-    assertThat(output).contains("codehunters.file-share.presigned.allowed-hosts");
+    assertThat(output).contains("codehunters.file-share.presigned.allow-any-host");
   }
 
   @Test
@@ -269,7 +288,7 @@ class FileShareAutoConfigurationTest {
             "codehunters.file-share.presigned.allowed-hosts=files.example.com")
         .run(context -> assertThat(context).hasSingleBean(FileShareClient.class));
 
-    assertThat(output).doesNotContain("codehunters.file-share.presigned.allowed-hosts");
+    assertThat(output).doesNotContain("codehunters.file-share.presigned.allow");
   }
 
   @Test
@@ -291,7 +310,7 @@ class FileShareAutoConfigurationTest {
               assertThat(properties.maxDownloadSize().toMegabytes()).isEqualTo(50);
               assertThat(properties.maxUploadSize().toGigabytes()).isEqualTo(5);
               assertThat(properties.uploadIdleTimeout()).isEqualTo(Duration.ofSeconds(30));
-              assertThat(properties.presigned().allowedHosts()).isEmpty();
+              assertThat(properties.presigned().allowAnyHost()).isFalse();
               assertThat(properties.auth().clientRegistrationId()).isNull();
               assertThat(properties.auth().principal()).isEqualTo("codehunters-file-share");
             });

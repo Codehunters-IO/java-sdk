@@ -22,6 +22,14 @@ class PresignedUrlPolicyTest {
         .isEqualTo(URI.create("https://anything.example/key?sig=1"));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"https://10.0.3.7:8443/admin", "https://anything.example:80/key"})
+  void should_reject_non_default_port_when_any_host_is_allowed(String url) {
+    assertThatThrownBy(() -> anyHost.requireAllowed(url))
+        .isInstanceOf(FileShareException.class)
+        .hasMessageContaining("port");
+  }
+
   @Test
   void should_accept_exact_host_ignoring_case() {
     assertThat(restricted.requireAllowed("https://FILES.example.com/key")).isNotNull();

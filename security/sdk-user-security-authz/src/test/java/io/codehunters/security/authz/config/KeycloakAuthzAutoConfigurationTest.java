@@ -7,12 +7,15 @@ import io.codehunters.security.authz.servlet.KeycloakPolicyEnforcerFilter;
 import io.codehunters.security.config.KeycloakSecurityAutoConfiguration;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
 import org.junit.jupiter.api.Test;
 import org.keycloak.representations.adapters.config.PolicyEnforcerConfig;
 import org.springframework.beans.factory.support.AbstractBeanDefinition;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.ResolvableType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -29,6 +32,7 @@ class KeycloakAuthzAutoConfigurationTest {
                   KeycloakSecurityAutoConfiguration.class, KeycloakAuthzAutoConfiguration.class))
           .withPropertyValues(
               "codehunters.security.url=http://127.0.0.1:1",
+              "codehunters.security.allow-insecure-http=true",
               "codehunters.security.realm=test",
               "codehunters.security.audiences[0]=svc",
               "codehunters.security.introspection.enabled=false");
@@ -219,6 +223,28 @@ class KeycloakAuthzAutoConfigurationTest {
   }
 
   @Test
+  void should_use_application_keycloak_http_client_when_one_is_defined() {
+    CloseableHttpClient custom = HttpClients.createMinimal();
+    enabled
+        .withBean(HTTP_CLIENT, CloseableHttpClient.class, () -> custom)
+        .run(
+            context -> {
+              assertThat(context).hasNotFailed();
+              assertThat(context.getBean(HTTP_CLIENT)).isSameAs(custom);
+            });
+  }
+
+  @Test
+  void should_keep_application_customizer_when_one_is_defined() {
+    enabled
+        .withUserConfiguration(CustomCustomizer.class)
+        .run(
+            context ->
+                assertThat(context.getBean("keycloakPolicyEnforcerCustomizer"))
+                    .isSameAs(CustomCustomizer.CUSTOMIZER));
+  }
+
+  @Test
   void should_keep_application_enforcer_when_one_is_defined() {
     var custom = new KeycloakPolicyEnforcerFilter(new PolicyEnforcerConfig(), null);
     enabled
@@ -226,5 +252,16 @@ class KeycloakAuthzAutoConfigurationTest {
         .run(
             context ->
                 assertThat(context.getBean(KeycloakPolicyEnforcerFilter.class)).isSameAs(custom));
+  }
+
+  @Configuration(proxyBeanMethods = false)
+  static class CustomCustomizer {
+
+    static final Customizer<HttpSecurity> CUSTOMIZER = http -> {};
+
+    @Bean
+    Customizer<HttpSecurity> keycloakPolicyEnforcerCustomizer() {
+      return CUSTOMIZER;
+    }
   }
 }

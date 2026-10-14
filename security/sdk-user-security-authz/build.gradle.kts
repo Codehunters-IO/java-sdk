@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "5.0.0"
+version = "6.0.0"
 description = "Keycloak Authorization Services policy enforcement point for sdk-user-security."
 
 codehuntersPackages {

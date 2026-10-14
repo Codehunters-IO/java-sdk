@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "4.0.0"
+version = "5.0.0"
 description = "HTTP client for the file-share service: presigned upload and download tickets."
 
 codehuntersPackages {

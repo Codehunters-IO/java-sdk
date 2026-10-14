@@ -140,11 +140,22 @@ public class FileShareAutoConfiguration {
       RestFileShareClients clients, FileShareProperties properties) {
     var policy = new PresignedUrlPolicy(properties.presigned().allowedHosts());
     if (policy.allowsAnyHost()) {
-      LOG.warn(
-          "codehunters.file-share.presigned.allowed-hosts is empty:"
-              + " presigned URLs from the service may point at any https host");
+      requireAnyHostAllowed(properties.presigned());
     }
     return clients.client(policy, properties.transferLimits());
+  }
+
+  // Uploads go to whatever presigned URL the service returns, so an unrestricted list sends the
+  // caller's files to any https host the response names: an explicit opt-in, never the default.
+  private static void requireAnyHostAllowed(FileShareProperties.Presigned presigned) {
+    if (!presigned.allowAnyHost()) {
+      throw new IllegalStateException(
+          "codehunters.file-share.presigned.allowed-hosts must name the storage hosts;"
+              + " set codehunters.file-share.presigned.allow-any-host=true to accept any https host");
+    }
+    LOG.warn(
+        "codehunters.file-share.presigned.allow-any-host is set:"
+            + " presigned URLs from the service may point at any https host");
   }
 
   private static RestClient restClient(

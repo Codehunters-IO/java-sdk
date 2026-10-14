@@ -1,5 +1,24 @@
 # Changelog — sdk-file-share
 
+
+## 5.0.0
+
+See [MIGRATION-5.0.md](MIGRATION-5.0.md).
+
+### Breaking
+- An empty `codehunters.file-share.presigned.allowed-hosts` fails startup unless
+  `codehunters.file-share.presigned.allow-any-host=true`. `upload` sends the caller's file to the
+  presigned URL the service returns, so an unrestricted list let a compromised or spoofed response
+  direct uploads to any https host, internal ones included.
+- Presigned URLs must use port 443 even when any host is allowed; before, the port was only checked
+  against a non-empty host list.
+- `FileShareProperties.Presigned` gains the `allowAnyHost` component, so its canonical constructor
+  changes.
+
+### Added
+- `codehunters.file-share.presigned.allow-any-host` (default `false`); setting it logs a warning at
+  startup.
+
 ## 4.0.0
 
 ### Breaking

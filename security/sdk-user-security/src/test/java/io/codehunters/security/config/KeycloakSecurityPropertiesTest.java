@@ -26,6 +26,7 @@ class KeycloakSecurityPropertiesTest {
 
     assertThat(properties.enabled()).isTrue();
     assertThat(properties.allowAnyAudience()).isFalse();
+    assertThat(properties.allowInsecureHttp()).isFalse();
     assertThat(properties.introspection().enabled()).isFalse();
     assertThat(properties.introspection().failOpen()).isFalse();
     assertThat(properties.introspection().cacheTtl()).isEqualTo(Duration.ofSeconds(30));
@@ -61,6 +62,32 @@ class KeycloakSecurityPropertiesTest {
     assertThatThrownBy(() -> bind(with("codehunters.security.url", "kc.example.com")))
         .rootCause()
         .hasMessageContaining("codehunters.security.url");
+  }
+
+  @Test
+  void should_fail_when_url_is_plain_http_without_opt_in() {
+    assertThatThrownBy(() -> bind(with("codehunters.security.url", "http://keycloak:8080")))
+        .rootCause()
+        .hasMessageContaining("must use https")
+        .hasMessageContaining("codehunters.security.allow-insecure-http");
+  }
+
+  @Test
+  void should_fail_when_jwk_set_uri_is_plain_http_without_opt_in() {
+    Map<String, String> source =
+        with(
+            "codehunters.security.jwk-set-uri",
+            "http://keycloak:8080/realms/acme/protocol/openid-connect/certs");
+
+    assertThatThrownBy(() -> bind(source))
+        .rootCause()
+        .hasMessageContaining("codehunters.security.allow-insecure-http");
+  }
+
+  @Test
+  void should_accept_https_url_regardless_of_scheme_case() {
+    assertThat(bind(with("codehunters.security.url", "HTTPS://kc.example.com")).url())
+        .isEqualTo("HTTPS://kc.example.com");
   }
 
   @Test
@@ -114,6 +141,7 @@ class KeycloakSecurityPropertiesTest {
   @Test
   void should_use_explicit_issuer_and_jwk_set_uri_when_keycloak_is_reached_internally() {
     Map<String, String> source = with("codehunters.security.url", "http://keycloak:8080");
+    source.put("codehunters.security.allow-insecure-http", "true");
     source.put("codehunters.security.issuer-uri", "https://login.example.com/realms/acme");
     source.put(
         "codehunters.security.jwk-set-uri",

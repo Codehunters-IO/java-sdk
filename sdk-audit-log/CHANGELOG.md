@@ -1,5 +1,12 @@
 # Changelog — sdk-audit-log
 
+
+## 5.2.0
+
+### Added
+- The `auditAspect` bean backs off when the application defines its own `AuditAspect`; before, a
+  subclass registered by the application ran next to the SDK's and every call was audited twice.
+
 ## 5.1.0
 
 ### Added

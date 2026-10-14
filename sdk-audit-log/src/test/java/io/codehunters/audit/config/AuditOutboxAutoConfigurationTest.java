@@ -167,6 +167,16 @@ class AuditOutboxAutoConfigurationTest {
   }
 
   @Test
+  void should_keep_application_audit_aspect_when_one_is_defined() {
+    AuditAspect custom = new AuditAspect(event -> {});
+    withMessaging
+        .withPropertyValues(SINK_OUTBOX, TOPIC)
+        .withBean("customAuditAspect", AuditAspect.class, () -> custom)
+        .run(
+            ctx -> assertThat(ctx).hasSingleBean(AuditAspect.class).doesNotHaveBean("auditAspect"));
+  }
+
+  @Test
   void should_not_register_outbox_publisher_when_audit_is_disabled() {
     withMessaging
         .withPropertyValues(SINK_OUTBOX, TOPIC, "codehunters.audit.enabled=false")
