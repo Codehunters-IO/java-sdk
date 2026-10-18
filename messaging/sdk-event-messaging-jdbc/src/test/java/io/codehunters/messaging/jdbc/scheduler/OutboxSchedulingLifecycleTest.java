@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -149,6 +150,63 @@ class OutboxSchedulingLifecycleTest {
     lifecycle.stop();
 
     assertThat(stops).containsExactly("trigger", "dispatch");
+  }
+
+  @Test
+  void should_reschedule_tasks_when_started_again_after_stop() {
+    OutboxSchedulingLifecycle lifecycle = lifecycle(RecordingLockProvider.granting());
+    lifecycle.start();
+    lifecycle.stop();
+
+    lifecycle.start();
+
+    verify(scheduler, times(2))
+        .scheduleWithFixedDelay(any(Runnable.class), any(Instant.class), eq(FIXED_DELAY));
+    assertThat(lifecycle.isRunning()).isTrue();
+  }
+
+  @Test
+  void should_run_every_start_hook_in_order_before_scheduling_when_started() {
+    List<String> calls = new ArrayList<>();
+    when(scheduler.scheduleWithFixedDelay(any(Runnable.class), any(Instant.class), any()))
+        .thenAnswer(
+            invocation -> {
+              calls.add("schedule");
+              return future;
+            });
+    OutboxSchedulingLifecycle lifecycle =
+        lifecycle(RecordingLockProvider.granting())
+            .onStart(() -> calls.add("trigger"))
+            .onStart(() -> calls.add("dispatch"));
+
+    lifecycle.start();
+
+    assertThat(calls).containsExactly("trigger", "dispatch", "schedule");
+  }
+
+  @Test
+  void should_keep_stop_hooks_when_start_hook_is_added() {
+    List<String> calls = new ArrayList<>();
+    OutboxSchedulingLifecycle lifecycle =
+        lifecycle(RecordingLockProvider.granting())
+            .onStop(() -> calls.add("stop"))
+            .onStart(() -> calls.add("start"));
+    lifecycle.start();
+
+    lifecycle.stop();
+
+    assertThat(calls).containsExactly("start", "stop");
+  }
+
+  @Test
+  void should_keep_original_without_hook_when_start_hook_is_added() {
+    AtomicInteger starts = new AtomicInteger();
+    OutboxSchedulingLifecycle original = lifecycle(RecordingLockProvider.granting());
+    original.onStart(starts::incrementAndGet);
+
+    original.start();
+
+    assertThat(starts).hasValue(0);
   }
 
   @Test

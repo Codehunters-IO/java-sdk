@@ -5,8 +5,8 @@ and the ShedLock-protected dispatch poll and purge, run on a private scheduler. 
 semantics are described in [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.1.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:9.1.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.2.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.2.0") // or -kafka
 ```
 
 Brings `-core` and ShedLock (`shedlock-spring`, `shedlock-provider-jdbc-template`). The application
@@ -55,6 +55,8 @@ with a backoff), the new row waits for a later run, which may be the next poll.
 stops the `CoalescingDispatchTrigger` (later requests are dropped) and stops the SDK's
 `SendOutboxMessagesUseCase`: a running batch finishes the message being sent and releases the rest
 to `PENDING` unsent, so the run ends and frees its dispatch lock within about one transport timeout.
+When the context starts again, the lifecycle resumes the trigger and the use case before it
+reschedules the tasks, so a stopped and restarted context dispatches as before.
 `outboxTaskScheduler` waits for running tasks up to half of `claim.ttl` plus one transport timeout
 (`EventMessagingProperties#maxDispatchRun()`, 155 s with the defaults), a bound now reached only by
 a send that hangs. A publish interrupted past that point is not charged as an attempt: the row and

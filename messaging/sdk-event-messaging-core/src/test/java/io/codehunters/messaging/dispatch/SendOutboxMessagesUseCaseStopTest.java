@@ -13,7 +13,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** A stopped use case ends its batch after the current send and claims nothing afterwards. */
+/** A stopped use case ends its batch after the current send and claims nothing until resumed. */
 class SendOutboxMessagesUseCaseStopTest {
 
   private static final Instant NOW = Instant.parse("2026-10-14T10:00:00Z");
@@ -64,6 +64,18 @@ class SendOutboxMessagesUseCaseStopTest {
     assertThat(more).isFalse();
     assertThat(store.claimRequests()).isEmpty();
     assertThat(publisher.published()).isEmpty();
+  }
+
+  @Test
+  void should_claim_and_publish_again_when_resumed_after_stop() {
+    OutboxMessage<String> a1 = claimed("A");
+    store.willClaim(List.of(a1));
+    useCase.stop();
+    useCase.resume();
+
+    useCase.execute();
+
+    assertThat(publisher.publishedIds()).containsExactly(a1.id());
   }
 
   private static OutboxMessage<String> claimed(String key) {

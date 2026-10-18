@@ -5,8 +5,8 @@ dispatch semantics are described in
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.1.0")
-implementation("io.codehunters:sdk-event-messaging-kafka:9.1.0")
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.2.0")
+implementation("io.codehunters:sdk-event-messaging-kafka:9.2.0")
 implementation("org.springframework.boot:spring-boot-starter-kafka")
 ```
 
