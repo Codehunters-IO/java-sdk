@@ -1,5 +1,17 @@
 # Changelog — sdk-event-messaging-jdbc
 
+## 9.2.0
+
+### Added
+- `OutboxSchedulingLifecycle#onStart(Runnable)`: hooks run on every start, in the order added,
+  before the tasks are scheduled.
+
+### Fixed
+- A context stopped and started again never dispatched: 9.1.0 stopped the dispatch use case and
+  the commit-time trigger on stop but never resumed them. `outboxSchedulingLifecycle` now resumes
+  both on start, so after a restart the poll, the commit-time trigger and the dispatch run as
+  before.
+
 ## 9.1.0
 
 ### Added

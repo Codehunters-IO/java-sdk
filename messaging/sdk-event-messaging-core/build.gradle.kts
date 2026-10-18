@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "9.1.0"
+version = "9.2.0"
 description = "Transactional outbox domain, ports, dispatch use case and core auto-configuration."
 
 codehuntersPackages {
