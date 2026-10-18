@@ -120,6 +120,34 @@ class CoalescingDispatchTriggerTest {
   }
 
   @Test
+  void should_drain_again_when_requested_after_stop_and_resume() {
+    trigger.stop();
+    trigger.resume();
+
+    trigger.requestDispatch();
+    executor.runAll();
+
+    assertThat(dispatch.runs()).isEqualTo(1);
+  }
+
+  @Test
+  void should_drain_again_when_resumed_after_stop_during_run() {
+    dispatch.duringFirstRun(
+        () -> {
+          trigger.requestDispatch();
+          trigger.stop();
+        });
+    trigger.requestDispatch();
+    executor.runAll();
+    trigger.resume();
+
+    trigger.requestDispatch();
+    executor.runAll();
+
+    assertThat(dispatch.runs()).isEqualTo(2);
+  }
+
+  @Test
   void should_stop_draining_and_keep_interrupt_when_drain_thread_is_interrupted() {
     dispatch.returns(true, true, false);
     dispatch.duringFirstRun(() -> Thread.currentThread().interrupt());
