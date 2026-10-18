@@ -22,9 +22,10 @@ import org.slf4j.LoggerFactory;
  * failed run is logged by exception class only, since messages may carry payload data; a rejected
  * submission, for example during shutdown, leaves the trigger idle for the next request.
  *
- * <p>{@link #stop()} ends the trigger for good: later requests are dropped, and a drain in progress
- * finishes its current run but starts no further one. A drain whose thread is interrupted, as an
- * executor shutting down does, also stops after its current run and keeps the interrupt flag.
+ * <p>{@link #stop()} ends the trigger until {@link #resume()}: later requests are dropped, and a
+ * drain in progress finishes its current run but starts no further one. A drain whose thread is
+ * interrupted, as an executor shutting down does, also stops after its current run and keeps the
+ * interrupt flag.
  */
 public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
 
@@ -64,6 +65,15 @@ public final class CoalescingDispatchTrigger implements OutboxDispatchTrigger {
   /** Stops the trigger: drops later requests and lets a running drain end after its current run. */
   public void stop() {
     stopped = true;
+  }
+
+  /**
+   * Undoes {@link #stop()}, for a context that is started again after a stop: later requests submit
+   * drains as before. A request that races with a drain still ending its stop may be dropped; the
+   * scheduled poll picks its rows up.
+   */
+  public void resume() {
+    stopped = false;
   }
 
   private void submit() {

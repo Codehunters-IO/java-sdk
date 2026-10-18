@@ -18,7 +18,9 @@ import org.springframework.scheduling.TaskScheduler;
  * starts and cancels them when it stops. Each run is wrapped in its ShedLock lock, so only one
  * instance runs a task at a time. No application-wide scheduling ({@code @EnableScheduling}) is
  * turned on, and the application's own scheduler is never used. A stop hook, such as stopping the
- * commit-time dispatch trigger, runs when the lifecycle stops, before the scheduler shuts down.
+ * commit-time dispatch trigger, runs when the lifecycle stops, before the scheduler shuts down. A
+ * start hook, such as resuming that trigger, runs on every start before the tasks are scheduled, so
+ * a context that is stopped and started again dispatches as before.
  */
 public final class OutboxSchedulingLifecycle implements SmartLifecycle {
 
@@ -27,6 +29,7 @@ public final class OutboxSchedulingLifecycle implements SmartLifecycle {
   private final TaskScheduler scheduler;
   private final LockingTaskExecutor executor;
   private final List<OutboxScheduledTask> tasks;
+  private final Runnable startHook;
   private final Runnable stopHook;
   private volatile List<ScheduledFuture<?>> scheduled = List.of();
 
@@ -39,18 +42,37 @@ public final class OutboxSchedulingLifecycle implements SmartLifecycle {
    */
   public OutboxSchedulingLifecycle(
       TaskScheduler scheduler, LockProvider lockProvider, List<OutboxScheduledTask> tasks) {
-    this(scheduler, new DefaultLockingTaskExecutor(lockProvider), List.copyOf(tasks), () -> {});
+    this(
+        scheduler,
+        new DefaultLockingTaskExecutor(lockProvider),
+        List.copyOf(tasks),
+        () -> {},
+        () -> {});
   }
 
   private OutboxSchedulingLifecycle(
       TaskScheduler scheduler,
       LockingTaskExecutor executor,
       List<OutboxScheduledTask> tasks,
+      Runnable startHook,
       Runnable stopHook) {
     this.scheduler = scheduler;
     this.executor = executor;
     this.tasks = tasks;
+    this.startHook = startHook;
     this.stopHook = stopHook;
+  }
+
+  /**
+   * Returns a copy of this lifecycle that also runs {@code hook} when it starts, after the hooks
+   * added before; this one is left unchanged.
+   *
+   * @param hook what to run on start, before the tasks are scheduled
+   * @return the new lifecycle
+   */
+  public OutboxSchedulingLifecycle onStart(Runnable hook) {
+    return new OutboxSchedulingLifecycle(
+        scheduler, executor, tasks, chain(startHook, hook), stopHook);
   }
 
   /**
@@ -61,20 +83,14 @@ public final class OutboxSchedulingLifecycle implements SmartLifecycle {
    * @return the new lifecycle
    */
   public OutboxSchedulingLifecycle onStop(Runnable hook) {
-    Runnable previous = stopHook;
     return new OutboxSchedulingLifecycle(
-        scheduler,
-        executor,
-        tasks,
-        () -> {
-          previous.run();
-          hook.run();
-        });
+        scheduler, executor, tasks, startHook, chain(stopHook, hook));
   }
 
-  /** Schedules every task with its initial and fixed delay. */
+  /** Runs the start hook, then schedules every task with its initial and fixed delay. */
   @Override
   public void start() {
+    startHook.run();
     Instant now = scheduler.getClock().instant();
     scheduled = tasks.stream().<ScheduledFuture<?>>map(task -> schedule(task, now)).toList();
   }
@@ -111,6 +127,13 @@ public final class OutboxSchedulingLifecycle implements SmartLifecycle {
     } catch (RuntimeException e) {
       log.error("[ERROR] - outbox task {} failed: {}", task.lock().name(), e.getClass().getName());
     }
+  }
+
+  private static Runnable chain(Runnable first, Runnable then) {
+    return () -> {
+      first.run();
+      then.run();
+    };
   }
 
   private static LockConfiguration lockConfiguration(OutboxTaskLock lock) {

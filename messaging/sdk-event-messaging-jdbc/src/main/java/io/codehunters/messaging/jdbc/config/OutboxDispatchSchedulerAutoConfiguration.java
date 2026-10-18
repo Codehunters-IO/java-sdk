@@ -213,7 +213,8 @@ public class OutboxDispatchSchedulerAutoConfiguration {
    * {@link CoalescingDispatchTrigger}, so no new commit-time drain starts, and the dispatch port,
    * when it is the SDK's {@link SendOutboxMessagesUseCase}, so a running batch releases its unsent
    * rows after the current send instead of finishing the whole batch. The run then ends and its
-   * dispatch lock is released before the scheduler shuts down.
+   * dispatch lock is released before the scheduler shuts down. When the context starts again, as a
+   * cached test context does after a pause, both are resumed before the tasks are rescheduled.
    *
    * @param scheduler the SDK's {@code outboxTaskScheduler}
    * @param lockProvider the ShedLock provider
@@ -233,10 +234,10 @@ public class OutboxDispatchSchedulerAutoConfiguration {
     var lifecycle =
         new OutboxSchedulingLifecycle(scheduler, lockProvider, tasks.orderedStream().toList());
     if (dispatchTrigger.getIfAvailable() instanceof CoalescingDispatchTrigger coalescing) {
-      lifecycle = lifecycle.onStop(coalescing::stop);
+      lifecycle = lifecycle.onStop(coalescing::stop).onStart(coalescing::resume);
     }
     if (sendOutboxMessagesPort.getIfAvailable() instanceof SendOutboxMessagesUseCase useCase) {
-      lifecycle = lifecycle.onStop(useCase::stop);
+      lifecycle = lifecycle.onStop(useCase::stop).onStart(useCase::resume);
     }
     return lifecycle;
   }
