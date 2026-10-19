@@ -31,9 +31,10 @@ import org.slf4j.LoggerFactory;
  * over) is neither published nor updated. A mark that fails, for example on a transient database
  * error, skips only that message.
  *
- * <p>{@link #stop()} ends dispatching for good: the message being published finishes, the rest of
- * the batch is released back to {@code PENDING} unsent, and later runs claim nothing. A shutdown
- * then waits for at most one send instead of a whole batch, and leaves no claims to expire.
+ * <p>{@link #stop()} ends dispatching until {@link #resume()}: the message being published
+ * finishes, the rest of the batch is released back to {@code PENDING} unsent, and later runs claim
+ * nothing. A shutdown then waits for at most one send instead of a whole batch, and leaves no
+ * claims to expire. A context that is stopped and started again resumes the use case.
  *
  * <p>A publish ended by an interrupt, as when the dispatch executor shuts down, is not charged as a
  * failed attempt: the row is released back to {@code PENDING} unchanged, the thread's interrupt
@@ -159,12 +160,20 @@ public class SendOutboxMessagesUseCase implements SendOutboxMessagesPort {
   }
 
   /**
-   * Stops dispatching, typically when the application shuts down. A run in progress finishes the
-   * message it is publishing and releases the rest of its batch; later runs claim nothing. Cannot
-   * be undone.
+   * Stops dispatching, typically when the application context stops. A run in progress finishes the
+   * message it is publishing and releases the rest of its batch; later runs claim nothing until
+   * {@link #resume()}.
    */
   public void stop() {
     stopped = true;
+  }
+
+  /**
+   * Undoes {@link #stop()}, for a context that is started again after a stop: later runs claim and
+   * publish as before. Has no effect on a use case that is not stopped.
+   */
+  public void resume() {
+    stopped = false;
   }
 
   private boolean isBudgetExhausted(Instant claimStart) {

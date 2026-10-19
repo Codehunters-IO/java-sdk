@@ -163,6 +163,26 @@ class EventMessagingJdbcAutoConfigurationTest {
   }
 
   @Test
+  void should_resume_dispatch_trigger_and_use_case_when_context_restarts() {
+    contextRunner
+        .withBean(DataSource.class, this::createDataSource)
+        .withBean(MessagePublisherPort.class, () -> mock(MessagePublisherPort.class))
+        .run(
+            context -> {
+              Object trigger = context.getBean(DISPATCH_TRIGGER);
+              Object useCase = context.getBean(SendOutboxMessagesPort.class);
+              ConfigurableApplicationContext source =
+                  context.getSourceApplicationContext(ConfigurableApplicationContext.class);
+              source.stop();
+
+              source.start();
+
+              assertThat(ReflectionTestUtils.getField(trigger, "stopped")).isEqualTo(false);
+              assertThat(ReflectionTestUtils.getField(useCase, "stopped")).isEqualTo(false);
+            });
+  }
+
+  @Test
   void should_wait_for_running_dispatch_up_to_its_bound_when_scheduler_shuts_down() {
     contextRunner
         .withBean(DataSource.class, this::createDataSource)

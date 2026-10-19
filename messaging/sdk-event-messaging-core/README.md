@@ -5,8 +5,8 @@ the shared configuration. It sends nothing on its own; add `sdk-event-messaging-
 transport.
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.1.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:9.1.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.2.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.2.0") // or -kafka
 ```
 
 Depend on `-core` alone only to build events without storing or sending them.
@@ -141,8 +141,8 @@ logs a warning naming what is missing, or fails when `publisher.type` is set. Ig
 when another service dispatches the table.
 
 `SendOutboxMessagesUseCase#stop()` ends dispatching: a running batch finishes the message being
-sent and releases the rest to `PENDING` unsent, and later runs claim nothing. `-jdbc` calls it when
-the context stops.
+sent and releases the rest to `PENDING` unsent, and later runs claim nothing until `resume()`. `-jdbc`
+calls `stop()` when the context stops and `resume()` when it starts again.
 
 ## Metrics
 

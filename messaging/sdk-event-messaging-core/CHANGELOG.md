@@ -1,5 +1,16 @@
 # Changelog — sdk-event-messaging-core
 
+## 9.2.0
+
+### Added
+- `SendOutboxMessagesUseCase#resume()` and `CoalescingDispatchTrigger#resume()` undo `stop()`.
+
+### Fixed
+- `stop()` disabled the use case and the trigger for the rest of the context's life, so a context
+  that was stopped and started again (Spring's test context cache pauses inactive contexts and
+  resumes them; an application may call `stop()` then `start()`) never dispatched again. `-jdbc`
+  now resumes both when the context starts.
+
 ## 9.1.0
 
 ### Added
