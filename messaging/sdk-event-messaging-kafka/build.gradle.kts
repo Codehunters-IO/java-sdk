@@ -2,7 +2,7 @@ plugins {
     id("codehunters.java-library")
 }
 
-version = "9.2.0"
+version = "9.3.0"
 description = "Kafka publisher for the transactional outbox."
 
 codehuntersPackages {
