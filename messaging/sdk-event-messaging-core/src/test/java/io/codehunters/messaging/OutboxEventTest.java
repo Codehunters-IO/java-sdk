@@ -25,6 +25,7 @@ class OutboxEventTest {
     assertThat(PLACED.locale()).isNull();
     assertThat(PLACED.traceId()).isNull();
     assertThat(PLACED.schemaVersion()).isEqualTo("1.0.0");
+    assertThat(PLACED.idempotencyKey()).isNull();
   }
 
   @Test
@@ -71,5 +72,42 @@ class OutboxEventTest {
     assertThatThrownBy(() -> OutboxEvent.to("orders").key("k").type("T").payload(null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("payload");
+  }
+
+  @Test
+  void should_keep_idempotency_key_when_other_copy_methods_are_applied() {
+    OutboxEvent<String> keyed =
+        PLACED
+            .idempotencyKey("k-1")
+            .routingKey("orders.placed")
+            .eventType(EventTypes.COMMAND)
+            .traceId("trace-1")
+            .schemaVersion("2.0.0")
+            .locale("es");
+
+    assertThat(keyed.idempotencyKey()).isEqualTo("k-1");
+    assertThat(keyed.locale()).isEqualTo("es");
+    assertThat(PLACED.idempotencyKey()).isNull();
+  }
+
+  @Test
+  void should_leave_idempotency_key_null_when_built_with_the_9_2_signature() {
+    OutboxEvent<String> event =
+        new OutboxEvent<>("orders", "order-1", "OrderPlaced", "{}", null, null, null, null, null);
+
+    assertThat(event.idempotencyKey()).isNull();
+    assertThat(event.schemaVersion()).isEqualTo("1.0.0");
+  }
+
+  @Test
+  void should_accept_null_idempotency_key_when_cleared() {
+    assertThat(PLACED.idempotencyKey("k-1").idempotencyKey(null).idempotencyKey()).isNull();
+  }
+
+  @Test
+  void should_reject_blank_idempotency_key_without_echoing_it_when_set() {
+    assertThatThrownBy(() -> PLACED.idempotencyKey("  "))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessage("idempotencyKey must not be blank");
   }
 }
