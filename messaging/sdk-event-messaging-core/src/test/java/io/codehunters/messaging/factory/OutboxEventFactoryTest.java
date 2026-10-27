@@ -53,4 +53,23 @@ class OutboxEventFactoryTest {
   void should_assign_distinct_ids_when_created_twice() {
     assertThat(factory.create(CREATED).id()).isNotEqualTo(factory.create(CREATED).id());
   }
+
+  @Test
+  void should_stamp_row_id_as_envelope_event_id_when_created() {
+    OutboxMessage<EventMessage<String>> outbox = factory.create(CREATED);
+
+    assertThat(outbox.message().header().eventId()).isEqualTo(outbox.id().toString());
+  }
+
+  @Test
+  void should_carry_idempotency_key_into_envelope_header_when_event_has_one() {
+    OutboxMessage<EventMessage<String>> outbox = factory.create(CREATED.idempotencyKey("k-1"));
+
+    assertThat(outbox.message().header().idempotencyKey()).isEqualTo("k-1");
+  }
+
+  @Test
+  void should_leave_envelope_idempotency_key_null_when_event_has_none() {
+    assertThat(factory.create(CREATED).message().header().idempotencyKey()).isNull();
+  }
 }
