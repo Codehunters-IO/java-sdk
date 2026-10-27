@@ -5,7 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import io.codehunters.messaging.EventMessage;
+import io.codehunters.messaging.OutboxEvent;
+import io.codehunters.messaging.OutboxMessage;
+import io.codehunters.messaging.factory.EventMessageFactory;
+import io.codehunters.messaging.factory.OutboxEventFactory;
+import io.codehunters.messaging.factory.TraceIdSource;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
@@ -137,6 +144,37 @@ class OutboxJsonMapperTest {
                 assertThat(envelopeJson(context))
                     .contains("\"locale\":null")
                     .contains("\"aggregate\":null"));
+  }
+
+  @Test
+  void should_write_null_event_id_and_idempotency_key_when_envelope_has_the_9_2_shape() {
+    withBootJackson
+        .withBean(JsonMapperBuilderCustomizer.class, OutboxJsonMapperTest::snakeCaseNonNull)
+        .run(
+            context ->
+                assertThat(envelopeJson(context))
+                    .contains("\"eventId\":null")
+                    .contains("\"idempotencyKey\":null"));
+  }
+
+  @Test
+  void should_write_row_id_as_event_id_when_envelope_is_built_by_the_outbox_factory() {
+    OutboxEventFactory factory =
+        new OutboxEventFactory(
+            new EventMessageFactory(
+                "orders-ms", TraceIdSource.none(), Clock.fixed(AT, ZoneOffset.UTC)));
+    OutboxMessage<EventMessage<Sample>> outbox =
+        factory.create(OutboxEvent.to("orders").key("order-7").type("OrderPlaced").payload(SAMPLE));
+
+    withBootJackson
+        .withBean(JsonMapperBuilderCustomizer.class, OutboxJsonMapperTest::snakeCaseNonNull)
+        .run(
+            context ->
+                assertThat(
+                        context
+                            .getBean(OUTBOX_JSON_MAPPER, JsonMapper.class)
+                            .writeValueAsString(outbox.message()))
+                    .contains("\"eventId\":\"" + outbox.id() + "\""));
   }
 
   @Test
