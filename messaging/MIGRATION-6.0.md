@@ -137,3 +137,9 @@ Delivery is at-least-once. A stale claim, a confirm timeout or a crash after the
 the message all lead to a second send. Both transports tag every outbox record with the
 `outbox-message-id` header (the outbox row id); RabbitMQ also sets it as the AMQP `messageId`.
 Consumers should record processed ids and skip repeats.
+
+Since 9.3 the envelope also carries the id as `header.eventId`, and `sdk-event-messaging-kafka`
+provides the consumer side: `EnvelopeReader` (dedupe on `ReceivedEnvelope#eventId()`, which falls
+back to `outbox-message-id`), non-blocking retry topics and sanitized dead letters. See the
+[Kafka README](sdk-event-messaging-kafka/README.md#consuming-envelopes) and
+[Upgrading to 9.3](MIGRATION-9.0.md#upgrading-to-93).

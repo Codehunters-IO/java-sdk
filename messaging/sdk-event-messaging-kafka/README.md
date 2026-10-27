@@ -1,12 +1,14 @@
 # sdk-event-messaging-kafka
 
-Kafka publisher for the transactional outbox, through a dedicated idempotent producer. Model and
-dispatch semantics are described in
+Kafka publisher for the transactional outbox, through a dedicated idempotent producer, and the
+consumer side of the envelope: a reader, non-blocking retry topics and dead letters without
+exception messages ([Consuming envelopes](#consuming-envelopes)). Model and dispatch semantics are
+described in
 [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.2.0")
-implementation("io.codehunters:sdk-event-messaging-kafka:9.2.0")
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.3.0")
+implementation("io.codehunters:sdk-event-messaging-kafka:9.3.0")
 implementation("org.springframework.boot:spring-boot-starter-kafka")
 ```
 
@@ -52,7 +54,126 @@ the idempotent producer only removes duplicates caused by its own retries within
 | Broker error or unreachable, or no metadata or acknowledgement within `send-timeout` | `MessagePublishException`; retried with backoff, `FAILED` after `max-attempts` |
 | Acknowledgement lost after the broker wrote the record | Sent again on retry: delivery is at-least-once |
 
-Consumers must deduplicate on the `outbox-message-id` header.
+Consumers must deduplicate on the envelope's `header.eventId` (the outbox row id since 9.3), or the
+`outbox-message-id` header for envelopes written before 9.3; `ReceivedEnvelope#eventId()` does both.
+
+## Consuming envelopes
+
+Since 9.3 the `io.codehunters.messaging.kafka.consumer` package reads the envelopes the outbox
+publishes and handles failed records. It works with any `@KafkaListener` on a String-valued
+consumer; nothing here needs an outbox.
+
+### Reading
+
+```java
+@KafkaListener(topics = "orders.commands")
+void on(ConsumerRecord<String, String> record) {
+  ReceivedEnvelope<PlaceOrder> envelope = envelopeReader.read(record, PlaceOrder.class);
+  if (processed.contains(envelope.eventId())) {
+    return; // at-least-once delivery: a repeat
+  }
+  handle(envelope.payload(), envelope.idempotencyKey());
+}
+```
+
+| Accessor | Value |
+|---|---|
+| `eventId()` | `header.eventId`, or the `outbox-message-id` header for envelopes written before 9.3; deduplicate on it |
+| `idempotencyKey()` | The producer's business key, or null |
+| `payload()`, `schemaVersion()`, `message()` | The payload, its schema version, the whole envelope |
+| `traceparent()` | The `traceparent` record header, or null |
+| `attempt()` | 1 on the main topic, then 2, 3, ... on each retry topic |
+
+The reader uses `inboundEnvelopeJsonMapper`, built from the application's `JsonMapper.Builder` (so
+payload settings and modules apply) with the envelope pinned by `EnvelopeFormat` and unknown fields
+always ignored: fields added by newer producers never make an envelope unreadable. A value that is
+missing, not JSON or not an envelope raises `UnreadableEnvelopeException`, whose message is fixed
+and names the parser exception class only; the record value never reaches a log or a header.
+
+### Retry topics
+
+A failing listener should not stall its partition. Expose one `RetryTopicConfiguration` bean per
+topic through `InboundRetryTopics`:
+
+```java
+@Bean
+RetryTopicConfiguration ordersRetry(InboundRetryTopics retryTopics) {
+  return retryTopics.configuration(
+      new InboundRetry(
+          "orders.commands",
+          List.of(Duration.ofSeconds(10), Duration.ofMinutes(1), Duration.ofMinutes(5)),
+          List.of(InvalidCommandException.class)));
+}
+```
+
+| Aspect | Behaviour |
+|---|---|
+| Topology | `orders.commands` → `orders.commands-retry-0` (after 10 s) → `-retry-1` (1 min) → `-retry-2` (5 min) → `orders.commands.DLT`: 4 attempts. One retry topic per delay, suffixed by index, even when delays are equal |
+| Not retried | `UnreadableEnvelopeException` and the listed exceptions (subclasses, and when found as a cause) go straight to `.DLT`. Anything else is retried |
+| Topics | Never created by the SDK and the DLT handler is not started: provision every retry topic and the `.DLT` outside the service, **with the main topic's partition count**, since a failed record is republished on its own partition number |
+| Forwarding | `inboundForwardingKafkaTemplate`, derived from the application's `ProducerFactory` like the outbox producer (String serializers, `acks=all`, idempotence, no transactional id, client id suffixed `-inbound-retry`). The value is forwarded byte for byte |
+| Back-off | Scheduled on the SDK's `retryTopicSchedulerWrapper`, not on an application scheduler |
+
+With `spring.kafka.listener.observation-enabled=true`, the listener on the main topic and on every
+retry topic continues the producer's trace from the `traceparent` header, which the forwarding
+template copies unchanged.
+
+A blocking listener (one that waits on a slow call) must finish a poll's records within
+`max.poll.interval.ms`; lower `max.poll.records` (for example to `1` to `10`) rather than raising the
+interval, so a slow record does not get the consumer evicted from its group.
+
+### Dead letters
+
+`SanitizedDeadLetters` is the application's `RetryTopicComponentFactory`. On every hop (to a retry
+topic or to `.DLT`) it forwards the value and headers unchanged and sets:
+
+| Header | Value |
+|---|---|
+| `kafka_exception-fqcn`, `kafka_exception-cause-fqcn` | The listener's own exception class and its root cause class, names only |
+| `kafka_original-topic`, `kafka_original-partition`, `kafka_original-offset`, `retry_topic-attempts` | Kept from Spring Kafka |
+| `event-id` | The envelope's `eventId`, or `outbox-message-id`; replaced, not duplicated, on each hop |
+| `trace-id` | The trace id of the `traceparent` header |
+
+`kafka_exception-message`, `kafka_exception-stacktrace`, `kafka_dlt-exception-message` and
+`kafka_dlt-exception-stacktrace` are never written, because exception messages and stack traces may
+carry personal data ([ADR 0030](../../docs/adr/0030-inbound-envelope-ids-and-consumer-dead-letters.md)).
+The listener exception is never logged; each dead-lettered record logs one WARN with its topic,
+partition, offset and failure class. Nothing consumes the `.DLT`: inspect and replay it with your
+own tooling.
+
+### Dead-letter hooks
+
+```java
+@Bean
+DeadLetterHook rejectOnDeadLetter(RejectionPublisher rejections) {
+  // CommandRejections is the application's own port, for example one writing a rejection event
+  return deadLetter -> rejections.reject(deadLetter.record(), deadLetter.failure().getClass());
+}
+```
+
+Every `DeadLetterHook` bean runs, in bean order, on the consumer thread right before a record is
+published to a topic ending in `.DLT`; never for a hop to a retry topic. A hook that throws fails
+the recovery: nothing is published and the record is redelivered at the same hop, so no record
+reaches the `.DLT` without its hooks having run. Delivery to hooks is therefore **at least once**:
+make their side effects tolerate duplicates (key them on the event id). `DeadLetter#failure()` is the
+listener's exception, whose message may carry personal data; keep its class name only.
+`DeadLetter#record()` is the record as consumed, from the main topic or the last retry topic: the
+`event-id` header is only there after a retry hop, so read the event id from the envelope with
+`EnvelopeReader` (and expect `UnreadableEnvelopeException` for a record that never was one).
+
+### Consumer configuration
+
+| Key | Default | Notes |
+|---|---|---|
+| `codehunters.messaging.consumer.enabled` | `true` | `false` registers none of the consumer beans |
+
+| Bean | Notes |
+|---|---|
+| `inboundEnvelopeJsonMapper` | Not a default candidate; define one with this name to replace it |
+| `envelopeReader` | Backs off for an application `EnvelopeReader` |
+| `retryTopicComponentFactory` (`SanitizedDeadLetters`), `retryTopicSchedulerWrapper` | With `spring-kafka`; back off for an application `RetryTopicComponentFactory` / `RetryTopicSchedulerWrapper` |
+| `inboundForwardingProducerFactory`, `inboundForwardingKafkaTemplate` | With a `ProducerFactory` bean; not default candidates. Several factories without a `@Primary` fail startup: mark one primary or define `inboundForwardingProducerFactory` |
+| `inboundRetryTopics` | With a `ProducerFactory` bean |
 
 ## Configuration
 
@@ -78,6 +199,13 @@ or a `MessagePublisherPort` to replace the publisher.
 |---|---|
 | `io.codehunters.messaging.kafka` | `KafkaMessagePublisherAdapter` |
 | `io.codehunters.messaging.kafka.config` | Auto-configuration |
+| `io.codehunters.messaging.kafka.consumer` | `EnvelopeReader`, `ReceivedEnvelope`, `UnreadableEnvelopeException`, `InboundRetry`, `InboundRetryTopics`, `SanitizedDeadLetters`, `DeadLetterHook`, `DeadLetter` |
+| `io.codehunters.messaging.kafka.consumer.config` | Consumer auto-configuration |
+
+## Upgrading from 9.2
+
+Nothing to change: the consumer beans are new and the envelope gains two fields. See
+[MIGRATION-9.0.md](../MIGRATION-9.0.md#upgrading-to-93).
 
 ## Migrating from 8.x
 
