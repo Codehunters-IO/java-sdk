@@ -16,6 +16,7 @@ dependencies {
     compileOnly("org.springframework.kafka:spring-kafka")
     compileOnly("org.springframework.boot:spring-boot-kafka")
     compileOnly("org.springframework:spring-context")
+    compileOnly("tools.jackson.core:jackson-databind")
 
     testImplementation(project(":sdk-event-messaging-jdbc"))
     testImplementation("org.springframework:spring-test")
