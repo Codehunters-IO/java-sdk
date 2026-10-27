@@ -20,6 +20,7 @@ dependencies {
     compileOnly("io.micrometer:micrometer-core")
     compileOnly("io.micrometer:micrometer-tracing")
     compileOnly(project(":sdk-tracing"))
+    compileOnly("tools.jackson.core:jackson-databind")
 
     testImplementation("org.springframework:spring-test")
     testImplementation("org.mockito:mockito-core")
