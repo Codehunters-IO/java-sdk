@@ -23,8 +23,7 @@ class InboundRetryTopicsTest {
   private static final int FIRST_ATTEMPT = 1;
 
   @SuppressWarnings("unchecked")
-  private final InboundRetryTopics topics =
-      new InboundRetryTopics(mock(KafkaOperations.class));
+  private final InboundRetryTopics topics = new InboundRetryTopics(mock(KafkaOperations.class));
 
   static class SpecificStateException extends IllegalStateException {}
 
