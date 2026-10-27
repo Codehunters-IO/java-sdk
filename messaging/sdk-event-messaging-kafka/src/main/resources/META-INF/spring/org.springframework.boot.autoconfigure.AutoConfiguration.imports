@@ -1,1 +1,2 @@
 io.codehunters.messaging.kafka.config.EventMessagingKafkaAutoConfiguration
+io.codehunters.messaging.kafka.consumer.config.EventMessagingKafkaConsumerAutoConfiguration
