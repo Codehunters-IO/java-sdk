@@ -5,8 +5,8 @@ the shared configuration. It sends nothing on its own; add `sdk-event-messaging-
 transport.
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.2.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:9.2.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.3.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.3.0") // or -kafka
 ```
 
 Depend on `-core` alone only to build events without storing or sending them.
@@ -24,8 +24,16 @@ Depend on `-core` alone only to build events without storing or sending them.
 
 | Part | Fields |
 |---|---|
-| `header` | `traceId`, `version` (`1.0.0`), `schemaVersion` (`1.0.0` unless set), `origin`, `timestamp` (`Instant`, an ISO-8601 string on the wire), `locale` |
+| `header` | `traceId`, `version` (`1.0.0`), `schemaVersion` (`1.0.0` unless set), `origin`, `timestamp` (`Instant`, an ISO-8601 string on the wire), `locale`, `eventId`, `idempotencyKey` |
 | `body` | `aggregate`, `eventName`, `eventType`, `payload` |
+
+`header.eventId` (since 9.3) identifies the event: `OutboxEventFactory` sets it to the outbox row id,
+the same value as the `outbox-message-id` record header, and `EventMessageFactory#create(event)` to a
+random UUID (`create(event, eventId)` takes a given one). `header.idempotencyKey` is an optional
+business key chosen by the producer (for example a command id), so consumers can recognise the same
+business request sent twice as two events. Both are always written, as `null` when absent. Readers
+must ignore envelope fields they do not know and fall back to `outbox-message-id` when `eventId` is
+null (envelopes written before 9.3); `sdk-event-messaging-kafka`'s `EnvelopeReader` does both.
 
 `OutboxMessage<T>` is one outbox row: `topic` (exchange or topic), optional `routingKey`, `key`
 (the aggregate), the serialized message, `status` (`PENDING` → `IN_FLIGHT` → `PUBLISHED`, or
@@ -59,12 +67,13 @@ defaults and copy methods that return a new event:
 | `locale(...)` | None (`header.locale` is null) |
 | `traceId(...)` | None: the current trace |
 | `schemaVersion(...)` | `1.0.0`; bump it on a breaking payload change |
+| `idempotencyKey(...)` | None (`header.idempotencyKey` is null); a blank key is rejected |
 
 | Type | Use |
 |---|---|
 | `OutboxWriter` | `save(message)`: stores a row in the caller's transaction; the port applications inject |
-| `OutboxEventFactory` | `create(event)`: the envelope and its outbox row, with a new id, the origin and the current `traceparent` |
-| `EventMessageFactory` | `create(event)`: the envelope only; `origin` is `spring.application.name`, `timestamp` comes from the outbox clock |
+| `OutboxEventFactory` | `create(event)`: the envelope and its outbox row, with a new id (also the envelope's `eventId`), the origin and the current `traceparent` |
+| `EventMessageFactory` | `create(event)`: the envelope only, with a random `eventId`; `create(event, eventId)` with a given one. `origin` is `spring.application.name`, `timestamp` comes from the outbox clock |
 
 A row without a key (unordered, never blocked) can be built by hand with `OutboxMessage.builder()`
 and saved through `OutboxWriter`.
@@ -104,7 +113,7 @@ claim came back full, so more rows may be waiting.
 
 | Rule | Behaviour |
 |---|---|
-| Delivery | At-least-once. Consumers deduplicate on the `outbox-message-id` header |
+| Delivery | At-least-once. Consumers deduplicate on `header.eventId`, or the `outbox-message-id` header for envelopes written before 9.3 |
 | Claim | Up to `batch-size` due `PENDING` rows, plus `IN_FLIGHT` rows whose claim is older than `claim.ttl` or has no claim time, are marked `IN_FLIGHT` for this instance. Concurrent claimers receive disjoint rows |
 | Stale reclaim | Counts as an attempt when its send had started: the previous dispatcher may already have sent it |
 | Reclaim with `attempts ≥ max-attempts` | Marked `FAILED` with error `max-attempts-exceeded`, not sent again |
@@ -214,11 +223,18 @@ registered when a Micrometer `Tracer` bean exists).
 | Package | Contents |
 |---|---|
 | `io.codehunters.messaging` | Model (`EventMessage`, `OutboxMessage`, `OutboxEvent`), ports (`OutboxWriter`, `OutboxDispatchStore`, `MessagePublisherPort`, `SendOutboxMessagesPort`, `OutboxDispatchTrigger`), `ClaimRequest`, `MessagePublishException`, `MessagePublisherDecorator` |
+| `io.codehunters.messaging.json` | `EnvelopeFormat`: the Jackson pin of the envelope's field names and null inclusion, shared by writers and readers |
 | `io.codehunters.messaging.factory` | `EventMessageFactory`, `OutboxEventFactory`, `TraceIdSource` |
 | `io.codehunters.messaging.dispatch` | `SendOutboxMessagesUseCase`, `DispatchSettings`, `RetryPolicy`, `CoalescingDispatchTrigger` |
 | `io.codehunters.messaging.metrics` | `MeteredMessagePublisher` |
 | `io.codehunters.messaging.tracing` | `TracedMessagePublisher` |
 | `io.codehunters.messaging.config` | Auto-configuration, `EventMessagingProperties`, transport condition |
+
+## Upgrading from 9.2
+
+Nothing to change: the two header fields are additive and the 9.2 constructors of
+`EventMessage.Header` and `OutboxEvent` are kept. See
+[MIGRATION-9.0.md](../MIGRATION-9.0.md#upgrading-to-93).
 
 ## Migrating from 8.x
 

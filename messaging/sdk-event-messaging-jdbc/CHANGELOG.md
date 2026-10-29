@@ -1,5 +1,13 @@
 # Changelog — sdk-event-messaging-jdbc
 
+## 9.3.0
+
+### Changed
+- `outboxJsonMapper` pins the envelope with `io.codehunters.messaging.json.EnvelopeFormat` from
+  `-core`; the package-private copy in this module is gone.
+- Stored envelopes carry `header.eventId` (the row id) and `header.idempotencyKey`, written as
+  `null` when absent.
+
 ## 9.2.0
 
 ### Added

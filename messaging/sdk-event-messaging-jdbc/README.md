@@ -5,8 +5,8 @@ and the ShedLock-protected dispatch poll and purge, run on a private scheduler. 
 semantics are described in [`sdk-event-messaging-core`](../sdk-event-messaging-core/README.md).
 
 ```kotlin
-implementation("io.codehunters:sdk-event-messaging-jdbc:9.2.0")
-implementation("io.codehunters:sdk-event-messaging-rabbit:9.2.0") // or -kafka
+implementation("io.codehunters:sdk-event-messaging-jdbc:9.3.0")
+implementation("io.codehunters:sdk-event-messaging-rabbit:9.3.0") // or -kafka
 ```
 
 Brings `-core` and ShedLock (`shedlock-spring`, `shedlock-provider-jdbc-template`). The application

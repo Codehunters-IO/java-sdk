@@ -62,7 +62,14 @@ class EventMessageWireFormatIT {
 
     assertThat(header.propertyNames())
         .containsExactlyInAnyOrder(
-            "traceId", "version", "schemaVersion", "origin", "timestamp", "locale");
+            "traceId",
+            "version",
+            "schemaVersion",
+            "origin",
+            "timestamp",
+            "locale",
+            "eventId",
+            "idempotencyKey");
     assertThat(header.get("timestamp").isString()).isTrue();
     assertThat(header.get("timestamp").asString()).isEqualTo("2026-10-09T10:15:30.123Z");
     assertThat(header.get("traceId").asString()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
@@ -70,6 +77,25 @@ class EventMessageWireFormatIT {
     assertThat(header.get("schemaVersion").asString()).isEqualTo("1.0.0");
     assertThat(header.get("origin").asString()).isEqualTo(ORIGIN);
     assertThat(header.get("locale").asString()).isEqualTo("es-CO");
+  }
+
+  @Test
+  void should_store_row_id_as_event_id_and_null_idempotency_key_when_event_is_saved() {
+    var outbox = factory.create(PLACED);
+    adapter.save(outbox);
+
+    JsonNode header = storedPayload().get("header");
+
+    assertThat(header.get("eventId").asString()).isEqualTo(outbox.id().toString());
+    assertThat(header.get("idempotencyKey").isNull()).isTrue();
+  }
+
+  @Test
+  void should_store_idempotency_key_when_event_carries_one() {
+    adapter.save(factory.create(PLACED.idempotencyKey("order-7-placed")));
+
+    assertThat(storedPayload().get("header").get("idempotencyKey").asString())
+        .isEqualTo("order-7-placed");
   }
 
   @Test

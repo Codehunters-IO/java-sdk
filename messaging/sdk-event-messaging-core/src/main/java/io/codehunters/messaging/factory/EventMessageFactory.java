@@ -3,6 +3,7 @@ package io.codehunters.messaging.factory;
 import io.codehunters.messaging.EventMessage;
 import io.codehunters.messaging.OutboxEvent;
 import java.time.Clock;
+import java.util.UUID;
 
 /**
  * Builds {@link EventMessage} envelopes from an {@link OutboxEvent}, stamping the configured origin
@@ -29,14 +30,27 @@ public class EventMessageFactory {
   }
 
   /**
-   * Builds the envelope of an event: its key becomes the body's {@code aggregate} and its type the
-   * body's {@code eventName}.
+   * Builds the envelope of an event with a random UUID as its {@code eventId}: its key becomes the
+   * body's {@code aggregate} and its type the body's {@code eventName}.
    *
    * @param event the event to wrap
    * @param <T> the payload type
    * @return the envelope
    */
   public <T> EventMessage<T> create(OutboxEvent<T> event) {
+    return create(event, UUID.randomUUID().toString());
+  }
+
+  /**
+   * Builds the envelope of an event with a given {@code eventId}, and the event's idempotency key
+   * on the header.
+   *
+   * @param event the event to wrap
+   * @param eventId the unique id of the event, for example the outbox row id
+   * @param <T> the payload type
+   * @return the envelope
+   */
+  public <T> EventMessage<T> create(OutboxEvent<T> event, String eventId) {
     EventMessage.Header header =
         new EventMessage.Header(
             resolveTraceId(event.traceId()),
@@ -44,7 +58,9 @@ public class EventMessageFactory {
             event.schemaVersion(),
             origin,
             clock.instant(),
-            event.locale());
+            event.locale(),
+            eventId,
+            event.idempotencyKey());
     return new EventMessage<>(
         header,
         new EventMessage.Body<>(event.key(), event.type(), event.eventType(), event.payload()));

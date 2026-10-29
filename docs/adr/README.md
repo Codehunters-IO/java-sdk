@@ -33,3 +33,4 @@ MADR format. An accepted ADR is not edited; a new ADR supersedes it.
 | [0027](0027-release-workflows-from-ci-templates.md) | Build, release drafts and publish come from ci-templates | accepted |
 | [0028](0028-error-contract-in-its-own-module.md) | The error contract lives in its own module, sdk-errors | accepted |
 | [0029](0029-audit-events-through-the-outbox.md) | Audit events through the transactional outbox | accepted |
+| [0030](0030-inbound-envelope-ids-and-consumer-dead-letters.md) | Envelope event ids and SDK-owned consumer dead letters | accepted |
