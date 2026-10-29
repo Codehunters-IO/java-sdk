@@ -34,4 +34,21 @@ class EventMessageTest {
   void should_default_to_version_one_when_none_is_given() {
     assertThat(EventMessage.Header.DEFAULT_VERSION).isEqualTo("1.0.0");
   }
+
+  @Test
+  void should_leave_event_id_and_idempotency_key_null_when_built_with_the_9_2_signature() {
+    var header = new EventMessage.Header("t", "1.0.0", "2.0.0", "orders", AT, "es");
+
+    assertThat(header.eventId()).isNull();
+    assertThat(header.idempotencyKey()).isNull();
+  }
+
+  @Test
+  void should_expose_event_id_and_idempotency_key_when_given() {
+    var header = new EventMessage.Header("t", "1.0.0", "2.0.0", "orders", AT, "es", "evt-1", "k-1");
+
+    assertThat(header.eventId()).isEqualTo("evt-1");
+    assertThat(header.idempotencyKey()).isEqualTo("k-1");
+    assertThat(header.locale()).isEqualTo("es");
+  }
 }

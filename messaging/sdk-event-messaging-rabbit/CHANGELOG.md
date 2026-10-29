@@ -1,5 +1,11 @@
 # Changelog — sdk-event-messaging-rabbit
 
+## 9.3.0
+
+### Changed
+- Released with `sdk-event-messaging-core` 9.3.0, so the messaging modules keep one version. No
+  change in this module.
+
 ## 9.2.0
 
 ### Changed

@@ -14,6 +14,8 @@ gains one nullable column.
 start with [MIGRATION-7.0.md](MIGRATION-7.0.md) (the `send_started_at` column); from 5.x, with
 [MIGRATION-6.0.md](MIGRATION-6.0.md).
 
+**Already on 9.x?** 9.3 needs no action; see [Upgrading to 9.3](#upgrading-to-93).
+
 ## Checklist
 
 1. Make sure the outbox runs on PostgreSQL. Other databases are no longer supported.
@@ -548,3 +550,32 @@ A custom `TraceIdSource` bean that only implements `currentTraceId()` stores no 
   another live claim.
 - Commit-triggered dispatch runs on the instance that committed, without the ShedLock dispatch lock;
   several instances may dispatch at the same time, on disjoint rows.
+
+## Upgrading to 9.3
+
+No action is required. 9.3.0 is additive; move all four artifacts together (or import
+`io.codehunters:sdk-bom` 7.3.0).
+
+- **Two new envelope header fields.** `header.eventId` (the outbox row id for rows built by
+  `OutboxEventFactory`, a random UUID from `EventMessageFactory#create(event)`) and
+  `header.idempotencyKey` (set with `OutboxEvent#idempotencyKey(String)`, null by default). Both
+  are always written, as `null` when absent.
+- **Readers must ignore unknown fields.** A consumer that binds the envelope with
+  `FAIL_ON_UNKNOWN_PROPERTIES` enabled fails on 9.3 envelopes: disable it, or read with
+  `sdk-event-messaging-kafka`'s `EnvelopeReader`, which always ignores unknown fields.
+- **Deduplicate on `eventId`, falling back to `outbox-message-id`.** Rows written before the
+  upgrade and still waiting in the outbox carry no `eventId`; the `outbox-message-id` record header
+  has the same value for every row, old or new. `ReceivedEnvelope#eventId()` does the fallback.
+- **`EnvelopeFormat` moved to `-core`.** The envelope pin is now the public
+  `io.codehunters.messaging.json.EnvelopeFormat`. The `-jdbc` copy was package-private, so no
+  public API is removed; `outboxJsonMapper` behaves as before.
+- **Compatibility constructors.** The 9.2 constructors of `EventMessage.Header` (6 arguments) and
+  `OutboxEvent` (9 arguments) are kept; code that builds them by hand compiles unchanged and gets
+  null ids.
+- **New consumer support in `-kafka`.** `EnvelopeReader`, non-blocking retry topics
+  (`InboundRetryTopics`), dead letters without exception messages or stack traces
+  (`SanitizedDeadLetters`) and `DeadLetterHook`, registered unless
+  `codehunters.messaging.consumer.enabled=false`. `SanitizedDeadLetters` becomes the application's
+  `RetryTopicComponentFactory`: an application that already defines one keeps its own. See the
+  [Kafka README](sdk-event-messaging-kafka/README.md#consuming-envelopes) and
+  [ADR 0030](../docs/adr/0030-inbound-envelope-ids-and-consumer-dead-letters.md).

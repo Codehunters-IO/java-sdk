@@ -1,5 +1,29 @@
 # Changelog — sdk-event-messaging-core
 
+## 9.3.0
+
+### Added
+- `EventMessage.Header#eventId()`: the unique id of the event, which consumers deduplicate on.
+  Messages built by `OutboxEventFactory` carry the outbox row id, the same value as the
+  `outbox-message-id` record header.
+- `EventMessage.Header#idempotencyKey()`: an optional business deduplication key chosen by the
+  producer, set with `OutboxEvent#idempotencyKey(String)` (null for none; blank is rejected).
+- `OutboxEvent#idempotencyKey()` as a tenth record component.
+- `EventMessageFactory#create(OutboxEvent, String eventId)`: the envelope with a given event id.
+- `io.codehunters.messaging.json.EnvelopeFormat`: the public Jackson pin of the envelope (field
+  names and null inclusion), shared by the `-jdbc` writer and the `-kafka` reader. It was a
+  package-private class of `-jdbc`, so no public API moves.
+
+### Changed
+- `OutboxEventFactory#create(event)` stamps the row id as `header.eventId`, and
+  `EventMessageFactory#create(event)` stamps a random UUID, so every envelope built by the SDK has
+  an event id.
+- Both new header fields are always written, as `null` when absent. Consumers must ignore unknown
+  envelope fields (the `-kafka` `EnvelopeReader` does), and fall back to the `outbox-message-id`
+  header for envelopes written before 9.3.
+- The 9.2 constructors of `EventMessage.Header` (6 arguments) and `OutboxEvent` (9 arguments) are
+  kept, so code written against 9.2 compiles unchanged.
+
 ## 9.2.0
 
 ### Added

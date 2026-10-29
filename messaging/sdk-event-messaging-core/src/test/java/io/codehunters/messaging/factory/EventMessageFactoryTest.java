@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class EventMessageFactoryTest {
@@ -64,5 +65,33 @@ class EventMessageFactoryTest {
     var traced = new EventMessageFactory("ms", () -> Optional.of("current"), CLOCK);
 
     assertThat(traced.create(PLACED.traceId(" ")).header().traceId()).isEqualTo("current");
+  }
+
+  @Test
+  void should_stamp_given_event_id_when_one_is_passed() {
+    assertThat(factory.create(PLACED, "evt-1").header().eventId()).isEqualTo("evt-1");
+  }
+
+  @Test
+  void should_stamp_random_uuid_event_id_when_none_is_passed() {
+    String first = factory.create(PLACED).header().eventId();
+    String second = factory.create(PLACED).header().eventId();
+
+    assertThat(UUID.fromString(first).toString()).isEqualTo(first);
+    assertThat(first).isNotEqualTo(second);
+  }
+
+  @Test
+  void should_carry_idempotency_key_into_header_when_event_has_one() {
+    EventMessage<String> message = factory.create(PLACED.idempotencyKey("k-1"), "evt-1");
+
+    assertThat(message.header().idempotencyKey()).isEqualTo("k-1");
+    assertThat(message.header().origin()).isEqualTo("payment-ms");
+    assertThat(message.header().timestamp()).isEqualTo(NOW);
+  }
+
+  @Test
+  void should_leave_idempotency_key_null_when_event_has_none() {
+    assertThat(factory.create(PLACED).header().idempotencyKey()).isNull();
   }
 }

@@ -7,14 +7,14 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 
 | Module | Current | Changelog | Migration |
 |---|---|---|---|
-| `sdk-bom` | 7.2.0 | [below](#sdk-bom-720) | — |
+| `sdk-bom` | 7.3.0 | [below](#sdk-bom-730) | — |
 | `sdk-user-security` | 6.0.0 | [CHANGELOG](security/sdk-user-security/CHANGELOG.md) | [4.0](security/sdk-user-security/MIGRATION-4.0.md) · [5.0](security/sdk-user-security/MIGRATION-5.0.md) · [6.0](security/sdk-user-security/MIGRATION-6.0.md) |
 | `sdk-user-security-authz` | 6.0.0 | [CHANGELOG](security/sdk-user-security-authz/CHANGELOG.md) | [4.0](security/sdk-user-security-authz/MIGRATION-4.0.md) · [5.0](security/sdk-user-security-authz/MIGRATION-5.0.md) · [6.0](security/sdk-user-security-authz/MIGRATION-6.0.md) |
 | `sdk-tracing` | 3.0.0 | [CHANGELOG](sdk-tracing/CHANGELOG.md) | [2.0](sdk-tracing/MIGRATION-2.0.md) · [3.0](sdk-tracing/MIGRATION-3.0.md) |
-| `sdk-event-messaging-core` | 9.2.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) · [8.0](messaging/MIGRATION-8.0.md) · [9.0](messaging/MIGRATION-9.0.md) |
-| `sdk-event-messaging-jdbc` | 9.2.0 | [CHANGELOG](messaging/sdk-event-messaging-jdbc/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
-| `sdk-event-messaging-rabbit` | 9.2.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
-| `sdk-event-messaging-kafka` | 9.2.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
+| `sdk-event-messaging-core` | 9.3.0 | [CHANGELOG](messaging/sdk-event-messaging-core/CHANGELOG.md) | [6.0](messaging/MIGRATION-6.0.md) · [7.0](messaging/MIGRATION-7.0.md) · [8.0](messaging/MIGRATION-8.0.md) · [9.0](messaging/MIGRATION-9.0.md) |
+| `sdk-event-messaging-jdbc` | 9.3.0 | [CHANGELOG](messaging/sdk-event-messaging-jdbc/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
+| `sdk-event-messaging-rabbit` | 9.3.0 | [CHANGELOG](messaging/sdk-event-messaging-rabbit/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
+| `sdk-event-messaging-kafka` | 9.3.0 | [CHANGELOG](messaging/sdk-event-messaging-kafka/CHANGELOG.md) | [9.0](messaging/MIGRATION-9.0.md) |
 | `sdk-file-share` | 5.0.0 | [CHANGELOG](sdk-file-share/CHANGELOG.md) | [2.0](sdk-file-share/MIGRATION-2.0.md) · [3.0](sdk-file-share/MIGRATION-3.0.md) · [4.0](sdk-file-share/MIGRATION-4.0.md) · [5.0](sdk-file-share/MIGRATION-5.0.md) |
 | `sdk-audit-log` | 5.2.0 | [CHANGELOG](sdk-audit-log/CHANGELOG.md) | [3.0](sdk-audit-log/MIGRATION-3.0.md) · [4.0](sdk-audit-log/MIGRATION-4.0.md) · [5.0](sdk-audit-log/MIGRATION-5.0.md) |
 | `sdk-measure-micrometer` | 4.0.0 | [CHANGELOG](sdk-measure-micrometer/CHANGELOG.md) | [3.0](sdk-measure-micrometer/MIGRATION-3.0.md) · [4.0](sdk-measure-micrometer/MIGRATION-4.0.md) |
@@ -26,6 +26,16 @@ Releases are tagged `sdk-<module>/vX.Y.Z` (`bom/vX.Y.Z` for the BOM) by the run 
 | `sdk-jasper` | 2.1.0 | [CHANGELOG](sdk-jasper/CHANGELOG.md) | [2.0](sdk-jasper/MIGRATION-2.0.md) · [from commons-support](sdk-jasper/MIGRATION-from-commons-support.md) |
 | `sdk-jpa` | 4.0.0 | [CHANGELOG](sdk-jpa/CHANGELOG.md) | [2.0](sdk-jpa/MIGRATION-2.0.md) · [3.0](sdk-jpa/MIGRATION-3.0.md) · [4.0](sdk-jpa/MIGRATION-4.0.md) · [from commons-support](sdk-jpa/MIGRATION-from-commons-support.md) |
 | `sdk-geo-validation` | 2.0.0 | [CHANGELOG](sdk-geo-validation/CHANGELOG.md) | [2.0](sdk-geo-validation/MIGRATION-2.0.md) |
+
+## sdk-bom 7.3.0
+
+- `sdk-event-messaging-core`, `-jdbc`, `-kafka` and `-rabbit` 9.3.0: the envelope header carries
+  `eventId` (the outbox row id) and an optional producer `idempotencyKey`; the envelope's Jackson pin
+  is the public `io.codehunters.messaging.json.EnvelopeFormat` in `-core`. `-kafka` adds the consumer
+  side: `EnvelopeReader`, non-blocking retry topics (`InboundRetryTopics`), dead letters without
+  exception messages or stack traces (`SanitizedDeadLetters`) and `DeadLetterHook`
+  ([ADR 0030](docs/adr/0030-inbound-envelope-ids-and-consumer-dead-letters.md)). Additive: see
+  [Upgrading to 9.3](messaging/MIGRATION-9.0.md#upgrading-to-93).
 
 ## sdk-bom 7.2.0
 

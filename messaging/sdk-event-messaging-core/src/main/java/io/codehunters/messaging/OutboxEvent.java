@@ -17,7 +17,7 @@ import java.util.Objects;
  * Typed#payload}) makes topic, key, event name and payload mandatory; the remaining components have
  * defaults and are changed with the copy methods ({@link #routingKey(String)}, {@link
  * #eventType(String)}, {@link #locale(String)}, {@link #traceId(String)}, {@link
- * #schemaVersion(String)}), each returning a new event.
+ * #schemaVersion(String)}, {@link #idempotencyKey(String)}), each returning a new event.
  *
  * @param topic the destination topic or exchange; never blank
  * @param key the aggregate identifier: the envelope's {@code aggregate} and the per-key ordering
@@ -32,6 +32,8 @@ import java.util.Objects;
  *     trace
  * @param schemaVersion the payload schema version stamped on the envelope header; {@value
  *     EventMessage.Header#DEFAULT_VERSION} by default
+ * @param idempotencyKey the business deduplication key stamped on the envelope header, or null (the
+ *     default); never blank when set
  * @param <T> the payload type
  */
 public record OutboxEvent<T>(
@@ -43,13 +45,15 @@ public record OutboxEvent<T>(
     String eventType,
     String locale,
     String traceId,
-    String schemaVersion) {
+    String schemaVersion,
+    String idempotencyKey) {
 
   /**
    * Validates the mandatory components and applies the defaults of {@code eventType} and {@code
    * schemaVersion}.
    *
-   * @throws IllegalArgumentException when topic, key or type is blank
+   * @throws IllegalArgumentException when topic, key or type is blank, or idempotencyKey is set but
+   *     blank
    * @throws NullPointerException when a mandatory component is null
    */
   public OutboxEvent {
@@ -59,6 +63,35 @@ public record OutboxEvent<T>(
     Objects.requireNonNull(payload, "payload");
     eventType = eventType == null ? EventTypes.EVENT : eventType;
     schemaVersion = schemaVersion == null ? EventMessage.Header.DEFAULT_VERSION : schemaVersion;
+    if (idempotencyKey != null && idempotencyKey.isBlank()) {
+      throw new IllegalArgumentException("idempotencyKey must not be blank");
+    }
+  }
+
+  /**
+   * The 9.2 signature: no idempotency key. Kept for source and binary compatibility.
+   *
+   * @param topic the destination topic or exchange
+   * @param key the aggregate identifier
+   * @param type the event name
+   * @param payload the business payload
+   * @param routingKey the AMQP routing key, or null
+   * @param eventType the event type, or null for {@link EventTypes#EVENT}
+   * @param locale the locale, or null
+   * @param traceId the trace id, or null for the current trace
+   * @param schemaVersion the payload schema version, or null for the default
+   */
+  public OutboxEvent(
+      String topic,
+      String key,
+      String type,
+      T payload,
+      String routingKey,
+      String eventType,
+      String locale,
+      String traceId,
+      String schemaVersion) {
+    this(topic, key, type, payload, routingKey, eventType, locale, traceId, schemaVersion, null);
   }
 
   /**
@@ -79,7 +112,16 @@ public record OutboxEvent<T>(
    */
   public OutboxEvent<T> routingKey(String routingKey) {
     return new OutboxEvent<>(
-        topic, key, type, payload, routingKey, eventType, locale, traceId, schemaVersion);
+        topic,
+        key,
+        type,
+        payload,
+        routingKey,
+        eventType,
+        locale,
+        traceId,
+        schemaVersion,
+        idempotencyKey);
   }
 
   /**
@@ -90,7 +132,16 @@ public record OutboxEvent<T>(
    */
   public OutboxEvent<T> eventType(String eventType) {
     return new OutboxEvent<>(
-        topic, key, type, payload, routingKey, eventType, locale, traceId, schemaVersion);
+        topic,
+        key,
+        type,
+        payload,
+        routingKey,
+        eventType,
+        locale,
+        traceId,
+        schemaVersion,
+        idempotencyKey);
   }
 
   /**
@@ -101,7 +152,16 @@ public record OutboxEvent<T>(
    */
   public OutboxEvent<T> locale(String locale) {
     return new OutboxEvent<>(
-        topic, key, type, payload, routingKey, eventType, locale, traceId, schemaVersion);
+        topic,
+        key,
+        type,
+        payload,
+        routingKey,
+        eventType,
+        locale,
+        traceId,
+        schemaVersion,
+        idempotencyKey);
   }
 
   /**
@@ -112,7 +172,16 @@ public record OutboxEvent<T>(
    */
   public OutboxEvent<T> traceId(String traceId) {
     return new OutboxEvent<>(
-        topic, key, type, payload, routingKey, eventType, locale, traceId, schemaVersion);
+        topic,
+        key,
+        type,
+        payload,
+        routingKey,
+        eventType,
+        locale,
+        traceId,
+        schemaVersion,
+        idempotencyKey);
   }
 
   /**
@@ -123,7 +192,36 @@ public record OutboxEvent<T>(
    */
   public OutboxEvent<T> schemaVersion(String schemaVersion) {
     return new OutboxEvent<>(
-        topic, key, type, payload, routingKey, eventType, locale, traceId, schemaVersion);
+        topic,
+        key,
+        type,
+        payload,
+        routingKey,
+        eventType,
+        locale,
+        traceId,
+        schemaVersion,
+        idempotencyKey);
+  }
+
+  /**
+   * A copy with a business deduplication key, stamped on the envelope header for consumers.
+   *
+   * @param idempotencyKey the key, or null for none; never blank
+   * @return the new event
+   */
+  public OutboxEvent<T> idempotencyKey(String idempotencyKey) {
+    return new OutboxEvent<>(
+        topic,
+        key,
+        type,
+        payload,
+        routingKey,
+        eventType,
+        locale,
+        traceId,
+        schemaVersion,
+        idempotencyKey);
   }
 
   private static String requireText(String value, String name) {
@@ -185,10 +283,11 @@ public record OutboxEvent<T>(
      *
      * @param payload the business payload
      * @param <T> the payload type
-     * @return the event, with default routing key, event type, locale, trace id and schema version
+     * @return the event, with default routing key, event type, locale, trace id, schema version and
+     *     idempotency key
      */
     public <T> OutboxEvent<T> payload(T payload) {
-      return new OutboxEvent<>(topic, key, type, payload, null, null, null, null, null);
+      return new OutboxEvent<>(topic, key, type, payload, null, null, null, null, null, null);
     }
   }
 }

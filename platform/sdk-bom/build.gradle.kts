@@ -2,7 +2,7 @@ plugins {
     id("codehunters.bom")
 }
 
-version = "7.2.0"
+version = "7.3.0"
 description = "Bill of materials aligning the versions of every io.codehunters SDK module."
 
 // Every released library, and nothing else: `verifyBomConstraints` (part of `check`) fails when a

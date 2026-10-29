@@ -6,6 +6,7 @@ import io.codehunters.messaging.OutboxWriter;
 import io.codehunters.messaging.config.EventMessagingCoreAutoConfiguration;
 import io.codehunters.messaging.jdbc.OutboxAdapterSettings;
 import io.codehunters.messaging.jdbc.OutboxJdbcAdapter;
+import io.codehunters.messaging.json.EnvelopeFormat;
 import java.time.Clock;
 import javax.sql.DataSource;
 import net.javacrumbs.shedlock.core.LockProvider;

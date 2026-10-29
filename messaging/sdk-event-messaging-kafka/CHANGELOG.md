@@ -1,5 +1,34 @@
 # Changelog — sdk-event-messaging-kafka
 
+## 9.3.0
+
+Consumer side of the envelope, in the new `io.codehunters.messaging.kafka.consumer` package.
+
+### Added
+- `EnvelopeReader#read(ConsumerRecord<String, String>, Class<T>)`: reads the `EventMessage`
+  envelope with the shared `EnvelopeFormat` pin and unknown fields ignored, whatever the
+  application mapper sets.
+- `ReceivedEnvelope<T>`: the envelope with the `outbox-message-id`, `traceparent` and retry
+  attempt record headers; `eventId()` falls back to `outbox-message-id` for envelopes written
+  before 9.3.
+- `UnreadableEnvelopeException`: a fixed message, no cause and only the parser class name, so the
+  record value never reaches a log or a header. Never retried.
+- `InboundRetry` and `InboundRetryTopics#configuration(InboundRetry)`: a non-blocking retry
+  topology for one topic, `<topic>-retry-0..N` then `<topic>.DLT`, with the exact delays given and
+  a list of exceptions sent straight to the dead-letter topic. Topics are never auto-created.
+- `SanitizedDeadLetters`, auto-configured as the `RetryTopicComponentFactory`: on every hop the
+  exception headers (`kafka_exception-fqcn`, `kafka_exception-cause-fqcn`) carry class names only,
+  the message and stack-trace headers of both families (`kafka_exception-*`, `kafka_dlt-exception-*`)
+  are never written, `event-id` and `trace-id` headers are added, and one WARN per dead-lettered
+  record names its topic, partition, offset and failure class.
+- `DeadLetterHook` and `DeadLetter`: called on the consumer thread before a record is published to
+  a topic ending in `.DLT`, never for a retry hop. A hook that throws makes the record redelivered,
+  so hooks run at least once.
+- Beans `inboundEnvelopeJsonMapper` (not a default candidate), `envelopeReader`,
+  `retryTopicComponentFactory`, `retryTopicSchedulerWrapper`, `inboundForwardingProducerFactory`
+  and `inboundForwardingKafkaTemplate` (neither a default candidate) and `inboundRetryTopics`.
+- `codehunters.messaging.consumer.enabled` (default `true`): `false` registers none of them.
+
 ## 9.2.0
 
 ### Changed

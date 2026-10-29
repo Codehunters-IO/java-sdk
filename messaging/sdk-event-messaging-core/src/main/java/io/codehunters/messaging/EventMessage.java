@@ -22,6 +22,10 @@ public record EventMessage<T>(Header header, Body<T> body) {
    * @param origin the application that created the event
    * @param timestamp when the event was created, from the outbox clock
    * @param locale the locale of the work that created the event, or null
+   * @param eventId unique id of this event; equals the outbox row id when built by {@code
+   *     OutboxEventFactory}. Consumers dedupe on it and fall back to the {@code outbox-message-id}
+   *     header for envelopes written before 9.3
+   * @param idempotencyKey optional business deduplication key set by the producer, or null
    */
   public record Header(
       String traceId,
@@ -29,10 +33,33 @@ public record EventMessage<T>(Header header, Body<T> body) {
       String schemaVersion,
       String origin,
       Instant timestamp,
-      String locale) {
+      String locale,
+      String eventId,
+      String idempotencyKey) {
 
     /** Envelope and schema version used when none is given. */
     public static final String DEFAULT_VERSION = "1.0.0";
+
+    /**
+     * The 9.2 signature: no event id and no idempotency key. Kept for source and binary
+     * compatibility.
+     *
+     * @param traceId the trace id of the work that created the event, or null
+     * @param version the envelope version
+     * @param schemaVersion the payload schema version
+     * @param origin the application that created the event
+     * @param timestamp when the event was created
+     * @param locale the locale of the work that created the event, or null
+     */
+    public Header(
+        String traceId,
+        String version,
+        String schemaVersion,
+        String origin,
+        Instant timestamp,
+        String locale) {
+      this(traceId, version, schemaVersion, origin, timestamp, locale, null, null);
+    }
   }
 
   /**
